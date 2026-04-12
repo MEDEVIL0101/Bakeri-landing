@@ -584,6 +584,16 @@
 
     /* ─── RESPONSIVE ─────────────────────────────────────────── */
     @media (max-width: 900px) {
+      .hero {
+        background-image:
+          linear-gradient(
+            to bottom,
+            rgba(20, 6, 6, 0.55) 0%,
+            rgba(20, 6, 6, 0.72) 100%
+          ),
+          url('site mobile background.jpg');
+        background-attachment: scroll;
+      }
       .hero__h1 { font-size: 3rem; }
       .features__grid { grid-template-columns: repeat(2, 1fr); }
       .feature-card, .feature-card:nth-child(4), .feature-card:nth-child(5) { grid-column: span 1; }
