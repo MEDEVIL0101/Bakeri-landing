@@ -618,7 +618,7 @@
         You started this because you love to create. BAKERI is here to help. 
       </p>
 
-      <form class="hero-form" id="heroForm" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+      <form class="hero-form" id="heroForm">
         <div class="hero-form__row">
           <div class="hero-form__field">
             <label for="hero-name">Your name</label>
@@ -690,7 +690,7 @@
         <p class="sr">We are opening the doors for the first 2,500 Founding Bakers. Secure your early access spot and help us shape the future of Bakeri.</p>
       </div>
       <div class="waitlist__right">
-        <form class="wl-form sr" id="waitlistForm" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+        <form class="wl-form sr" id="waitlistForm">
           <div class="wl-field">
             <label>First Name</label>
             <input type="text" name="name" placeholder="First name" required />
@@ -734,7 +734,14 @@
     </div>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    const { createClient } = supabase;
+    const db = createClient(
+      'https://aqhebjxaynvtvurwedrl.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI'
+    );
+
     /* Nav scroll effect */
     const nav = document.getElementById('nav');
     window.addEventListener('scroll', () => {
@@ -755,24 +762,32 @@
     /* Form logic */
     async function handleFormSubmit(form, successEl) {
       const data = new FormData(form);
+      const name  = data.get('name')  || '';
+      const email = data.get('email') || '';
 
-      if (form.action.includes('YOUR_FORM_ID')) {
-        const n  = encodeURIComponent(data.get('name')  || '');
-        const em = encodeURIComponent(data.get('email') || '');
-        window.location.href = `mailto:hello@bakeri.app?subject=Waitlist%20Sign-Up&body=Name%3A%20${n}%0AEmail%3A%20${em}`;
-        return;
-      }
+      const btn = form.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = 'Joining…';
 
-      try {
-        const res = await fetch(form.action, {
-          method: 'POST', body: data, headers: { Accept: 'application/json' }
-        });
-        if (res.ok) {
+      const { error } = await db.from('waitlist').insert({ name, email });
+
+      if (error) {
+        if (error.code === '23505') {
+          // duplicate email
           form.style.display = 'none';
           successEl.classList.add('is-visible');
           if (successEl.id === 'formSuccess') successEl.style.display = 'block';
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Join the Waitlist →';
+          alert('Something went wrong. Please try again.');
         }
-      } catch { alert('Network error. Please try again.'); }
+        return;
+      }
+
+      form.style.display = 'none';
+      successEl.classList.add('is-visible');
+      if (successEl.id === 'formSuccess') successEl.style.display = 'block';
     }
 
     document.getElementById('heroForm').addEventListener('submit', function(e) {
