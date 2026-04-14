@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bakeri Artisan Program — Founding Baker Application</title>
-  <meta name="description" content="Apply to become a Bakeri Founding Artisan. 100 spots. Lifetime free access. Built for cottage bakers who mean business." />
+  <title>Bakeri — The App for Home Bakers</title>
+  <meta name="description" content="Bakeri is the organized assistant every busy home baker deserves. Recipes, orders, and reminders — beautifully simple." />
   <link rel="icon" href="1024.png" />
   <link rel="apple-touch-icon" href="1024.png" />
 
@@ -578,139 +578,6 @@
     .footer__inner { max-width: 1120px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
     .footer__copy { font-size: .875rem; color: rgba(240,228,208,.3); }
 
-
-
-    .hero__phone {
-      margin-top: 56px;
-      width: 220px;
-      position: relative;
-      z-index: 2;
-      filter: drop-shadow(0 32px 64px rgba(0,0,0,.5));
-      transition: transform .3s ease;
-    }
-    .hero__phone:hover { transform: translateY(-8px); }
-    .hero__phone .phone-shell {
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.2), 0 0 0 1px rgba(0,0,0,.5);
-    }
-
-
-    .hero__phone-top {
-      width: 160px;
-      margin: 0 auto 32px;
-      position: relative;
-      z-index: 2;
-      filter: drop-shadow(0 24px 48px rgba(0,0,0,.5));
-      transition: transform .3s ease;
-    }
-    .hero__phone-top:hover { transform: translateY(-6px); }
-
-    /* ── SCREENSHOTS ── */
-    .screenshots {
-      background: var(--white);
-      padding: var(--section) 40px;
-      overflow: hidden;
-    }
-    .screenshots__inner { max-width: 1120px; margin: 0 auto; text-align: center; }
-    .screenshots__eyebrow { font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--red); margin-bottom: 16px; }
-    .screenshots__h2 { font-family: var(--display); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--red-deep); margin-bottom: 16px; line-height: 1.2; }
-    .screenshots__h2 em { font-style: italic; }
-    .screenshots__sub { font-size: 1.15rem; color: var(--ink-muted); max-width: 520px; margin: 0 auto 64px; line-height: 1.7; }
-    .screenshots__row { display: flex; justify-content: center; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
-
-    .phone-mockup {
-      width: 200px;
-      flex-shrink: 0;
-      transition: transform .3s ease;
-      filter: drop-shadow(0 20px 40px rgba(0,0,0,.22));
-    }
-    .phone-mockup:hover { transform: translateY(-8px); }
-    .phone-mockup--center { width: 228px; transform: translateY(-20px); filter: drop-shadow(0 28px 48px rgba(0,0,0,.28)); }
-    .phone-mockup--center:hover { transform: translateY(-30px); }
-
-    .phone-shell {
-      background: #1c1c1e;
-      border-radius: 38px;
-      padding: 4px;
-      box-shadow:
-        inset 0 0 0 1px rgba(255,255,255,.14),
-        0 0 0 1px rgba(0,0,0,.5);
-      position: relative;
-    }
-
-    .phone-screen {
-      border-radius: 34px;
-      overflow: hidden;
-      position: relative;
-      background: #000;
-      aspect-ratio: 9 / 19.5;
-    }
-    .phone-screen img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: top;
-      display: block;
-    }
-
-    /* Dynamic Island — sized as % so it scales with phone width */
-    .phone-island {
-      position: absolute;
-      top: 4%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 32%;
-      height: 5.5%;
-      background: #000;
-      border-radius: 999px;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding-right: 12%;
-    }
-    .phone-camera {
-      width: 22%;
-      height: 55%;
-      border-radius: 50%;
-      background: #111827;
-      box-shadow: 0 0 0 1px rgba(255,255,255,.06);
-      display: block;
-    }
-
-    /* Subtle glare */
-    .phone-glare {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(255,255,255,.06) 0%, transparent 40%);
-      pointer-events: none;
-      z-index: 5;
-      border-radius: 34px;
-    }
-
-    .phone-caption { margin-top: 16px; font-size: .8rem; font-weight: 700; color: var(--ink-muted); letter-spacing: .06em; text-transform: uppercase; }
-
-    @media (max-width: 900px) {
-      .phone-mockup { width: 155px; }
-      .phone-mockup--center { width: 178px; }
-    }
-    @media (max-width: 600px) {
-      .screenshots__row { flex-direction: column; align-items: center; }
-      .phone-mockup, .phone-mockup--center { width: 230px; transform: none; }
-      .phone-mockup:hover, .phone-mockup--center:hover { transform: translateY(-8px); }
-    }
-
-    @media (max-width: 900px) {
-      .screenshots__row { gap: 16px; }
-      .phone-mockup { width: 160px; }
-      .phone-mockup--center { width: 185px; }
-    }
-
-    @media (max-width: 600px) {
-      .screenshots__row { flex-direction: column; align-items: center; }
-      .phone-mockup, .phone-mockup--center { width: 240px; transform: none; }
-      .phone-mockup--center:hover, .phone-mockup:hover { transform: translateY(-8px); }
-    }
-
     /* ─── ANIMATIONS ─────────────────────────────────────────── */
     .sr { opacity: 0; transform: translateY(22px); transition: opacity .6s ease, transform .6s ease; }
     .sr.visible { opacity: 1; transform: none; }
@@ -744,112 +611,77 @@
         <div class="nav__icon"><img src="1024.png" alt="" /></div>
         <div class="nav__wordmark"><img src="wordmark.png" alt="Bakeri" /></div>
       </a>
-      <a href="#apply" class="nav__cta">Apply Now →</a>
+      <a href="#waitlist" class="nav__cta">Join the Waitlist →</a>
     </div>
   </header>
 
   <section class="hero">
     <div class="hero__content">
-      <div class="hero__phone-top">
-        <div class="phone-shell">
-          <div class="phone-screen">
-            <img src="ss_login.jpg" alt="Bakeri welcome screen" />
-            <div class="phone-island"><span class="phone-camera"></span></div>
-            <div class="phone-glare"></div>
-          </div>
-        </div>
+      <div class="hero__app-icon">
+        <img src="1024.png" alt="Bakeri app icon" />
       </div>
       
-      <div class="hero__eyebrow">100 spots · Lifetime free · By application only</div>
-      <h1 class="hero__h1">The Bakeri<br><em>Artisan Program</em></h1>
+      <div class="hero__eyebrow">Now accepting waitlist sign-ups</div>
+      <h1 class="hero__h1">Love the Baking,<br>Hate the <em>chaos?</h1>
       
       <p class="hero__body">
-      <p class="hero__body">
-        The best bakers we know never planned to be this busy — juggling orders, schedules, and a following that keeps growing. We built Bakeri for them. Now we're giving away 100 free lifetime subscriptions through the Bakeri Artisan Program to home bakers who could use Bakeri most of all. This is your invitation.
+        We've all been there—covered in flour, second-guessing if you doubled the sugar or if that birthday cake is due Thursday or Friday. 
+        You started this because you love to create. BAKERI is here to help. 
       </p>
 
+      <form class="hero-form" id="heroForm">
+        <div class="hero-form__row">
+          <div class="hero-form__field">
+            <label for="hero-name">Your name</label>
+            <input type="text" id="hero-name" name="name" placeholder="First name" required />
+          </div>
+          <div class="hero-form__field">
+            <label for="hero-email">Email address</label>
+            <input type="email" id="hero-email" name="email" placeholder="Email address" required />
+          </div>
+        </div>
+        <button type="submit" class="hero-form__btn">Join the Waitlist &nbsp;→</button>
+        <p class="hero-form__note">No spam. Just your spot in the First Batch.</p>
+      </form>
 
-
-
-
-      <a href="#apply" class="hero-form__btn" style="display:block; text-align:center; max-width:480px; margin:0 auto; padding:20px 24px; text-decoration:none;">Apply for Founding Artisan Access →</a>
-      <p class="hero-form__note" style="margin-top:12px;">Applications reviewed within 48 hours. 100 spots total.</p>
-      <p class="hero-form__note" style="margin-top:8px; opacity:.5;">*Artisan Program only available to users on iPhone and iPad.</p>
+      <div class="hero-form-success" id="heroFormSuccess">
+        <p class="hero-form-success__text">🎉 You're in! We'll be in touch soon.</p>
+      </div>
+    </div>
   </section>
 
   <div class="reveal-band">
-    <h2 class="sr">Purpose-built for the <em>small home bakery.</em></h2>
+    <h2 class="sr"><em>Bakeri</em> is the assistant you deserve</h2>
     <p class="sr">
-      Bakeri was built for the home baker drowning in DMs, sticky notes, and Saturday morning panic. We built the tool we wished existed — and now we're inviting you to put Bakeri to the test yourself.
+      Home bakers balance the kitchen the calendar, and a busy personal life.
+      BAKERI is built around how you actually work, so you can do more in less time. 
     </p>
   </div>
 
-
-<!-- ── SCREENSHOTS SECTION ── -->
-  <section class="screenshots" id="screenshots">
-    <div class="screenshots__inner">
-      <p class="screenshots__eyebrow sr">See it in action</p>
-      <h2 class="screenshots__h2 sr">Your bakery, <em>beautifully organized.</em></h2>
-      <p class="screenshots__sub sr">Recipes, orders, your menu, and your schedule — all in one place. Finally.</p>
-      <div class="screenshots__row">
-        <div class="phone-mockup sr">
-          <div class="phone-shell">
-            <div class="phone-screen">
-              <img src="ss_schedule.jpg" alt="Bakeri schedule" />
-              <div class="phone-island"><span class="phone-camera"></span></div>
-              <div class="phone-glare"></div>
-            </div>
-          </div>
-          <p class="phone-caption">Schedule</p>
-        </div>
-        <div class="phone-mockup phone-mockup--center sr">
-          <div class="phone-shell">
-            <div class="phone-screen">
-              <img src="ss_recipes.jpg" alt="Bakeri recipes" />
-              <div class="phone-island"><span class="phone-camera"></span></div>
-              <div class="phone-glare"></div>
-            </div>
-          </div>
-          <p class="phone-caption">Recipe Vault</p>
-        </div>
-        <div class="phone-mockup sr">
-          <div class="phone-shell">
-            <div class="phone-screen">
-              <img src="ss_orders.jpg" alt="Bakeri orders" />
-              <div class="phone-island"><span class="phone-camera"></span></div>
-              <div class="phone-glare"></div>
-            </div>
-          </div>
-          <p class="phone-caption">Orders</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <section class="features">
     <div class="features__header">
-      <h2 class="section-heading sr">Everything a cottage bakery actually needs.</h2>
-      <p class="section-sub sr">No bloat. No complexity. Just the tools that make running your home bakery feel effortless.</p>
+      <h2 class="section-heading sr">Your Recipes. Your Orders. Your Sanity Back.</h2>
+      <p class="section-sub sr">Focused features that eliminate the chaos, not add to it.</p>
     </div>
     <div class="features__grid">
       <div class="feature-card sr">
-        <h3>The Recipe Vault</h3>
+        <h3>📖 The Recipe Vault</h3>
         <p>Every recipe you've ever perfected, searchable and never lost in a notebook again.</p>
       </div>
       <div class="feature-card sr">
-        <h3>One-Tap Scaling</h3>
+        <h3>⚖️ One-Tap Scaling</h3>
         <p>No more kitchen math. Scale any recipe up or down instantly for any order size.</p>
       </div>
       <div class="feature-card sr">
-        <h3>Smart Task Management</h3>
+        <h3>✅ Smart Task Management</h3>
         <p>Your daily "To-Bake" list, automatically built from your orders to keep you in sync.</p>
       </div>
       <div class="feature-card sr">
-        <h3>Gentle Reminders</h3>
+        <h3>🔔 Gentle Reminders</h3>
         <p>Bakeri nudges you when an order is due so you can stop keeping it all in your head.</p>
       </div>
       <div class="feature-card sr">
-        <h3>Order Tracking</h3>
+        <h3>📦 Order Tracking</h3>
         <p>Track every order from dough to delivery in one clean view.</p>
       </div>
     </div>
@@ -857,24 +689,19 @@
 
   <section class="dark-section">
     <div class="dark-section__inner">
+      <blockquote class="sr">You create with passion. BAKERI helps you create with ease.</blockquote>
+      <p class="sr">Join the waitlist for our First Batch to secure early access and be a part of the new era in cottage bakery management.</p>
     </div>
   </section>
 
-  <section class="waitlist" id="apply">
+  <section class="waitlist" id="waitlist">
     <div class="waitlist__inner">
       <div class="waitlist__left">
-        <h2 class="sr">Apply for<br><em>Founding Artisan</em><br>Access</h2>
-        <div class="sr" style="margin-top:32px; padding:24px; background:rgba(240,228,208,.06); border:1px solid rgba(240,228,208,.12); border-radius:12px;">
-          <p style="color:var(--gold-lt); font-weight:700; font-size:.85rem; text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px;">What you get</p>
-          <ul style="list-style:none; padding:0; display:flex; flex-direction:column; gap:10px;">
-            <li style="color:rgba(240,228,208,.8); font-size:1.05rem;">✦ &nbsp;Lifetime free Pro access</li>
-            <li style="color:rgba(240,228,208,.8); font-size:1.05rem;">✦ &nbsp;Early access before public launch</li>
-            <li style="color:rgba(240,228,208,.8); font-size:1.05rem;">✦ &nbsp;Voice in the product roadmap</li>
-          </ul>
-        </div>
+        <h2 class="sr">Join the<br><em>First Batch</em></h2>
+        <p class="sr">We are opening the doors for the first 2,500 Founding Bakers. Secure your early access spot and help us shape the future of Bakeri.</p>
       </div>
       <div class="waitlist__right">
-        <form class="wl-form sr" id="artisanForm">
+        <form class="wl-form sr" id="waitlistForm">
           <div class="wl-field">
             <label>First Name</label>
             <input type="text" name="name" placeholder="First name" required />
@@ -883,32 +710,10 @@
             <label>Email Address</label>
             <input type="email" name="email" placeholder="Email address" required />
           </div>
-          <div class="wl-field">
-            <label>Instagram or TikTok Handle</label>
-            <input type="text" name="handle" placeholder="@yourbakery" required />
-          </div>
-          <div class="wl-field">
-            <label>Approximate Followers</label>
-            <select name="followers" required style="width:100%; background:rgba(0,0,0,.2); border:1px solid rgba(240,228,208,.15); padding:16px; border-radius:8px; color:var(--white); font-family:var(--sans); font-size:1.1rem; appearance:none; cursor:pointer;">
-              <option value="" disabled selected style="color:#888;">Select a range</option>
-              <option value="under_1k">Under 1,000</option>
-              <option value="1k_5k">1,000 – 5,000</option>
-              <option value="5k_15k">5,000 – 15,000</option>
-              <option value="15k_50k">15,000 – 50,000</option>
-              <option value="50k_plus">50,000+</option>
-            </select>
-          </div>
-          <div class="wl-field">
-            <label>Tell us about your home bakery <span style="opacity:.5; font-weight:400; text-transform:none;">(one sentence)</span></label>
-            <textarea name="bio" placeholder="e.g. I run a custom cake and cookie business out of my home kitchen in Toronto, taking about 15 orders a month." required style="width:100%; background:rgba(0,0,0,.2); border:1px solid rgba(240,228,208,.15); padding:16px; border-radius:8px; color:var(--white); font-family:var(--sans); font-size:1.05rem; resize:vertical; min-height:90px; line-height:1.6;"></textarea>
-          </div>
-          <button type="submit" class="btn-submit">Submit Application →</button>
-          <p style="text-align:center; margin-top:14px; font-size:.9rem; color:rgba(240,228,208,.4);">We're selecting 100 cottage bakers for lifetime free Pro access. Tell us a little about your bakery and we'll be in touch within 48 hours. We review every application personally.</p>
+          <button type="submit" class="btn-submit">Join the Waitlist →</button>
         </form>
-        <div id="artisanSuccess" style="display:none; text-align:center; padding:48px 24px;">
-          <div style="font-size:3rem; margin-bottom:16px;">🥐</div>
-          <h3 style="color:var(--gold-lt); font-family:var(--display); font-size:2rem; font-style:italic; margin-bottom:16px;">Application received!</h3>
-          <p style="color:rgba(240,228,208,.7); font-size:1.1rem; line-height:1.7;">We'll review it and get back to you within 48 hours. Keep doing what you do best — we'll be in touch.</p>
+        <div id="formSuccess" style="display:none; text-align:center; padding:40px;">
+          <h3 style="color:var(--gold-lt); font-family:var(--display); font-size:2rem; font-style:italic;">🎉 See you in the kitchen!</h3>
         </div>
       </div>
     </div>
@@ -916,18 +721,18 @@
 
   <section class="pricing">
     <div class="pricing__grid">
-      <div class="price-cell" style="background:rgba(201,150,58,.08); border-color:rgba(201,150,58,.2);">
-        <div class="price-cell__label" style="color:var(--gold-lt);">Founding Artisan</div>
-        <div class="price-cell__amount">Free</div>
-        <div class="price-cell__note">Lifetime. No card. No catch. 100 spots only.</div>
+      <div class="price-cell">
+        <div class="price-cell__label">The Trial</div>
+        <div class="price-cell__amount">$0</div>
+        <div class="price-cell__note">First 30 Days free for the First Batch</div>
       </div>
       <div class="price-cell">
         <div class="price-cell__label">Monthly</div>
         <div class="price-cell__amount">$4.99</div>
-        <div class="price-cell__note">After launch. Billed monthly. Cancel anytime.</div>
+        <div class="price-cell__note">Billed monthly. Cancel anytime.</div>
       </div>
       <div class="price-cell">
-        <div class="price-cell__label">6-Month</div>
+        <div class="price-cell__label">6-month</div>
         <div class="price-cell__amount">$24.99</div>
         <div class="price-cell__note">6 months for the price of 5.</div>
       </div>
@@ -936,7 +741,7 @@
 
   <footer class="footer">
     <div class="footer__inner">
-      <div class="footer__copy">&copy; 2026 Bakeri. Built for cottage bakers who mean business.</div>
+      <div class="footer__copy">&copy; 2026 Bakeri App. Built for Home Bakers.</div>
     </div>
   </footer>
 
@@ -996,37 +801,14 @@
       if (successEl.id === 'formSuccess') successEl.style.display = 'block';
     }
 
-    document.getElementById('artisanForm').addEventListener('submit', async function(e) {
+    document.getElementById('heroForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      const formData = new FormData(this);
-      const btn = this.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      btn.textContent = 'Submitting…';
+      handleFormSubmit(this, document.getElementById('heroFormSuccess'));
+    });
 
-      const payload = {
-        name: formData.get('name'),
-        email: formData.get('email'),
-        handle: formData.get('handle'),
-        followers: formData.get('followers'),
-        bio: formData.get('bio'),
-      };
-
-      const { error } = await db.from('artisan_applications').insert(payload);
-
-      if (error) {
-        if (error.code === '23505') {
-          this.style.display = 'none';
-          document.getElementById('artisanSuccess').style.display = 'block';
-        } else {
-          btn.disabled = false;
-          btn.textContent = 'Submit Application →';
-          alert('Something went wrong. Please try again.');
-        }
-        return;
-      }
-
-      this.style.display = 'none';
-      document.getElementById('artisanSuccess').style.display = 'block';
+    document.getElementById('waitlistForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      handleFormSubmit(this, document.getElementById('formSuccess'));
     });
   </script>
 </body>
