@@ -994,7 +994,7 @@
       if (error && error.code !== '23505') {
         btn.disabled = false;
         btn.textContent = 'Redeem Invitation →';
-        alert('Something went wrong. Please try again.');
+        alert('Error: ' + error.message + ' (code: ' + error.code + ')');
         return;
       }
       this.style.display = 'none';
