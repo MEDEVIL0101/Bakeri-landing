@@ -925,27 +925,8 @@
     </div>
   </footer>
 
-  <!-- Access gate -->
-  <div id="accessGate" style="display:none; position:fixed; inset:0; z-index:9999; background:var(--cream); font-family:var(--sans); flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px;">
-    <div style="width:56px; height:56px; border-radius:14px; overflow:hidden; margin-bottom:24px; box-shadow:0 4px 16px rgba(0,0,0,.15);">
-      <img src="1024.png" style="width:100%; height:100%; object-fit:cover;" />
-    </div>
-    <p style="font-family:'Playfair Display',Georgia,serif; font-size:1.6rem; font-weight:700; color:var(--red-deep); margin-bottom:12px;">This page is invitation only.</p>
-    <p style="font-size:1rem; color:var(--ink-muted); max-width:360px; line-height:1.6;">If you received an invitation, please use the link that was sent to you.</p>
-  </div>
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    /* ── Access gate ── */
-    const VALID_TOKEN = 'artisan-xk9m2p';
-    const ref = new URLSearchParams(window.location.search).get('ref');
-    if (ref !== VALID_TOKEN) {
-      document.getElementById('accessGate').style.display = 'flex';
-      document.body.style.overflow = 'hidden';
-      // Hide all page content behind the gate
-      document.querySelectorAll('body > *:not(#accessGate)').forEach(el => el.style.visibility = 'hidden');
-    }
-
     const { createClient } = supabase;
     const db = createClient(
       'https://aqhebjxaynvtvurwedrl.supabase.co',
