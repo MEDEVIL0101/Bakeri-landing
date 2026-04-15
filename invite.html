@@ -990,7 +990,6 @@
       const { error } = await db.from('invite_applications').insert({
         name: formData.get('name'),
         email: formData.get('email'),
-        source: 'personal_invite',
       });
       if (error && error.code !== '23505') {
         btn.disabled = false;
