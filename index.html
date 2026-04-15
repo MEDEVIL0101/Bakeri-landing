@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bakeri Artisan Program — Founding Baker Application</title>
-  <meta name="description" content="Apply to become a Bakeri Founding Artisan. 100 spots. Lifetime free access. Built for cottage bakers who mean business." />
+  <meta name="description" content="Apply to become a Bakeri Founding Artisan. 100 spots. 6 months free. Built for cottage bakers who mean business." />
   <link rel="icon" href="1024.png" />
   <link rel="apple-touch-icon" href="1024.png" />
 
@@ -606,25 +606,23 @@
 
     /* ── SCREENSHOTS ── */
     .screenshots {
-      background: var(--white);
+      background: var(--cream);
       padding: var(--section) 40px;
-      overflow: hidden;
     }
     .screenshots__inner { max-width: 1120px; margin: 0 auto; text-align: center; }
     .screenshots__eyebrow { font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--red); margin-bottom: 16px; }
     .screenshots__h2 { font-family: var(--display); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--red-deep); margin-bottom: 16px; line-height: 1.2; }
     .screenshots__h2 em { font-style: italic; }
     .screenshots__sub { font-size: 1.15rem; color: var(--ink-muted); max-width: 520px; margin: 0 auto 64px; line-height: 1.7; }
-    .screenshots__row { display: flex; justify-content: center; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+    .screenshots__row { display: flex; justify-content: center; align-items: flex-end; gap: 24px; flex-wrap: nowrap; }
 
     .phone-mockup {
       width: 200px;
       flex-shrink: 0;
       transition: transform .3s ease;
-      filter: drop-shadow(0 20px 40px rgba(0,0,0,.22));
     }
     .phone-mockup:hover { transform: translateY(-8px); }
-    .phone-mockup--center { width: 228px; transform: translateY(-20px); filter: drop-shadow(0 28px 48px rgba(0,0,0,.28)); }
+    .phone-mockup--center { width: 228px; transform: translateY(-20px); }
     .phone-mockup--center:hover { transform: translateY(-30px); }
 
     .phone-shell {
@@ -633,7 +631,8 @@
       padding: 4px;
       box-shadow:
         inset 0 0 0 1px rgba(255,255,255,.14),
-        0 0 0 1px rgba(0,0,0,.5);
+        0 0 0 1px rgba(0,0,0,.5),
+        0 20px 40px rgba(0,0,0,.22);
       position: relative;
     }
 
@@ -694,9 +693,15 @@
       .phone-mockup--center { width: 178px; }
     }
     @media (max-width: 600px) {
-      .screenshots__row { flex-direction: column; align-items: center; }
-      .phone-mockup, .phone-mockup--center { width: 230px; transform: none; }
-      .phone-mockup:hover, .phone-mockup--center:hover { transform: translateY(-8px); }
+      .screenshots__row { gap: 4px; padding: 0 4px; }
+      .phone-mockup { width: 25%; flex-shrink: 1; }
+      .phone-mockup--center { width: 34%; flex-shrink: 1; transform: translateY(-10px); }
+      .phone-mockup--center:hover { transform: translateY(-16px); }
+      .phone-mockup:hover { transform: translateY(-4px); }
+      .phone-caption { font-size: .55rem; }
+      .phone-shell { border-radius: 24px; }
+      .phone-screen { border-radius: 20px; }
+      .phone-glare { border-radius: 20px; }
     }
 
     @media (max-width: 900px) {
@@ -705,11 +710,7 @@
       .phone-mockup--center { width: 185px; }
     }
 
-    @media (max-width: 600px) {
-      .screenshots__row { flex-direction: column; align-items: center; }
-      .phone-mockup, .phone-mockup--center { width: 240px; transform: none; }
-      .phone-mockup--center:hover, .phone-mockup:hover { transform: translateY(-8px); }
-    }
+    
 
     /* ─── ANIMATIONS ─────────────────────────────────────────── */
     .sr { opacity: 0; transform: translateY(22px); transition: opacity .6s ease, transform .6s ease; }
@@ -760,12 +761,12 @@
         </div>
       </div>
       
-      <div class="hero__eyebrow">100 spots · Lifetime free · By application only</div>
+      <div class="hero__eyebrow">100 spots · 6 months free · By application only</div>
       <h1 class="hero__h1">The Bakeri<br><em>Artisan Program</em></h1>
       
       <p class="hero__body">
       <p class="hero__body">
-        The best bakers we know never planned to be this busy — juggling orders, schedules, and a following that keeps growing. We built Bakeri for them. Now we're giving away 100 free lifetime subscriptions through the Bakeri Artisan Program to home bakers who could use Bakeri most of all. This is your invitation.
+        The best bakers we know never planned to be this busy — juggling orders, schedules, and a following that keeps growing. We built Bakeri for them. Now we're giving away 6 months free through the Bakeri Artisan Program to home bakers who could use Bakeri most of all. This is your invitation.
       </p>
 
 
@@ -867,7 +868,7 @@
         <div class="sr" style="margin-top:32px; padding:24px; background:rgba(240,228,208,.06); border:1px solid rgba(240,228,208,.12); border-radius:12px;">
           <p style="color:var(--gold-lt); font-weight:700; font-size:.85rem; text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px;">What you get</p>
           <ul style="list-style:none; padding:0; display:flex; flex-direction:column; gap:10px;">
-            <li style="color:rgba(240,228,208,.8); font-size:1.05rem;">✦ &nbsp;Lifetime free Pro access</li>
+            <li style="color:rgba(240,228,208,.8); font-size:1.05rem;">✦ &nbsp;6 months free Pro access</li>
             <li style="color:rgba(240,228,208,.8); font-size:1.05rem;">✦ &nbsp;Early access before public launch</li>
             <li style="color:rgba(240,228,208,.8); font-size:1.05rem;">✦ &nbsp;Voice in the product roadmap</li>
           </ul>
@@ -902,15 +903,6 @@
             <label>Tell us about your home bakery <span style="opacity:.5; font-weight:400; text-transform:none;">(one sentence)</span></label>
             <textarea name="bio" placeholder="e.g. I run a custom cake and cookie business out of my home kitchen in Toronto, taking about 15 orders a month." required style="width:100%; background:rgba(0,0,0,.2); border:1px solid rgba(240,228,208,.15); padding:16px; border-radius:8px; color:var(--white); font-family:var(--sans); font-size:1.05rem; resize:vertical; min-height:90px; line-height:1.6;"></textarea>
           </div>
-          <button type="submit" class="btn-submit">Submit Application →</button>
-          <p style="text-align:center; margin-top:14px; font-size:.9rem; color:rgba(240,228,208,.4);">We're selecting 100 cottage bakers for lifetime free Pro access. Tell us a little about your bakery and we'll be in touch within 48 hours. We review every application personally.</p>
-        </form>
-        <div id="artisanSuccess" style="display:none; text-align:center; padding:48px 24px;">
-          <div style="font-size:3rem; margin-bottom:16px;">🥐</div>
-          <h3 style="color:var(--gold-lt); font-family:var(--display); font-size:2rem; font-style:italic; margin-bottom:16px;">Application received!</h3>
-          <p style="color:rgba(240,228,208,.7); font-size:1.1rem; line-height:1.7;">We'll review it and get back to you within 48 hours. Keep doing what you do best — we'll be in touch.</p>
-        </div>
-      </div>
     </div>
   </section>
 
@@ -919,7 +911,7 @@
       <div class="price-cell" style="background:rgba(201,150,58,.08); border-color:rgba(201,150,58,.2);">
         <div class="price-cell__label" style="color:var(--gold-lt);">Founding Artisan</div>
         <div class="price-cell__amount">Free</div>
-        <div class="price-cell__note">Lifetime. No card. No catch. 100 spots only.</div>
+        <div class="price-cell__note">6 months free. No card. No catch. 100 spots only.</div>
       </div>
       <div class="price-cell">
         <div class="price-cell__label">Monthly</div>
