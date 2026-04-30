@@ -1,5 +1,6 @@
 # Secrets — never commit API keys
 Bakerly/Bakerly/Bakeri/Config/Secrets.swift
+Bakerly/Bakerly/Bakeri/Config/AnthropicConfig.swift
 
 # Xcode
 *.xcuserstate
