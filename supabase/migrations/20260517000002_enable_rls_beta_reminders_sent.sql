@@ -1,0 +1,1 @@
+ALTER TABLE beta_reminders_sent ENABLE ROW LEVEL SECURITY;

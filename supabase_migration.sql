@@ -142,6 +142,7 @@ create policy "Users manage own densities"
 -- ── Profiles ──────────────────────────────────────────────────
 create table if not exists public.profiles (
   id            uuid primary key references auth.users on delete cascade,
+  email         text not null default '',
   user_name     text not null default '',
   business_name text not null default '',
   updated_at    timestamptz not null default now()
@@ -149,3 +150,6 @@ create table if not exists public.profiles (
 alter table public.profiles enable row level security;
 create policy "Users manage own profile"
   on public.profiles for all using (auth.uid() = id);
+
+-- Run this if the profiles table already exists in your project:
+-- alter table public.profiles add column if not exists email text not null default '';
