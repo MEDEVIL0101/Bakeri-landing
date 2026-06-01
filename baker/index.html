@@ -418,18 +418,18 @@
     document.querySelector('meta[name="description"]').content =
       name + ' — handcrafted bakes on Bakeri. ' + (profile.bio || '');
 
-    // Avatar
-    const logoURL = STORAGE_URL + '/business-logos/' + profile.id + '/logo.jpg';
+    // Avatar — path uses uppercase UUID (Swift uploads with UUID.uuidString which is uppercase)
+    const logoURL = STORAGE_URL + '/business-logos/' + profile.id.toUpperCase() + '/logo.jpg';
     const avatarEl = document.getElementById('avatar');
-    const img = new Image();
-    img.onload = function () {
-      avatarEl.innerHTML = '';
-      const i = document.createElement('img');
-      i.src = logoURL;
-      i.alt = name;
-      avatarEl.appendChild(i);
+    const avatarImg = document.createElement('img');
+    avatarImg.alt = name;
+    avatarImg.style.cssText = 'width:100%;height:100%;object-fit:cover;display:none;';
+    avatarImg.onload = function () {
+      avatarImg.style.display = '';
+      document.getElementById('avatar-letter').style.display = 'none';
     };
-    img.src = logoURL;
+    avatarImg.src = logoURL;
+    avatarEl.appendChild(avatarImg);
     document.getElementById('avatar-letter').textContent = name.charAt(0).toUpperCase();
 
     document.getElementById('baker-name').textContent = name;
@@ -463,21 +463,28 @@
         const card = document.createElement('div');
         card.className = 'listing-card';
 
-        // Image
-        const imgURL = STORAGE_URL + '/menu-item-images/' + profile.id + '/' + item.id + '.jpg';
-        const imgEl = new Image();
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'listing-img-placeholder';
-        imgContainer.textContent = categoryEmoji(item.category);
-        imgEl.onload = function () {
-          const i = document.createElement('img');
-          i.src = imgURL;
-          i.className = 'listing-img';
-          i.alt = item.name;
-          card.replaceChild(i, imgContainer);
+        // Image — paths use uppercase UUIDs (Swift uploads with UUID.uuidString)
+        const imgURL = STORAGE_URL + '/menu-item-images/' + profile.id.toUpperCase() + '/' + item.id.toUpperCase() + '.jpg';
+        const imgCell = document.createElement('div');
+        imgCell.style.cssText = 'width:90px;height:90px;flex-shrink:0;overflow:hidden;position:relative;';
+
+        const imgPlaceholder = document.createElement('div');
+        imgPlaceholder.className = 'listing-img-placeholder';
+        imgPlaceholder.textContent = categoryEmoji(item.category);
+
+        const imgTag = document.createElement('img');
+        imgTag.className = 'listing-img';
+        imgTag.alt = item.name;
+        imgTag.style.display = 'none';
+        imgTag.onload = function () {
+          imgPlaceholder.style.display = 'none';
+          imgTag.style.display = '';
         };
-        imgEl.src = imgURL;
-        card.appendChild(imgContainer);
+        imgTag.src = imgURL;
+
+        imgCell.appendChild(imgPlaceholder);
+        imgCell.appendChild(imgTag);
+        card.appendChild(imgCell);
 
         // Body
         const body = document.createElement('div');
