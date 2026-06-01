@@ -13,16 +13,16 @@
 
   <style>
     :root {
-      --cream:    #FAF5EE;
-      --cream-2:  #F3EAD8;
-      --cream-3:  #E9DAC4;
-      --ink:      #1A0808;
-      --ink-2:    #3A1212;
-      --muted:    #8C7B6E;
-      --gold:     #C9963A;
-      --gold-lt:  #E5BB74;
-      --display:  'Playfair Display', Georgia, serif;
-      --sans:     'Nunito', system-ui, sans-serif;
+      --cream:   #FAF5EE;
+      --cream-2: #F3EAD8;
+      --cream-3: #E9DAC4;
+      --ink:     #1A0808;
+      --ink-2:   #3A1212;
+      --muted:   #8C7B6E;
+      --gold:    #C9963A;
+      --green:   #4CAF82;
+      --display: 'Playfair Display', Georgia, serif;
+      --sans:    'Nunito', system-ui, sans-serif;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -36,37 +36,38 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 32px 20px;
+      padding: 32px 16px 48px;
       -webkit-font-smoothing: antialiased;
     }
 
-    .card {
+    /* ── Wordmark ── */
+    .wordmark {
+      font-family: var(--display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 24px;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── Profile card ── */
+    .profile-card {
       width: 100%;
-      max-width: 420px;
+      max-width: 480px;
       background: #fff;
-      border-radius: 28px;
+      border-radius: 24px;
       box-shadow: 0 8px 40px rgba(26,8,8,0.10), 0 2px 8px rgba(26,8,8,0.06);
-      padding: 48px 36px 40px;
-      text-align: center;
+      padding: 36px 28px 28px;
       display: flex;
       flex-direction: column;
       align-items: center;
+      text-align: center;
       gap: 0;
     }
 
-    .wordmark {
-      font-family: var(--display);
-      font-size: 1.5rem;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      color: var(--ink);
-      margin-bottom: 32px;
-    }
-
     .avatar {
-      width: 88px;
-      height: 88px;
+      width: 84px;
+      height: 84px;
       border-radius: 50%;
       background: var(--cream-2);
       border: 2px solid var(--cream-3);
@@ -76,26 +77,52 @@
       font-family: var(--display);
       font-size: 2rem;
       color: var(--muted);
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       overflow: hidden;
+      flex-shrink: 0;
     }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-    .handle {
-      font-family: var(--sans);
-      font-size: 1.05rem;
+    .baker-name {
+      font-family: var(--display);
+      font-size: 1.5rem;
       font-weight: 700;
       color: var(--ink);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
 
-    .tagline {
-      font-family: var(--sans);
-      font-size: 0.88rem;
+    .baker-meta {
+      font-size: 0.85rem;
       color: var(--muted);
-      margin-bottom: 36px;
+      margin-bottom: 12px;
     }
 
-    .btn-primary {
+    .baker-bio {
+      font-size: 0.9rem;
+      color: var(--ink-2);
+      line-height: 1.55;
+      margin-bottom: 14px;
+      max-width: 360px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      margin-bottom: 22px;
+    }
+    .tag {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--cream-2);
+      border-radius: 50px;
+      padding: 4px 11px;
+    }
+
+    /* ── Open button ── */
+    .btn-open {
       display: block;
       width: 100%;
       background: var(--ink);
@@ -103,36 +130,124 @@
       font-family: var(--sans);
       font-size: 1rem;
       font-weight: 700;
-      padding: 15px 24px;
+      padding: 14px 24px;
       border-radius: 50px;
       border: none;
       cursor: pointer;
       text-decoration: none;
       transition: background 0.18s, transform 0.12s;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
-    .btn-primary:hover { background: #3a1212; transform: translateY(-1px); }
-    .btn-primary:active { transform: translateY(0); }
+    .btn-open:hover { background: #3a1212; transform: translateY(-1px); }
+    .btn-open:active { transform: translateY(0); }
 
-    .btn-secondary {
-      display: block;
+    .status-msg {
+      font-size: 0.8rem;
+      color: var(--muted);
+      min-height: 16px;
+      margin-bottom: 4px;
+    }
+
+    /* ── Listings ── */
+    .listings-section {
       width: 100%;
-      background: transparent;
-      color: var(--ink);
-      font-family: var(--sans);
-      font-size: 0.92rem;
-      font-weight: 600;
-      padding: 13px 24px;
-      border-radius: 50px;
-      border: 1.5px solid var(--cream-3);
-      cursor: pointer;
-      text-decoration: none;
-      transition: border-color 0.18s, background 0.18s;
+      max-width: 480px;
+      margin-top: 24px;
     }
-    .btn-secondary:hover { border-color: var(--muted); background: var(--cream); }
 
+    .listings-title {
+      font-family: var(--display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 14px;
+    }
+
+    .listing-card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(26,8,8,0.07);
+      overflow: hidden;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: stretch;
+    }
+
+    .listing-img {
+      width: 90px;
+      height: 90px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: var(--cream-2);
+    }
+
+    .listing-img-placeholder {
+      width: 90px;
+      height: 90px;
+      background: var(--cream-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    .listing-body {
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .listing-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--ink);
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .listing-desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .listing-footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .listing-price {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 50px;
+      letter-spacing: 0.03em;
+    }
+    .badge-ready  { background: #d4f0e4; color: #2a7a55; }
+    .badge-pre    { background: #fef3d4; color: #8a6200; }
+    .badge-custom { background: #e8e8ff; color: #4040a0; }
+
+    /* ── Divider ── */
     .divider {
       width: 100%;
+      max-width: 480px;
       display: flex;
       align-items: center;
       gap: 12px;
@@ -145,80 +260,88 @@
       background: var(--cream-3);
     }
     .divider span {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--muted);
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: 0.05em;
     }
 
-    .app-store-row {
+    /* ── App Store ── */
+    .store-row {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
-      width: 100%;
+      gap: 6px;
     }
+    .store-badge { height: 42px; width: auto; }
 
-    .app-store-badge {
-      height: 44px;
-      width: auto;
-    }
-
+    /* ── Footer ── */
     .footer {
-      margin-top: 32px;
-      font-size: 0.78rem;
+      margin-top: 28px;
+      font-size: 0.75rem;
       color: var(--muted);
       text-align: center;
     }
     .footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
 
-    .status-msg {
-      font-size: 0.82rem;
-      color: var(--muted);
-      margin-top: 14px;
-      min-height: 18px;
-      transition: opacity 0.3s;
+    /* ── Skeleton ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--cream-2) 25%, var(--cream-3) 50%, var(--cream-2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 8px;
     }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ── Not found ── */
+    .not-found { text-align: center; color: var(--muted); margin-top: 40px; }
+    .not-found h2 { font-family: var(--display); font-size: 1.3rem; margin-bottom: 8px; color: var(--ink); }
 
     @media (prefers-color-scheme: dark) {
-      body { background: #0e0808; }
-      .card { background: #1a1010; box-shadow: 0 8px 40px rgba(0,0,0,0.4); }
-      .wordmark { color: var(--cream); }
-      .handle { color: var(--cream); }
-      .avatar { background: #2a1a1a; border-color: #3a2020; }
-      .btn-primary { background: var(--cream); color: var(--ink); }
-      .btn-primary:hover { background: var(--cream-2); }
-      .btn-secondary { border-color: #3a2020; color: var(--cream); }
-      .btn-secondary:hover { background: #2a1a1a; border-color: #5a3a3a; }
+      body         { background: #0e0808; }
+      .profile-card, .listing-card { background: #1a1010; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+      .wordmark    { color: var(--cream); }
+      .baker-name  { color: var(--cream); }
+      .listing-name { color: var(--cream); }
+      .listing-price { color: var(--cream); }
+      .listings-title { color: var(--cream); }
+      .avatar, .listing-img-placeholder { background: #2a1a1a; border-color: #3a2020; }
+      .btn-open    { background: var(--cream); color: var(--ink); }
+      .btn-open:hover { background: var(--cream-2); }
+      .tag         { background: #2a1a1a; }
       .divider::before, .divider::after { background: #3a2020; }
     }
   </style>
 </head>
 <body>
 
-<div class="card">
-  <div class="wordmark">Bakeri</div>
+<div class="wordmark">Bakeri</div>
 
-  <div class="avatar" id="avatar">🧁</div>
-
-  <div class="handle" id="handle-display">@baker</div>
-  <div class="tagline" id="tagline">View this baker's profile on Bakeri</div>
-
-  <a class="btn-primary" id="open-btn" href="#">Open in Bakeri</a>
-
+<!-- Profile card (populated by JS) -->
+<div class="profile-card" id="profile-card">
+  <div class="avatar" id="avatar"><span id="avatar-letter">🧁</span></div>
+  <div class="baker-name" id="baker-name" style="min-width:160px;min-height:28px;"></div>
+  <div class="baker-meta" id="baker-meta"></div>
+  <div class="baker-bio"  id="baker-bio"></div>
+  <div class="tags"       id="tags"></div>
+  <button class="btn-open" id="open-btn">Open in Bakeri</button>
   <div class="status-msg" id="status-msg"></div>
+</div>
 
-  <div class="divider"><span>DON'T HAVE THE APP?</span></div>
+<!-- Listings (populated by JS) -->
+<div class="listings-section" id="listings-section" style="display:none;">
+  <div class="listings-title">Menu</div>
+  <div id="listings-list"></div>
+</div>
 
-  <div class="app-store-row">
-    <a href="https://apps.apple.com/app/bakeri/id6745506861" id="store-link">
-      <img
-        class="app-store-badge"
-        src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
-        alt="Download on the App Store"
-      />
-    </a>
-  </div>
+<!-- App Store fallback -->
+<div class="divider" id="divider" style="max-width:480px;width:100%;"><span>DON'T HAVE THE APP?</span></div>
+<div class="store-row">
+  <a href="https://apps.apple.com/app/bakeri/id6745506861">
+    <img class="store-badge"
+         src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+         alt="Download on the App Store" />
+  </a>
 </div>
 
 <div class="footer">
@@ -227,57 +350,206 @@
 </div>
 
 <script>
-  (function () {
-    // Extract handle from query param ?h=sweethavenbakery
-    const params  = new URLSearchParams(window.location.search);
-    const handle  = (params.get('h') || '').trim().replace(/^@/, '');
+(function () {
+  const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
+  const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const STORAGE_URL  = SUPABASE_URL + '/storage/v1/object/public';
 
-    if (!handle) {
-      document.getElementById('handle-display').textContent = 'Baker not found';
-      document.getElementById('tagline').textContent = 'This link appears to be invalid.';
-      document.getElementById('open-btn').style.display = 'none';
+  const params = new URLSearchParams(window.location.search);
+  const handle = (params.get('h') || '').trim().replace(/^@/, '');
+
+  if (!handle) {
+    showNotFound('No baker specified', 'This link appears to be invalid.');
+    return;
+  }
+
+  // Deep link
+  const deepLink = 'bakeri://baker/' + encodeURIComponent(handle);
+  const openBtn  = document.getElementById('open-btn');
+  const statusMsg = document.getElementById('status-msg');
+
+  openBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    attemptDeepLink();
+  });
+
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    attemptDeepLink();
+  }
+
+  function attemptDeepLink() {
+    statusMsg.textContent = 'Opening Bakeri…';
+    window.location.href = deepLink;
+    setTimeout(function () {
+      statusMsg.textContent = 'App not installed? Download below ↓';
+    }, 1800);
+  }
+
+  // Fetch baker data
+  fetch(SUPABASE_URL + '/rest/v1/rpc/get_baker_web_profile', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': ANON_KEY
+    },
+    body: JSON.stringify({ p_handle: handle })
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    if (!data || !data.profile) {
+      showNotFound('Baker not found', 'No baker with this handle exists on Bakeri.');
       return;
     }
+    renderProfile(data.profile, data.listings || []);
+  })
+  .catch(function () {
+    showNotFound('Something went wrong', 'Could not load this profile. Try again later.');
+  });
 
-    // Update UI with handle info
-    const displayHandle = '@' + handle;
-    document.title = displayHandle + ' on Bakeri';
+  function renderProfile(profile, listings) {
+    const name     = profile.business_name || profile.user_name || handle;
+    const location = [profile.pickup_city, profile.pickup_province].filter(Boolean).join(', ')
+                  || profile.location || '';
+    const metaParts = [];
+    if (profile.community_handle) metaParts.push('@' + profile.community_handle);
+    if (location) metaParts.push(location);
+
+    // Page title + meta
+    document.title = name + ' on Bakeri';
     document.querySelector('meta[name="description"]').content =
-      'View ' + displayHandle + "'s profile on Bakeri — the home baker community.";
-    document.getElementById('handle-display').textContent = displayHandle;
-    document.getElementById('tagline').textContent =
-      'View their bakes, menu, and posts on Bakeri.';
+      name + ' — handcrafted bakes on Bakeri. ' + (profile.bio || '');
 
-    // Avatar initial
-    document.getElementById('avatar').textContent = handle.charAt(0).toUpperCase();
+    // Avatar
+    const logoURL = STORAGE_URL + '/business-logos/' + profile.id + '/logo.jpg';
+    const avatarEl = document.getElementById('avatar');
+    const img = new Image();
+    img.onload = function () {
+      avatarEl.innerHTML = '';
+      const i = document.createElement('img');
+      i.src = logoURL;
+      i.alt = name;
+      avatarEl.appendChild(i);
+    };
+    img.src = logoURL;
+    document.getElementById('avatar-letter').textContent = name.charAt(0).toUpperCase();
 
-    // Deep link URL
-    const deepLink = 'bakeri://baker/' + encodeURIComponent(handle);
+    document.getElementById('baker-name').textContent = name;
+    document.getElementById('baker-meta').textContent = metaParts.join(' · ');
 
-    // Wire up open button
-    const openBtn   = document.getElementById('open-btn');
-    const statusMsg = document.getElementById('status-msg');
+    const bioEl = document.getElementById('baker-bio');
+    if (profile.bio) {
+      bioEl.textContent = profile.bio;
+    } else {
+      bioEl.style.display = 'none';
+    }
 
-    openBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      attemptDeepLink();
+    const tagsEl = document.getElementById('tags');
+    (profile.specialty_tags || []).forEach(function (tag) {
+      const span = document.createElement('span');
+      span.className = 'tag';
+      span.textContent = tag;
+      tagsEl.appendChild(span);
     });
-
-    // Auto-attempt on load for mobile
-    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-      attemptDeepLink();
+    if (!profile.specialty_tags || !profile.specialty_tags.length) {
+      tagsEl.style.display = 'none';
     }
 
-    function attemptDeepLink() {
-      statusMsg.textContent = 'Opening Bakeri…';
-      window.location.href = deepLink;
+    // Listings
+    if (listings.length > 0) {
+      const section = document.getElementById('listings-section');
+      section.style.display = 'block';
+      const list = document.getElementById('listings-list');
 
-      // If still here after 1.8s, the app isn't installed
-      setTimeout(function () {
-        statusMsg.textContent = 'App not installed? Download below.';
-      }, 1800);
+      listings.forEach(function (item) {
+        const card = document.createElement('div');
+        card.className = 'listing-card';
+
+        // Image
+        const imgURL = STORAGE_URL + '/menu-item-images/' + profile.id + '/' + item.id + '.jpg';
+        const imgEl = new Image();
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'listing-img-placeholder';
+        imgContainer.textContent = categoryEmoji(item.category);
+        imgEl.onload = function () {
+          const i = document.createElement('img');
+          i.src = imgURL;
+          i.className = 'listing-img';
+          i.alt = item.name;
+          card.replaceChild(i, imgContainer);
+        };
+        imgEl.src = imgURL;
+        card.appendChild(imgContainer);
+
+        // Body
+        const body = document.createElement('div');
+        body.className = 'listing-body';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'listing-name';
+        nameEl.textContent = item.name;
+        body.appendChild(nameEl);
+
+        if (item.item_description) {
+          const desc = document.createElement('div');
+          desc.className = 'listing-desc';
+          desc.textContent = item.item_description;
+          body.appendChild(desc);
+        }
+
+        const footer = document.createElement('div');
+        footer.className = 'listing-footer';
+
+        const price = document.createElement('span');
+        price.className = 'listing-price';
+        price.textContent = 'From $' + parseFloat(item.price).toFixed(2);
+        footer.appendChild(price);
+
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + kindBadgeClass(item.listing_kind);
+        badge.textContent = kindLabel(item.listing_kind);
+        footer.appendChild(badge);
+
+        if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) {
+          const qty = document.createElement('span');
+          qty.style.cssText = 'font-size:0.72rem;color:var(--muted);margin-left:auto;';
+          qty.textContent = item.available_qty_today + ' left today';
+          footer.appendChild(qty);
+        }
+
+        body.appendChild(footer);
+        card.appendChild(body);
+        list.appendChild(card);
+      });
     }
-  })();
+  }
+
+  function kindBadgeClass(kind) {
+    if (kind === 'ready_now') return 'badge-ready';
+    if (kind === 'preorder')  return 'badge-pre';
+    return 'badge-custom';
+  }
+
+  function kindLabel(kind) {
+    if (kind === 'ready_now') return 'Ready Now';
+    if (kind === 'preorder')  return 'Pre-order';
+    return 'Custom';
+  }
+
+  function categoryEmoji(cat) {
+    const map = {
+      'Cakes': '🎂', 'Cookies': '🍪', 'Bread': '🍞', 'Pastries': '🥐',
+      'Cupcakes': '🧁', 'Pies': '🥧', 'Donuts': '🍩', 'Macarons': '🫶',
+      'Muffins': '🧁', 'Bars': '🍫'
+    };
+    return map[cat] || '🍰';
+  }
+
+  function showNotFound(title, subtitle) {
+    document.getElementById('profile-card').innerHTML =
+      '<div class="not-found"><h2>' + title + '</h2><p>' + subtitle + '</p></div>';
+    document.getElementById('listings-section').style.display = 'none';
+  }
+})();
 </script>
 </body>
 </html>
