@@ -42,13 +42,12 @@
 
     /* ── Wordmark ── */
     .wordmark {
-      font-family: var(--display);
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: var(--ink);
+      height: 32px;
+      width: auto;
       margin-bottom: 24px;
-      letter-spacing: 0.02em;
+      display: block;
     }
+    @media (prefers-color-scheme: dark) { .wordmark { filter: invert(1); } }
 
     /* ── Profile card ── */
     .profile-card {
@@ -320,7 +319,7 @@
 </head>
 <body>
 
-<div class="wordmark">Bakeri</div>
+<img class="wordmark" src="../wordmark.png" alt="Bakeri" />
 
 <!-- Profile card (populated by JS) -->
 <div class="profile-card" id="profile-card">
@@ -360,16 +359,18 @@
   const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
   const STORAGE_URL  = SUPABASE_URL + '/storage/v1/object/public';
 
-  const params  = new URLSearchParams(window.location.search);
-  const bakerID = (params.get('id') || '').trim();
+  const params   = new URLSearchParams(window.location.search);
+  const slug     = (params.get('slug') || '').trim().toLowerCase();
+  const bakerID  = (params.get('id')   || '').trim();
 
-  if (!bakerID) {
+  if (!slug && !bakerID) {
     showNotFound('No baker specified', 'This link appears to be invalid.');
     return;
   }
 
-  // Deep link — uses UUID so the app navigates directly without a handle lookup
-  const deepLink  = 'bakeri://baker/' + encodeURIComponent(bakerID);
+  // Deep link — slug preferred (human-readable); UUID as fallback
+  const deepLinkSegment = slug || bakerID;
+  const deepLink  = 'bakeri://baker/' + encodeURIComponent(deepLinkSegment);
   const openBtn   = document.getElementById('open-btn');
   const statusMsg = document.getElementById('status-msg');
 
@@ -390,19 +391,22 @@
     }, 1800);
   }
 
-  // Fetch baker data
-  fetch(SUPABASE_URL + '/rest/v1/rpc/get_baker_web_profile_by_id', {
+  // Fetch baker data — slug lookup preferred, UUID fallback
+  var rpcName = slug ? 'get_baker_web_profile_by_slug' : 'get_baker_web_profile_by_id';
+  var rpcBody = slug ? { p_slug: slug } : { p_user_id: bakerID };
+
+  fetch(SUPABASE_URL + '/rest/v1/rpc/' + rpcName, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'apikey': ANON_KEY
     },
-    body: JSON.stringify({ p_user_id: bakerID })
+    body: JSON.stringify(rpcBody)
   })
   .then(function (r) { return r.json(); })
   .then(function (data) {
     if (!data || !data.profile) {
-      showNotFound('Baker not found', 'No baker with this ID exists on Bakeri.');
+      showNotFound('Baker not found', 'No baker found at this link.');
       return;
     }
     renderProfile(data.profile, data.listings || []);
