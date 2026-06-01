@@ -171,7 +171,12 @@
       margin-bottom: 12px;
       display: flex;
       align-items: stretch;
+      cursor: pointer;
+      transition: transform 0.12s, box-shadow 0.12s;
+      -webkit-tap-highlight-color: transparent;
     }
+    .listing-card:hover  { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(26,8,8,0.12); }
+    .listing-card:active { transform: translateY(0);    box-shadow: 0 2px 12px rgba(26,8,8,0.07); }
 
     .listing-img {
       width: 90px;
@@ -462,6 +467,7 @@
       listings.forEach(function (item) {
         const card = document.createElement('div');
         card.className = 'listing-card';
+        card.addEventListener('click', attemptDeepLink);
 
         // Image — paths use uppercase UUIDs (Swift uploads with UUID.uuidString)
         const imgURL = STORAGE_URL + '/menu-item-images/' + profile.id.toUpperCase() + '/' + item.id.toUpperCase() + '.jpg';
