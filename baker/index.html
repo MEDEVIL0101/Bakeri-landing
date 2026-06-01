@@ -355,17 +355,17 @@
   const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
   const STORAGE_URL  = SUPABASE_URL + '/storage/v1/object/public';
 
-  const params = new URLSearchParams(window.location.search);
-  const handle = (params.get('h') || '').trim().replace(/^@/, '');
+  const params  = new URLSearchParams(window.location.search);
+  const bakerID = (params.get('id') || '').trim();
 
-  if (!handle) {
+  if (!bakerID) {
     showNotFound('No baker specified', 'This link appears to be invalid.');
     return;
   }
 
-  // Deep link
-  const deepLink = 'bakeri://baker/' + encodeURIComponent(handle);
-  const openBtn  = document.getElementById('open-btn');
+  // Deep link — uses UUID so the app navigates directly without a handle lookup
+  const deepLink  = 'bakeri://baker/' + encodeURIComponent(bakerID);
+  const openBtn   = document.getElementById('open-btn');
   const statusMsg = document.getElementById('status-msg');
 
   openBtn.addEventListener('click', function (e) {
@@ -386,18 +386,18 @@
   }
 
   // Fetch baker data
-  fetch(SUPABASE_URL + '/rest/v1/rpc/get_baker_web_profile', {
+  fetch(SUPABASE_URL + '/rest/v1/rpc/get_baker_web_profile_by_id', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'apikey': ANON_KEY
     },
-    body: JSON.stringify({ p_handle: handle })
+    body: JSON.stringify({ p_user_id: bakerID })
   })
   .then(function (r) { return r.json(); })
   .then(function (data) {
     if (!data || !data.profile) {
-      showNotFound('Baker not found', 'No baker with this handle exists on Bakeri.');
+      showNotFound('Baker not found', 'No baker with this ID exists on Bakeri.');
       return;
     }
     renderProfile(data.profile, data.listings || []);
@@ -407,11 +407,10 @@
   });
 
   function renderProfile(profile, listings) {
-    const name     = profile.business_name || profile.user_name || handle;
+    const name     = profile.business_name || profile.user_name || 'Baker';
     const location = [profile.pickup_city, profile.pickup_province].filter(Boolean).join(', ')
                   || profile.location || '';
     const metaParts = [];
-    if (profile.community_handle) metaParts.push('@' + profile.community_handle);
     if (location) metaParts.push(location);
 
     // Page title + meta
