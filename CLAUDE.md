@@ -18,7 +18,7 @@ Owner: Diana. This is a separate project from Tradehire — do not mix contexts.
 - `SupabaseManager.shared` — single `SupabaseClient`; reads from `BakeriSecrets`
 - `ProfileService.shared` — fetch/save remote profile (name, bakery, onboarding flag)
 - `SyncService.shared` — full data sync (recipes, orders, tasks, menu items) from Supabase
-- `StoreKitManager` — subscription status; paywall currently bypassed (`paywallBypassed = true`)
+- `StoreKitManager` — subscription status; social features always free, baker tools gated in-app via StoreKit
 - `TimerStore.shared` — baking timers
 - `RecipeAIService` — Claude API integration for AI recipe suggestions
 - `NotificationService.shared` — local push notifications
@@ -29,9 +29,13 @@ Owner: Diana. This is a separate project from Tradehire — do not mix contexts.
 All registered in `BakeriApp.modelContainer`. Adding a new model requires adding it to the `Schema([...])` array.
 
 ## Navigation
-`MainTabView.swift` — 4 tabs: Schedule, Orders, Recipes, Calculator
+`MainTabView.swift` — ZStack switching between social tabs (Discover, Bakers, Activity) and tools tabs (Schedule, Orders, Recipes, Calculator).
+- `AppNavigationStore.shared.toolsActive` drives the switch; premium gate fires `onChange` and shows PaywallView if not subscribed
+- Social tabs own their avatar toolbar button — MainTabView does NOT add external toolbar items for them
+- Baker tools accessible via the avatar icon → AccountSwitcherView → "Open Baker Tools"
 Auth flow: `AuthView` → email/password or magic link → `bakeri://login-callback` deep link → `ContentBootstrapper`
 Password reset: `bakeri://reset-password` deep link → `AuthService.shared.needsPasswordReset = true`
+Onboarding: two-path — "Set up my bakery" (full name+bakery) or "Continue as guest" (display name only)
 
 ## Theme & Colors
 All colors defined in `Theme/BakeriTheme.swift` as `Color` extensions — never use raw hex in views.
@@ -69,7 +73,6 @@ Never commit this file. A `.swift.template` equivalent should exist for new dev 
 - Must be linked: `supabase link --project-ref aqhebjxaynvtvurwedrl`
 
 ## Known State
-- Paywall bypassed: `paywallBypassed = true` in `ContentBootstrapper` — remove before App Store submission
 - Duplicate `Views/Auth` and `Views/Auth 2` folders exist — likely a Xcode copy artifact; check before editing auth views
 - Supabase migrations live as `.sql` files in the root bakerly folder (not in a `supabase/` subdirectory)
 

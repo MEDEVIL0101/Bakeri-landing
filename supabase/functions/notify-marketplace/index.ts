@@ -28,7 +28,12 @@ Deno.serve(async (req: Request) => {
   const payload: NotifyPayload = await req.json();
   const { recipient_user_id, recipient_user_id_2, title, body, data } = payload;
 
-  const targets = [recipient_user_id, recipient_user_id_2].filter(Boolean) as string[];
+  // OneSignal external_id is registered via OneSignal.login(uuid.uuidString) in Swift,
+  // which produces uppercase UUIDs. Postgres serialises UUIDs as lowercase in JSON,
+  // so we must uppercase here to match the registered subscriber.
+  const targets = [recipient_user_id, recipient_user_id_2]
+    .filter(Boolean)
+    .map((uid) => (uid as string).toUpperCase());
 
   const results = await Promise.all(targets.map(async (uid) => {
     const res = await fetch("https://onesignal.com/api/v1/notifications", {
