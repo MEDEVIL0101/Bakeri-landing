@@ -586,13 +586,9 @@ a { color: inherit; text-decoration: none; }
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  const { createClient } = supabase;
-  const db = createClient(
-    'https://aqhebjxaynvtvurwedrl.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI'
-  );
+  const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
 
   const nav = document.getElementById('nav');
   const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 8);
@@ -669,28 +665,35 @@ a { color: inherit; text-decoration: none; }
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting…';
 
-    const { error } = await db.from('vendor_applications').insert({
-      bakery_name: document.getElementById('f-bakery').value.trim(),
-      first_name: document.getElementById('f-first').value.trim(),
-      last_name: document.getElementById('f-last').value.trim(),
-      email,
-      phone,
-      bake_types: bakeTypes,
-      social_url: document.getElementById('f-social').value.trim(),
-      attest_self_made: boxes[0].checked,
-      attest_compliant: boxes[1].checked,
-    });
-
-    if (error) {
-      if (error.code === '23505') {
-        // Duplicate email: they've already applied — treat as success.
-      } else if (error.code === 'P0001') {
-        showError(error.message || 'Too many applications submitted recently. Please try again later.');
-        return;
-      } else {
-        showError('Something went wrong. Please check your details and try again.');
+    let result;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/submit-vendor-application`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          bakery_name: document.getElementById('f-bakery').value.trim(),
+          first_name: document.getElementById('f-first').value.trim(),
+          last_name: document.getElementById('f-last').value.trim(),
+          email,
+          phone,
+          bake_types: bakeTypes,
+          social_url: document.getElementById('f-social').value.trim(),
+          attest_self_made: boxes[0].checked,
+          attest_compliant: boxes[1].checked,
+        }),
+      });
+      result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(result.error || 'Something went wrong. Please check your details and try again.');
         return;
       }
+    } catch {
+      showError('Something went wrong. Please check your details and try again.');
+      return;
     }
 
     submitBtn.classList.add('done');

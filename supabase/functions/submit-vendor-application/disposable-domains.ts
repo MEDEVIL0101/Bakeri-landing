@@ -1,0 +1,37 @@
+// Known disposable/temporary email providers. Not exhaustive — new ones
+// appear constantly — but catches the common ones people reach for to throw
+// away an application without using a real inbox. Paired with the MX-record
+// check in index.ts, which catches domains that don't exist at all.
+export const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  "mailinator.com", "mailinator.net", "mailinator.org",
+  "guerrillamail.com", "guerrillamail.info", "guerrillamail.biz",
+  "guerrillamail.de", "guerrillamail.net", "guerrillamail.org",
+  "guerrillamailblock.com", "sharklasers.com", "grr.la", "spam4.me",
+  "10minutemail.com", "10minutemail.net", "10minutemail.co.za", "20minutemail.com",
+  "temp-mail.org", "temp-mail.io", "tempmail.com", "tempmail.net",
+  "tempinbox.com", "tempinbox.co", "fakeinbox.com", "fakemailgenerator.com",
+  "throwawaymail.com", "throwaway.email", "yopmail.com", "yopmail.fr", "yopmail.net",
+  "trashmail.com", "trashmail.net", "trash-mail.com", "trashmail.me", "trashmail.org",
+  "wegwerfmail.de", "wegwerfmail.net", "wegwerfmail.org",
+  "dispostable.com", "mailnesia.com", "mailcatch.com", "mailnull.com",
+  "spamgourmet.com", "spambog.com", "spamex.com", "mytrashmail.com",
+  "mintemail.com", "moakt.com", "moakt.co", "mohmal.com",
+  "emailondeck.com", "getnada.com", "getairmail.com", "inboxbear.com",
+  "maildrop.cc", "meltmail.com", "minutemail.com", "spoofmail.de",
+  "tempail.com", "tempemail.co", "tempemail.net", "tempemail.com",
+  "tempmailaddress.com", "tempmail.de", "tempr.email", "tempsky.com",
+  "discardmail.com", "discardmail.de", "incognitomail.com", "jetable.org",
+  "mailtemp.info", "mytemp.email", "no-spam.ws", "noclickemail.com",
+  "nowmymail.com", "objectmail.com", "proxymail.eu", "rcpt.at",
+  "safe-mail.net", "sendspamhere.com", "sogetthis.com", "spambox.us",
+  "superrito.com", "tafmail.com", "trbvm.com", "tyldd.com",
+  "veryrealemail.com", "viditag.com", "zippymail.info", "byom.de",
+  "harakirimail.com", "letthemeatspam.com", "binkmail.com", "bobmail.info",
+  "chogmail.com", "emailfake.com", "fakeinbox.net", "fakemail.net",
+  "mailslite.com", "mvrht.net", "mvrht.com", "0-mail.com",
+  "anonaddy.me", "burnermail.io", "dropmail.me", "e4ward.com",
+  "einrot.com", "emailtemporario.com.br", "fakemailz.com", "instant-mail.de",
+  "koszmail.pl", "mailforspam.com", "mailimate.com", "moburl.com",
+  "muellmail.com", "nada.email", "spamfree24.org", "tempmailo.com",
+  "throam.com", "vomoto.com", "zetmail.com",
+]);
