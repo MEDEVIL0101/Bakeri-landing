@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bakeri</title>
+  <meta name="description" content="View this baker's profile on Bakeri." />
+  <link rel="icon" href="../1024.png" />
+  <link rel="apple-touch-icon" href="../1024.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Nunito:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --cream:   #FAF5EE;
+      --cream-2: #F3EAD8;
+      --cream-3: #E9DAC4;
+      --ink:     #1A0808;
+      --ink-2:   #3A1212;
+      --muted:   #8C7B6E;
+      --gold:    #C9963A;
+      --green:   #4CAF82;
+      --display: 'Playfair Display', Georgia, serif;
+      --sans:    'Nunito', system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 48px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Wordmark ── */
+    .wordmark {
+      height: 32px;
+      width: auto;
+      margin-bottom: 24px;
+      display: block;
+    }
+    @media (prefers-color-scheme: dark) { .wordmark { filter: invert(1); } }
+
+    /* ── Profile card ── */
+    .profile-card {
+      width: 100%;
+      max-width: 480px;
+      background: #fff;
+      border-radius: 24px;
+      box-shadow: 0 8px 40px rgba(26,8,8,0.10), 0 2px 8px rgba(26,8,8,0.06);
+      padding: 36px 28px 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 0;
+    }
+
+    .avatar {
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      background: var(--cream-2);
+      border: 2px solid var(--cream-3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--display);
+      font-size: 2rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+    .baker-name {
+      font-family: var(--display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .baker-meta {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .baker-bio {
+      font-size: 0.9rem;
+      color: var(--ink-2);
+      line-height: 1.55;
+      margin-bottom: 14px;
+      max-width: 360px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      margin-bottom: 22px;
+    }
+    .tag {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--cream-2);
+      border-radius: 50px;
+      padding: 4px 11px;
+    }
+
+    /* ── Open button ── */
+    .btn-open {
+      display: block;
+      width: 100%;
+      background: var(--ink);
+      color: #fff;
+      font-family: var(--sans);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 14px 24px;
+      border-radius: 50px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.18s, transform 0.12s;
+      margin-bottom: 10px;
+    }
+    .btn-open:hover { background: #3a1212; transform: translateY(-1px); }
+    .btn-open:active { transform: translateY(0); }
+
+    .status-msg {
+      font-size: 0.8rem;
+      color: var(--muted);
+      min-height: 16px;
+      margin-bottom: 4px;
+    }
+
+    /* ── Listings ── */
+    .listings-section {
+      width: 100%;
+      max-width: 480px;
+      margin-top: 24px;
+    }
+
+    .listings-title {
+      font-family: var(--display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 14px;
+    }
+
+    .listing-card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(26,8,8,0.07);
+      overflow: hidden;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: stretch;
+      cursor: pointer;
+      transition: transform 0.12s, box-shadow 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .listing-card:hover  { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(26,8,8,0.12); }
+    .listing-card:active { transform: translateY(0);    box-shadow: 0 2px 12px rgba(26,8,8,0.07); }
+
+    .listing-img {
+      width: 90px;
+      height: 90px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: var(--cream-2);
+    }
+
+    .listing-img-placeholder {
+      width: 90px;
+      height: 90px;
+      background: var(--cream-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    .listing-body {
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .listing-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--ink);
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .listing-desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .listing-footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .listing-price {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 50px;
+      letter-spacing: 0.03em;
+    }
+    .badge-ready  { background: #d4f0e4; color: #2a7a55; }
+    .badge-pre    { background: #fef3d4; color: #8a6200; }
+    .badge-custom { background: #e8e8ff; color: #4040a0; }
+
+    /* ── Divider ── */
+    .divider {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--cream-3);
+    }
+    .divider span {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── App Store ── */
+    .store-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .store-badge { height: 42px; width: auto; }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 28px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+
+    /* ── Skeleton ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--cream-2) 25%, var(--cream-3) 50%, var(--cream-2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 8px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ── Not found ── */
+    .not-found { text-align: center; color: var(--muted); margin-top: 40px; }
+    .not-found h2 { font-family: var(--display); font-size: 1.3rem; margin-bottom: 8px; color: var(--ink); }
+
+    @media (prefers-color-scheme: dark) {
+      body         { background: #0e0808; }
+      .profile-card, .listing-card { background: #1a1010; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+      .wordmark    { color: var(--cream); }
+      .baker-name  { color: var(--cream); }
+      .listing-name { color: var(--cream); }
+      .listing-price { color: var(--cream); }
+      .listings-title { color: var(--cream); }
+      .avatar, .listing-img-placeholder { background: #2a1a1a; border-color: #3a2020; }
+      .btn-open    { background: var(--cream); color: var(--ink); }
+      .btn-open:hover { background: var(--cream-2); }
+      .tag         { background: #2a1a1a; }
+      .divider::before, .divider::after { background: #3a2020; }
+    }
+  </style>
+</head>
+<body>
+
+<img class="wordmark" src="../wordmark.png" alt="Bakeri" />
+
+<!-- Profile card (populated by JS) -->
+<div class="profile-card" id="profile-card">
+  <div class="avatar" id="avatar"><span id="avatar-letter">🧁</span></div>
+  <div class="baker-name" id="baker-name" style="min-width:160px;min-height:28px;"></div>
+  <div class="baker-meta" id="baker-meta"></div>
+  <div class="baker-bio"  id="baker-bio"></div>
+  <div class="tags"       id="tags"></div>
+  <button class="btn-open" id="open-btn">Open in Bakeri</button>
+  <div class="status-msg" id="status-msg"></div>
+</div>
+
+<!-- Listings (populated by JS) -->
+<div class="listings-section" id="listings-section" style="display:none;">
+  <div class="listings-title">Menu</div>
+  <div id="listings-list"></div>
+</div>
+
+<!-- App Store fallback -->
+<div class="divider" id="divider" style="max-width:480px;width:100%;"><span>DON'T HAVE THE APP?</span></div>
+<div class="store-row">
+  <a href="https://apps.apple.com/app/bakeri/id6745506861">
+    <img class="store-badge"
+         src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+         alt="Download on the App Store" />
+  </a>
+</div>
+
+<div class="footer">
+  <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
+  <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+</div>
+
+<script>
+(function () {
+  const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
+  const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const STORAGE_URL  = SUPABASE_URL + '/storage/v1/object/public';
+
+  const params   = new URLSearchParams(window.location.search);
+  const slug     = (params.get('slug') || '').trim().toLowerCase();
+  const bakerID  = (params.get('id')   || '').trim();
+
+  if (!slug && !bakerID) {
+    showNotFound('No baker specified', 'This link appears to be invalid.');
+    return;
+  }
+
+  // Deep link — slug preferred (human-readable); UUID as fallback
+  const deepLinkSegment = slug || bakerID;
+  const deepLink  = 'bakeri://baker/' + encodeURIComponent(deepLinkSegment);
+  const openBtn   = document.getElementById('open-btn');
+  const statusMsg = document.getElementById('status-msg');
+
+  openBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    attemptDeepLink();
+  });
+
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    attemptDeepLink();
+  }
+
+  function attemptDeepLink() {
+    statusMsg.textContent = 'Opening Bakeri…';
+    window.location.href = deepLink;
+    setTimeout(function () {
+      statusMsg.textContent = 'App not installed? Download below ↓';
+    }, 1800);
+  }
+
+  // Fetch baker data — slug lookup preferred, UUID fallback
+  var rpcName = slug ? 'get_baker_web_profile_by_slug' : 'get_baker_web_profile_by_id';
+  var rpcBody = slug ? { p_slug: slug } : { p_user_id: bakerID };
+
+  fetch(SUPABASE_URL + '/rest/v1/rpc/' + rpcName, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': ANON_KEY
+    },
+    body: JSON.stringify(rpcBody)
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    if (!data || !data.profile) {
+      showNotFound('Baker not found', 'No baker found at this link.');
+      return;
+    }
+    renderProfile(data.profile, data.listings || []);
+  })
+  .catch(function () {
+    showNotFound('Something went wrong', 'Could not load this profile. Try again later.');
+  });
+
+  function renderProfile(profile, listings) {
+    const name     = profile.business_name || profile.user_name || 'Baker';
+    const location = [profile.pickup_city, profile.pickup_province].filter(Boolean).join(', ')
+                  || profile.location || '';
+    const metaParts = [];
+    if (location) metaParts.push(location);
+
+    // Page title + meta
+    document.title = name + ' on Bakeri';
+    document.querySelector('meta[name="description"]').content =
+      name + ' — handcrafted bakes on Bakeri. ' + (profile.bio || '');
+
+    // Avatar — path uses uppercase UUID (Swift uploads with UUID.uuidString which is uppercase)
+    const logoURL = STORAGE_URL + '/business-logos/' + profile.id.toUpperCase() + '/logo.jpg';
+    const avatarEl = document.getElementById('avatar');
+    const avatarImg = document.createElement('img');
+    avatarImg.alt = name;
+    avatarImg.style.cssText = 'width:100%;height:100%;object-fit:cover;display:none;';
+    avatarImg.onload = function () {
+      avatarImg.style.display = '';
+      document.getElementById('avatar-letter').style.display = 'none';
+    };
+    avatarImg.src = logoURL;
+    avatarEl.appendChild(avatarImg);
+    document.getElementById('avatar-letter').textContent = name.charAt(0).toUpperCase();
+
+    document.getElementById('baker-name').textContent = name;
+    document.getElementById('baker-meta').textContent = metaParts.join(' · ');
+
+    const bioEl = document.getElementById('baker-bio');
+    if (profile.bio) {
+      bioEl.textContent = profile.bio;
+    } else {
+      bioEl.style.display = 'none';
+    }
+
+    const tagsEl = document.getElementById('tags');
+    (profile.specialty_tags || []).forEach(function (tag) {
+      const span = document.createElement('span');
+      span.className = 'tag';
+      span.textContent = tag;
+      tagsEl.appendChild(span);
+    });
+    if (!profile.specialty_tags || !profile.specialty_tags.length) {
+      tagsEl.style.display = 'none';
+    }
+
+    // Listings
+    if (listings.length > 0) {
+      const section = document.getElementById('listings-section');
+      section.style.display = 'block';
+      const list = document.getElementById('listings-list');
+
+      listings.forEach(function (item) {
+        const card = document.createElement('div');
+        card.className = 'listing-card';
+        card.addEventListener('click', attemptDeepLink);
+
+        // Image — paths use uppercase UUIDs (Swift uploads with UUID.uuidString)
+        const imgURL = STORAGE_URL + '/menu-item-images/' + profile.id.toUpperCase() + '/' + item.id.toUpperCase() + '.jpg';
+        const imgCell = document.createElement('div');
+        imgCell.style.cssText = 'width:90px;height:90px;flex-shrink:0;overflow:hidden;position:relative;';
+
+        const imgPlaceholder = document.createElement('div');
+        imgPlaceholder.className = 'listing-img-placeholder';
+        imgPlaceholder.textContent = categoryEmoji(item.category);
+
+        const imgTag = document.createElement('img');
+        imgTag.className = 'listing-img';
+        imgTag.alt = item.name;
+        imgTag.style.display = 'none';
+        imgTag.onload = function () {
+          imgPlaceholder.style.display = 'none';
+          imgTag.style.display = '';
+        };
+        imgTag.src = imgURL;
+
+        imgCell.appendChild(imgPlaceholder);
+        imgCell.appendChild(imgTag);
+        card.appendChild(imgCell);
+
+        // Body
+        const body = document.createElement('div');
+        body.className = 'listing-body';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'listing-name';
+        nameEl.textContent = item.name;
+        body.appendChild(nameEl);
+
+        if (item.item_description) {
+          const desc = document.createElement('div');
+          desc.className = 'listing-desc';
+          desc.textContent = item.item_description;
+          body.appendChild(desc);
+        }
+
+        const footer = document.createElement('div');
+        footer.className = 'listing-footer';
+
+        const price = document.createElement('span');
+        price.className = 'listing-price';
+        price.textContent = 'From $' + parseFloat(item.price).toFixed(2);
+        footer.appendChild(price);
+
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + kindBadgeClass(item.listing_kind);
+        badge.textContent = kindLabel(item.listing_kind);
+        footer.appendChild(badge);
+
+        if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) {
+          const qty = document.createElement('span');
+          qty.style.cssText = 'font-size:0.72rem;color:var(--muted);margin-left:auto;';
+          qty.textContent = item.available_qty_today + ' left today';
+          footer.appendChild(qty);
+        }
+
+        body.appendChild(footer);
+        card.appendChild(body);
+        list.appendChild(card);
+      });
+    }
+  }
+
+  function kindBadgeClass(kind) {
+    if (kind === 'ready_now') return 'badge-ready';
+    if (kind === 'preorder')  return 'badge-pre';
+    return 'badge-custom';
+  }
+
+  function kindLabel(kind) {
+    if (kind === 'ready_now') return 'Ready Now';
+    if (kind === 'preorder')  return 'Pre-order';
+    return 'Custom';
+  }
+
+  function categoryEmoji(cat) {
+    const map = {
+      'Cakes': '🎂', 'Cookies': '🍪', 'Bread': '🍞', 'Pastries': '🥐',
+      'Cupcakes': '🧁', 'Pies': '🥧', 'Donuts': '🍩', 'Macarons': '🫶',
+      'Muffins': '🧁', 'Bars': '🍫'
+    };
+    return map[cat] || '🍰';
+  }
+
+  function showNotFound(title, subtitle) {
+    document.getElementById('profile-card').innerHTML =
+      '<div class="not-found"><h2>' + title + '</h2><p>' + subtitle + '</p></div>';
+    document.getElementById('listings-section').style.display = 'none';
+  }
+})();
+</script>
+</body>
+</html>
