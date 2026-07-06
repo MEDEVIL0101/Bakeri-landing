@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Application received — Bakerï</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: #f3ecdd;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: #2c2530;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrapper { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      padding: 36px 40px 32px;
+      background-color: #fffeec;
+      border-radius: 8px 8px 0 0;
+      border-bottom: 1px solid #ece3d5;
+    }
+    .wordmark { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; color: #14110e; }
+    .wordmark span { color: #e15b81; }
+    .tagline {
+      font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+      color: #c9466c; margin-top: 10px; font-weight: 700;
+    }
+
+    /* ── Hero band ── */
+    .hero { background-color: #e15b81; padding: 44px 48px; text-align: left; }
+    .hero-badge {
+      display: inline-block; background-color: rgba(255,255,255,0.2); color: #ffffff;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+      padding: 5px 14px; border-radius: 999px; margin-bottom: 18px;
+    }
+    .hero h1 { font-size: 32px; font-weight: 800; line-height: 1.25; letter-spacing: -0.01em; color: #ffffff; margin-bottom: 0; }
+
+    /* ── Body ── */
+    .body { background-color: #ffffff; padding: 48px 48px 40px; }
+    p { font-size: 16px; line-height: 1.8; color: #5e5560; margin-bottom: 20px; }
+    p strong { color: #2c2530; }
+
+    /* ── Application summary ── */
+    .summary { background-color: #ffe2e9; border-left: 3px solid #e15b81; border-radius: 0 10px 10px 0; padding: 16px 20px; margin: 28px 0; }
+    .summary p { margin: 0; font-size: 14px; color: #2c2530; font-weight: 500; line-height: 1.65; }
+    .summary p + p { margin-top: 6px; }
+    .summary strong { color: #c9466c; }
+
+    /* ── Steps ── */
+    .steps { margin: 36px 0; background-color: #fbf7ef; border-radius: 16px; padding: 28px 28px 8px; border: 1px solid #ece3d5; }
+    .step-table { width: 100%; margin-bottom: 24px; border-collapse: collapse; }
+    .step-number-cell { width: 42px; vertical-align: top; padding-top: 1px; padding-right: 14px; }
+    .step-number {
+      display: inline-block; width: 30px; height: 30px; background-color: #e15b81; color: #ffffff;
+      border-radius: 50%; font-size: 13px; font-weight: 700; text-align: center; line-height: 30px;
+    }
+    .step-title { font-size: 15px; font-weight: 700; color: #2c2530; margin-bottom: 4px; }
+    .step-desc { font-size: 14px; line-height: 1.65; color: #5e5560; margin: 0 0 6px; }
+
+    /* ── CTA ── */
+    .cta-section { text-align: center; margin: 36px 0; padding: 36px 32px; background-color: #c9466c; border-radius: 16px; }
+    .cta-section h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; color: #ffffff; margin-bottom: 8px; }
+    .cta-section p { font-size: 15px; color: rgba(255,255,255,0.8); margin-bottom: 24px; }
+    .cta-button {
+      display: inline-block; background-color: #5ce1e6; color: #14110e !important; text-decoration: none;
+      font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 15px 34px; border-radius: 999px;
+    }
+    .cta-note { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 14px; margin-bottom: 0; line-height: 1.6; }
+
+    /* ── Divider ── */
+    .divider { border: none; border-top: 1px solid #ece3d5; margin: 32px 0; }
+
+    /* ── Sign-off ── */
+    .signoff-table { width: 100%; border-collapse: collapse; margin-top: 28px; }
+    .signoff-photo-cell { width: 72px; vertical-align: middle; padding-right: 16px; }
+    .signoff-photo-cell img {
+      width: 64px; height: 64px; border-radius: 50%; object-fit: cover; object-position: center 15%;
+      border: 2px solid #e15b81; display: block;
+    }
+    .signoff-name { font-size: 15px; font-weight: 700; color: #2c2530; margin: 0 0 2px; }
+    .signoff-title { font-size: 13px; color: #9a8c98; font-weight: 500; margin: 0; }
+
+    /* ── Footer ── */
+    .footer { background-color: #14110e; border-radius: 0 0 8px 8px; padding: 28px 48px; text-align: center; }
+    .footer p { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 6px; line-height: 1.6; }
+    .footer p:last-child { margin-bottom: 0; }
+    .footer a { color: #e79bb0; text-decoration: none; }
+
+    @media (max-width: 480px) {
+      .hero { padding: 36px 28px; }
+      .body { padding: 36px 28px 32px; }
+      .hero h1 { font-size: 26px; }
+      .cta-section { padding: 28px 20px; }
+      .footer { padding: 24px 28px; }
+      .steps { padding: 24px 20px 4px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="wordmark">Baker<span>ï</span></div>
+      <div class="tagline">For Bakers</div>
+    </div>
+
+    <!-- Hero band -->
+    <div class="hero">
+      <div class="hero-badge">Application received</div>
+      <h1>Thanks for applying, {{first_name}}.</h1>
+    </div>
+
+    <!-- Body -->
+    <div class="body">
+
+      <p>
+        I'm Diana, the founder of Bakerï. Thank you for applying to bring <strong>{{bakery_name}}</strong>
+        onto the platform — I read every application myself, so it may take a few days to get back to you.
+      </p>
+
+      <div class="summary">
+        <p><strong>Bakery:</strong> {{bakery_name}}</p>
+        <p><strong>What you bake:</strong> {{bake_types}}</p>
+      </div>
+
+      <!-- Steps -->
+      <div class="steps">
+
+        <table class="step-table">
+          <tr>
+            <td class="step-number-cell"><span class="step-number">1</span></td>
+            <td>
+              <div class="step-title">We review your application</div>
+              <p class="step-desc">I look at your bakery, your socials, and what you bake to make sure it's a good fit for Bakerï.</p>
+            </td>
+          </tr>
+        </table>
+
+        <table class="step-table">
+          <tr>
+            <td class="step-number-cell"><span class="step-number">2</span></td>
+            <td>
+              <div class="step-title">We reach out</div>
+              <p class="step-desc">If you're a fit, I'll email you at this address within a few days to get you set up as a vendor.</p>
+            </td>
+          </tr>
+        </table>
+
+        <table class="step-table">
+          <tr>
+            <td class="step-number-cell"><span class="step-number">3</span></td>
+            <td>
+              <div class="step-title">You start selling</div>
+              <p class="step-desc">Once approved, you'll be able to list ready-now items, take pre-orders, and manage custom orders on Bakerï.</p>
+            </td>
+          </tr>
+        </table>
+
+      </div>
+
+      <!-- CTA -->
+      <div class="cta-section">
+        <h2>While you wait</h2>
+        <p>Follow along for a peek behind the counter at other bakeries on Bakerï.</p>
+        <a class="cta-button" href="https://instagram.com/bakeriapp">Follow @bakeriapp →</a>
+        <p class="cta-note">We'll be in your inbox the moment your application is reviewed.</p>
+      </div>
+
+      <hr class="divider"/>
+
+      <p>
+        If anything about your application changes in the meantime — your bakery name, contact info,
+        or what you bake — just reply to this email and let me know.
+      </p>
+
+      <p>Thank you so much for applying.</p>
+
+      <!-- Sign-off -->
+      <table class="signoff-table">
+        <tr>
+          <td class="signoff-photo-cell">
+            <img
+              src="https://aqhebjxaynvtvurwedrl.supabase.co/storage/v1/object/public/assets/Diana%20Headshot.jpeg"
+              alt="Diana"
+            />
+          </td>
+          <td>
+            <p class="signoff-name">Diana</p>
+            <p class="signoff-title">Founder, Bakerï</p>
+          </td>
+        </tr>
+      </table>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>
+        You're receiving this because you applied to become a vendor at
+        <a href="https://bakeriapp.com">bakeriapp.com</a>.
+      </p>
+      <p>
+        Questions? Reply to this email or find us at
+        <a href="https://instagram.com/bakeriapp">@bakeriapp</a> on Instagram
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Accessibility — Bakerï</title>
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+  <style>
+    :root {
+      --bg: #fbf7ef;
+      --bg-2: #f3ecdd;
+      --card: #ffffff;
+      --ink: #2c2530;
+      --ink-2: #5e5560;
+      --muted: #9a8c98;
+      --line: #ece3d5;
+      --rose: #e15b81;
+      --rose-2: #c9466c;
+      --rose-soft: #ffe2e9;
+      --display: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    nav {
+      background: rgba(255,255,255,.95);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 820px;
+      margin: 0 auto;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .wordmark {
+      font-family: var(--display);
+      font-weight: 800;
+      font-size: 20px;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+    }
+    .wordmark span { color: var(--rose); }
+    .nav-links { display: flex; gap: 20px; }
+    .nav-link {
+      font-family: var(--display);
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--ink-2);
+      text-decoration: none;
+    }
+    .nav-link:hover { color: var(--rose-2); }
+    .nav-link.current { color: var(--rose); }
+
+    .wrapper { max-width: 820px; margin: 0 auto; padding: 56px 24px 100px; }
+
+    .hero {
+      text-align: center;
+      padding: 56px 32px 48px;
+      background: var(--rose);
+      border-radius: 8px;
+      margin-bottom: 40px;
+    }
+    .hero-title {
+      font-family: var(--display);
+      font-size: clamp(28px, 5vw, 40px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .hero-sub {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .effective { text-align: center; font-size: 13px; color: var(--muted); margin-bottom: 40px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 44px 48px;
+      box-shadow: 0 18px 44px -18px rgba(40,30,24,0.14);
+    }
+
+    h2 {
+      font-family: var(--display);
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      margin: 36px 0 10px;
+    }
+    h2:first-of-type { margin-top: 0; }
+
+    p { font-size: 15px; color: var(--ink-2); margin-bottom: 12px; }
+    p strong { color: var(--ink); }
+
+    ul { margin: 6px 0 12px 18px; color: var(--ink-2); font-size: 15px; }
+    ul li { margin-bottom: 5px; }
+
+    .callout {
+      background: var(--rose-soft);
+      border-left: 3px solid var(--rose);
+      border-radius: 0 6px 6px 0;
+      padding: 14px 18px;
+      margin: 14px 0;
+      font-size: 14px;
+      color: var(--ink-2);
+    }
+
+    a { color: var(--rose-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    footer { text-align: center; font-size: 13px; color: var(--muted); margin-top: 56px; padding-bottom: 24px; }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--rose-2); }
+
+    @media (max-width: 600px) {
+      .card { padding: 28px 20px; }
+      .hero { padding: 40px 20px 36px; border-radius: 6px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="nav-inner">
+      <a class="wordmark" href="index.html">Baker<span>ï</span></a>
+      <div class="nav-links">
+        <a class="nav-link" href="privacy-policy.html">Privacy</a>
+        <a class="nav-link" href="terms-of-service.html">Terms</a>
+        <a class="nav-link current" href="accessibility.html">Accessibility</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="wrapper">
+
+    <div class="hero">
+      <div class="hero-title">Accessibility Policy</div>
+      <div class="hero-sub">Making Bakerï usable by everyone</div>
+    </div>
+
+    <p class="effective">Effective Date: January 1, 2026 &nbsp;·&nbsp; Last Updated: July 1, 2026</p>
+
+    <div class="card">
+
+      <h2>1. Our Commitment</h2>
+      <p>Bakeri is committed to making our App usable by as many people as possible, including people with disabilities. We believe accessible design makes the App better for everyone, and we are actively working to improve accessibility as the App develops.</p>
+
+      <h2>2. Standards We Are Working Toward</h2>
+      <p>We are working toward conformance with the Web Content Accessibility Guidelines (WCAG) 2.2 at Level AA, adapted for mobile, as our target standard. We also aim to support the built-in accessibility features of the platforms we run on, such as Apple's iOS accessibility features (for example, VoiceOver, Dynamic Type, and increased contrast).</p>
+
+      <h2>3. Current Status</h2>
+      <p>Accessibility features are actively in development. We are improving the App progressively, and some features may not yet be fully accessible. We have not yet completed a formal accessibility audit or certified full WCAG conformance. Accessibility improvements are a priority in our ongoing development roadmap, and we will update this statement as features are released.</p>
+
+      <h2>4. Steps We Are Taking</h2>
+      <p>As part of our roadmap, we are working to:</p>
+      <ul>
+        <li>Support screen readers, with clear labelling of interactive elements.</li>
+        <li>Ensure sufficient colour contrast and support for larger text sizes.</li>
+        <li>Provide clear, consistent navigation and adequately sized touch targets.</li>
+        <li>Test with platform accessibility tools and, over time, with people who rely on assistive technology.</li>
+      </ul>
+
+      <h2>5. Feedback and Assistance</h2>
+      <p>Your feedback helps us improve. If you run into an accessibility barrier or need help using a feature, please contact us — we will do our best to assist and to address the issue in a future update.</p>
+      <ul>
+        <li><strong>Email:</strong> <a href="mailto:hello@bakeri.app">hello@bakeri.app</a></li>
+        <li><strong>In-app:</strong> Profile &amp; Settings → Send Feedback</li>
+      </ul>
+      <div class="callout">To help us respond effectively, please include the device and operating system you are using, any assistive technology involved, and a description of the barrier.</div>
+
+      <h2>6. Ongoing Review</h2>
+      <p>Accessibility is an ongoing effort, not a one-time task. We will review and update this statement as the App evolves and as we make further improvements.</p>
+
+    </div>
+
+    <footer>
+      &copy; 2026 Bakerï &nbsp;·&nbsp;
+      <a href="privacy-policy.html">Privacy Policy</a> &nbsp;·&nbsp;
+      <a href="terms-of-service.html">Terms of Service</a> &nbsp;·&nbsp;
+      <a href="index.html">Home</a>
+    </footer>
+
+  </div>
+</body>
+</html>
