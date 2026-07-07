@@ -366,6 +366,29 @@ a { color: inherit; text-decoration: none; }
 .band .btn { margin-top: 40px; }
 .band-disclaimer { margin: 28px auto 0; max-width: 60ch; font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,0.72); }
 
+/* ---------- FAQ ---------- */
+.faq-head { max-width: 40ch; margin: 0 0 40px; }
+.faq-head .h1 { margin: 14px 0 0; }
+.faq-list { display: grid; gap: 12px; max-width: 760px; }
+.faq-item {
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  padding: 22px 26px; transition: border-color 0.2s;
+}
+.faq-item:hover { border-color: rgba(44,37,48,0.16); }
+.faq-item summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  font-family: var(--display); font-weight: 700; font-size: 16.5px; color: var(--ink);
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary .faq-plus { flex-shrink: 0; width: 20px; height: 20px; position: relative; color: var(--rose); }
+.faq-item summary .faq-plus::before, .faq-item summary .faq-plus::after {
+  content: ''; position: absolute; background: currentColor; border-radius: 2px;
+}
+.faq-item summary .faq-plus::before { top: 9px; left: 2px; width: 16px; height: 2px; }
+.faq-item summary .faq-plus::after { top: 2px; left: 9px; width: 2px; height: 16px; transition: transform 0.2s var(--ease); }
+.faq-item[open] summary .faq-plus::after { transform: rotate(90deg); }
+.faq-item p { margin: 14px 0 0; font-size: 14.5px; line-height: 1.6; color: var(--ink-2); }
+
 /* ---------- Footer ---------- */
 .footer { padding: 90px 0 40px; background: #fffeec; border-top: 1px solid var(--line); }
 .footer-top { display: grid; grid-template-columns: 1.7fr repeat(3, minmax(0, 1fr)); gap: 44px; padding-bottom: 54px; border-bottom: 1px solid var(--line); }
@@ -665,6 +688,90 @@ a { color: inherit; text-decoration: none; }
     </div>
   </div>
 </section>
+
+<!-- ===================== FAQ ===================== -->
+<section class="section" id="faq" style="padding-top:0;">
+  <div class="container">
+    <div class="faq-head rise">
+      <span class="eyebrow">Questions</span>
+      <h2 class="h1">Frequently asked <span class="accent">questions.</span></h2>
+    </div>
+    <div class="faq-list rise">
+      <details class="faq-item">
+        <summary>Is there a fee to become a Bakerï vendor?<span class="faq-plus"></span></summary>
+        <p>No. There are no upfront fees or subscriptions to join Bakerï as a vendor.</p>
+      </details>
+      <details class="faq-item">
+        <summary>How does the application process work?<span class="faq-plus"></span></summary>
+        <p>Fill out the application above. Every application is reviewed by hand, and we'll reach out within a few days if you're a good fit.</p>
+      </details>
+      <details class="faq-item">
+        <summary>What can I sell on Bakerï?<span class="faq-plus"></span></summary>
+        <p>Same-day ready items, pre-orders, and custom orders — whatever fits your baking schedule.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Do I need to make everything myself?<span class="faq-plus"></span></summary>
+        <p>Yes. Bakerï is for bakers selling what they actually make — items resold from third parties aren't eligible.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Do I need to follow food safety regulations?<span class="faq-plus"></span></summary>
+        <p>Yes. Vendors are required to prepare and sell food in accordance with all laws and regulations of their city, state, or province.</p>
+      </details>
+      <details class="faq-item">
+        <summary>How are orders, payments, and pickups handled?<span class="faq-plus"></span></summary>
+        <p>All of it — orders, payments, and pickups — is managed in one place through Bakerï, so you don't need separate tools.</p>
+      </details>
+      <details class="faq-item">
+        <summary>I'm already a Bakerï vendor — where do I log in?<span class="faq-plus"></span></summary>
+        <p>Use the "Log in" link next to the application form on this page, or open the Bakerï app directly.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is there a fee to become a Bakerï vendor?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. There are no upfront fees or subscriptions to join Bakerï as a vendor." }
+    },
+    {
+      "@type": "Question",
+      "name": "How does the application process work?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Fill out the application on the site. Every application is reviewed by hand, and Bakerï reaches out within a few days if you're a good fit." }
+    },
+    {
+      "@type": "Question",
+      "name": "What can I sell on Bakerï?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Same-day ready items, pre-orders, and custom orders — whatever fits your baking schedule." }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need to make everything myself?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Bakerï is for bakers selling what they actually make — items resold from third parties aren't eligible." }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need to follow food safety regulations?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Vendors are required to prepare and sell food in accordance with all laws and regulations of their city, state, or province." }
+    },
+    {
+      "@type": "Question",
+      "name": "How are orders, payments, and pickups handled?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Orders, payments, and pickups are all managed in one place through Bakerï." }
+    },
+    {
+      "@type": "Question",
+      "name": "I'm already a Bakerï vendor — where do I log in?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Use the Log in link next to the application form, or open the Bakerï app directly." }
+    }
+  ]
+}
+</script>
 
 <!-- ===================== FOOTER ===================== -->
 <footer class="footer">
