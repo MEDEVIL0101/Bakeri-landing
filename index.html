@@ -149,16 +149,20 @@ a { color: inherit; text-decoration: none; }
 
 @media (max-width: 760px) {
   .hero-inner { max-width: 520px; }
-  /* Headline stays absolutely positioned over the image's reserved blank
-     area (same mechanism as desktop, just smaller), so the cream .hero
-     section's height tracks the image alone. The nested desktop button
-     is hidden here; .hero-cta-mobile (a true sibling of <header class="hero">,
-     not nested inside its cream background) is shown instead, so it
-     renders below the cream section on the page's base background. */
+  /* Same full, uncropped image and the same 45.5% text anchor as desktop —
+     the composition stays identical at every size, nothing cropped or
+     repositioned. The nested desktop pill button is hidden here in favor
+     of .hero-cta-mobile: a full-width bar (not a pill floating in open
+     space) that sits flush against the bottom of the hero as a true
+     sibling of <header class="hero">, so it reads as an attached, load-
+     bearing part of the hero rather than a separate floating element. */
   .hero-headline { font-size: clamp(11px, 4.6vw, 22px); }
   .hero-join--desktop { display: none; }
-  .hero-cta-mobile { display: flex; justify-content: center; padding: 22px 20px 40px; }
-  .hero-join--mobile { opacity: 1; padding: 16px 40px; font-size: 14px; }
+  .hero-cta-mobile { display: block; }
+  .hero-join--mobile {
+    opacity: 1; width: 100%; border-radius: 0;
+    padding: 18px 20px; font-size: 15px;
+  }
 }
 
 /* ---------- Apply ---------- */
