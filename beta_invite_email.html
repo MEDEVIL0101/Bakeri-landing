@@ -3,271 +3,92 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>You're invited to test Bakeri — Beta Access</title>
+  <title>You're invited to test Bakerï — Beta Access</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Inter:wght@400;500;600&display=swap');
-
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background-color: #F3EAD8;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      color: #1A0808;
+      background-color: #f3ecdd;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: #2c2530;
       -webkit-font-smoothing: antialiased;
     }
 
-    .wrapper {
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 40px 20px;
-    }
+    .wrapper { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
 
-    /* ── Header — cream, logo on clean background ── */
+    /* ── Header ── */
     .header {
       text-align: center;
       padding: 36px 40px 32px;
-      background-color: #FAF5EE;
-      border-radius: 20px 20px 0 0;
-      border-bottom: 2px solid #E9DAC4;
+      background-color: #fffeec;
+      border-radius: 8px 8px 0 0;
+      border-bottom: 1px solid #ece3d5;
     }
-
+    .wordmark { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; color: #14110e; }
+    .wordmark span { color: #e15b81; }
     .tagline {
-      font-size: 11px;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: #C9963A;
-      margin-top: 10px;
-      font-weight: 500;
+      font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+      color: #c9466c; margin-top: 10px; font-weight: 700;
     }
 
     /* ── Hero band ── */
-    .hero {
-      background: linear-gradient(148deg, #3D0D0D 0%, #5A1010 50%, #6E1413 100%);
-      padding: 44px 48px;
-      text-align: left;
-    }
-
+    .hero { background-color: #e15b81; padding: 44px 48px; text-align: left; }
     .hero-badge {
-      display: inline-block;
-      background-color: #C9963A;
-      color: #1A0808;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      padding: 5px 14px;
-      border-radius: 20px;
-      margin-bottom: 18px;
+      display: inline-block; background-color: rgba(255,255,255,0.2); color: #ffffff;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+      padding: 5px 14px; border-radius: 999px; margin-bottom: 18px;
     }
-
-    .hero h1 {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 32px;
-      font-weight: 600;
-      line-height: 1.3;
-      color: #F0E4D0;
-      margin-bottom: 0;
-    }
-
-    .hero h1 span {
-      color: #E5BB74;
-    }
+    .hero h1 { font-size: 32px; font-weight: 800; line-height: 1.3; letter-spacing: -0.01em; color: #ffffff; margin-bottom: 0; }
 
     /* ── Body ── */
-    .body {
-      background-color: #ffffff;
-      padding: 48px 48px 40px;
-    }
-
-    p {
-      font-size: 16px;
-      line-height: 1.8;
-      color: #3A1212;
-      margin-bottom: 20px;
-    }
+    .body { background-color: #ffffff; padding: 48px 48px 40px; }
+    p { font-size: 16px; line-height: 1.8; color: #5e5560; margin-bottom: 20px; }
 
     /* ── Steps ── */
-    .steps {
-      margin: 36px 0;
-      background-color: #FAF5EE;
-      border-radius: 16px;
-      padding: 28px 28px 8px;
-      border: 1px solid #E9DAC4;
-    }
-
-    .step-table {
-      width: 100%;
-      margin-bottom: 24px;
-      border-collapse: collapse;
-    }
-
-    .step-number-cell {
-      width: 42px;
-      vertical-align: top;
-      padding-top: 1px;
-      padding-right: 14px;
-    }
-
+    .steps { margin: 36px 0; background-color: #fbf7ef; border-radius: 16px; padding: 28px 28px 8px; border: 1px solid #ece3d5; }
+    .step-table { width: 100%; margin-bottom: 24px; border-collapse: collapse; }
+    .step-number-cell { width: 42px; vertical-align: top; padding-top: 1px; padding-right: 14px; }
     .step-number {
-      display: inline-block;
-      width: 30px;
-      height: 30px;
-      background-color: #8B1A18;
-      color: #F0E4D0;
-      border-radius: 50%;
-      font-size: 13px;
-      font-weight: 700;
-      text-align: center;
-      line-height: 30px;
+      display: inline-block; width: 30px; height: 30px; background-color: #e15b81; color: #ffffff;
+      border-radius: 50%; font-size: 13px; font-weight: 700; text-align: center; line-height: 30px;
     }
-
-    .step-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: #1A0808;
-      margin-bottom: 4px;
-    }
-
-    .step-desc {
-      font-size: 14px;
-      line-height: 1.65;
-      color: #8C5858;
-      margin: 0 0 6px;
-    }
-
-    .step-link {
-      display: inline-block;
-      margin-top: 4px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #8B1A18;
-      text-decoration: none;
-    }
+    .step-title { font-size: 15px; font-weight: 700; color: #2c2530; margin-bottom: 4px; }
+    .step-desc { font-size: 14px; line-height: 1.65; color: #5e5560; margin: 0 0 6px; }
+    .step-link { display: inline-block; margin-top: 4px; font-size: 13px; font-weight: 700; color: #c9466c; text-decoration: none; }
 
     /* ── CTA ── */
-    .cta-section {
-      text-align: center;
-      margin: 36px 0;
-      padding: 36px 32px;
-      background: linear-gradient(148deg, #3D0D0D 0%, #5A1010 50%, #6E1413 100%);
-      border-radius: 16px;
-    }
-
-    .cta-section h2 {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 24px;
-      color: #F0E4D0;
-      margin-bottom: 8px;
-    }
-
-    .cta-section p {
-      font-size: 15px;
-      color: rgba(240,228,208,0.7);
-      margin-bottom: 24px;
-    }
-
+    .cta-section { text-align: center; margin: 36px 0; padding: 36px 32px; background-color: #c9466c; border-radius: 16px; }
+    .cta-section h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; color: #ffffff; margin-bottom: 8px; }
+    .cta-section p { font-size: 15px; color: rgba(255,255,255,0.8); margin-bottom: 24px; }
     .cta-button {
-      display: inline-block;
-      background-color: #C9963A;
-      color: #1A0808 !important;
-      text-decoration: none;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      padding: 15px 36px;
-      border-radius: 50px;
+      display: inline-block; background-color: #5ce1e6; color: #14110e !important; text-decoration: none;
+      font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 15px 34px; border-radius: 999px;
     }
-
-    .cta-note {
-      font-size: 12px;
-      color: rgba(240,228,208,0.5);
-      margin-top: 14px;
-      margin-bottom: 0;
-      line-height: 1.6;
-    }
+    .cta-note { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 14px; margin-bottom: 0; line-height: 1.6; }
 
     /* ── Highlight box ── */
-    .highlight-box {
-      background-color: #FAF5EE;
-      border-left: 3px solid #C9963A;
-      border-radius: 0 10px 10px 0;
-      padding: 16px 20px;
-      margin: 28px 0;
-    }
-
-    .highlight-box p {
-      margin: 0;
-      font-size: 14px;
-      color: #3A1212;
-      font-weight: 500;
-      line-height: 1.65;
-    }
+    .highlight-box { background-color: #ffe2e9; border-left: 3px solid #e15b81; border-radius: 0 10px 10px 0; padding: 16px 20px; margin: 28px 0; }
+    .highlight-box p { margin: 0; font-size: 14px; color: #2c2530; font-weight: 500; line-height: 1.65; }
 
     /* ── Divider ── */
-    .divider {
-      border: none;
-      border-top: 1px solid #E9DAC4;
-      margin: 32px 0;
-    }
+    .divider { border: none; border-top: 1px solid #ece3d5; margin: 32px 0; }
 
     /* ── Sign-off ── */
-    .signoff-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 28px;
-    }
-
-    .signoff-photo-cell {
-      width: 72px;
-      vertical-align: middle;
-      padding-right: 16px;
-    }
-
+    .signoff-table { width: 100%; border-collapse: collapse; margin-top: 28px; }
+    .signoff-photo-cell { width: 72px; vertical-align: middle; padding-right: 16px; }
     .signoff-photo-cell img {
-      width: 64px;
-      height: 64px;
-      border-radius: 50%;
-      object-fit: cover;
-      object-position: center 15%;
-      border: 2px solid #C9963A;
-      display: block;
+      width: 64px; height: 64px; border-radius: 50%; object-fit: cover; object-position: center 15%;
+      border: 2px solid #e15b81; display: block;
     }
-
-    .signoff-name {
-      font-size: 15px;
-      font-weight: 600;
-      color: #1A0808;
-      margin: 0 0 2px;
-    }
-
-    .signoff-title {
-      font-size: 13px;
-      color: #8C5858;
-      font-weight: 500;
-      margin: 0;
-    }
+    .signoff-name { font-size: 15px; font-weight: 700; color: #2c2530; margin: 0 0 2px; }
+    .signoff-title { font-size: 13px; color: #9a8c98; font-weight: 500; margin: 0; }
 
     /* ── Footer ── */
-    .footer {
-      background-color: #150505;
-      border-radius: 0 0 20px 20px;
-      padding: 28px 48px;
-      text-align: center;
-    }
-
-    .footer p {
-      font-size: 12px;
-      color: rgba(240,228,208,0.4);
-      margin-bottom: 6px;
-      line-height: 1.6;
-    }
-
+    .footer { background-color: #14110e; border-radius: 0 0 8px 8px; padding: 28px 48px; text-align: center; }
+    .footer p { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 6px; line-height: 1.6; }
     .footer p:last-child { margin-bottom: 0; }
-
-    .footer a {
-      color: #C9963A;
-      text-decoration: none;
-    }
+    .footer a { color: #e79bb0; text-decoration: none; }
 
     @media (max-width: 480px) {
       .hero { padding: 36px 28px; }
@@ -284,26 +105,21 @@
 
     <!-- Header -->
     <div class="header">
-      <img
-        src="https://aqhebjxaynvtvurwedrl.supabase.co/storage/v1/object/public/assets/wordmark.png"
-        alt="Bakeri"
-        width="150"
-        style="display:block; margin:0 auto;"
-      />
+      <div class="wordmark">Baker<span>ï</span></div>
       <div class="tagline">For Bakers Who Mean Business</div>
     </div>
 
     <!-- Hero band -->
     <div class="hero">
       <div class="hero-badge">Beta Access</div>
-      <h1>You're in, {{name}}.<br/><span>Thank you for being here.</span></h1>
+      <h1>You're in, {{name}}.<br/>Thank you for being here.</h1>
     </div>
 
     <!-- Body -->
     <div class="body">
 
       <p>
-        I'm Diana, the founder of Bakeri. I've been building this app for bakers like you,
+        I'm Diana, the founder of Bakerï. I've been building this app for bakers like you,
         and having real people use it before launch means everything to me.
       </p>
 
@@ -319,7 +135,7 @@
             <td class="step-number-cell"><span class="step-number">1</span></td>
             <td>
               <div class="step-title">Download TestFlight</div>
-              <p class="step-desc">TestFlight is Apple's free app for beta testing. You'll need it installed before you can access Bakeri.</p>
+              <p class="step-desc">TestFlight is Apple's free app for beta testing. You'll need it installed before you can access Bakerï.</p>
               <a class="step-link" href="https://apps.apple.com/app/testflight/id899247664">Download TestFlight from the App Store →</a>
             </td>
           </tr>
@@ -329,9 +145,9 @@
           <tr>
             <td class="step-number-cell"><span class="step-number">2</span></td>
             <td>
-              <div class="step-title">Join the Bakeri Beta</div>
-              <p class="step-desc">Once TestFlight is installed, tap the link below. Bakeri will install just like a regular app.</p>
-              <a class="step-link" href="https://testflight.apple.com/join/Vbvma852">Join the Bakeri Beta →</a>
+              <div class="step-title">Join the Bakerï Beta</div>
+              <p class="step-desc">Once TestFlight is installed, tap the link below. Bakerï will install just like a regular app.</p>
+              <a class="step-link" href="https://testflight.apple.com/join/Vbvma852">Join the Bakerï Beta →</a>
             </td>
           </tr>
         </table>
@@ -341,7 +157,7 @@
             <td class="step-number-cell"><span class="step-number">3</span></td>
             <td>
               <div class="step-title">Explore and let me know what you think</div>
-              <p class="step-desc">Use Bakeri as you would normally. If something feels off, confusing, or broken — I want to know. Reply to this email or find us at @joinbakeri on Instagram.</p>
+              <p class="step-desc">Use Bakerï as you would normally. If something feels off, confusing, or broken — I want to know. Reply to this email or find us at @joinbakeri on Instagram.</p>
             </td>
           </tr>
         </table>
@@ -353,7 +169,7 @@
         <h2>Ready to get started?</h2>
         <p>Tap below once TestFlight is installed on your device.</p>
         <a class="cta-button" href="https://testflight.apple.com/join/Vbvma852">
-          Join the Bakeri Beta →
+          Join the Bakerï Beta →
         </a>
         <p class="cta-note">Requires iPhone · iOS 16 or later · Free via TestFlight</p>
       </div>
@@ -362,7 +178,7 @@
       <div class="highlight-box">
         <p>
           Please note — this beta test is separate from your free trial.
-          Once Bakeri launches on the App Store, I'll be in touch personally
+          Once Bakerï launches on the App Store, I'll be in touch personally
           to get your account set up.
         </p>
       </div>
@@ -370,7 +186,7 @@
       <hr class="divider"/>
 
       <p>
-        Bakeri is ready — and you're getting it first. If anything catches your eye
+        Bakerï is ready — and you're getting it first. If anything catches your eye
         or you have thoughts along the way, I'm always happy to hear from you.
         Just hit reply.
       </p>
@@ -388,7 +204,7 @@
           </td>
           <td>
             <p class="signoff-name">Diana</p>
-            <p class="signoff-title">Founder, Bakeri</p>
+            <p class="signoff-title">Founder, Bakerï</p>
           </td>
         </tr>
       </table>
