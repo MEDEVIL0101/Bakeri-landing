@@ -135,6 +135,7 @@ a { color: inherit; text-decoration: none; }
   transition: transform 0.18s var(--ease), background 0.2s, box-shadow 0.2s;
 }
 .hero-join:hover { transform: translateY(-2px); background: #48d6db; box-shadow: 0 20px 40px -16px rgba(92, 225, 230, 0.95); }
+.hero-cta-mobile { display: none; }
 
 @keyframes heroRise { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes heroPop { from { opacity: 0; transform: translateY(18px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -148,20 +149,16 @@ a { color: inherit; text-decoration: none; }
 
 @media (max-width: 760px) {
   .hero-inner { max-width: 520px; }
-  /* Un-box the wrapper (rather than switching it to static flow) so the
-     headline stays pinned to the image's reserved blank area like on
-     desktop, while the button — no longer inside a positioned box —
-     falls into normal flow right after the image. */
-  .hero-text { display: contents; }
-  .hero-headline {
-    position: absolute; top: 50%; left: 45.5%; transform: translateY(-50%);
-    width: fit-content; max-width: 50%; text-align: left;
-    font-size: clamp(11px, 4.6vw, 22px);
-  }
-  .hero-join {
-    display: flex; width: fit-content; margin: 20px auto 0;
-    padding: 14px 32px; font-size: 13px;
-  }
+  /* Headline stays absolutely positioned over the image's reserved blank
+     area (same mechanism as desktop, just smaller), so the cream .hero
+     section's height tracks the image alone. The nested desktop button
+     is hidden here; .hero-cta-mobile (a true sibling of <header class="hero">,
+     not nested inside its cream background) is shown instead, so it
+     renders below the cream section on the page's base background. */
+  .hero-headline { font-size: clamp(11px, 4.6vw, 22px); }
+  .hero-join--desktop { display: none; }
+  .hero-cta-mobile { display: flex; justify-content: center; padding: 22px 20px 40px; }
+  .hero-join--mobile { opacity: 1; padding: 16px 40px; font-size: 14px; }
 }
 
 /* ---------- Apply ---------- */
@@ -348,10 +345,19 @@ a { color: inherit; text-decoration: none; }
         <span class="hl-line hl-black">Bake like an artist.</span>
         <span class="hl-line hl-pink">Sell like a professional.</span>
       </h1>
-      <a class="hero-join" href="#apply">Join Bakerï</a>
+      <a class="hero-join hero-join--desktop" href="#apply">Join Bakerï</a>
     </div>
   </div>
 </header>
+
+<!-- Mobile-only: a true sibling of the hero, not nested inside its cream
+     background, so the cream section can end exactly at the image and
+     this sits below it on the page's base background. Hidden above the
+     mobile breakpoint, where the nested .hero-join--desktop above is used
+     instead. -->
+<div class="hero-cta-mobile">
+  <a class="hero-join hero-join--mobile" href="#apply">Join Bakerï</a>
+</div>
 
 <!-- ===================== APPLY ===================== -->
 <section class="apply-section" id="apply">
