@@ -1,4 +1,9 @@
-<!DOCTYPE html>
+// Keep this in sync with /vendor_application_email.html at the repo root —
+// that file is the design reference/preview copy; this is the bundled copy
+// the edge function actually sends (Supabase only deploys files inside the
+// function's own directory, so it can't read the repo-root file at runtime).
+
+export const VENDOR_ACK_EMAIL_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -215,3 +220,4 @@
   </div>
 </body>
 </html>
+`;

@@ -1,7 +1,9 @@
 # Secrets — never commit API keys
 .env
-Bakerly/Bakerly/Bakeri/Config/Secrets.swift
-Bakerly/Bakerly/Bakeri/Config/AnthropicConfig.swift
+.env.*
+**/Secrets.swift
+**/.Secrets.swift.*
+**/AnthropicConfig.swift
 
 # Xcode
 *.xcuserstate
@@ -12,6 +14,7 @@ DerivedData/
 *.ipa
 *.dSYM.zip
 *.dSYM
+build/
 
 # Swift Package Manager
 .build/
@@ -25,3 +28,9 @@ DerivedData/
 # Backup files
 *.orig
 *~
+
+# Node
+node_modules/
+
+# Claude Code local state — not project source
+.claude/
