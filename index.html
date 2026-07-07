@@ -196,18 +196,31 @@ a { color: inherit; text-decoration: none; }
 }
 .field input::placeholder { color: var(--muted); }
 .lbl-hint { font-weight: 500; color: var(--muted); }
-.chip-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
-.chip { position: relative; cursor: pointer; }
-.chip input { position: absolute; opacity: 0; pointer-events: none; }
-.chip span {
-  display: inline-flex; align-items: center;
-  font-family: var(--display); font-weight: 600; font-size: 13px; color: var(--ink);
-  padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg);
-  transition: border-color 0.18s, background 0.18s, color 0.18s;
+.bake-select-wrap { position: relative; margin-top: 2px; }
+.bake-select {
+  width: 100%; height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border-radius: 11px; border: 1px solid var(--line); background: var(--bg); padding: 0 14px;
+  font-family: var(--display); font-size: 14.5px; color: var(--ink); text-align: left;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.chip:hover span { border-color: rgba(44,37,48,0.22); }
-.chip input:checked + span { background: var(--rose-soft); border-color: var(--rose); color: var(--rose-2); }
-.chip input:focus-visible + span { box-shadow: 0 0 0 3px rgba(225,91,129,0.18); }
+.bake-select:hover { border-color: rgba(44,37,48,0.22); }
+.bake-select[aria-expanded="true"] { border-color: var(--rose); background: #fff; box-shadow: 0 0 0 3px rgba(225,91,129,0.14); }
+.bake-select #bakeSelectText.placeholder { color: var(--muted); }
+.bake-select-arrow { flex-shrink: 0; color: var(--muted); transition: transform 0.2s; }
+.bake-select[aria-expanded="true"] .bake-select-arrow { transform: rotate(180deg); }
+.bake-dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow-lg); padding: 8px; display: grid; gap: 1px;
+  max-height: 264px; overflow-y: auto;
+}
+.bake-option {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px;
+  cursor: pointer; font-family: var(--display); font-weight: 500; font-size: 14px; color: var(--ink);
+  transition: background 0.15s;
+}
+.bake-option:hover { background: var(--bg); }
+.bake-option input { width: 17px; height: 17px; flex-shrink: 0; accent-color: var(--rose); }
 .field input:focus { outline: none; border-color: var(--rose); background: #fff; box-shadow: 0 0 0 3px rgba(225,91,129,0.14); }
 
 .attest { display: grid; gap: 9px; margin: 18px 0 4px; }
@@ -421,20 +434,26 @@ a { color: inherit; text-decoration: none; }
               <input id="f-state" type="text" placeholder="Ontario" required />
             </div>
             <div class="field full">
-              <label>What you bake <span class="lbl-hint">— select all that apply</span></label>
-              <div class="chip-group" id="bakeTypes">
-                <label class="chip"><input type="checkbox" name="bake" value="Bread" /><span>Bread</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Cake" /><span>Cake</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Cookies" /><span>Cookies</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Cupcakes" /><span>Cupcakes</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Cake Pops and Cake Treats" /><span>Cake Pops and Cake Treats</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Decorated Cookies" /><span>Decorated Cookies</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Donuts" /><span>Donuts</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Macarons" /><span>Macarons</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Muffins" /><span>Muffins</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Pastries" /><span>Pastries</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="Wedding Cakes" /><span>Wedding Cakes</span></label>
-                <label class="chip"><input type="checkbox" name="bake" value="International" /><span>International</span></label>
+              <label id="bakeLabel">What you bake <span class="lbl-hint">— select all that apply</span></label>
+              <div class="bake-select-wrap">
+                <button type="button" class="bake-select" id="bakeTrigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="bakeLabel bakeSelectText">
+                  <span id="bakeSelectText" class="placeholder">Select what you bake</span>
+                  <svg class="bake-select-arrow" width="12" height="8" viewBox="0 0 12 8" fill="none"><path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div class="bake-dropdown" id="bakeDropdown" role="listbox" aria-multiselectable="true" hidden>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Bread" /><span>Bread</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Cake" /><span>Cake</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Cookies" /><span>Cookies</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Cupcakes" /><span>Cupcakes</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Cake Pops and Cake Treats" /><span>Cake Pops and Cake Treats</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Decorated Cookies" /><span>Decorated Cookies</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Donuts" /><span>Donuts</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Macarons" /><span>Macarons</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Muffins" /><span>Muffins</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Pastries" /><span>Pastries</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="Wedding Cakes" /><span>Wedding Cakes</span></label>
+                  <label class="bake-option"><input type="checkbox" name="bake" value="International" /><span>International</span></label>
+                </div>
               </div>
             </div>
             <div class="field">
@@ -689,6 +708,48 @@ a { color: inherit; text-decoration: none; }
   }
   form.addEventListener('input', refresh);
   form.addEventListener('change', refresh);
+
+  /* "What you bake" collapses into a dropdown checklist instead of always-
+     visible pills, so the form doesn't run long on mobile. */
+  const bakeTrigger = document.getElementById('bakeTrigger');
+  const bakeDropdown = document.getElementById('bakeDropdown');
+  const bakeSelectText = document.getElementById('bakeSelectText');
+  const bakeCheckboxes = [...form.querySelectorAll('input[name="bake"]')];
+
+  function closeBakeDropdown() {
+    bakeDropdown.hidden = true;
+    bakeTrigger.setAttribute('aria-expanded', 'false');
+  }
+
+  function updateBakeSummary() {
+    const checked = bakeCheckboxes.filter((b) => b.checked).map((b) => b.value);
+    if (checked.length === 0) {
+      bakeSelectText.textContent = 'Select what you bake';
+      bakeSelectText.classList.add('placeholder');
+    } else if (checked.length <= 2) {
+      bakeSelectText.textContent = checked.join(', ');
+      bakeSelectText.classList.remove('placeholder');
+    } else {
+      bakeSelectText.textContent = `${checked.slice(0, 2).join(', ')} +${checked.length - 2} more`;
+      bakeSelectText.classList.remove('placeholder');
+    }
+  }
+
+  bakeTrigger.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const willOpen = bakeDropdown.hidden;
+    bakeDropdown.hidden = !willOpen;
+    bakeTrigger.setAttribute('aria-expanded', String(willOpen));
+  });
+  document.addEventListener('click', (ev) => {
+    if (!bakeDropdown.hidden && ev.target !== bakeTrigger && !bakeDropdown.contains(ev.target) && !bakeTrigger.contains(ev.target)) {
+      closeBakeDropdown();
+    }
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') closeBakeDropdown();
+  });
+  bakeCheckboxes.forEach((cb) => cb.addEventListener('change', updateBakeSummary));
 
   const formRenderedAt = Date.now();
   const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
