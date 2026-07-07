@@ -1,0 +1,17 @@
+# Bakerï
+
+> Bakerï is a local marketplace that connects independent and home bakers with nearby customers. Bakers list same-day-ready items, take pre-orders, and manage custom orders and pickups in one place; customers discover and order from bakeries in their neighborhood. Bakerï is available as an iOS app.
+
+This site (bakeriapp.com) is Bakerï's "For Bakers" partner page, where independent bakers and cottage bakeries apply to become vendors on the platform. There are no upfront fees or subscriptions for bakers to join, and applications are reviewed by hand.
+
+## Pages
+
+- [Become a vendor](https://bakeriapp.com/): apply to sell on Bakerï as a baker — what the platform offers, how it works, and the application form.
+- [Privacy Policy](https://bakeriapp.com/privacy-policy.html)
+- [Terms of Service](https://bakeriapp.com/terms-of-service.html)
+- [Accessibility](https://bakeriapp.com/accessibility.html)
+
+## Social
+
+- Instagram: https://instagram.com/joinbakeri
+- TikTok: https://tiktok.com/@joinbakeri

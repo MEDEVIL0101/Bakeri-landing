@@ -1,0 +1,54 @@
+# Bakerï (bakeriapp.com) — everything on this site is public marketing
+# content meant to be found, so we allow all crawlers, including AI
+# assistants and answer engines, by default.
+User-agent: *
+Allow: /
+
+# Listed explicitly so intent is unambiguous to each crawler's operator,
+# even though the wildcard rule above already allows them.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+Sitemap: https://bakeriapp.com/sitemap.xml
