@@ -1,0 +1,30 @@
+name: Ping IndexNow
+
+# Notifies Bing (and other IndexNow-participating engines) immediately
+# when a page changes, instead of waiting for their normal crawl
+# schedule. The key below is not secret — it's already publicly hosted
+# at https://bakeriapp.com/59ccf7a2f3bd4af9891173c9baa08d63.txt, which
+# is how IndexNow verifies the submitter actually owns the site.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*.html"
+      - "sitemap.xml"
+  workflow_dispatch: {}
+
+jobs:
+  ping-indexnow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Submit sitemap URLs to IndexNow
+        run: |
+          urls=$(grep -oE '<loc>[^<]+</loc>' sitemap.xml | sed -E 's#</?loc>##g' | jq -R . | jq -s .)
+          echo "Submitting: $urls"
+          curl -sS -X POST "https://api.indexnow.org/IndexNow" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "{\"host\":\"bakeriapp.com\",\"key\":\"59ccf7a2f3bd4af9891173c9baa08d63\",\"keyLocation\":\"https://bakeriapp.com/59ccf7a2f3bd4af9891173c9baa08d63.txt\",\"urlList\":$urls}" \
+            -w "\nHTTP %{http_code}\n"
