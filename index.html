@@ -148,10 +148,20 @@ a { color: inherit; text-decoration: none; }
 
 @media (max-width: 760px) {
   .hero-inner { max-width: 520px; }
-  .hero-bg-img { width: 74%; margin: 0 auto; }
-  .hero-text { position: static; transform: none; width: 100%; max-width: none; align-items: center; text-align: center; padding: 6px 20px 40px; }
-  .hero-headline { font-size: clamp(30px, 9.5vw, 52px); }
-  .hero-join { margin-top: 22px; padding: 16px 40px; font-size: 14px; }
+  /* Un-box the wrapper (rather than switching it to static flow) so the
+     headline stays pinned to the image's reserved blank area like on
+     desktop, while the button — no longer inside a positioned box —
+     falls into normal flow right after the image. */
+  .hero-text { display: contents; }
+  .hero-headline {
+    position: absolute; top: 50%; left: 45.5%; transform: translateY(-50%);
+    width: fit-content; max-width: 50%; text-align: left;
+    font-size: clamp(11px, 4.6vw, 22px);
+  }
+  .hero-join {
+    display: flex; width: fit-content; margin: 20px auto 0;
+    padding: 14px 32px; font-size: 13px;
+  }
 }
 
 /* ---------- Apply ---------- */
