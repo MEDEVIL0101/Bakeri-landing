@@ -12,6 +12,14 @@ import { DISPOSABLE_EMAIL_DOMAINS } from "./disposable-domains.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const RECAPTCHA_PROJECT_ID = Deno.env.get("RECAPTCHA_PROJECT_ID")!;
+const RECAPTCHA_API_KEY = Deno.env.get("RECAPTCHA_API_KEY")!;
+
+// Public value — must match the site key the "For Bakers" page loads
+// grecaptcha.enterprise with (index.html).
+const RECAPTCHA_SITE_KEY = "6LcIGEgtAAAAAAYXr8zyy_jJse4xc9LgjN43otQf";
+const RECAPTCHA_ACTION = "submit_vendor_application";
+const RECAPTCHA_SCORE_THRESHOLD = 0.5;
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const PHONE_RE = /^[0-9+()\-.\s]{7,20}$/;
@@ -59,6 +67,40 @@ async function hasMxRecord(domain: string): Promise<boolean> {
   }
 }
 
+// Verifies a grecaptcha.enterprise.execute() token against Google's
+// assessment API. Distinguishes "Google's API had a hiccup" (fail open —
+// an outage shouldn't block real applicants) from "Google scored this
+// as a bot / wrong action / replayed token" (fail closed — that's exactly
+// what this check exists to catch).
+async function verifyRecaptcha(token: string): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `https://recaptchaenterprise.googleapis.com/v1/projects/${RECAPTCHA_PROJECT_ID}/assessments?key=${RECAPTCHA_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: { token, expectedAction: RECAPTCHA_ACTION, siteKey: RECAPTCHA_SITE_KEY },
+        }),
+      },
+    );
+    if (!res.ok) {
+      console.error("reCAPTCHA assessment request failed:", res.status, await res.text());
+      return true;
+    }
+    const data = await res.json();
+    if (!data.tokenProperties?.valid) {
+      console.warn("reCAPTCHA token invalid:", data.tokenProperties?.invalidReason);
+      return false;
+    }
+    if (data.tokenProperties.action !== RECAPTCHA_ACTION) return false;
+    return (data.riskAnalysis?.score ?? 0) >= RECAPTCHA_SCORE_THRESHOLD;
+  } catch (err) {
+    console.error("reCAPTCHA assessment errored:", err);
+    return true;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -79,9 +121,14 @@ Deno.serve(async (req: Request) => {
   const bake_types = Array.isArray(body.bake_types) ? body.bake_types : [];
   const attest_self_made = body.attest_self_made === true;
   const attest_compliant = body.attest_compliant === true;
+  const recaptcha_token = String(body.recaptcha_token ?? "");
 
   if (!EMAIL_RE.test(email)) return json({ error: "Please enter a valid email address." }, 400);
   if (!PHONE_RE.test(phone)) return json({ error: "Please enter a valid phone number." }, 400);
+
+  if (!recaptcha_token || !(await verifyRecaptcha(recaptcha_token))) {
+    return json({ error: "We couldn't verify you're human. Please refresh the page and try again." }, 400);
+  }
 
   const domain = email.split("@")[1];
 
