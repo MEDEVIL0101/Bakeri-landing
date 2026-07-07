@@ -394,15 +394,15 @@ a { color: inherit; text-decoration: none; }
           <div class="form-grid">
             <div class="field full">
               <label for="f-bakery">Bakery Name</label>
-              <input id="f-bakery" type="text" placeholder="Sweet Haven Bakery" required />
+              <input id="f-bakery" type="text" placeholder="Willow Lane Bakery" required />
             </div>
             <div class="field">
               <label for="f-first">First Name</label>
-              <input id="f-first" type="text" placeholder="Diana" required />
+              <input id="f-first" type="text" placeholder="Jordan" required />
             </div>
             <div class="field">
               <label for="f-last">Last Name</label>
-              <input id="f-last" type="text" placeholder="Halabi" required />
+              <input id="f-last" type="text" placeholder="Rivera" required />
             </div>
             <div class="field">
               <label for="f-email">Email</label>
@@ -411,6 +411,14 @@ a { color: inherit; text-decoration: none; }
             <div class="field">
               <label for="f-phone">Phone</label>
               <input id="f-phone" type="tel" placeholder="123-999-9999" required />
+            </div>
+            <div class="field">
+              <label for="f-city">City</label>
+              <input id="f-city" type="text" placeholder="Toronto" required />
+            </div>
+            <div class="field">
+              <label for="f-state">State / Province</label>
+              <input id="f-state" type="text" placeholder="Ontario" required />
             </div>
             <div class="field full">
               <label>What you bake <span class="lbl-hint">— select all that apply</span></label>
@@ -429,9 +437,17 @@ a { color: inherit; text-decoration: none; }
                 <label class="chip"><input type="checkbox" name="bake" value="International" /><span>International</span></label>
               </div>
             </div>
-            <div class="field full">
-              <label for="f-social">Bakery social link</label>
-              <input id="f-social" type="url" placeholder="instagram.com/yourbakery  ·  facebook.com/yourbakery" required />
+            <div class="field">
+              <label for="f-instagram">Instagram <span class="lbl-hint">— optional</span></label>
+              <input id="f-instagram" type="url" placeholder="instagram.com/yourbakery" />
+            </div>
+            <div class="field">
+              <label for="f-facebook">Facebook <span class="lbl-hint">— optional</span></label>
+              <input id="f-facebook" type="url" placeholder="facebook.com/yourbakery" />
+            </div>
+            <div class="field">
+              <label for="f-tiktok">TikTok <span class="lbl-hint">— optional</span></label>
+              <input id="f-tiktok" type="url" placeholder="tiktok.com/@yourbakery" />
             </div>
           </div>
 
@@ -613,9 +629,6 @@ a { color: inherit; text-decoration: none; }
     </div>
     <div class="footer-bottom">
       <span>© 2026 Bakerï — All rights reserved</span>
-      <div class="footer-legal">
-        <a href="#top">Vendor agreement</a>
-      </div>
     </div>
   </div>
 </footer>
@@ -731,8 +744,12 @@ a { color: inherit; text-decoration: none; }
           last_name: document.getElementById('f-last').value.trim(),
           email,
           phone,
+          city: document.getElementById('f-city').value.trim(),
+          state_province: document.getElementById('f-state').value.trim(),
           bake_types: bakeTypes,
-          social_url: document.getElementById('f-social').value.trim(),
+          instagram_url: document.getElementById('f-instagram').value.trim(),
+          facebook_url: document.getElementById('f-facebook').value.trim(),
+          tiktok_url: document.getElementById('f-tiktok').value.trim(),
           attest_self_made: boxes[0].checked,
           attest_compliant: boxes[1].checked,
           recaptcha_token: recaptchaToken,

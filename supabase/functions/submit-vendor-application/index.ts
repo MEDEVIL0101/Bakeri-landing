@@ -117,14 +117,20 @@ Deno.serve(async (req: Request) => {
   const last_name = String(body.last_name ?? "").trim();
   const email = String(body.email ?? "").trim().toLowerCase();
   const phone = String(body.phone ?? "").trim();
-  const social_url = String(body.social_url ?? "").trim();
+  const city = String(body.city ?? "").trim();
+  const state_province = String(body.state_province ?? "").trim();
   const bake_types = Array.isArray(body.bake_types) ? body.bake_types : [];
+  const instagram_url = String(body.instagram_url ?? "").trim() || null;
+  const facebook_url = String(body.facebook_url ?? "").trim() || null;
+  const tiktok_url = String(body.tiktok_url ?? "").trim() || null;
   const attest_self_made = body.attest_self_made === true;
   const attest_compliant = body.attest_compliant === true;
   const recaptcha_token = String(body.recaptcha_token ?? "");
 
   if (!EMAIL_RE.test(email)) return json({ error: "Please enter a valid email address." }, 400);
   if (!PHONE_RE.test(phone)) return json({ error: "Please enter a valid phone number." }, 400);
+  if (!city) return json({ error: "Please enter your city." }, 400);
+  if (!state_province) return json({ error: "Please enter your state or province." }, 400);
 
   if (!recaptcha_token || !(await verifyRecaptcha(recaptcha_token))) {
     return json({ error: "We couldn't verify you're human. Please refresh the page and try again." }, 400);
@@ -162,8 +168,12 @@ Deno.serve(async (req: Request) => {
     last_name,
     email,
     phone,
+    city,
+    state_province,
     bake_types,
-    social_url,
+    instagram_url,
+    facebook_url,
+    tiktok_url,
     attest_self_made,
     attest_compliant,
     ip_address: clientIp,
