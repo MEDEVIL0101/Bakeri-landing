@@ -279,21 +279,26 @@
 
     const dueStr = data.due_date ? new Date(data.due_date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
     const amount = (data.amount_cents / 100).toFixed(2);
+    const itemsHtml = (data.items || [])
+      .map(function (i) { return escapeHtml(i.quantity + '× ' + i.name); })
+      .join('<br>');
 
+    // TEST MODE — mirrors the app's own mockConfirmPayment(): skips real card
+    // collection/Stripe confirmation and pays the invoice directly. Swap the
+    // commented block below back in (and re-mount the Payment Element) once
+    // real card collection is ready to turn back on.
     card.innerHTML =
       '<div class="invoice-label">Invoice from</div>' +
       '<div class="baker-name">' + escapeHtml(data.baker_name) + '</div>' +
-      '<div class="order-name">' + escapeHtml(data.order_name || '') + '</div>' +
+      '<div class="order-name">' + itemsHtml + '</div>' +
       '<div class="amount">$' + amount + '</div>' +
       (dueStr ? '<div class="due-date">Due ' + dueStr + '</div>' : '<div style="margin-bottom:22px;"></div>') +
       '<button class="btn-open" id="open-btn" type="button">Open &amp; pay in Bakeri app</button>' +
       '<div class="status-msg" id="status-msg"></div>' +
       '<div class="divider"><span>OR PAY HERE</span></div>' +
-      '<form id="payment-form">' +
-        '<div id="payment-element"></div>' +
-        '<button class="btn-pay" id="submit-btn" type="submit">Pay $' + amount + '</button>' +
-        '<div class="pay-error" id="pay-error"></div>' +
-      '</form>';
+      '<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.05em;color:var(--muted);text-align:center;margin-bottom:10px;">TEST MODE — NO REAL CHARGE</div>' +
+      '<button class="btn-pay" id="submit-btn" type="button">Pay $' + amount + '</button>' +
+      '<div class="pay-error" id="pay-error"></div>';
 
     document.getElementById('open-btn').addEventListener('click', function () {
       document.getElementById('status-msg').textContent = 'Opening Bakeri…';
@@ -304,14 +309,20 @@
       }, 1800);
     });
 
+    const submitBtn = document.getElementById('submit-btn');
+    const errorEl = document.getElementById('pay-error');
+
+    submitBtn.addEventListener('click', function () {
+      submitBtn.disabled = true;
+      errorEl.textContent = '';
+      finalizePayment(null, true);
+    });
+
+    /* Real Stripe card collection (disabled while testing):
     const stripe = Stripe(STRIPE_PK);
     const elements = stripe.elements({ clientSecret: data.client_secret });
     const paymentElement = elements.create('payment');
     paymentElement.mount('#payment-element');
-
-    const form = document.getElementById('payment-form');
-    const submitBtn = document.getElementById('submit-btn');
-    const errorEl = document.getElementById('pay-error');
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -335,9 +346,10 @@
         submitBtn.disabled = false;
       });
     });
+    */
   }
 
-  function finalizePayment(paymentIntentId) {
+  function finalizePayment(paymentIntentId, mock) {
     return fetch(SUPABASE_URL + '/functions/v1/finalize-invoice-payment', {
       method: 'POST',
       headers: {
@@ -345,12 +357,15 @@
         'apikey': ANON_KEY,
         'Authorization': 'Bearer ' + ANON_KEY
       },
-      body: JSON.stringify({ invoice_code: code, payment_intent_id: paymentIntentId })
+      body: JSON.stringify({ invoice_code: code, payment_intent_id: paymentIntentId, mock: !!mock })
     })
     .then(function (r) { return r.json(); })
     .then(function (body) {
       if (body.error) {
-        document.getElementById('pay-error').textContent = 'Payment succeeded but confirmation failed — contact your baker to confirm.';
+        const errorEl = document.getElementById('pay-error');
+        const submitBtn = document.getElementById('submit-btn');
+        if (errorEl) errorEl.textContent = 'Payment failed: ' + body.error;
+        if (submitBtn) submitBtn.disabled = false;
         return;
       }
       showMessage('success', 'Payment received!', 'Your baker has been paid. Thank you!');
