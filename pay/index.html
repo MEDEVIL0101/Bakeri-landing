@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pay Invoice — Bakeri</title>
+  <meta name="description" content="Pay your baker's invoice on Bakeri." />
+  <link rel="icon" href="../1024.png" />
+  <link rel="apple-touch-icon" href="../1024.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Nunito:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --cream:   #FAF5EE;
+      --cream-2: #F3EAD8;
+      --cream-3: #E9DAC4;
+      --ink:     #1A0808;
+      --ink-2:   #3A1212;
+      --muted:   #8C7B6E;
+      --gold:    #C9963A;
+      --green:   #4CAF82;
+      --red:     #C94A3A;
+      --display: 'Playfair Display', Georgia, serif;
+      --sans:    'Nunito', system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 48px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wordmark { height: 32px; width: auto; margin-bottom: 24px; display: block; }
+    @media (prefers-color-scheme: dark) { .wordmark { filter: invert(1); } }
+
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: #fff;
+      border-radius: 24px;
+      box-shadow: 0 8px 40px rgba(26,8,8,0.10), 0 2px 8px rgba(26,8,8,0.06);
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .invoice-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .baker-name {
+      font-family: var(--display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--ink);
+      text-align: center;
+      margin-bottom: 2px;
+    }
+
+    .order-name {
+      font-size: 0.9rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .amount {
+      font-family: var(--display);
+      font-size: 2.4rem;
+      font-weight: 700;
+      color: var(--ink);
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    .due-date {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 22px;
+    }
+
+    .btn-open {
+      display: block;
+      width: 100%;
+      background: var(--ink);
+      color: #fff;
+      font-family: var(--sans);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 14px 24px;
+      border-radius: 50px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+      transition: background 0.18s, transform 0.12s;
+      margin-bottom: 10px;
+    }
+    .btn-open:hover { background: #3a1212; transform: translateY(-1px); }
+    .btn-open:active { transform: translateY(0); }
+
+    .status-msg {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+      min-height: 16px;
+      margin-bottom: 4px;
+    }
+
+    .divider {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 18px 0;
+    }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--cream-3); }
+    .divider span { font-size: 0.72rem; color: var(--muted); font-weight: 700; letter-spacing: 0.05em; }
+
+    #payment-element { margin-bottom: 16px; }
+
+    .btn-pay {
+      display: block;
+      width: 100%;
+      background: var(--green);
+      color: #fff;
+      font-family: var(--sans);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 14px 24px;
+      border-radius: 50px;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.18s, transform 0.12s;
+    }
+    .btn-pay:hover { transform: translateY(-1px); }
+    .btn-pay:disabled { opacity: 0.5; cursor: default; transform: none; }
+
+    .pay-error {
+      font-size: 0.82rem;
+      color: var(--red);
+      text-align: center;
+      margin-top: 10px;
+      min-height: 16px;
+    }
+
+    .success, .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
+    .success h2, .not-found h2 { font-family: var(--display); font-size: 1.3rem; margin-bottom: 8px; color: var(--ink); }
+    .success .checkmark { font-size: 2.4rem; margin-bottom: 10px; }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--cream-2) 25%, var(--cream-3) 50%, var(--cream-2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 8px;
+      height: 18px;
+      margin: 0 auto 10px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    .store-row { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 22px; }
+    .store-badge { height: 42px; width: auto; }
+
+    .footer { margin-top: 22px; font-size: 0.75rem; color: var(--muted); text-align: center; }
+    .footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+
+    @media (prefers-color-scheme: dark) {
+      body        { background: #0e0808; }
+      .card       { background: #1a1010; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+      .wordmark, .baker-name, .amount, .success h2, .not-found h2 { color: var(--cream); }
+      .btn-open   { background: var(--cream); color: var(--ink); }
+      .btn-open:hover { background: var(--cream-2); }
+      .divider::before, .divider::after { background: #3a2020; }
+    }
+  </style>
+</head>
+<body>
+
+<img class="wordmark" src="../wordmark.png" alt="Bakeri" />
+
+<div class="card" id="card">
+  <div class="invoice-label">Invoice</div>
+  <div class="skeleton" style="width:60%;"></div>
+  <div class="skeleton" style="width:40%;height:14px;"></div>
+</div>
+
+<div class="store-row" id="store-row" style="display:none;">
+  <a href="https://apps.apple.com/app/bakeri/id6745506861">
+    <img class="store-badge"
+         src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+         alt="Download on the App Store" />
+  </a>
+</div>
+
+<div class="footer">
+  <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
+  <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+</div>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+(function () {
+  const SUPABASE_URL   = 'https://aqhebjxaynvtvurwedrl.supabase.co';
+  const ANON_KEY       = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const STRIPE_PK      = 'pk_test_51TZv7nIBmOO44CPMcRlrwd81OV1sJBTnS4JgOIMdJA2aL9GayvryaOCHQxY7QZdLRL55UFVXWbHZFoLLjFxuq4cV00yxBTjJJy';
+
+  const params = new URLSearchParams(window.location.search);
+  const code   = (params.get('code') || '').trim().toUpperCase();
+  const card   = document.getElementById('card');
+  const storeRow = document.getElementById('store-row');
+
+  if (!code) {
+    showMessage('not-found', 'No invoice specified', 'This link appears to be invalid.');
+    return;
+  }
+
+  const deepLink = 'bakeri://invoice/' + encodeURIComponent(code);
+
+  function attemptDeepLink() {
+    window.location.href = deepLink;
+  }
+
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    attemptDeepLink();
+  }
+
+  fetch(SUPABASE_URL + '/functions/v1/create-invoice-payment-intent', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': ANON_KEY,
+      'Authorization': 'Bearer ' + ANON_KEY
+    },
+    body: JSON.stringify({ invoice_code: code })
+  })
+  .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
+  .then(function (res) {
+    if (!res.ok || res.body.error) {
+      handleError(res.body && res.body.error);
+      return;
+    }
+    renderInvoice(res.body);
+  })
+  .catch(function () {
+    showMessage('not-found', 'Something went wrong', 'Could not load this invoice. Try again later.');
+  });
+
+  function handleError(code) {
+    if (code === 'already_paid') {
+      showMessage('success', 'Already paid', 'This invoice has already been paid — thank you!');
+    } else if (code === 'already_claimed') {
+      showMessage('not-found', 'Already claimed', 'This invoice is being paid through the Bakeri app.');
+    } else {
+      showMessage('not-found', 'Invoice not found', 'Double-check the link your baker sent you.');
+    }
+  }
+
+  function renderInvoice(data) {
+    document.title = 'Invoice from ' + data.baker_name + ' — Bakeri';
+
+    const dueStr = data.due_date ? new Date(data.due_date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    const amount = (data.amount_cents / 100).toFixed(2);
+
+    card.innerHTML =
+      '<div class="invoice-label">Invoice from</div>' +
+      '<div class="baker-name">' + escapeHtml(data.baker_name) + '</div>' +
+      '<div class="order-name">' + escapeHtml(data.order_name || '') + '</div>' +
+      '<div class="amount">$' + amount + '</div>' +
+      (dueStr ? '<div class="due-date">Due ' + dueStr + '</div>' : '<div style="margin-bottom:22px;"></div>') +
+      '<button class="btn-open" id="open-btn" type="button">Open &amp; pay in Bakeri app</button>' +
+      '<div class="status-msg" id="status-msg"></div>' +
+      '<div class="divider"><span>OR PAY HERE</span></div>' +
+      '<form id="payment-form">' +
+        '<div id="payment-element"></div>' +
+        '<button class="btn-pay" id="submit-btn" type="submit">Pay $' + amount + '</button>' +
+        '<div class="pay-error" id="pay-error"></div>' +
+      '</form>';
+
+    document.getElementById('open-btn').addEventListener('click', function () {
+      document.getElementById('status-msg').textContent = 'Opening Bakeri…';
+      attemptDeepLink();
+      setTimeout(function () {
+        document.getElementById('status-msg').textContent = 'App not installed? Download below ↓';
+        storeRow.style.display = 'flex';
+      }, 1800);
+    });
+
+    const stripe = Stripe(STRIPE_PK);
+    const elements = stripe.elements({ clientSecret: data.client_secret });
+    const paymentElement = elements.create('payment');
+    paymentElement.mount('#payment-element');
+
+    const form = document.getElementById('payment-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const errorEl = document.getElementById('pay-error');
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      errorEl.textContent = '';
+
+      stripe.confirmPayment({
+        elements: elements,
+        redirect: 'if_required'
+      }).then(function (result) {
+        if (result.error) {
+          errorEl.textContent = result.error.message || 'Payment failed. Please try again.';
+          submitBtn.disabled = false;
+          return;
+        }
+        const intent = result.paymentIntent;
+        if (intent && intent.status === 'succeeded') {
+          return finalizePayment(intent.id);
+        }
+        errorEl.textContent = 'Payment did not complete. Please try again.';
+        submitBtn.disabled = false;
+      });
+    });
+  }
+
+  function finalizePayment(paymentIntentId) {
+    return fetch(SUPABASE_URL + '/functions/v1/finalize-invoice-payment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': ANON_KEY,
+        'Authorization': 'Bearer ' + ANON_KEY
+      },
+      body: JSON.stringify({ invoice_code: code, payment_intent_id: paymentIntentId })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (body) {
+      if (body.error) {
+        document.getElementById('pay-error').textContent = 'Payment succeeded but confirmation failed — contact your baker to confirm.';
+        return;
+      }
+      showMessage('success', 'Payment received!', 'Your baker has been paid. Thank you!');
+    });
+  }
+
+  function showMessage(kind, title, subtitle) {
+    card.innerHTML = '<div class="' + kind + '"><h2>' +
+      (kind === 'success' ? '<div class="checkmark">✅</div>' : '') +
+      escapeHtml(title) + '</h2><p>' + escapeHtml(subtitle) + '</p></div>';
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+})();
+</script>
+</body>
+</html>
