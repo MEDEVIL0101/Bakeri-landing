@@ -163,9 +163,57 @@
       min-height: 16px;
     }
 
-    .success, .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
-    .success h2, .not-found h2 { font-family: var(--display); font-size: 1.3rem; margin-bottom: 8px; color: var(--ink); }
-    .success .checkmark { font-size: 2.4rem; margin-bottom: 10px; }
+    .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
+    .not-found h2 { font-family: var(--display); font-size: 1.3rem; margin-bottom: 8px; color: var(--ink); }
+
+    /* ── Receipt (mirrors the in-app Order Summary / Receipt screen) ── */
+    .receipt-checkmark { font-size: 2.2rem; text-align: center; margin-bottom: 6px; }
+    .receipt-baker { font-size: 1.25rem; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
+    .receipt-status-row { font-size: 0.85rem; color: var(--muted); margin-bottom: 18px; }
+    .receipt-status-row .status-paid { color: var(--green); font-weight: 700; }
+
+    .receipt-card {
+      background: var(--cream-2);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .receipt-card-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--ink);
+      padding: 14px 16px 10px;
+    }
+    .receipt-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 16px;
+      font-size: 0.85rem;
+      border-top: 1px solid rgba(26,8,8,0.08);
+    }
+    .receipt-row:first-child { border-top: none; }
+    .receipt-row .label { color: var(--muted); }
+    .receipt-row .value { color: var(--ink); font-weight: 600; text-align: right; }
+    .receipt-row.total .label, .receipt-row.total .value { font-weight: 800; color: var(--ink); font-size: 0.95rem; }
+    .receipt-row .item-qty { color: var(--muted); margin-right: 6px; }
+
+    .receipt-actions { display: flex; gap: 10px; margin-top: 6px; }
+    .btn-print {
+      flex: 1;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: #fff;
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 13px 16px;
+      border-radius: 50px;
+      border: 1.5px solid var(--cream-3);
+      cursor: pointer;
+    }
+    .btn-print:hover { background: var(--cream-2); }
 
     .skeleton {
       background: linear-gradient(90deg, var(--cream-2) 25%, var(--cream-3) 50%, var(--cream-2) 75%);
@@ -186,10 +234,24 @@
     @media (prefers-color-scheme: dark) {
       body        { background: #0e0808; }
       .card       { background: #1a1010; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-      .wordmark, .baker-name, .amount, .success h2, .not-found h2 { color: var(--cream); }
+      .wordmark, .baker-name, .amount, .not-found h2, .receipt-baker { color: var(--cream); }
       .btn-open   { background: var(--cream); color: var(--ink); }
       .btn-open:hover { background: var(--cream-2); }
       .divider::before, .divider::after { background: #3a2020; }
+      .receipt-card { background: #241414; }
+      .receipt-row { border-top-color: rgba(255,255,255,0.08); }
+      .receipt-row .value, .receipt-row.total .label, .receipt-row.total .value { color: var(--cream); }
+      .btn-print { background: transparent; color: var(--cream); border-color: #3a2020; }
+      .btn-print:hover { background: #241414; }
+    }
+
+    /* ── Print ── clean, ink-friendly receipt; hide everything else */
+    @media print {
+      body { background: #fff; padding: 0; }
+      .wordmark, .footer, .store-row, .btn-print, .btn-open, .status-msg { display: none !important; }
+      .card { box-shadow: none; max-width: 100%; padding: 0; }
+      .receipt-card { background: #fff; border: 1px solid #ccc; }
+      .receipt-row { border-top-color: #ddd; }
     }
   </style>
 </head>
@@ -266,7 +328,7 @@
 
   function handleError(code) {
     if (code === 'already_paid') {
-      showMessage('success', 'Already paid', 'This invoice has already been paid — thank you!');
+      showMessage('not-found', '✅ Already paid', 'This invoice has already been paid — thank you!');
     } else if (code === 'already_claimed') {
       showMessage('not-found', 'Already claimed', 'This invoice is being paid through the Bakeri app.');
     } else {
@@ -274,7 +336,10 @@
     }
   }
 
+  let currentOrderData = null;
+
   function renderInvoice(data) {
+    currentOrderData = data;
     document.title = 'Invoice from ' + data.baker_name + ' — Bakeri';
 
     const dueStr = data.due_date ? new Date(data.due_date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
@@ -368,7 +433,56 @@
         if (submitBtn) submitBtn.disabled = false;
         return;
       }
-      showMessage('success', 'Payment received!', 'Your baker has been paid. Thank you!');
+      renderReceipt(currentOrderData, body.paid_at || new Date().toISOString());
+    });
+  }
+
+  function renderReceipt(data, paidAtIso) {
+    document.title = 'Receipt from ' + data.baker_name + ' — Bakeri';
+
+    const amount = (data.amount_cents / 100).toFixed(2);
+    const shortId = (data.order_id || '').replace(/-/g, '').slice(0, 8).toUpperCase();
+    const paidAt = new Date(paidAtIso);
+    const placedAt = data.created_at ? new Date(data.created_at) : paidAt;
+    const dateOpts = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' };
+
+    const itemRows = (data.items || []).map(function (i) {
+      const lineTotal = i.price_per_unit ? (i.price_per_unit * i.quantity).toFixed(2) : null;
+      return '<div class="receipt-row">' +
+        '<span class="label"><span class="item-qty">' + i.quantity + '×</span>' + escapeHtml(i.name) + '</span>' +
+        (lineTotal ? '<span class="value">$' + lineTotal + '</span>' : '') +
+        '</div>';
+    }).join('');
+
+    card.innerHTML =
+      '<div class="receipt-checkmark">✅</div>' +
+      '<div class="receipt-baker" style="text-align:center;">' + escapeHtml(data.baker_name) + '</div>' +
+      '<div class="receipt-status-row" style="text-align:center;">' +
+        '<span class="status-paid">Paid</span> · #' + shortId +
+      '</div>' +
+
+      '<div class="receipt-card">' +
+        '<div class="receipt-card-title">In your order</div>' +
+        itemRows +
+        '<div class="receipt-row total"><span class="label">Total (CAD)</span><span class="value">$' + amount + '</span></div>' +
+      '</div>' +
+
+      '<div class="receipt-card">' +
+        '<div class="receipt-row"><span class="label">Paid with</span><span class="value">Credit Card</span></div>' +
+        '<div class="receipt-row"><span class="label">Amount</span><span class="value">$' + amount + '</span></div>' +
+        '<div class="receipt-row"><span class="label">Date</span><span class="value">' + paidAt.toLocaleDateString(undefined, dateOpts) + '</span></div>' +
+      '</div>' +
+
+      '<div class="receipt-card">' +
+        '<div class="receipt-row"><span class="label">Placed</span><span class="value">' + placedAt.toLocaleDateString(undefined, dateOpts) + '</span></div>' +
+      '</div>' +
+
+      '<div class="receipt-actions">' +
+        '<button class="btn-print" id="print-btn" type="button">🖨️ Print / Save Receipt</button>' +
+      '</div>';
+
+    document.getElementById('print-btn').addEventListener('click', function () {
+      window.print();
     });
   }
 
