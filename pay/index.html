@@ -168,6 +168,13 @@
 
     /* ── Receipt (mirrors the in-app Order Summary / Receipt screen) ── */
     .receipt-checkmark { font-size: 2.2rem; text-align: center; margin-bottom: 6px; }
+    .receipt-logo-wrap { display: flex; justify-content: center; margin-bottom: 6px; }
+    .receipt-logo {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      object-fit: cover;
+      box-shadow: 0 2px 10px rgba(26,8,8,0.12);
+    }
     .receipt-baker { font-size: 1.25rem; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
     .receipt-status-row { font-size: 0.85rem; color: var(--muted); margin-bottom: 18px; }
     .receipt-status-row .status-paid { color: var(--green); font-weight: 700; }
@@ -454,8 +461,17 @@
         '</div>';
     }).join('');
 
+    const logoUrl = data.baker_id
+      ? SUPABASE_URL + '/storage/v1/object/public/business-logos/' + data.baker_id + '/logo.jpg'
+      : null;
+
     card.innerHTML =
-      '<div class="receipt-checkmark">✅</div>' +
+      '<div class="receipt-logo-wrap">' +
+        (logoUrl
+          ? '<img class="receipt-logo" src="' + logoUrl + '" alt="' + escapeHtml(data.baker_name) + '" ' +
+            'onerror="this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'receipt-checkmark\', textContent:\'✅\'}))" />'
+          : '<div class="receipt-checkmark">✅</div>') +
+      '</div>' +
       '<div class="receipt-baker" style="text-align:center;">' + escapeHtml(data.baker_name) + '</div>' +
       '<div class="receipt-status-row" style="text-align:center;">' +
         '<span class="status-paid">Paid</span> · #' + shortId +
