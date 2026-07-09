@@ -4,25 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bakeri</title>
-  <meta name="description" content="View this baker's profile on Bakeri." />
+  <meta name="description" content="View this baker's storefront on Bakeri." />
   <link rel="icon" href="../1024.png" />
   <link rel="apple-touch-icon" href="../1024.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Nunito:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <style>
     :root {
-      --cream:   #FAF5EE;
-      --cream-2: #F3EAD8;
-      --cream-3: #E9DAC4;
-      --ink:     #1A0808;
-      --ink-2:   #3A1212;
-      --muted:   #8C7B6E;
-      --gold:    #C9963A;
-      --green:   #4CAF82;
-      --display: 'Playfair Display', Georgia, serif;
-      --sans:    'Nunito', system-ui, sans-serif;
+      --bg:      #F6F1E6;
+      --white:   #FFFFFF;
+      --ink:     #241712;
+      --muted:   #948577;
+      --bio:     #4A3E33;
+      --chip:    #7A6C5D;
+      --line:    rgba(36,23,18,0.08);
+      --line-2:  rgba(36,23,18,0.14);
+      --ready:   #3FA672;
+      --custom:  #A66A5B;
+      --preorder:#C79A3D;
+      --sans:    -apple-system, "SF Pro Text", system-ui, sans-serif;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,327 +29,218 @@
 
     body {
       font-family: var(--sans);
-      background: var(--cream);
+      background: var(--bg);
       color: var(--ink);
       min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 32px 16px 48px;
       -webkit-font-smoothing: antialiased;
     }
 
+    #page { width: 100%; box-sizing: border-box; }
+
     /* ── Wordmark ── */
-    .wordmark {
-      height: 32px;
-      width: auto;
-      margin-bottom: 24px;
-      display: block;
-    }
-    @media (prefers-color-scheme: dark) { .wordmark { filter: invert(1); } }
+    .wordmark-row { text-align: center; }
+    .wordmark { font-size: 22px; font-weight: 800; letter-spacing: 2px; color: var(--ink); }
 
     /* ── Profile card ── */
     .profile-card {
-      width: 100%;
-      max-width: 480px;
-      background: #fff;
-      border-radius: 24px;
-      box-shadow: 0 8px 40px rgba(26,8,8,0.10), 0 2px 8px rgba(26,8,8,0.06);
-      padding: 36px 28px 28px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      gap: 0;
+      background: var(--white);
+      border-radius: 28px;
+      padding: 32px 28px;
+      box-shadow: 0 2px 8px rgba(36,23,18,0.06), 0 12px 32px rgba(36,23,18,0.06);
+      box-sizing: border-box;
     }
+    .profile-inner { display: flex; flex-direction: column; align-items: center; text-align: center; }
 
     .avatar {
-      width: 84px;
-      height: 84px;
-      border-radius: 50%;
-      background: var(--cream-2);
-      border: 2px solid var(--cream-3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--display);
-      font-size: 2rem;
-      color: var(--muted);
-      margin-bottom: 16px;
-      overflow: hidden;
-      flex-shrink: 0;
+      width: 88px; height: 88px; border-radius: 50%;
+      background: #F2A6C6;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px rgba(36,23,18,0.12);
+      flex-shrink: 0; overflow: hidden; position: relative;
     }
-    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar-letter { font-size: 34px; font-weight: 700; color: #fff; }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; display: none; }
 
-    .baker-name {
-      font-family: var(--display);
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--ink);
-      margin-bottom: 4px;
-    }
+    .baker-name { font-size: 24px; font-weight: 800; color: var(--ink); margin-top: 18px; letter-spacing: -0.3px; }
 
-    .baker-meta {
-      font-size: 0.85rem;
-      color: var(--muted);
-      margin-bottom: 12px;
+    .location-chip {
+      margin-top: 8px; display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(36,23,18,0.06); padding: 5px 12px; border-radius: 9999px;
     }
+    .location-chip span { font-size: 12.5px; color: var(--chip); font-weight: 500; }
 
-    .baker-bio {
-      font-size: 0.9rem;
-      color: var(--ink-2);
-      line-height: 1.55;
-      margin-bottom: 14px;
-      max-width: 360px;
-    }
+    .baker-bio { margin-top: 18px; font-size: 14.5px; line-height: 1.6; color: var(--bio); }
 
-    .tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      justify-content: center;
-      margin-bottom: 22px;
-    }
-    .tag {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--muted);
-      background: var(--cream-2);
-      border-radius: 50px;
-      padding: 4px 11px;
-    }
-
-    /* ── Open button ── */
     .btn-open {
-      display: block;
-      width: 100%;
-      background: var(--ink);
-      color: #fff;
-      font-family: var(--sans);
-      font-size: 1rem;
-      font-weight: 700;
-      padding: 14px 24px;
-      border-radius: 50px;
-      border: none;
-      cursor: pointer;
-      text-decoration: none;
-      transition: background 0.18s, transform 0.12s;
-      margin-bottom: 10px;
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 48px; margin-top: 26px;
+      background: var(--ink); color: #fff;
+      font-family: var(--sans); font-size: 15px; font-weight: 700;
+      border-radius: 9999px; border: none; cursor: pointer; text-decoration: none;
     }
-    .btn-open:hover { background: #3a1212; transform: translateY(-1px); }
-    .btn-open:active { transform: translateY(0); }
+    .btn-open:active { opacity: 0.85; }
+    .status-msg { margin-top: 12px; text-align: center; font-size: 12.5px; color: var(--muted); min-height: 16px; }
 
-    .status-msg {
-      font-size: 0.8rem;
-      color: var(--muted);
-      min-height: 16px;
-      margin-bottom: 4px;
+    /* ── Menu section ── */
+    .menu-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .menu-title { font-size: 19px; font-weight: 800; color: var(--ink); }
+
+    .view-toggle { display: flex; background: rgba(36,23,18,0.06); border-radius: 9999px; padding: 3px; gap: 2px; }
+    .view-toggle button {
+      width: 34px; height: 30px; border-radius: 9999px; border: none; background: transparent;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
     }
+    .view-toggle button.active { background: var(--ink); }
 
-    /* ── Listings ── */
-    .listings-section {
-      width: 100%;
-      max-width: 480px;
-      margin-top: 24px;
-    }
-
-    .listings-title {
-      font-family: var(--display);
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: var(--ink);
-      margin-bottom: 14px;
-    }
-
-    .listing-card {
-      background: #fff;
-      border-radius: 16px;
-      box-shadow: 0 2px 12px rgba(26,8,8,0.07);
-      overflow: hidden;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: stretch;
-      cursor: pointer;
-      transition: transform 0.12s, box-shadow 0.12s;
+    .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+    .menu-card {
+      background: var(--white); border-radius: 20px; overflow: hidden; cursor: pointer;
+      box-shadow: 0 1px 3px rgba(36,23,18,0.06), 0 6px 18px rgba(36,23,18,0.05);
       -webkit-tap-highlight-color: transparent;
     }
-    .listing-card:hover  { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(26,8,8,0.12); }
-    .listing-card:active { transform: translateY(0);    box-shadow: 0 2px 12px rgba(26,8,8,0.07); }
-
-    .listing-img {
-      width: 90px;
-      height: 90px;
-      object-fit: cover;
-      flex-shrink: 0;
-      background: var(--cream-2);
+    .menu-card-photo { position: relative; width: 100%; aspect-ratio: 1 / 1; background: rgba(36,23,18,0.05); overflow: hidden; }
+    .menu-card-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    .menu-card-photo .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+    .badge-overlay {
+      position: absolute; top: 10px; right: 10px; padding: 5px 12px; border-radius: 9999px;
+      font-size: 11.5px; font-weight: 700; color: #fff;
     }
-
-    .listing-img-placeholder {
-      width: 90px;
-      height: 90px;
-      background: var(--cream-2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.6rem;
-      flex-shrink: 0;
+    .avail-overlay {
+      position: absolute; bottom: 10px; left: 10px; background: rgba(20,15,10,0.72);
+      padding: 5px 10px; border-radius: 9999px; display: flex; align-items: center; gap: 5px;
     }
+    .avail-overlay .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ready); }
+    .avail-overlay span { font-size: 11.5px; font-weight: 600; color: #fff; }
+    .menu-card-body { padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .menu-card-name { font-size: 16px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .menu-card-subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .menu-card-price { font-size: 17px; font-weight: 800; color: var(--ink); flex-shrink: 0; text-align: right; }
+    .menu-card-price .from-label { font-size: 11px; color: var(--muted); font-weight: 400; }
 
-    .listing-body {
-      padding: 12px 14px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      flex: 1;
-      min-width: 0;
-    }
-
-    .listing-name {
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: var(--ink);
-      margin-bottom: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    .menu-list { background: var(--white); border-radius: 20px; box-shadow: 0 1px 3px rgba(36,23,18,0.06), 0 6px 18px rgba(36,23,18,0.05); overflow: hidden; }
+    .menu-row { padding: 18px 20px; border-bottom: 1px solid var(--line); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .menu-row:last-child { border-bottom: none; }
+    .menu-row-top { display: flex; align-items: baseline; gap: 8px; }
+    .menu-row-name { font-size: 16.5px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+    .menu-row-leader { flex: 1; border-bottom: 1.5px dotted rgba(36,23,18,0.25); margin-bottom: 4px; }
+    .menu-row-price { font-size: 15px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+    .menu-row-desc { font-size: 13.5px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+    .badge-inline {
+      display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 9999px;
+      font-size: 10.5px; font-weight: 700; color: #fff;
     }
 
-    .listing-desc {
-      font-size: 0.78rem;
-      color: var(--muted);
-      margin-bottom: 6px;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+    /* ── Product detail modal ── */
+    .modal-scrim {
+      position: fixed; inset: 0; background: rgba(20,15,10,0.55);
+      display: none; align-items: center; justify-content: center; padding: 20px; z-index: 100;
     }
-
-    .listing-footer {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .modal-scrim.open { display: flex; }
+    .modal-card {
+      background: var(--white); border-radius: 28px; max-width: 420px; width: 100%;
+      max-height: 88vh; overflow: auto; box-shadow: 0 24px 64px rgba(0,0,0,0.3);
     }
-
-    .listing-price {
-      font-size: 0.88rem;
-      font-weight: 700;
-      color: var(--ink);
+    .modal-photo { position: relative; width: 100%; aspect-ratio: 1 / 1; background: rgba(36,23,18,0.05); }
+    .modal-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    .modal-close {
+      position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%;
+      background: rgba(20,15,10,0.55); display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border: none;
     }
-
-    .badge {
-      font-size: 0.68rem;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 50px;
-      letter-spacing: 0.03em;
-    }
-    .badge-ready  { background: #d4f0e4; color: #2a7a55; }
-    .badge-pre    { background: #fef3d4; color: #8a6200; }
-    .badge-custom { background: #e8e8ff; color: #4040a0; }
-
-    /* ── Divider ── */
-    .divider {
-      width: 100%;
-      max-width: 480px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 20px 0;
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--cream-3);
-    }
-    .divider span {
-      font-size: 0.72rem;
-      color: var(--muted);
-      font-weight: 700;
-      letter-spacing: 0.05em;
-    }
-
-    /* ── App Store ── */
-    .store-row {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-    }
-    .store-badge { height: 42px; width: auto; }
+    .modal-body { padding: 22px 24px 26px; }
+    .modal-top-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .modal-name { font-size: 21px; font-weight: 800; color: var(--ink); }
+    .modal-price { font-size: 20px; font-weight: 800; color: var(--ink); flex-shrink: 0; text-align: right; }
+    .modal-price .from-label { font-size: 11px; color: var(--muted); font-weight: 400; }
+    .modal-subtitle { font-size: 13px; color: var(--muted); margin-top: 6px; }
+    .modal-desc { font-size: 14.5px; line-height: 1.6; color: var(--bio); margin-top: 14px; }
+    .modal-body .btn-open { margin-top: 22px; }
 
     /* ── Footer ── */
-    .footer {
-      margin-top: 28px;
-      font-size: 0.75rem;
-      color: var(--muted);
-      text-align: center;
-    }
-    .footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+    .footer-wrap { text-align: center; }
+    .footer-divider { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+    .footer-divider .rule { flex: 1; height: 1px; background: var(--line-2); }
+    .footer-divider span { font-size: 11.5px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted); }
+    .store-badge { height: 42px; width: auto; }
+    .footer-links { margin-top: 26px; font-size: 12.5px; color: var(--muted); }
+    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
 
-    /* ── Skeleton ── */
+    /* ── Skeleton / not-found ── */
     .skeleton {
-      background: linear-gradient(90deg, var(--cream-2) 25%, var(--cream-3) 50%, var(--cream-2) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite;
-      border-radius: 8px;
+      background: linear-gradient(90deg, rgba(36,23,18,0.06) 25%, rgba(36,23,18,0.1) 50%, rgba(36,23,18,0.06) 75%);
+      background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px;
     }
     @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-    /* ── Not found ── */
-    .not-found { text-align: center; color: var(--muted); margin-top: 40px; }
-    .not-found h2 { font-family: var(--display); font-size: 1.3rem; margin-bottom: 8px; color: var(--ink); }
+    .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
+    .not-found h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--ink); }
 
     @media (prefers-color-scheme: dark) {
-      body         { background: #0e0808; }
-      .profile-card, .listing-card { background: #1a1010; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-      .wordmark    { color: var(--cream); }
-      .baker-name  { color: var(--cream); }
-      .listing-name { color: var(--cream); }
-      .listing-price { color: var(--cream); }
-      .listings-title { color: var(--cream); }
-      .avatar, .listing-img-placeholder { background: #2a1a1a; border-color: #3a2020; }
-      .btn-open    { background: var(--cream); color: var(--ink); }
-      .btn-open:hover { background: var(--cream-2); }
-      .tag         { background: #2a1a1a; }
-      .divider::before, .divider::after { background: #3a2020; }
+      body { background: #17110C; }
+      :root { --bg: #17110C; }
+      .profile-card, .menu-card, .menu-list, .modal-card { background: #241A14; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+      .wordmark, .baker-name, .menu-title, .menu-card-name, .menu-row-name, .modal-name, .not-found h2 { color: #F6F1E6; }
+      .btn-open { background: #F6F1E6; color: var(--ink); }
     }
   </style>
 </head>
 <body>
 
-<img class="wordmark" src="../wordmark.png" alt="Bakeri" />
+<div id="page">
+  <div class="wordmark-row" id="wordmark-row">
+    <span class="wordmark">BAK<span id="wm-e" style="color:#3FA6A6;">E</span><span id="wm-r" style="color:#E0679A;">R</span><span id="wm-i" style="color:#E0A040;">Ï</span></span>
+  </div>
 
-<!-- Profile card (populated by JS) -->
-<div class="profile-card" id="profile-card">
-  <div class="avatar" id="avatar"><span id="avatar-letter">🧁</span></div>
-  <div class="baker-name" id="baker-name" style="min-width:160px;min-height:28px;"></div>
-  <div class="baker-meta" id="baker-meta"></div>
-  <div class="baker-bio"  id="baker-bio"></div>
-  <div class="tags"       id="tags"></div>
-  <button class="btn-open" id="open-btn">Open in Bakeri</button>
-  <div class="status-msg" id="status-msg"></div>
+  <div id="layout">
+    <div id="profile-col">
+      <div class="profile-card" id="profile-card">
+        <div class="profile-inner">
+          <div class="avatar" id="avatar"><span class="avatar-letter" id="avatar-letter">🧁</span></div>
+          <div class="baker-name" id="baker-name" style="min-width:160px;min-height:28px;"></div>
+          <div class="location-chip" id="location-chip" style="display:none;">
+            <svg width="10" height="13" viewBox="0 0 10 13" fill="none"><path d="M5 12.5S9.5 7.8 9.5 4.7A4.5 4.5 0 000.5 4.7C0.5 7.8 5 12.5 5 12.5Z" stroke="#7A6C5D" stroke-width="1.2"/><circle cx="5" cy="4.6" r="1.5" stroke="#7A6C5D" stroke-width="1.2"/></svg>
+            <span id="location-text"></span>
+          </div>
+          <div class="baker-bio" id="baker-bio" style="display:none;"></div>
+        </div>
+        <button class="btn-open" id="open-btn">Open in Bakeri</button>
+        <div class="status-msg" id="status-msg"></div>
+      </div>
+    </div>
+
+    <div id="menu-col" style="display:none;">
+      <div class="menu-header">
+        <div class="menu-title">Menu</div>
+        <div class="view-toggle">
+          <button id="grid-btn" class="active" aria-label="Grid view">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="0.5" y="0.5" width="5.5" height="5.5" rx="1.2" fill="#fff"/><rect x="8" y="0.5" width="5.5" height="5.5" rx="1.2" fill="#fff"/><rect x="0.5" y="8" width="5.5" height="5.5" rx="1.2" fill="#fff"/><rect x="8" y="8" width="5.5" height="5.5" rx="1.2" fill="#fff"/></svg>
+          </button>
+          <button id="list-btn" aria-label="List view">
+            <svg width="15" height="14" viewBox="0 0 15 14" fill="none"><rect x="0" y="1" width="15" height="2.2" rx="1.1" fill="#948577"/><rect x="0" y="5.9" width="15" height="2.2" rx="1.1" fill="#948577"/><rect x="0" y="10.8" width="15" height="2.2" rx="1.1" fill="#948577"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="menu-grid" id="menu-grid"></div>
+      <div class="menu-list" id="menu-list" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="footer-wrap" id="footer-wrap">
+    <div class="footer-divider">
+      <div class="rule"></div><span>DON'T HAVE THE APP?</span><div class="rule"></div>
+    </div>
+    <a href="https://apps.apple.com/app/bakeri/id6745506861">
+      <img class="store-badge" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" />
+    </a>
+    <div class="footer-links">
+      <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
+      <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+    </div>
+  </div>
 </div>
 
-<!-- Listings (populated by JS) -->
-<div class="listings-section" id="listings-section" style="display:none;">
-  <div class="listings-title">Menu</div>
-  <div id="listings-list"></div>
-</div>
-
-<!-- App Store fallback -->
-<div class="divider" id="divider" style="max-width:480px;width:100%;"><span>DON'T HAVE THE APP?</span></div>
-<div class="store-row">
-  <a href="https://apps.apple.com/app/bakeri/id6745506861">
-    <img class="store-badge"
-         src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
-         alt="Download on the App Store" />
-  </a>
-</div>
-
-<div class="footer">
-  <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
-  <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+<!-- Product detail modal -->
+<div class="modal-scrim" id="modal-scrim">
+  <div class="modal-card" id="modal-card"></div>
 </div>
 
 <script>
@@ -359,82 +249,118 @@
   const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
   const STORAGE_URL  = SUPABASE_URL + '/storage/v1/object/public';
 
-  const params   = new URLSearchParams(window.location.search);
-  const slug     = (params.get('slug') || '').trim().toLowerCase();
-  const bakerID  = (params.get('id')   || '').trim();
+  const params  = new URLSearchParams(window.location.search);
+  const slug    = (params.get('slug') || '').trim().toLowerCase();
+  const bakerID = (params.get('id')   || '').trim();
+
+  const page       = document.getElementById('page');
+  const layout     = document.getElementById('layout');
+  const profileCol = document.getElementById('profile-col');
+  const menuCol    = document.getElementById('menu-col');
+  const wordmarkRow= document.getElementById('wordmark-row');
+  const footerWrap = document.getElementById('footer-wrap');
+  const menuGrid   = document.getElementById('menu-grid');
+  const menuList   = document.getElementById('menu-list');
+  const gridBtn    = document.getElementById('grid-btn');
+  const listBtn    = document.getElementById('list-btn');
+
+  let viewMode = 'grid';
+  let currentListings = [];
+  let resolvedBakerId = bakerID;
+
+  // ── Responsive layout — tracked in JS per design spec, not a CSS media query ──
+  function applyLayout() {
+    const isDesktop = window.innerWidth >= 860;
+    page.style.padding = isDesktop ? '56px 40px' : '32px 18px';
+    wordmarkRow.style.marginBottom = isDesktop ? '40px' : '28px';
+    layout.style.display = 'flex';
+    layout.style.flexDirection = isDesktop ? 'row' : 'column';
+    layout.style.gap = isDesktop ? '48px' : '28px';
+    layout.style.maxWidth = isDesktop ? '1120px' : '560px';
+    layout.style.margin = '0 auto';
+    layout.style.alignItems = 'flex-start';
+    if (isDesktop) {
+      profileCol.style.width = '380px';
+      profileCol.style.flexShrink = '0';
+      profileCol.style.position = 'sticky';
+      profileCol.style.top = '32px';
+      menuCol.style.flex = '1';
+      menuCol.style.minWidth = '0';
+      menuCol.style.width = '';
+    } else {
+      profileCol.style.width = '100%';
+      profileCol.style.position = 'static';
+      menuCol.style.width = '100%';
+      menuCol.style.flex = '';
+    }
+    menuGrid.style.gap = isDesktop ? '20px' : '14px';
+    footerWrap.style.maxWidth = isDesktop ? '560px' : '100%';
+    footerWrap.style.margin = '40px auto 0';
+  }
+  applyLayout();
+  window.addEventListener('resize', applyLayout);
 
   if (!slug && !bakerID) {
     showNotFound('No baker specified', 'This link appears to be invalid.');
     return;
   }
 
-  // Deep link — slug preferred (human-readable); UUID as fallback
   const deepLinkSegment = slug || bakerID;
   const deepLink  = 'bakeri://baker/' + encodeURIComponent(deepLinkSegment);
   const openBtn   = document.getElementById('open-btn');
   const statusMsg = document.getElementById('status-msg');
 
-  openBtn.addEventListener('click', function (e) {
-    e.preventDefault();
-    attemptDeepLink();
-  });
-
-  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-    attemptDeepLink();
-  }
+  openBtn.addEventListener('click', function (e) { e.preventDefault(); attemptDeepLink(); });
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) attemptDeepLink();
 
   function attemptDeepLink() {
     statusMsg.textContent = 'Opening Bakeri…';
     window.location.href = deepLink;
-    setTimeout(function () {
-      statusMsg.textContent = 'App not installed? Download below ↓';
-    }, 1800);
+    setTimeout(function () { statusMsg.textContent = 'App not installed? Download below ↓'; }, 1800);
   }
 
-  // Fetch baker data — slug lookup preferred, UUID fallback
-  var rpcName = slug ? 'get_baker_web_profile_by_slug' : 'get_baker_web_profile_by_id';
-  var rpcBody = slug ? { p_slug: slug } : { p_user_id: bakerID };
+  gridBtn.addEventListener('click', function () { setViewMode('grid'); });
+  listBtn.addEventListener('click', function () { setViewMode('list'); });
+
+  function setViewMode(mode) {
+    viewMode = mode;
+    gridBtn.classList.toggle('active', mode === 'grid');
+    listBtn.classList.toggle('active', mode === 'list');
+    gridBtn.querySelectorAll('rect').forEach(function (r) { r.setAttribute('fill', mode === 'grid' ? '#fff' : '#948577'); });
+    listBtn.querySelectorAll('rect').forEach(function (r) { r.setAttribute('fill', mode === 'list' ? '#fff' : '#948577'); });
+    menuGrid.style.display = mode === 'grid' ? 'grid' : 'none';
+    menuList.style.display = mode === 'list' ? 'block' : 'none';
+  }
+
+  const rpcName = slug ? 'get_baker_web_profile_by_slug' : 'get_baker_web_profile_by_id';
+  const rpcBody = slug ? { p_slug: slug } : { p_user_id: bakerID };
 
   fetch(SUPABASE_URL + '/rest/v1/rpc/' + rpcName, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': ANON_KEY
-    },
+    headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
     body: JSON.stringify(rpcBody)
   })
   .then(function (r) { return r.json(); })
   .then(function (data) {
-    if (!data || !data.profile) {
-      showNotFound('Baker not found', 'No baker found at this link.');
-      return;
-    }
+    if (!data || !data.profile) { showNotFound('Baker not found', 'No baker found at this link.'); return; }
     renderProfile(data.profile, data.listings || []);
   })
-  .catch(function () {
-    showNotFound('Something went wrong', 'Could not load this profile. Try again later.');
-  });
+  .catch(function () { showNotFound('Something went wrong', 'Could not load this profile. Try again later.'); });
 
   function renderProfile(profile, listings) {
+    resolvedBakerId = profile.id;
     const name     = profile.business_name || profile.user_name || 'Baker';
-    const location = [profile.pickup_city, profile.pickup_province].filter(Boolean).join(', ')
-                  || profile.location || '';
-    const metaParts = [];
-    if (location) metaParts.push(location);
+    const location = [profile.pickup_city, profile.pickup_province].filter(Boolean).join(', ') || profile.location || '';
 
-    // Page title + meta
     document.title = name + ' on Bakeri';
-    document.querySelector('meta[name="description"]').content =
-      name + ' — handcrafted bakes on Bakeri. ' + (profile.bio || '');
+    document.querySelector('meta[name="description"]').content = name + ' — handcrafted bakes on Bakeri. ' + (profile.bio || '');
 
-    // Avatar — path uses uppercase UUID (Swift uploads with UUID.uuidString which is uppercase)
     const logoURL = STORAGE_URL + '/business-logos/' + profile.id.toUpperCase() + '/logo.jpg';
     const avatarEl = document.getElementById('avatar');
     const avatarImg = document.createElement('img');
     avatarImg.alt = name;
-    avatarImg.style.cssText = 'width:100%;height:100%;object-fit:cover;display:none;';
     avatarImg.onload = function () {
-      avatarImg.style.display = '';
+      avatarImg.style.display = 'block';
       document.getElementById('avatar-letter').style.display = 'none';
     };
     avatarImg.src = logoURL;
@@ -442,114 +368,173 @@
     document.getElementById('avatar-letter').textContent = name.charAt(0).toUpperCase();
 
     document.getElementById('baker-name').textContent = name;
-    document.getElementById('baker-meta').textContent = metaParts.join(' · ');
+
+    if (location) {
+      document.getElementById('location-chip').style.display = 'inline-flex';
+      document.getElementById('location-text').textContent = location;
+    }
 
     const bioEl = document.getElementById('baker-bio');
-    if (profile.bio) {
-      bioEl.textContent = profile.bio;
-    } else {
-      bioEl.style.display = 'none';
-    }
+    if (profile.bio) { bioEl.style.display = 'block'; bioEl.textContent = profile.bio; }
 
-    const tagsEl = document.getElementById('tags');
-    (profile.specialty_tags || []).forEach(function (tag) {
-      const span = document.createElement('span');
-      span.className = 'tag';
-      span.textContent = tag;
-      tagsEl.appendChild(span);
-    });
-    if (!profile.specialty_tags || !profile.specialty_tags.length) {
-      tagsEl.style.display = 'none';
-    }
-
-    // Listings
+    currentListings = listings;
     if (listings.length > 0) {
-      const section = document.getElementById('listings-section');
-      section.style.display = 'block';
-      const list = document.getElementById('listings-list');
-
-      listings.forEach(function (item) {
-        const card = document.createElement('div');
-        card.className = 'listing-card';
-        card.addEventListener('click', attemptDeepLink);
-
-        // Image — paths use uppercase UUIDs (Swift uploads with UUID.uuidString)
-        const imgURL = STORAGE_URL + '/menu-item-images/' + profile.id.toUpperCase() + '/' + item.id.toUpperCase() + '.jpg';
-        const imgCell = document.createElement('div');
-        imgCell.style.cssText = 'width:90px;height:90px;flex-shrink:0;overflow:hidden;position:relative;';
-
-        const imgPlaceholder = document.createElement('div');
-        imgPlaceholder.className = 'listing-img-placeholder';
-        imgPlaceholder.textContent = categoryEmoji(item.category);
-
-        const imgTag = document.createElement('img');
-        imgTag.className = 'listing-img';
-        imgTag.alt = item.name;
-        imgTag.style.display = 'none';
-        imgTag.onload = function () {
-          imgPlaceholder.style.display = 'none';
-          imgTag.style.display = '';
-        };
-        imgTag.src = imgURL;
-
-        imgCell.appendChild(imgPlaceholder);
-        imgCell.appendChild(imgTag);
-        card.appendChild(imgCell);
-
-        // Body
-        const body = document.createElement('div');
-        body.className = 'listing-body';
-
-        const nameEl = document.createElement('div');
-        nameEl.className = 'listing-name';
-        nameEl.textContent = item.name;
-        body.appendChild(nameEl);
-
-        if (item.item_description) {
-          const desc = document.createElement('div');
-          desc.className = 'listing-desc';
-          desc.textContent = item.item_description;
-          body.appendChild(desc);
-        }
-
-        const footer = document.createElement('div');
-        footer.className = 'listing-footer';
-
-        const price = document.createElement('span');
-        price.className = 'listing-price';
-        price.textContent = 'From $' + parseFloat(item.price).toFixed(2);
-        footer.appendChild(price);
-
-        const badge = document.createElement('span');
-        badge.className = 'badge ' + kindBadgeClass(item.listing_kind);
-        badge.textContent = kindLabel(item.listing_kind);
-        footer.appendChild(badge);
-
-        if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) {
-          const qty = document.createElement('span');
-          qty.style.cssText = 'font-size:0.72rem;color:var(--muted);margin-left:auto;';
-          qty.textContent = item.available_qty_today + ' left today';
-          footer.appendChild(qty);
-        }
-
-        body.appendChild(footer);
-        card.appendChild(body);
-        list.appendChild(card);
-      });
+      menuCol.style.display = 'block';
+      renderGrid(listings);
+      renderList(listings);
     }
   }
 
-  function kindBadgeClass(kind) {
-    if (kind === 'ready_now') return 'badge-ready';
-    if (kind === 'preorder')  return 'badge-pre';
-    return 'badge-custom';
+  function badgeInfo(kind) {
+    if (kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
+    if (kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
+    return { bg: 'var(--custom)', label: 'Custom' };
   }
 
-  function kindLabel(kind) {
-    if (kind === 'ready_now') return 'Ready Now';
-    if (kind === 'preorder')  return 'Pre-order';
-    return 'Custom';
+  function subtitleFor(item) {
+    if (item.listing_kind === 'custom') return 'Request a custom quote';
+    if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) return item.available_qty_today + ' available today';
+    if (item.listing_kind === 'preorder') return 'Reserve yours today';
+    return item.item_description || '';
   }
+
+  function priceIsFrom(item) { return item.listing_kind === 'custom'; }
+
+  function itemImgURL(bakerIdVal, item) {
+    return STORAGE_URL + '/menu-item-images/' + bakerIdVal.toUpperCase() + '/' + item.id.toUpperCase() + '.jpg';
+  }
+
+  function renderGrid(listings) {
+    menuGrid.innerHTML = '';
+    listings.forEach(function (item, idx) {
+      const badge = badgeInfo(item.listing_kind);
+      const card = document.createElement('div');
+      card.className = 'menu-card';
+      card.addEventListener('click', function () { openModal(idx); });
+
+      const photo = document.createElement('div');
+      photo.className = 'menu-card-photo';
+      const ph = document.createElement('div');
+      ph.className = 'ph';
+      ph.textContent = categoryEmoji(item.category);
+      const img = document.createElement('img');
+      img.alt = item.name;
+      img.onload = function () { img.style.display = 'block'; ph.style.display = 'none'; };
+      img.src = itemImgURL(resolvedBakerId, item);
+      photo.appendChild(ph);
+      photo.appendChild(img);
+
+      const badgeEl = document.createElement('div');
+      badgeEl.className = 'badge-overlay';
+      badgeEl.style.background = badge.bg;
+      badgeEl.textContent = badge.label;
+      photo.appendChild(badgeEl);
+
+      if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) {
+        const avail = document.createElement('div');
+        avail.className = 'avail-overlay';
+        avail.innerHTML = '<div class="dot"></div><span>' + item.available_qty_today + ' left</span>';
+        photo.appendChild(avail);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'menu-card-body';
+      const left = document.createElement('div');
+      left.style.minWidth = '0';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'menu-card-name';
+      nameEl.textContent = item.name;
+      const subEl = document.createElement('div');
+      subEl.className = 'menu-card-subtitle';
+      subEl.textContent = subtitleFor(item);
+      left.appendChild(nameEl);
+      left.appendChild(subEl);
+
+      const priceEl = document.createElement('div');
+      priceEl.className = 'menu-card-price';
+      const priceVal = '$' + parseFloat(item.price).toFixed(0);
+      priceEl.innerHTML = priceIsFrom(item)
+        ? '<div class="from-label">from</div>' + priceVal
+        : priceVal;
+
+      body.appendChild(left);
+      body.appendChild(priceEl);
+      card.appendChild(photo);
+      card.appendChild(body);
+      menuGrid.appendChild(card);
+    });
+  }
+
+  function renderList(listings) {
+    menuList.innerHTML = '';
+    listings.forEach(function (item, idx) {
+      const badge = badgeInfo(item.listing_kind);
+      const row = document.createElement('div');
+      row.className = 'menu-row';
+      row.addEventListener('click', function () { openModal(idx); });
+
+      const top = document.createElement('div');
+      top.className = 'menu-row-top';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'menu-row-name';
+      nameEl.textContent = item.name;
+      const leader = document.createElement('span');
+      leader.className = 'menu-row-leader';
+      const priceEl = document.createElement('span');
+      priceEl.className = 'menu-row-price';
+      priceEl.textContent = (priceIsFrom(item) ? 'from ' : '') + '$' + parseFloat(item.price).toFixed(0);
+      top.appendChild(nameEl);
+      top.appendChild(leader);
+      top.appendChild(priceEl);
+
+      const desc = document.createElement('div');
+      desc.className = 'menu-row-desc';
+      desc.textContent = item.item_description || subtitleFor(item);
+
+      const badgeEl = document.createElement('div');
+      badgeEl.className = 'badge-inline';
+      badgeEl.style.background = badge.bg;
+      badgeEl.textContent = badge.label;
+
+      row.appendChild(top);
+      row.appendChild(desc);
+      row.appendChild(badgeEl);
+      menuList.appendChild(row);
+    });
+  }
+
+  const modalScrim = document.getElementById('modal-scrim');
+  const modalCard  = document.getElementById('modal-card');
+  modalScrim.addEventListener('click', function (e) { if (e.target === modalScrim) closeModal(); });
+
+  function openModal(idx) {
+    const item = currentListings[idx];
+    const badge = badgeInfo(item.listing_kind);
+    const priceVal = '$' + parseFloat(item.price).toFixed(0);
+
+    modalCard.innerHTML =
+      '<div class="modal-photo">' +
+        '<div class="ph" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.5rem;">' + categoryEmoji(item.category) + '</div>' +
+        '<img alt="' + escapeHtml(item.name) + '" src="' + itemImgURL(resolvedBakerId, item) + '" onload="this.style.display=\'block\';this.previousElementSibling.style.display=\'none\';" />' +
+        '<button class="modal-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button>' +
+        '<div class="badge-overlay" style="left:12px;top:12px;right:auto;background:' + badge.bg + ';">' + badge.label + '</div>' +
+      '</div>' +
+      '<div class="modal-body">' +
+        '<div class="modal-top-row">' +
+          '<div class="modal-name">' + escapeHtml(item.name) + '</div>' +
+          '<div class="modal-price">' + (priceIsFrom(item) ? '<div class="from-label">from</div>' : '') + priceVal + '</div>' +
+        '</div>' +
+        '<div class="modal-subtitle">' + escapeHtml(subtitleFor(item)) + '</div>' +
+        (item.item_description ? '<div class="modal-desc">' + escapeHtml(item.item_description) + '</div>' : '') +
+        '<button class="btn-open">Open in Bakeri</button>' +
+      '</div>';
+
+    modalCard.querySelector('.modal-close').addEventListener('click', closeModal);
+    modalCard.querySelector('.btn-open').addEventListener('click', attemptDeepLink);
+    modalScrim.classList.add('open');
+  }
+
+  function closeModal() { modalScrim.classList.remove('open'); }
 
   function categoryEmoji(cat) {
     const map = {
@@ -560,10 +545,16 @@
     return map[cat] || '🍰';
   }
 
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
   function showNotFound(title, subtitle) {
     document.getElementById('profile-card').innerHTML =
       '<div class="not-found"><h2>' + title + '</h2><p>' + subtitle + '</p></div>';
-    document.getElementById('listings-section').style.display = 'none';
+    menuCol.style.display = 'none';
   }
 })();
 </script>
