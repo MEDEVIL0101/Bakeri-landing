@@ -94,12 +94,17 @@ serve(async (req) => {
         .eq("id", user.id);
     }
 
-    // Generate a fresh account link (they expire in ~15 minutes)
+    // Generate a fresh account link (they expire in ~15 minutes).
+    // Stripe's Account Links API requires real http(s) URLs for refresh_url/
+    // return_url — it rejects custom app schemes like bakeri://connect-return
+    // outright ("Not a valid URL"). bakeriapp.com/connect-return and
+    // /connect-refresh are tiny bridge pages that immediately hand off to the
+    // bakeri:// deep link once Stripe lands the browser there.
     const { data: body } = await req.json().catch(() => ({ data: {} }));
     const returnUrl  = (body as Record<string, string>)?.returnUrl
-      ?? "bakeri://connect-return";
+      ?? "https://bakeriapp.com/connect-return/";
     const refreshUrl = (body as Record<string, string>)?.refreshUrl
-      ?? "bakeri://connect-refresh";
+      ?? "https://bakeriapp.com/connect-refresh/";
 
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
