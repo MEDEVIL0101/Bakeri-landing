@@ -3,10 +3,15 @@
 -- for the existing precedent, though that job runs pure SQL rather than
 -- calling an edge function).
 --
--- NOT enabled by a blanket migration push without sign-off: this is the
--- job that actually moves money out of Bakeri's Stripe balance into baker
--- accounts, unattended, on a schedule. Confirm release-baker-payouts has
--- been smoke-tested against a real completed order before this runs live.
+-- The webhook secret is pulled from Vault (name: bakeri_webhook_secret) —
+-- matching the pattern already used by confirm_pickup and
+-- notify_vendor_application — never hardcode it directly in migration SQL,
+-- that gets committed to git. (An earlier version of this migration did
+-- exactly that and leaked BAKERI_WEBHOOK_SECRET publicly; the secret has
+-- since been rotated and this file corrected — see project memory.)
+--
+-- Create the vault entry once, out of band, before applying this migration:
+--   select vault.create_secret('<value>', 'bakeri_webhook_secret', 'Shared secret for internal edge function webhook calls');
 
 select cron.schedule(
     'release-baker-payouts',
@@ -16,7 +21,7 @@ select cron.schedule(
         url := 'https://aqhebjxaynvtvurwedrl.supabase.co/functions/v1/release-baker-payouts',
         headers := jsonb_build_object(
             'Content-Type', 'application/json',
-            'x-webhook-secret', '***REMOVED-LEAKED-SECRET***'
+            'x-webhook-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'bakeri_webhook_secret' limit 1)
         ),
         body := '{}'::jsonb
     );
