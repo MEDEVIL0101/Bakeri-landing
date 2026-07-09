@@ -81,11 +81,15 @@ Deno.serve(async (req: Request) => {
             paid_at: paidAt,
             payment_status: "captured",
             payment_note: order.invoice_type === "balance" ? "Balance paid online via invoice link" : "Paid online via invoice link",
+            // Manual/invoice orders never go through the marketplace pickup-
+            // confirmation flow (confirm_pickup/authorize_pickup), so nothing
+            // else ever sets marketplace_status or completed_at for them —
+            // release-baker-payouts requires both to release the baker's cut,
+            // so a paid invoice IS the completion signal for this order type.
+            marketplace_status: "completed",
+            completed_at: paidAt,
             updated_at: paidAt,
           };
-    if (order.buyer_profile_id) {
-      updatePayload.marketplace_status = "confirmed";
-    }
     const { error: updateErr } = await supabase
       .from("orders")
       .update(updatePayload)

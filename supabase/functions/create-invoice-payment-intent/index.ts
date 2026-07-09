@@ -73,7 +73,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: baker } = await supabase
       .from("profiles")
-      .select("business_name, user_name")
+      .select("business_name, user_name, stripe_connect_account_id, stripe_connect_onboarding_complete")
       .eq("id", order.user_id)
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Baker";
@@ -90,9 +90,19 @@ Deno.serve(async (req: Request) => {
       "metadata[source]": "invoice_web",
       "metadata[invoice_type]": invoiceType,
     };
-    // Deposit invoices save the card so the baker can collect the balance
-    // later via charge-balance-payment, same as the quote/cart deposit flows.
     if (invoiceType === "deposit") {
+      // Non-refundable — transfer to the baker immediately, same as the
+      // quote/cart deposit flows, rather than relying on release-baker-payouts:
+      // the balance invoice generated later overwrites this order's
+      // payment_intent_id, which would otherwise permanently orphan the
+      // deposit's own intent from ever being sweepable.
+      const PLATFORM_FEE_RATE = 0.05;
+      if (baker?.stripe_connect_onboarding_complete && baker?.stripe_connect_account_id) {
+        intentParams["application_fee_amount"] = String(Math.round(amountCents * PLATFORM_FEE_RATE));
+        intentParams["transfer_data[destination]"] = baker.stripe_connect_account_id;
+      }
+      // Save the card so the baker can collect the balance later via a
+      // balance-type invoice, reusing this same payment method.
       intentParams["setup_future_usage"] = "off_session";
     }
 
