@@ -39,7 +39,7 @@
 
     /* ── Wordmark ── */
     .wordmark-row { text-align: center; }
-    .wordmark { font-size: 22px; font-weight: 800; letter-spacing: 2px; color: var(--ink); }
+    .wordmark { height: 26px; width: auto; display: inline-block; }
 
     /* ── Profile card ── */
     .profile-card {
@@ -178,7 +178,8 @@
       body { background: #17110C; }
       :root { --bg: #17110C; }
       .profile-card, .menu-card, .menu-list, .modal-card { background: #241A14; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-      .wordmark, .baker-name, .menu-title, .menu-card-name, .menu-row-name, .modal-name, .not-found h2 { color: #F6F1E6; }
+      .wordmark { filter: invert(1); }
+      .baker-name, .menu-title, .menu-card-name, .menu-row-name, .modal-name, .not-found h2 { color: #F6F1E6; }
       .btn-open { background: #F6F1E6; color: var(--ink); }
     }
   </style>
@@ -187,7 +188,7 @@
 
 <div id="page">
   <div class="wordmark-row" id="wordmark-row">
-    <span class="wordmark">BAK<span id="wm-e" style="color:#3FA6A6;">E</span><span id="wm-r" style="color:#E0679A;">R</span><span id="wm-i" style="color:#E0A040;">Ï</span></span>
+    <img class="wordmark" src="../wordmark.png" alt="Bakeri" />
   </div>
 
   <div id="layout">
