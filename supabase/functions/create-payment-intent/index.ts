@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY");
+const PLATFORM_FEE_RATE = 0.05; // 5% platform fee
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const DEPOSIT_FRACTION = 0.5; // 50% deposit for custom orders
@@ -12,15 +14,16 @@ interface CartItemPayload {
   quantity: number;
   price_from: number;
   listing_kind: "ready_now" | "preorder" | "custom";
-  pickup_date?: string | null; // ISO8601 — needed to detect >7d preorders
+  pickup_date?: string | null;
 }
 
 interface RequestBody {
   items: CartItemPayload[];
   currency?: string;
+  tax_amount_cents?: number;
 }
 
-type PaymentFlow = "auth_hold" | "setup_intent" | "deposit_and_save";
+type PaymentFlow = "immediate" | "setup_intent" | "deposit_and_save";
 
 function detectPaymentFlow(items: CartItemPayload[]): PaymentFlow {
   if (items.some((i) => i.listing_kind === "custom")) {
@@ -33,7 +36,23 @@ function detectPaymentFlow(items: CartItemPayload[]): PaymentFlow {
     return pickup - now > SEVEN_DAYS_MS;
   });
   if (hasFarPreorder) return "setup_intent";
-  return "auth_hold";
+  return "immediate";
+}
+
+async function getBakerConnectAccountId(bakerId: string): Promise<string | null> {
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+  );
+  const { data } = await supabase
+    .from("profiles")
+    .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
+    .eq("id", bakerId)
+    .single();
+  if (data?.stripe_connect_onboarding_complete && data?.stripe_connect_account_id) {
+    return data.stripe_connect_account_id as string;
+  }
+  return null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -51,7 +70,7 @@ Deno.serve(async (req: Request) => {
       throw new Error("STRIPE_SECRET_KEY is not configured");
     }
 
-    const { items, currency = "cad" }: RequestBody = await req.json();
+    const { items, currency = "cad", tax_amount_cents = 0 }: RequestBody = await req.json();
 
     if (!items || items.length === 0) {
       return new Response(JSON.stringify({ error: "No items" }), {
@@ -62,7 +81,6 @@ Deno.serve(async (req: Request) => {
 
     const paymentFlow = detectPaymentFlow(items);
 
-    // setup_intent flow has no charge at checkout — client should call create-setup-intent instead
     if (paymentFlow === "setup_intent") {
       return new Response(
         JSON.stringify({ error: "Use create-setup-intent for pre-sale orders beyond 7 days", payment_flow: "setup_intent" }),
@@ -70,21 +88,31 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const fullTotalCents = Math.round(
+    const itemsTotalCents = Math.round(
       items.reduce((sum, item) => sum + item.price_from * item.quantity, 0) * 100
     );
+    const fullTotalCents = itemsTotalCents + (tax_amount_cents ?? 0);
 
-    // deposit_and_save: charge 50% deposit now, save card for the balance
+    // For deposit flow: deposit is 50% of items total only (tax due at final payment)
     const depositAmountCents = paymentFlow === "deposit_and_save"
-      ? Math.round(fullTotalCents * DEPOSIT_FRACTION)
+      ? Math.round(itemsTotalCents * DEPOSIT_FRACTION)
       : null;
 
     const chargeCents = depositAmountCents ?? fullTotalCents;
+    const applicationFeeCents = Math.round(chargeCents * PLATFORM_FEE_RATE);
 
-    // auth_hold uses manual capture; deposit_and_save charges immediately (setup_future_usage saves card)
-    const captureMethod = paymentFlow === "auth_hold" ? "manual" : "automatic";
+    // All flows now capture immediately at checkout — QR scan is authorization only
+    const captureMethod = "automatic";
 
     const bakerIDs = [...new Set(items.map((i) => i.baker_id))];
+    const primaryBakerId = bakerIDs[0];
+
+    // Only needed for deposit_and_save — that's the only flow that still
+    // transfers at checkout time (see below).
+    const connectAccountId = primaryBakerId && paymentFlow === "deposit_and_save"
+      ? await getBakerConnectAccountId(primaryBakerId)
+      : null;
+
     const metadata: Record<string, string> = {
       baker_ids: bakerIDs.join(","),
       item_count: String(items.length),
@@ -101,7 +129,16 @@ Deno.serve(async (req: Request) => {
       ),
     };
 
-    // Save card for future off-session charge (balance hold later)
+    // Only the deposit charge transfers to the baker immediately — it's
+    // non-refundable, so there's no dispute-window risk to hold it against.
+    // Regular full-payment orders capture into Bakeri's own balance and get
+    // released to the baker later by release-baker-payouts, once the 24h
+    // dispute window (orders.completed_at + 24h) has passed.
+    if (connectAccountId && paymentFlow === "deposit_and_save") {
+      intentParams["application_fee_amount"] = String(applicationFeeCents);
+      intentParams["transfer_data[destination]"] = connectAccountId;
+    }
+
     if (paymentFlow === "deposit_and_save") {
       intentParams["setup_future_usage"] = "off_session";
     }
@@ -130,6 +167,7 @@ Deno.serve(async (req: Request) => {
         capture_method: captureMethod,
         payment_flow: paymentFlow,
         deposit_amount_cents: depositAmountCents,
+        connect_account_id: paymentFlow === "deposit_and_save" ? connectAccountId : null,
       }),
       {
         headers: {

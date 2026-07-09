@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
     // Verify buyer owns this order and it is in quote_provided state
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, quoted_price, buyer_profile_id, marketplace_status")
+      .select("id, quoted_price, deposit_amount_cents, buyer_profile_id, marketplace_status")
       .eq("id", order_id)
       .single();
 
@@ -51,21 +51,32 @@ Deno.serve(async (req: Request) => {
     if (order.marketplace_status !== "quote_provided") throw new Error("Order is not in quote_provided state");
     if (!order.quoted_price || order.quoted_price <= 0) throw new Error("No valid quoted price");
 
-    const amountCents = Math.round(order.quoted_price * 100);
+    const totalCents = Math.round(order.quoted_price * 100);
+    const depositCents = order.deposit_amount_cents ?? 0;
+    // A deposit less than the full total means only the deposit is due now —
+    // the balance gets collected later via charge-balance-payment, off the
+    // saved card from this same intent (setup_future_usage below).
+    const isPartialDeposit = depositCents > 0 && depositCents < totalCents;
+    const amountCents = isPartialDeposit ? depositCents : totalCents;
 
     // Create Stripe PaymentIntent
+    const intentParams: Record<string, string> = {
+      amount: amountCents.toString(),
+      currency: "cad",
+      capture_method: "automatic",
+      metadata: JSON.stringify({ order_id, charge_type: isPartialDeposit ? "quote_deposit" : "quote_full" }),
+    };
+    if (isPartialDeposit) {
+      intentParams["setup_future_usage"] = "off_session";
+    }
+
     const stripeRes = await fetch("https://api.stripe.com/v1/payment_intents", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        amount: amountCents.toString(),
-        currency: "cad",
-        capture_method: "automatic",
-        metadata: JSON.stringify({ order_id }),
-      }).toString(),
+      body: new URLSearchParams(intentParams).toString(),
     });
 
     if (!stripeRes.ok) {
