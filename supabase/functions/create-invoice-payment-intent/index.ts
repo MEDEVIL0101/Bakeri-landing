@@ -29,13 +29,18 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, due_date, is_paid, buyer_profile_id, created_at")
+      .select("id, user_id, due_date, is_paid, buyer_profile_id, created_at, invoice_type, deposit_amount_cents, deposit_paid_at")
       .eq("invoice_code", code)
       .single();
 
     if (orderErr || !order) throw new Error("not_found");
     if (order.is_paid) throw new Error("already_paid");
     if (order.buyer_profile_id) throw new Error("already_claimed");
+    // Deposit invoices don't set is_paid, so that check alone won't catch a
+    // deposit that's already been collected — guard it separately.
+    if ((order.invoice_type ?? "full") === "deposit" && order.deposit_paid_at) {
+      throw new Error("already_paid");
+    }
 
     const { data: items } = await supabase
       .from("order_items")
@@ -43,11 +48,28 @@ Deno.serve(async (req: Request) => {
       .eq("order_id", order.id)
       .is("deleted_at", null);
 
-    const total = (items ?? []).reduce(
-      (sum: number, i: { quantity: number; price_per_unit: number }) => sum + i.quantity * i.price_per_unit,
-      0
+    const itemsTotalCents = Math.round(
+      (items ?? []).reduce(
+        (sum: number, i: { quantity: number; price_per_unit: number }) => sum + i.quantity * i.price_per_unit,
+        0
+      ) * 100
     );
-    if (total <= 0) throw new Error("no_amount_due");
+    if (itemsTotalCents <= 0) throw new Error("no_amount_due");
+
+    const invoiceType = order.invoice_type ?? "full";
+    const depositCents = order.deposit_amount_cents ?? 0;
+
+    let amountCents: number;
+    if (invoiceType === "deposit") {
+      if (depositCents <= 0) throw new Error("no_deposit_amount_set");
+      amountCents = depositCents;
+    } else if (invoiceType === "balance") {
+      if (!order.deposit_paid_at) throw new Error("no_deposit_on_file");
+      amountCents = itemsTotalCents - depositCents;
+      if (amountCents <= 0) throw new Error("no_amount_due");
+    } else {
+      amountCents = itemsTotalCents;
+    }
 
     const { data: baker } = await supabase
       .from("profiles")
@@ -56,7 +78,23 @@ Deno.serve(async (req: Request) => {
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Baker";
 
-    const amountCents = Math.round(total * 100);
+    const intentParams: Record<string, string> = {
+      amount: amountCents.toString(),
+      currency: "cad",
+      capture_method: "automatic",
+      "automatic_payment_methods[enabled]": "true",
+      // Stripe's form-encoded API wants metadata as bracket-notation fields,
+      // not a JSON string under a single "metadata" key.
+      "metadata[order_id]": order.id,
+      "metadata[invoice_code]": code,
+      "metadata[source]": "invoice_web",
+      "metadata[invoice_type]": invoiceType,
+    };
+    // Deposit invoices save the card so the baker can collect the balance
+    // later via charge-balance-payment, same as the quote/cart deposit flows.
+    if (invoiceType === "deposit") {
+      intentParams["setup_future_usage"] = "off_session";
+    }
 
     const stripeRes = await fetch("https://api.stripe.com/v1/payment_intents", {
       method: "POST",
@@ -64,17 +102,7 @@ Deno.serve(async (req: Request) => {
         Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        amount: amountCents.toString(),
-        currency: "cad",
-        capture_method: "automatic",
-        "automatic_payment_methods[enabled]": "true",
-        // Stripe's form-encoded API wants metadata as bracket-notation fields,
-        // not a JSON string under a single "metadata" key.
-        "metadata[order_id]": order.id,
-        "metadata[invoice_code]": code,
-        "metadata[source]": "invoice_web",
-      }).toString(),
+      body: new URLSearchParams(intentParams).toString(),
     });
 
     if (!stripeRes.ok) {
@@ -91,6 +119,7 @@ Deno.serve(async (req: Request) => {
         baker_id: order.user_id,
         client_secret: intent.client_secret,
         amount_cents: amountCents,
+        invoice_type: invoiceType,
         baker_name: bakerName,
         // Customer-facing item list — deliberately not order_name, which is a
         // baker-internal label that may not be meant for the customer to see.

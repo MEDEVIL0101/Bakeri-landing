@@ -36,12 +36,19 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, is_paid, payment_intent_id, buyer_profile_id")
+      .select("id, is_paid, payment_intent_id, buyer_profile_id, invoice_type, deposit_amount_cents, deposit_paid_at")
       .eq("invoice_code", code)
       .single();
 
     if (orderErr || !order) throw new Error("not_found");
     if (order.is_paid) {
+      return new Response(JSON.stringify({ ok: true, already_paid: true }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+    // A deposit invoice doesn't set is_paid — guard separately so it can't be
+    // paid twice via two different browser tabs/retries.
+    if (order.invoice_type === "deposit" && order.deposit_paid_at) {
       return new Response(JSON.stringify({ ok: true, already_paid: true }), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
@@ -57,13 +64,25 @@ Deno.serve(async (req: Request) => {
     if (intent.status !== "succeeded") throw new Error(`Payment not confirmed. Status: ${intent.status}`);
 
     const paidAt = new Date().toISOString();
-    const updatePayload: Record<string, unknown> = {
-      is_paid: true,
-      paid_at: paidAt,
-      payment_status: "captured",
-      payment_note: "Paid online via invoice link",
-      updated_at: paidAt,
-    };
+    // 'full' and 'balance' invoices settle the order; 'deposit' only records
+    // the deposit and leaves is_paid false — same full-vs-deposit split as
+    // confirm_real_quote_payment for the in-app quote flow.
+    const updatePayload: Record<string, unknown> =
+      order.invoice_type === "deposit"
+        ? {
+            payment_status: "authorized",
+            deposit_amount: (order.deposit_amount_cents ?? 0) / 100,
+            deposit_paid_at: paidAt,
+            deposit_note: "Non-refundable deposit",
+            updated_at: paidAt,
+          }
+        : {
+            is_paid: true,
+            paid_at: paidAt,
+            payment_status: "captured",
+            payment_note: order.invoice_type === "balance" ? "Balance paid online via invoice link" : "Paid online via invoice link",
+            updated_at: paidAt,
+          };
     if (order.buyer_profile_id) {
       updatePayload.marketplace_status = "confirmed";
     }
