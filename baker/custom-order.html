@@ -111,6 +111,7 @@
     .btn-submit:active:not(:disabled) { opacity: 0.85; }
 
     .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
+    .pickup-note { margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 
     .success-state { text-align: center; padding: 20px 0; }
     .success-state .icon { font-size: 40px; }
@@ -236,7 +237,8 @@
     });
 
     html += '<button class="btn-submit" id="submit-btn">Send Request</button>' +
-            '<div class="submit-status" id="submit-status"></div>';
+            '<div class="submit-status" id="submit-status"></div>' +
+            '<div class="pickup-note">📍 Pickup details are provided once the baker confirms your order.</div>';
 
     card.innerHTML = html;
 

@@ -97,6 +97,7 @@
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
+    .pickup-note { margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 
     .success-state { text-align: center; padding: 20px 0; }
     .success-state .icon { font-size: 40px; }
@@ -245,7 +246,8 @@
       '</div>' +
 
       '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
-      '<div class="submit-status" id="submit-status"></div>';
+      '<div class="submit-status" id="submit-status"></div>' +
+      '<div class="pickup-note">📍 Exact pickup address is provided by email once your order is confirmed.</div>';
 
     document.getElementById('qty-minus').addEventListener('click', function () {
       if (quantity > 1) { quantity--; renderStep1(); }
@@ -333,7 +335,8 @@
       '<div class="item-price">Total: $' + total.toFixed(2) + '</div>' +
       '<div id="payment-element"></div>' +
       '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + '</button>' +
-      '<div class="submit-status" id="submit-status"></div>';
+      '<div class="submit-status" id="submit-status"></div>' +
+      '<div class="pickup-note">📍 Exact pickup address is provided by email once your order is confirmed.</div>';
 
     const stripe = Stripe(STRIPE_PK);
     const elements = stripe.elements({ clientSecret: clientSecret });
