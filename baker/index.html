@@ -428,9 +428,11 @@
   function priceIsFrom(item) { return item.listing_kind === 'custom'; }
 
   function canBuyNow(item) {
-    if (item.listing_kind === 'preorder') return true;
-    if (item.listing_kind === 'ready_now') return (item.available_qty_today || 0) > 0;
-    return false;
+    // available_qty_today is a baker-set informational counter, not a real
+    // inventory system (nothing decrements it anywhere) — gating the Buy
+    // Now button on it just makes purchasing unpredictably disappear for
+    // items the baker hasn't updated today, not a real out-of-stock signal.
+    return item.listing_kind === 'ready_now' || item.listing_kind === 'preorder';
   }
 
   function itemImgURL(bakerIdVal, item) {
