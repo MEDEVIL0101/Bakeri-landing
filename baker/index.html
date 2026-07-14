@@ -414,14 +414,25 @@
     }
   }
 
-  function badgeInfo(kind) {
-    if (kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
-    if (kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
+  // Only ready_now items ever go to zero — preorder/custom aren't tied to a
+  // daily count. available_qty_today is still just a baker-set number (no
+  // real inventory system decrements it), but 0 specifically means the
+  // baker marked today's batch as gone, which is worth honoring as sold out
+  // rather than silently letting someone "buy" it.
+  function isSoldOut(item) {
+    return item.listing_kind === 'ready_now' && (item.available_qty_today || 0) <= 0;
+  }
+
+  function badgeInfo(item) {
+    if (isSoldOut(item)) return { bg: 'var(--muted)', label: 'Sold Out' };
+    if (item.listing_kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
+    if (item.listing_kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
     return { bg: 'var(--custom)', label: 'Custom' };
   }
 
   function subtitleFor(item) {
     if (item.listing_kind === 'custom') return 'Request a custom quote';
+    if (isSoldOut(item)) return 'Sold out for today';
     if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) return item.available_qty_today + ' available today';
     if (item.listing_kind === 'preorder') return 'Reserve yours today';
     return item.item_description || '';
@@ -430,10 +441,7 @@
   function priceIsFrom(item) { return item.listing_kind === 'custom'; }
 
   function canBuyNow(item) {
-    // available_qty_today is a baker-set informational counter, not a real
-    // inventory system (nothing decrements it anywhere) — gating the Buy
-    // Now button on it just makes purchasing unpredictably disappear for
-    // items the baker hasn't updated today, not a real out-of-stock signal.
+    if (isSoldOut(item)) return false;
     return item.listing_kind === 'ready_now' || item.listing_kind === 'preorder';
   }
 
@@ -444,7 +452,7 @@
   function renderGrid(listings) {
     menuGrid.innerHTML = '';
     listings.forEach(function (item, idx) {
-      const badge = badgeInfo(item.listing_kind);
+      const badge = badgeInfo(item);
       const card = document.createElement('div');
       card.className = 'menu-card';
       card.addEventListener('click', function () { openModal(idx); });
@@ -505,7 +513,7 @@
   function renderList(listings) {
     menuList.innerHTML = '';
     listings.forEach(function (item, idx) {
-      const badge = badgeInfo(item.listing_kind);
+      const badge = badgeInfo(item);
       const row = document.createElement('div');
       row.className = 'menu-row';
       row.addEventListener('click', function () { openModal(idx); });
@@ -546,7 +554,7 @@
 
   function openModal(idx) {
     const item = currentListings[idx];
-    const badge = badgeInfo(item.listing_kind);
+    const badge = badgeInfo(item);
     const priceVal = '$' + parseFloat(item.price).toFixed(0);
 
     modalCard.innerHTML =
@@ -568,8 +576,10 @@
           : '') +
         (canBuyNow(item)
           ? '<button class="btn-open" id="modal-buy-now-btn">Buy Now</button>'
+          : isSoldOut(item)
+          ? '<button class="btn-open" disabled style="opacity:0.5;cursor:not-allowed;">Sold Out</button>'
           : '') +
-        '<button class="btn-open' + (canBuyNow(item) ? ' btn-outline' : '') + '" id="modal-open-app-btn">Open in Bakeri</button>' +
+        '<button class="btn-open' + (canBuyNow(item) || isSoldOut(item) ? ' btn-outline' : '') + '" id="modal-open-app-btn">Open in Bakeri</button>' +
       '</div>';
 
     modalCard.querySelector('.modal-close').addEventListener('click', closeModal);
