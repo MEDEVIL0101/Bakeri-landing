@@ -8,10 +8,17 @@
   <link rel="icon" href="../1024.png" />
   <link rel="apple-touch-icon" href="../1024.png" />
   <script src="https://www.google.com/recaptcha/enterprise.js?render=6LcIGEgtAAAAAAYXr8zyy_jJse4xc9LgjN43otQf"></script>
+  <script src="theme.js"></script>
 
   <style>
     :root {
-      --bg:      #F6F1E6;
+      /* Overwritten at runtime by theme.js from the baker/index.html link's
+         theme/pattern params — these are the pre-load fallback. */
+      --theme-primary:   #241712;
+      --theme-bg:        #F6F1E6;
+      --theme-button-fg: #FFFFFF;
+
+      --bg:      var(--theme-bg);
       --white:   #FFFFFF;
       --ink:     #241712;
       --muted:   #948577;
@@ -96,7 +103,7 @@
     .btn-submit {
       display: flex; align-items: center; justify-content: center;
       width: 100%; height: 50px; margin-top: 28px;
-      background: var(--ink); color: #fff;
+      background: var(--theme-primary); color: var(--theme-button-fg);
       font-family: var(--sans); font-size: 15px; font-weight: 700;
       border-radius: 9999px; border: none; cursor: pointer;
     }
@@ -117,13 +124,11 @@
     .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
 
     @media (prefers-color-scheme: dark) {
-      body { background: #17110C; }
-      :root { --bg: #17110C; }
+      :root { --theme-bg: #17110C; }
       .card { background: #241A14; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
       .wordmark { filter: invert(1); }
       .item-name, .not-found h2, .success-state h2, .field-label, .choice-option span { color: #F6F1E6; }
       input, textarea, .choice-option, .photo-thumb { background: #17110C; color: #F6F1E6; }
-      .btn-submit { background: #F6F1E6; color: var(--ink); }
       .choice-option.selected { outline-color: #F6F1E6; }
     }
   </style>
@@ -158,12 +163,18 @@
   const itemId  = (params.get('item')  || '').trim();
   const formId  = (params.get('form')  || '').trim();
   const itemName = (params.get('name') || 'this item').trim();
+  const themeName = (params.get('theme') || 'Classic').trim();
+  const patternName = (params.get('pattern') || 'Standard').trim();
 
   const card = document.getElementById('card');
 
   if (!bakerId || !itemId || !formId) {
     showNotFound('Link not found', 'This custom order link appears to be invalid.');
     return;
+  }
+
+  if (window.BakeriTheme) {
+    window.BakeriTheme.apply({ selected_theme: themeName, background_pattern: patternName });
   }
 
   document.title = 'Request a Custom Order — ' + itemName;

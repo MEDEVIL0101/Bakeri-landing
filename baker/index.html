@@ -7,10 +7,20 @@
   <meta name="description" content="View this baker's storefront on Bakeri." />
   <link rel="icon" href="../1024.png" />
   <link rel="apple-touch-icon" href="../1024.png" />
+  <script src="theme.js"></script>
 
   <style>
     :root {
-      --bg:      #F6F1E6;
+      /* Overwritten at runtime by theme.js from the baker's chosen in-app
+         theme (profiles.selected_theme) — these are just the pre-load /
+         no-theme-set fallback (matches the old fixed palette exactly). */
+      --theme-primary:   #241712;
+      --theme-secondary: #F2A6C6;
+      --theme-bg:        #F6F1E6;
+      --theme-gold:      #C49A6C;
+      --theme-button-fg: #FFFFFF;
+
+      --bg:      var(--theme-bg);
       --white:   #FFFFFF;
       --ink:     #241712;
       --muted:   #948577;
@@ -53,7 +63,7 @@
 
     .avatar {
       width: 88px; height: 88px; border-radius: 50%;
-      background: #F2A6C6;
+      background: var(--theme-secondary);
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 6px rgba(36,23,18,0.12);
       flex-shrink: 0; overflow: hidden; position: relative;
@@ -74,7 +84,7 @@
     .btn-open {
       display: flex; align-items: center; justify-content: center;
       width: 100%; height: 48px; margin-top: 26px;
-      background: var(--ink); color: #fff;
+      background: var(--theme-primary); color: var(--theme-button-fg);
       font-family: var(--sans); font-size: 15px; font-weight: 700;
       border-radius: 9999px; border: none; cursor: pointer; text-decoration: none;
     }
@@ -176,12 +186,10 @@
     .not-found h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--ink); }
 
     @media (prefers-color-scheme: dark) {
-      body { background: #17110C; }
-      :root { --bg: #17110C; }
+      :root { --theme-bg: #17110C; --theme-secondary: #4A2E38; }
       .profile-card, .menu-card, .menu-list, .modal-card { background: #241A14; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
       .wordmark { filter: invert(1); }
       .baker-name, .menu-title, .menu-card-name, .menu-row-name, .modal-name, .not-found h2 { color: #F6F1E6; }
-      .btn-open { background: #F6F1E6; color: var(--ink); }
       .btn-open.btn-outline { background: transparent; color: #F6F1E6; border-color: rgba(246,241,230,0.24); }
     }
   </style>
@@ -270,6 +278,8 @@
   let viewMode = 'grid';
   let currentListings = [];
   let resolvedBakerId = bakerID;
+  let resolvedTheme = 'Classic';
+  let resolvedPattern = 'Standard';
 
   // ── Responsive layout — tracked in JS per design spec, not a CSS media query ──
   function applyLayout() {
@@ -352,6 +362,9 @@
 
   function renderProfile(profile, listings) {
     resolvedBakerId = profile.id;
+    resolvedTheme = profile.selected_theme || 'Classic';
+    resolvedPattern = profile.background_pattern || 'Standard';
+    if (window.BakeriTheme) window.BakeriTheme.apply(profile);
     const name     = profile.business_name || profile.user_name || 'Baker';
     const location = [profile.pickup_city, profile.pickup_province].filter(Boolean).join(', ') || profile.location || '';
 
@@ -543,7 +556,9 @@
         const url = 'custom-order.html?baker=' + encodeURIComponent(resolvedBakerId) +
           '&item=' + encodeURIComponent(item.id) +
           '&form=' + encodeURIComponent(item.intake_form_id) +
-          '&name=' + encodeURIComponent(item.name);
+          '&name=' + encodeURIComponent(item.name) +
+          '&theme=' + encodeURIComponent(resolvedTheme) +
+          '&pattern=' + encodeURIComponent(resolvedPattern);
         window.location.href = url;
       });
     }
