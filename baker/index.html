@@ -79,6 +79,7 @@
       border-radius: 9999px; border: none; cursor: pointer; text-decoration: none;
     }
     .btn-open:active { opacity: 0.85; }
+    .btn-open.btn-outline { background: transparent; color: var(--ink); border: 1.5px solid var(--line-2); margin-top: 12px; }
     .status-msg { margin-top: 12px; text-align: center; font-size: 12.5px; color: var(--muted); min-height: 16px; }
 
     /* ── Menu section ── */
@@ -181,6 +182,7 @@
       .wordmark { filter: invert(1); }
       .baker-name, .menu-title, .menu-card-name, .menu-row-name, .modal-name, .not-found h2 { color: #F6F1E6; }
       .btn-open { background: #F6F1E6; color: var(--ink); }
+      .btn-open.btn-outline { background: transparent; color: #F6F1E6; border-color: rgba(246,241,230,0.24); }
     }
   </style>
 </head>
@@ -527,11 +529,24 @@
         '</div>' +
         '<div class="modal-subtitle">' + escapeHtml(subtitleFor(item)) + '</div>' +
         (item.item_description ? '<div class="modal-desc">' + escapeHtml(item.item_description) + '</div>' : '') +
-        '<button class="btn-open">Open in Bakeri</button>' +
+        (item.intake_form_id
+          ? '<button class="btn-open btn-outline" id="modal-custom-order-btn">Request a Custom Order</button>'
+          : '') +
+        '<button class="btn-open" id="modal-open-app-btn">Open in Bakeri</button>' +
       '</div>';
 
     modalCard.querySelector('.modal-close').addEventListener('click', closeModal);
-    modalCard.querySelector('.btn-open').addEventListener('click', attemptDeepLink);
+    modalCard.querySelector('#modal-open-app-btn').addEventListener('click', attemptDeepLink);
+    const customOrderBtn = modalCard.querySelector('#modal-custom-order-btn');
+    if (customOrderBtn) {
+      customOrderBtn.addEventListener('click', function () {
+        const url = 'custom-order.html?baker=' + encodeURIComponent(resolvedBakerId) +
+          '&item=' + encodeURIComponent(item.id) +
+          '&form=' + encodeURIComponent(item.intake_form_id) +
+          '&name=' + encodeURIComponent(item.name);
+        window.location.href = url;
+      });
+    }
     modalScrim.classList.add('open');
   }
 
