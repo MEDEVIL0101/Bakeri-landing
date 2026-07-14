@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bakeri</title>
+  <!--
+    GitHub Pages has no server-side routing — any path with no matching file
+    falls through to this page. We use that to give bakers a clean storefront
+    URL (bakeriapp.com/sweetsouthern) without a hosting migration: a bare,
+    single-segment, file-extension-free path is treated as a profile_slug and
+    silently redirected to baker/index.html, which then restores the clean
+    URL in the address bar via history.replaceState once it has rendered
+    (see the `clean=1` handling in baker/index.html). Same technique as
+    https://github.com/rafgraph/spa-github-pages.
+
+    Anything that doesn't look like a plausible slug (more than one segment,
+    contains a dot, empty) just falls through to the normal 404 message below
+    — this never swallows a genuinely broken link silently.
+  -->
+  <script>
+    (function () {
+      var path = window.location.pathname.replace(/^\/+|\/+$/g, '');
+      var isPlausibleSlug = path.length > 0 && !path.includes('/') && !path.includes('.') &&
+        /^[a-z0-9-]+$/.test(path);
+      if (isPlausibleSlug) {
+        window.location.replace('/baker/index.html?slug=' + encodeURIComponent(path) + '&clean=1');
+      }
+    })();
+  </script>
+  <style>
+    body { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; background: #F6F1E6; color: #241712;
+           display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; }
+    a { color: #241712; }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>Page not found</h1>
+    <p><a href="https://bakeriapp.com">Back to bakeriapp.com</a></p>
+  </div>
+</body>
+</html>

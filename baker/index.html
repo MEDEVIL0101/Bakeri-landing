@@ -263,6 +263,10 @@
   const params  = new URLSearchParams(window.location.search);
   const slug    = (params.get('slug') || '').trim().toLowerCase();
   const bakerID = (params.get('id')   || '').trim();
+  // Set by 404.html when it redirected a clean bakeriapp.com/<slug> URL here —
+  // once the profile actually resolves, swap the address bar back to that
+  // clean form so it's what stays in the user's history/reload/share sheet.
+  const isCleanRedirect = params.get('clean') === '1';
 
   const page       = document.getElementById('page');
   const layout     = document.getElementById('layout');
@@ -357,6 +361,9 @@
   .then(function (data) {
     if (!data || !data.profile) { showNotFound('Baker not found', 'No baker found at this link.'); return; }
     renderProfile(data.profile, data.listings || []);
+    if (isCleanRedirect && slug && window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', '/' + slug);
+    }
   })
   .catch(function () { showNotFound('Something went wrong', 'Could not load this profile. Try again later.'); });
 
@@ -553,7 +560,10 @@
     const customOrderBtn = modalCard.querySelector('#modal-custom-order-btn');
     if (customOrderBtn) {
       customOrderBtn.addEventListener('click', function () {
-        const url = 'custom-order.html?baker=' + encodeURIComponent(resolvedBakerId) +
+        // Absolute path, not relative — after a clean-URL redirect (see
+        // isCleanRedirect above) the address bar reads /sweetsouthern, not
+        // /baker/, so a relative 'custom-order.html' link would 404.
+        const url = '/baker/custom-order.html?baker=' + encodeURIComponent(resolvedBakerId) +
           '&item=' + encodeURIComponent(item.id) +
           '&form=' + encodeURIComponent(item.intake_form_id) +
           '&name=' + encodeURIComponent(item.name) +
