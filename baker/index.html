@@ -284,6 +284,8 @@
   let resolvedBakerId = bakerID;
   let resolvedTheme = 'Classic';
   let resolvedPattern = 'Standard';
+  let resolvedGstRegistered = false;
+  let resolvedProvince = '';
 
   // ── Responsive layout — tracked in JS per design spec, not a CSS media query ──
   function applyLayout() {
@@ -371,6 +373,8 @@
     resolvedBakerId = profile.id;
     resolvedTheme = profile.selected_theme || 'Classic';
     resolvedPattern = profile.background_pattern || 'Standard';
+    resolvedGstRegistered = profile.is_gst_registered === true;
+    resolvedProvince = profile.pickup_province || '';
     if (window.BakeriTheme) window.BakeriTheme.apply(profile);
     const name     = profile.business_name || profile.user_name || 'Baker';
     const location = [profile.pickup_city, profile.pickup_province].filter(Boolean).join(', ') || profile.location || '';
@@ -422,6 +426,12 @@
   }
 
   function priceIsFrom(item) { return item.listing_kind === 'custom'; }
+
+  function canBuyNow(item) {
+    if (item.listing_kind === 'preorder') return true;
+    if (item.listing_kind === 'ready_now') return (item.available_qty_today || 0) > 0;
+    return false;
+  }
 
   function itemImgURL(bakerIdVal, item) {
     return STORAGE_URL + '/menu-item-images/' + bakerIdVal.toUpperCase() + '/' + item.id.toUpperCase() + '.jpg';
@@ -552,7 +562,10 @@
         (item.intake_form_id
           ? '<button class="btn-open btn-outline" id="modal-custom-order-btn">Request a Custom Order</button>'
           : '') +
-        '<button class="btn-open" id="modal-open-app-btn">Open in Bakeri</button>' +
+        (canBuyNow(item)
+          ? '<button class="btn-open" id="modal-buy-now-btn">Buy Now</button>'
+          : '') +
+        '<button class="btn-open' + (canBuyNow(item) ? ' btn-outline' : '') + '" id="modal-open-app-btn">Open in Bakeri</button>' +
       '</div>';
 
     modalCard.querySelector('.modal-close').addEventListener('click', closeModal);
@@ -567,6 +580,26 @@
           '&item=' + encodeURIComponent(item.id) +
           '&form=' + encodeURIComponent(item.intake_form_id) +
           '&name=' + encodeURIComponent(item.name) +
+          '&theme=' + encodeURIComponent(resolvedTheme) +
+          '&pattern=' + encodeURIComponent(resolvedPattern);
+        window.location.href = url;
+      });
+    }
+    const buyNowBtn = modalCard.querySelector('#modal-buy-now-btn');
+    if (buyNowBtn) {
+      buyNowBtn.addEventListener('click', function () {
+        const url = '/baker/checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
+          '&item=' + encodeURIComponent(item.id) +
+          '&name=' + encodeURIComponent(item.name) +
+          '&price=' + encodeURIComponent(item.price) +
+          '&kind=' + encodeURIComponent(item.listing_kind) +
+          '&dropDate=' + encodeURIComponent(item.listing_kind === 'preorder' && item.preorder_drop_date ? item.preorder_drop_date : '') +
+          '&maxQty=' + encodeURIComponent(item.listing_kind === 'preorder' ? (item.max_preorder_quantity || 0) : 0) +
+          '&availQty=' + encodeURIComponent(item.listing_kind === 'ready_now' ? (item.available_qty_today || 0) : 0) +
+          '&taxCategory=' + encodeURIComponent(item.tax_category || 'sweetened_single_serving') +
+          '&unitWeightGrams=' + encodeURIComponent(item.unit_weight_grams != null ? item.unit_weight_grams : '') +
+          '&gstRegistered=' + (resolvedGstRegistered ? '1' : '0') +
+          '&province=' + encodeURIComponent(resolvedProvince) +
           '&theme=' + encodeURIComponent(resolvedTheme) +
           '&pattern=' + encodeURIComponent(resolvedPattern);
         window.location.href = url;

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout — Bakeri</title>
+  <meta name="description" content="Buy directly from a baker on Bakeri." />
+  <link rel="icon" href="../1024.png" />
+  <link rel="apple-touch-icon" href="../1024.png" />
+  <script src="https://js.stripe.com/v3/"></script>
+  <script src="theme.js"></script>
+
+  <style>
+    :root {
+      --theme-primary:   #241712;
+      --theme-secondary: #F2A6C6;
+      --theme-bg:        #F6F1E6;
+      --theme-button-fg: #FFFFFF;
+
+      --bg:      var(--theme-bg);
+      --white:   #FFFFFF;
+      --ink:     #241712;
+      --muted:   #948577;
+      --error:   #C0392B;
+      --green:   #3FA672;
+      --line:    rgba(36,23,18,0.08);
+      --line-2:  rgba(36,23,18,0.14);
+      --sans:    -apple-system, "SF Pro Text", system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 32px 18px; box-sizing: border-box; }
+    @media (min-width: 640px) { #page { padding: 56px 24px; } }
+
+    .wordmark-row { text-align: center; margin-bottom: 28px; }
+    .wordmark { height: 26px; width: auto; display: inline-block; }
+
+    .card {
+      background: var(--white);
+      border-radius: 28px;
+      padding: 28px 24px;
+      box-shadow: 0 2px 8px rgba(36,23,18,0.06), 0 12px 32px rgba(36,23,18,0.06);
+      box-sizing: border-box;
+    }
+
+    .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 0.6px; color: var(--muted); text-transform: uppercase; }
+    .item-name { font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 6px; letter-spacing: -0.3px; }
+    .item-price { font-size: 14px; color: var(--muted); margin-top: 4px; }
+
+    .qty-row { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; }
+    .qty-label { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .qty-stepper { display: flex; align-items: center; gap: 14px; }
+    .qty-btn {
+      width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--line-2);
+      background: var(--white); font-size: 18px; font-weight: 600; color: var(--ink);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .qty-value { font-size: 16px; font-weight: 700; min-width: 20px; text-align: center; }
+    .qty-note { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+
+    .field-group { margin-top: 20px; }
+    .field-label { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: block; }
+    input[type="text"], input[type="email"], input[type="tel"] {
+      width: 100%; padding: 12px 14px; font-family: var(--sans); font-size: 15px;
+      color: var(--ink); background: var(--bg); border: 1.5px solid transparent;
+      border-radius: 12px; outline: none;
+    }
+    input:focus { border-color: var(--ink); }
+    input.field-error { border-color: var(--error); }
+    .error-text { font-size: 12.5px; color: var(--error); margin-top: 6px; display: none; }
+    .error-text.show { display: block; }
+
+    .totals { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 14px; }
+    .totals-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); padding: 3px 0; }
+    .totals-row.grand { font-size: 17px; font-weight: 800; color: var(--ink); margin-top: 6px; }
+
+    #payment-element { margin-top: 20px; }
+
+    .btn-primary {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 50px; margin-top: 24px;
+      background: var(--theme-primary); color: var(--theme-button-fg);
+      font-family: var(--sans); font-size: 15px; font-weight: 700;
+      border-radius: 9999px; border: none; cursor: pointer;
+    }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
+
+    .success-state { text-align: center; padding: 20px 0; }
+    .success-state .icon { font-size: 40px; }
+    .success-state h2 { font-size: 19px; font-weight: 800; color: var(--ink); margin-top: 12px; }
+    .success-state p { font-size: 14px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+    .success-state .receipt { text-align: left; margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
+    .success-state .receipt-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
+
+    .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
+    .not-found h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--ink); }
+
+    .footer-links { margin-top: 28px; text-align: center; font-size: 12.5px; color: var(--muted); }
+    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+
+    @media (prefers-color-scheme: dark) {
+      :root { --theme-bg: #17110C; }
+      .card { background: #241A14; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+      .wordmark { filter: invert(1); }
+      .item-name, .not-found h2, .success-state h2, .field-label, .qty-label, .totals-row.grand { color: #F6F1E6; }
+      input { background: #17110C; color: #F6F1E6; }
+      .qty-btn { background: #17110C; color: #F6F1E6; border-color: rgba(246,241,230,0.24); }
+    }
+  </style>
+</head>
+<body>
+
+<div id="page">
+  <div class="wordmark-row">
+    <img class="wordmark" src="../wordmark.png" alt="Bakeri" />
+  </div>
+  <div class="card" id="card">
+    <div class="eyebrow">Loading…</div>
+  </div>
+  <div class="footer-links">
+    <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
+    <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
+  const ANON_KEY      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const STRIPE_PK    = 'pk_test_51TZv7nIBmOO44CPMcRlrwd81OV1sJBTnS4JgOIMdJA2aL9GayvryaOCHQxY7QZdLRL55UFVXWbHZFoLLjFxuq4cV00yxBTjJJy';
+
+  const params = new URLSearchParams(window.location.search);
+  const bakerId   = (params.get('baker') || '').trim();
+  const itemId    = (params.get('item')  || '').trim();
+  const itemName  = (params.get('name')  || 'this item').trim();
+  const price     = parseFloat(params.get('price') || '0');
+  const kind      = (params.get('kind')  || 'ready_now').trim();
+  const dropDate  = (params.get('dropDate') || '').trim();
+  const maxQty    = parseInt(params.get('maxQty') || '0', 10);
+  const availQty  = parseInt(params.get('availQty') || '0', 10);
+  const taxCategory     = (params.get('taxCategory') || 'sweetened_single_serving').trim();
+  const unitWeightGrams = params.get('unitWeightGrams') ? parseInt(params.get('unitWeightGrams'), 10) : null;
+  const gstRegistered   = params.get('gstRegistered') === '1';
+  const province        = (params.get('province') || '').trim();
+
+  const card = document.getElementById('card');
+
+  if (!bakerId || !itemId || !price) {
+    showNotFound('Link not found', 'This checkout link appears to be invalid.');
+    return;
+  }
+
+  if (window.BakeriTheme) {
+    window.BakeriTheme.apply({
+      selected_theme: params.get('theme') || 'Classic',
+      background_pattern: params.get('pattern') || 'Standard'
+    });
+  }
+
+  document.title = 'Checkout — ' + itemName;
+
+  // ── Tax — mirrors Bakerly/Bakerly/Bakeri/Services/TaxCalculator.swift ──
+  function taxRateForProvince(p) {
+    switch ((p || '').toUpperCase().trim()) {
+      case 'ON': return 0.13;
+      case 'NB': case 'NL': case 'PE': return 0.15;
+      case 'NS': return 0.14;
+      case 'QC': return 0.14975;
+      default: return 0.05;
+    }
+  }
+  function isSingleServing() {
+    if (taxCategory !== 'sweetened_single_serving') return false;
+    if (unitWeightGrams != null) return unitWeightGrams <= 230;
+    return true;
+  }
+  function calcTaxCents(qty) {
+    if (!gstRegistered) return 0;
+    if (taxCategory === 'plain_bread' || taxCategory === 'whole_item') return 0;
+    if (!isSingleServing()) return 0;
+    // Single item type in this cart, so "total single-servings" is just qty.
+    if (qty >= 6) {
+      return Math.round(price * qty * taxRateForProvince(province) * 100);
+    }
+    return 0;
+  }
+
+  let quantity = 1;
+  const maxAllowed = Math.max(1, maxQty > 0 ? maxQty : (availQty > 0 ? availQty : 99));
+
+  renderStep1();
+
+  function renderStep1() {
+    const subtotal = price * quantity;
+    const taxCents = calcTaxCents(quantity);
+    const total = subtotal + taxCents / 100;
+
+    card.innerHTML =
+      '<div class="eyebrow">' + (kind === 'preorder' ? 'Pre-order' : 'Buy Now') + '</div>' +
+      '<div class="item-name">' + escapeHtml(itemName) + '</div>' +
+      '<div class="item-price">$' + price.toFixed(2) + ' each' + (dropDate ? ' · Ready ' + new Date(dropDate).toLocaleDateString(undefined, {month:'short', day:'numeric'}) : '') + '</div>' +
+
+      '<div class="qty-row">' +
+        '<span class="qty-label">Quantity</span>' +
+        '<div class="qty-stepper">' +
+          '<button class="qty-btn" id="qty-minus" type="button">−</button>' +
+          '<span class="qty-value" id="qty-value">' + quantity + '</span>' +
+          '<button class="qty-btn" id="qty-plus" type="button">+</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="field-group">' +
+        '<label class="field-label">Your name <span style="color:var(--error);">*</span></label>' +
+        '<input type="text" id="f-name" />' +
+        '<div class="error-text" id="err-name">Please enter your name.</div>' +
+      '</div>' +
+      '<div class="field-group">' +
+        '<label class="field-label">Email <span style="color:var(--error);">*</span></label>' +
+        '<input type="email" id="f-email" />' +
+        '<div class="error-text" id="err-email">Please enter a valid email address.</div>' +
+      '</div>' +
+      '<div class="field-group">' +
+        '<label class="field-label">Phone <span style="color:var(--error);">*</span></label>' +
+        '<input type="tel" id="f-phone" />' +
+        '<div class="error-text" id="err-phone">Please enter a valid phone number.</div>' +
+      '</div>' +
+
+      '<div class="totals">' +
+        '<div class="totals-row"><span>Subtotal</span><span>$' + subtotal.toFixed(2) + '</span></div>' +
+        '<div class="totals-row"><span>Tax</span><span>$' + (taxCents / 100).toFixed(2) + '</span></div>' +
+        '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
+      '</div>' +
+
+      '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
+      '<div class="submit-status" id="submit-status"></div>';
+
+    document.getElementById('qty-minus').addEventListener('click', function () {
+      if (quantity > 1) { quantity--; renderStep1(); }
+    });
+    document.getElementById('qty-plus').addEventListener('click', function () {
+      if (quantity < maxAllowed) { quantity++; renderStep1(); }
+    });
+    document.getElementById('qty-plus').disabled = quantity >= maxAllowed;
+    document.getElementById('qty-minus').disabled = quantity <= 1;
+
+    document.getElementById('continue-btn').addEventListener('click', goToPayment);
+  }
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  const PHONE_RE = /^[0-9+()\-.\s]{7,20}$/;
+
+  function validateContact() {
+    const name = document.getElementById('f-name').value.trim();
+    const email = document.getElementById('f-email').value.trim();
+    const phone = document.getElementById('f-phone').value.trim();
+    let ok = true;
+    if (!name) { toggleErr('name', true); ok = false; } else toggleErr('name', false);
+    if (!EMAIL_RE.test(email)) { toggleErr('email', true); ok = false; } else toggleErr('email', false);
+    if (!PHONE_RE.test(phone)) { toggleErr('phone', true); ok = false; } else toggleErr('phone', false);
+    return ok ? { name, email, phone } : null;
+  }
+
+  function toggleErr(key, show) {
+    document.getElementById('err-' + key).classList.toggle('show', show);
+    document.getElementById('f-' + key).classList.toggle('field-error', show);
+  }
+
+  function goToPayment() {
+    const contact = validateContact();
+    if (!contact) return;
+
+    const btn = document.getElementById('continue-btn');
+    const status = document.getElementById('submit-status');
+    btn.disabled = true;
+    status.textContent = '';
+
+    const taxCents = calcTaxCents(quantity);
+
+    fetch(SUPABASE_URL + '/functions/v1/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({
+        items: [{
+          listing_id: itemId,
+          baker_id: bakerId,
+          name: itemName,
+          quantity: quantity,
+          price_from: price,
+          listing_kind: kind
+          // deliberately no pickup_date — keeps this on the immediate-charge
+          // flow regardless of how far out a preorder's drop date is.
+        }],
+        currency: 'cad',
+        tax_amount_cents: taxCents
+      })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error || !data.client_secret) {
+        status.textContent = data.error || 'Something went wrong. Please try again.';
+        btn.disabled = false;
+        return;
+      }
+      renderStep2(data.client_secret, contact);
+    })
+    .catch(function () {
+      status.textContent = 'Something went wrong. Please check your connection and try again.';
+      btn.disabled = false;
+    });
+  }
+
+  function renderStep2(clientSecret, contact) {
+    const subtotal = price * quantity;
+    const taxCents = calcTaxCents(quantity);
+    const total = subtotal + taxCents / 100;
+
+    card.innerHTML =
+      '<div class="eyebrow">' + (kind === 'preorder' ? 'Pre-order' : 'Buy Now') + '</div>' +
+      '<div class="item-name">' + escapeHtml(itemName) + ' × ' + quantity + '</div>' +
+      '<div class="item-price">Total: $' + total.toFixed(2) + '</div>' +
+      '<div id="payment-element"></div>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + '</button>' +
+      '<div class="submit-status" id="submit-status"></div>';
+
+    const stripe = Stripe(STRIPE_PK);
+    const elements = stripe.elements({ clientSecret: clientSecret });
+    const paymentElement = elements.create('payment');
+    paymentElement.mount('#payment-element');
+
+    document.getElementById('pay-btn').addEventListener('click', function () {
+      const btn = document.getElementById('pay-btn');
+      const status = document.getElementById('submit-status');
+      btn.disabled = true;
+      status.textContent = '';
+
+      stripe.confirmPayment({ elements: elements, redirect: 'if_required' }).then(function (result) {
+        if (result.error) {
+          status.textContent = result.error.message || 'Payment failed. Please try again.';
+          btn.disabled = false;
+          return;
+        }
+        const intent = result.paymentIntent;
+        if (!intent || intent.status !== 'succeeded') {
+          status.textContent = 'Payment did not complete. Please try again.';
+          btn.disabled = false;
+          return;
+        }
+        finalizeOrder(intent.id, contact);
+      });
+    });
+  }
+
+  function finalizeOrder(paymentIntentId, contact) {
+    return fetch(SUPABASE_URL + '/functions/v1/create-guest-marketplace-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({
+        payment_intent_id: paymentIntentId,
+        baker_id: bakerId,
+        menu_item_id: itemId,
+        quantity: quantity,
+        customer_name: contact.name,
+        customer_email: contact.email,
+        customer_phone: contact.phone
+      })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) {
+        const status = document.getElementById('submit-status');
+        if (status) status.textContent = 'Payment succeeded but we had trouble recording your order — contact the baker with this reference: ' + paymentIntentId;
+        return;
+      }
+      // Fire-and-forget — don't block the confirmation screen on this.
+      fetch(SUPABASE_URL + '/functions/v1/send-guest-order-received-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+        body: JSON.stringify({ order_id: data.order_id })
+      }).catch(function () {});
+
+      renderSuccess(data);
+    });
+  }
+
+  function renderSuccess(data) {
+    const itemRows = (data.items || []).map(function (i) {
+      return '<div class="receipt-row"><span>' + i.quantity + '× ' + escapeHtml(i.name) + '</span><span>$' + (i.price_per_unit * i.quantity).toFixed(2) + '</span></div>';
+    }).join('');
+
+    card.innerHTML =
+      '<div class="success-state">' +
+        '<div class="icon">✅</div>' +
+        '<h2>Payment processed</h2>' +
+        '<p>' + escapeHtml(data.baker_name || 'The baker') + ' is reviewing your order. You\'ll get an email as soon as it\'s confirmed, with your pickup details.</p>' +
+        '<div class="receipt">' +
+          itemRows +
+          '<div class="receipt-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-weight:700;"><span>Total</span><span>$' + (data.total_cents / 100).toFixed(2) + '</span></div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function showNotFound(title, subtitle) {
+    card.innerHTML = '<div class="not-found"><h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(subtitle) + '</p></div>';
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+})();
+</script>
+</body>
+</html>
