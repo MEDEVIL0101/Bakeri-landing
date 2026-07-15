@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pay Your Quote — Bakeri</title>
+  <meta name="description" content="Pay a custom-order quote from your baker on Bakeri." />
+  <link rel="icon" href="../1024.png" />
+  <link rel="apple-touch-icon" href="../1024.png" />
+  <script src="https://js.stripe.com/v3/"></script>
+
+  <style>
+    :root {
+      --bg:      #F6F1E6;
+      --white:   #FFFFFF;
+      --ink:     #241712;
+      --muted:   #948577;
+      --error:   #C0392B;
+      --green:   #3FA672;
+      --line:    rgba(36,23,18,0.08);
+      --line-2:  rgba(36,23,18,0.14);
+      --sans:    -apple-system, "SF Pro Text", system-ui, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--ink); min-height: 100dvh; -webkit-font-smoothing: antialiased; }
+    #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 32px 18px; box-sizing: border-box; }
+    @media (min-width: 640px) { #page { padding: 56px 24px; } }
+    .wordmark-row { text-align: center; margin-bottom: 28px; }
+    .wordmark { height: 26px; width: auto; display: inline-block; }
+    .card { background: var(--white); border-radius: 28px; padding: 28px 24px; box-shadow: 0 2px 8px rgba(36,23,18,0.06), 0 12px 32px rgba(36,23,18,0.06); box-sizing: border-box; }
+    .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 0.6px; color: var(--muted); text-transform: uppercase; }
+    .item-name { font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 6px; letter-spacing: -0.3px; }
+    .quote-note { font-size: 14px; color: var(--muted); margin-top: 10px; line-height: 1.5; font-style: italic; }
+    .amount { font-size: 34px; font-weight: 800; color: var(--ink); margin-top: 18px; }
+    #payment-element { margin-top: 20px; }
+    .btn-primary { display: flex; align-items: center; justify-content: center; width: 100%; height: 50px; margin-top: 24px; background: var(--ink); color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 700; border-radius: 9999px; border: none; cursor: pointer; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
+    .pickup-note { margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+    .success-state { text-align: center; padding: 20px 0; }
+    .success-state .icon { font-size: 40px; }
+    .success-state h2 { font-size: 19px; font-weight: 800; color: var(--ink); margin-top: 12px; }
+    .success-state p { font-size: 14px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+    .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
+    .not-found h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--ink); }
+    .footer-links { margin-top: 28px; text-align: center; font-size: 12.5px; color: var(--muted); }
+    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #17110C; }
+      .card { background: #241A14; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+      .wordmark { filter: invert(1); }
+      .item-name, .not-found h2, .success-state h2, .amount { color: #F6F1E6; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="page">
+  <div class="wordmark-row">
+    <img class="wordmark" src="../wordmark.png" alt="Bakeri" />
+  </div>
+  <div class="card" id="card">
+    <div class="eyebrow">Loading…</div>
+  </div>
+  <div class="footer-links">
+    <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
+    <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
+  const ANON_KEY      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const STRIPE_PK    = 'pk_live_51TdqbXRpI8DhqX3Ful2hqNWdNtdd4Rt0QQC6IZVhxA5Du89YIEo1638vSaJmBmk5XqRbfxcbqiYJCsMJgpRWvzoP00NUFyirgh';
+
+  const params  = new URLSearchParams(window.location.search);
+  const orderId = (params.get('order') || '').trim();
+  const card    = document.getElementById('card');
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function showMessage(title, body) {
+    card.innerHTML =
+      '<div class="not-found">' +
+        '<h2>' + escapeHtml(title) + '</h2>' +
+        '<p>' + escapeHtml(body) + '</p>' +
+      '</div>';
+  }
+
+  if (!orderId) {
+    showMessage('Link not found', 'This payment link looks incomplete.');
+    return;
+  }
+
+  fetch(SUPABASE_URL + '/rest/v1/rpc/get_guest_quote_details', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+    body: JSON.stringify({ p_order_id: orderId })
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    if (!data) { showMessage('Quote not found', 'This link is no longer valid.'); return; }
+    if (data.is_paid || data.marketplace_status === 'confirmed') {
+      showMessage('Already paid', 'This quote has already been paid — thank you!');
+      return;
+    }
+    if (data.marketplace_status !== 'quote_provided') {
+      showMessage('Not available', 'This quote is no longer awaiting payment.');
+      return;
+    }
+    renderQuote(data);
+  })
+  .catch(function () {
+    showMessage('Something went wrong', 'Could not load this quote. Please try again later.');
+  });
+
+  function renderQuote(data) {
+    const amount = Number(data.quoted_price || 0);
+    card.innerHTML =
+      '<div class="eyebrow">Quote from ' + escapeHtml(data.business_name) + '</div>' +
+      '<div class="item-name">' + escapeHtml(data.order_name || 'Your order') + '</div>' +
+      (data.quote_note ? '<div class="quote-note">"' + escapeHtml(data.quote_note) + '"</div>' : '') +
+      '<div class="amount">$' + amount.toFixed(2) + '</div>' +
+      '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
+      '<div class="submit-status" id="submit-status"></div>';
+
+    document.getElementById('continue-btn').addEventListener('click', function () {
+      const btn = document.getElementById('continue-btn');
+      const status = document.getElementById('submit-status');
+      btn.disabled = true;
+      status.textContent = '';
+
+      fetch(SUPABASE_URL + '/functions/v1/create-guest-quote-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+        body: JSON.stringify({ order_id: orderId })
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (piData) {
+        if (piData.error || !piData.client_secret) {
+          status.textContent = piData.error || 'Something went wrong. Please try again.';
+          btn.disabled = false;
+          return;
+        }
+        renderPayment(piData.client_secret, amount);
+      })
+      .catch(function () {
+        status.textContent = 'Something went wrong. Please check your connection and try again.';
+        btn.disabled = false;
+      });
+    });
+  }
+
+  function renderPayment(clientSecret, amount) {
+    card.innerHTML =
+      '<div class="eyebrow">Pay Quote</div>' +
+      '<div class="item-name">$' + amount.toFixed(2) + '</div>' +
+      '<div id="payment-element"></div>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + amount.toFixed(2) + '</button>' +
+      '<div class="submit-status" id="submit-status"></div>' +
+      '<div class="pickup-note">📍 Exact pickup address is provided by email once your payment is confirmed.</div>';
+
+    const stripe = Stripe(STRIPE_PK);
+    const elements = stripe.elements({ clientSecret: clientSecret });
+    const paymentElement = elements.create('payment');
+    paymentElement.mount('#payment-element');
+
+    document.getElementById('pay-btn').addEventListener('click', function () {
+      const btn = document.getElementById('pay-btn');
+      const status = document.getElementById('submit-status');
+      btn.disabled = true;
+      status.textContent = '';
+
+      stripe.confirmPayment({ elements: elements, redirect: 'if_required' }).then(function (result) {
+        if (result.error) {
+          status.textContent = result.error.message || 'Payment failed. Please try again.';
+          btn.disabled = false;
+          return;
+        }
+        const intent = result.paymentIntent;
+        if (!intent || intent.status !== 'succeeded') {
+          status.textContent = 'Payment did not complete. Please try again.';
+          btn.disabled = false;
+          return;
+        }
+        finalize(intent.id);
+      });
+    });
+  }
+
+  function finalize(paymentIntentId) {
+    fetch(SUPABASE_URL + '/functions/v1/finalize-guest-quote-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({ order_id: orderId, payment_intent_id: paymentIntentId })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) {
+        const status = document.getElementById('submit-status');
+        if (status) status.textContent = 'Payment succeeded but we had trouble recording it — contact the baker with this reference: ' + paymentIntentId;
+        return;
+      }
+      renderSuccess();
+    });
+  }
+
+  function renderSuccess() {
+    card.innerHTML =
+      '<div class="success-state">' +
+        '<div class="icon">✅</div>' +
+        '<h2>Payment confirmed</h2>' +
+        '<p>Your baker has been notified. You\'ll get pickup details by email shortly.</p>' +
+      '</div>';
+  }
+})();
+</script>
+</body>
+</html>

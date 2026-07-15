@@ -145,7 +145,7 @@ Deno.serve(async (req: Request) => {
 
   if (menuItemErr || !menuItem) return json({ error: "This listing is no longer available." }, 400);
   if (menuItem.user_id !== baker_id) return json({ error: "This listing is no longer available." }, 400);
-  if (!menuItem.is_listed_in_marketplace || !menuItem.is_active) {
+  if (!menuItem.is_listed_in_marketplace) {
     return json({ error: "This listing is no longer available." }, 400);
   }
   if (!menuItem.intake_form_id) {
@@ -260,6 +260,11 @@ Deno.serve(async (req: Request) => {
     reference_photo_count: 0,
     lead_channel: "website",
     ip_address: clientIp,
+    // The order sheet's "Customer's Answers" card (notesCard in
+    // MarketplaceOrderSheet.swift) reads order.formResponsesJSON, not
+    // order_items' own copy — both columns exist, but that's the one the
+    // baker's Review screen actually displays.
+    form_responses: finalAnswers.length > 0 ? finalAnswers : null,
   });
 
   if (orderErr) {
