@@ -356,7 +356,11 @@
           return;
         }
         const intent = result.paymentIntent;
-        if (!intent || intent.status !== 'succeeded') {
+        // 'requires_capture' = card authorized and held, not yet charged —
+        // the expected outcome now that regular orders use a manual-capture
+        // hold instead of charging immediately. 'succeeded' still covers
+        // deposit orders, which capture right away.
+        if (!intent || (intent.status !== 'succeeded' && intent.status !== 'requires_capture')) {
           status.textContent = 'Payment did not complete. Please try again.';
           btn.disabled = false;
           return;
