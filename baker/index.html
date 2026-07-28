@@ -88,19 +88,9 @@
 
     #site-header {
       position: sticky; top: 0; z-index: 40;
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; justify-content: flex-end; gap: 10px;
       padding: 14px 16px; background: var(--bg);
     }
-    #header-id { min-width: 0; flex: 1; }
-    #header-name {
-      font-weight: 700; font-size: 16px; line-height: 1.2; color: var(--ink);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    #header-avail {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 12px; font-weight: 600; color: var(--ready); margin-top: 2px;
-    }
-    #header-avail .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ready); }
     .circle-btn {
       width: 40px; height: 40px; border-radius: 50%; border: none;
       background: var(--surface); color: var(--ink); display: flex; align-items: center; justify-content: center;
@@ -116,7 +106,7 @@
     #cart-btn-count:empty { display: none; }
 
     #profile-block { text-align: center; padding: 8px 20px 22px; }
-    #profile-block .avatar { width: 96px; height: 96px; font-size: 34px; margin: 0 auto; }
+    #profile-block .avatar { width: 128px; height: 128px; font-size: 42px; margin: 0 auto; }
     #shop-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 14px; }
     #shop-meta {
       display: inline-flex; align-items: center; gap: 5px; margin-top: 8px;
@@ -146,7 +136,7 @@
     .about-signature { font-style: italic; font-size: 13.5px; margin-top: 8px; color: var(--ink); }
 
     /* ══════════════════════ Filter strip — white band ══════════════════ */
-    #filter-strip { background: var(--surface); }
+    #filter-strip { background: var(--surface); border-bottom: 1px solid var(--line); }
     #filter-bar {
       display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px;
       justify-content: center; scrollbar-width: none;
@@ -356,11 +346,13 @@
 <div id="page-shell">
 
 <header id="site-header">
-  <div id="header-id">
-    <div id="header-name"></div>
-    <div id="header-avail" class="hidden"></div>
-  </div>
-  <button class="circle-btn" id="share-btn" aria-label="Share">↗</button>
+  <button class="circle-btn" id="share-btn" aria-label="Share">
+    <svg width="16" height="19" viewBox="0 0 17 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8.5 1V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M4.5 5L8.5 1L12.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M1.5 9V17.5C1.5 18.3284 2.17157 19 3 19H14C14.8284 19 15.5 18.3284 15.5 17.5V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
   <button class="circle-btn" id="desktop-cart-btn" style="display:none; width:auto; padding:0 16px; border-radius:9999px;">
     <span id="desktop-cart-label">Cart</span>
   </button>
@@ -549,13 +541,6 @@
     stripeReady = profile.stripe_connect_onboarding_complete === true;
 
     renderAvatar(name);
-    document.getElementById('header-name').textContent = name;
-    const readyCount = stripeReady ? listings.filter(function (l) { return l.listing_kind === 'ready_now' && !isSoldOut(l); }).length : 0;
-    if (readyCount > 0) {
-      const hdrAvail = document.getElementById('header-avail');
-      hdrAvail.innerHTML = '<span class="dot"></span>' + readyCount + (readyCount === 1 ? ' item' : ' items') + ' ready today';
-      hdrAvail.classList.remove('hidden');
-    }
 
     document.getElementById('shop-name').textContent = name;
     if (location) {
