@@ -111,13 +111,21 @@
     showMessage('Something went wrong', 'Could not load this quote. Please try again later.');
   });
 
+  // Must match create-guest-quote-payment-intent's PLATFORM_FEE_RATE — shown
+  // here so the quoted price the baker gave doesn't look bait-and-switched
+  // when Stripe actually charges a little more.
+  const PLATFORM_FEE_RATE = 0.05;
+
   function renderQuote(data) {
     const amount = Number(data.quoted_price || 0);
+    const platformFee = Math.round(amount * 100 * PLATFORM_FEE_RATE) / 100;
+    const total = amount + platformFee;
     card.innerHTML =
       '<div class="eyebrow">Quote from ' + escapeHtml(data.business_name) + '</div>' +
       '<div class="item-name">' + escapeHtml(data.order_name || 'Your order') + '</div>' +
       (data.quote_note ? '<div class="quote-note">"' + escapeHtml(data.quote_note) + '"</div>' : '') +
-      '<div class="amount">$' + amount.toFixed(2) + '</div>' +
+      '<div class="amount">$' + total.toFixed(2) + '</div>' +
+      '<div class="quote-note">Includes $' + platformFee.toFixed(2) + ' Bakeri fee (quote: $' + amount.toFixed(2) + ')</div>' +
       '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
@@ -139,7 +147,7 @@
           btn.disabled = false;
           return;
         }
-        renderPayment(piData.client_secret, amount);
+        renderPayment(piData.client_secret, (piData.amount_cents != null ? piData.amount_cents / 100 : total));
       })
       .catch(function () {
         status.textContent = 'Something went wrong. Please check your connection and try again.';

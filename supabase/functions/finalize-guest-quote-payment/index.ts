@@ -12,6 +12,10 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Must match create-guest-quote-payment-intent's fee math — recomputed here
+// from the order's own quoted_price rather than trusted from the client.
+const PLATFORM_FEE_RATE = 0.05;
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type",
@@ -43,7 +47,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: order, error: orderErr } = await db
     .from("orders")
-    .select("id, buyer_profile_id, lead_channel, marketplace_status, is_paid")
+    .select("id, buyer_profile_id, lead_channel, marketplace_status, is_paid, quoted_price")
     .eq("id", order_id)
     .single();
 
@@ -68,6 +72,8 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Payment has not completed yet." }, 400);
   }
 
+  const platformFeeCents = Math.round(Number(order.quoted_price ?? 0) * 100 * PLATFORM_FEE_RATE);
+
   const { error: updateErr } = await db
     .from("orders")
     .update({
@@ -76,6 +82,7 @@ Deno.serve(async (req: Request) => {
       marketplace_status: "confirmed",
       payment_intent_id,
       payment_status: "authorized",
+      platform_fee_cents: platformFeeCents,
       updated_at: new Date().toISOString(),
     })
     .eq("id", order_id);

@@ -361,18 +361,21 @@
     const payLabel = data.invoice_type === 'deposit' ? 'Pay Deposit $'
       : data.invoice_type === 'balance' ? 'Pay Balance $'
       : 'Pay $';
-    const noteHtml = data.invoice_type === 'deposit'
+    const feeAmount = data.platform_fee_cents != null ? (data.platform_fee_cents / 100).toFixed(2) : null;
+    const feeNoteHtml = feeAmount ? '<div class="due-date">Includes $' + feeAmount + ' Bakeri fee</div>' : '';
+    const noteHtml = (data.invoice_type === 'deposit'
       ? '<div class="due-date">Non-refundable deposit — the remaining balance will be invoiced separately</div>'
       : data.invoice_type === 'balance'
         ? '<div class="due-date">Remaining balance after your deposit</div>'
-        : '';
+        : '') + feeNoteHtml;
 
     card.innerHTML =
       '<div class="invoice-label">' + invoiceLabel + '</div>' +
       '<div class="baker-name">' + escapeHtml(data.baker_name) + '</div>' +
       '<div class="order-name">' + itemsHtml + '</div>' +
       '<div class="amount">$' + amount + '</div>' +
-      (dueStr ? '<div class="due-date">Due ' + dueStr + '</div>' : noteHtml || '<div style="margin-bottom:22px;"></div>') +
+      (dueStr ? '<div class="due-date">Due ' + dueStr + '</div>' : '') +
+      (noteHtml || (dueStr ? '' : '<div style="margin-bottom:22px;"></div>')) +
       '<button class="btn-open" id="open-btn" type="button">Open &amp; pay in Bakeri app</button>' +
       '<div class="status-msg" id="status-msg"></div>' +
       '<div class="divider"><span>OR PAY HERE</span></div>' +

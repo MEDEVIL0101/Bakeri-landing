@@ -18,6 +18,10 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Must match finalize-guest-quote-payment's fee math — added on top of the
+// quoted price, not deducted from the baker's payout.
+const PLATFORM_FEE_RATE = 0.05;
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type",
@@ -59,10 +63,21 @@ Deno.serve(async (req: Request) => {
   if (order.is_paid || order.marketplace_status !== "quote_provided") {
     return json({ error: "This quote is no longer awaiting payment." }, 400);
   }
+
+  const { data: bakerProfile } = await db
+    .from("profiles")
+    .select("stripe_connect_onboarding_complete")
+    .eq("id", order.user_id)
+    .single();
+  if (!bakerProfile?.stripe_connect_onboarding_complete) {
+    return json({ error: "This baker hasn't finished setting up payments yet. Check back soon!" }, 400);
+  }
   const quotedPrice = Number(order.quoted_price ?? 0);
   if (!(quotedPrice > 0)) return json({ error: "This quote has no amount set." }, 400);
 
-  const chargeCents = Math.round(quotedPrice * 100);
+  const baseCents = Math.round(quotedPrice * 100);
+  const platformFeeCents = Math.round(baseCents * PLATFORM_FEE_RATE);
+  const chargeCents = baseCents + platformFeeCents;
 
   const stripeRes = await fetch("https://api.stripe.com/v1/payment_intents", {
     method: "POST",
@@ -91,5 +106,6 @@ Deno.serve(async (req: Request) => {
     payment_intent_id: intent.id,
     client_secret: intent.client_secret,
     amount_cents: chargeCents,
+    platform_fee_cents: platformFeeCents,
   });
 });

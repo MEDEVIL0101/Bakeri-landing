@@ -10,6 +10,10 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Fee added on top of what the customer pays, not deducted from the baker's
+// payout — matches every other checkout path.
+const PLATFORM_FEE_RATE = 0.05;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -59,17 +63,21 @@ Deno.serve(async (req: Request) => {
     const invoiceType = order.invoice_type ?? "full";
     const depositCents = order.deposit_amount_cents ?? 0;
 
-    let amountCents: number;
+    let baseAmountCents: number;
     if (invoiceType === "deposit") {
       if (depositCents <= 0) throw new Error("no_deposit_amount_set");
-      amountCents = depositCents;
+      baseAmountCents = depositCents;
     } else if (invoiceType === "balance") {
       if (!order.deposit_paid_at) throw new Error("no_deposit_on_file");
-      amountCents = itemsTotalCents - depositCents;
-      if (amountCents <= 0) throw new Error("no_amount_due");
+      baseAmountCents = itemsTotalCents - depositCents;
+      if (baseAmountCents <= 0) throw new Error("no_amount_due");
     } else {
-      amountCents = itemsTotalCents;
+      baseAmountCents = itemsTotalCents;
     }
+    // Fee added on top of what the customer pays, not deducted from the
+    // baker's payout.
+    const platformFeeCents = Math.round(baseAmountCents * PLATFORM_FEE_RATE);
+    const amountCents = baseAmountCents + platformFeeCents;
 
     const { data: baker } = await supabase
       .from("profiles")
@@ -91,16 +99,12 @@ Deno.serve(async (req: Request) => {
       "metadata[invoice_type]": invoiceType,
     };
     if (invoiceType === "deposit") {
-      // Non-refundable — transfer to the baker immediately, same as the
-      // quote/cart deposit flows, rather than relying on release-baker-payouts:
-      // the balance invoice generated later overwrites this order's
-      // payment_intent_id, which would otherwise permanently orphan the
-      // deposit's own intent from ever being sweepable.
-      const PLATFORM_FEE_RATE = 0.05;
-      if (baker?.stripe_connect_onboarding_complete && baker?.stripe_connect_account_id) {
-        intentParams["application_fee_amount"] = String(Math.round(amountCents * PLATFORM_FEE_RATE));
-        intentParams["transfer_data[destination]"] = baker.stripe_connect_account_id;
-      }
+      // No application_fee_amount/transfer_data here — the deposit charges
+      // into Bakeri's own balance like every other order, and is later swept
+      // to the baker by release-baker-payouts using deposit_payment_intent_id
+      // (snapshotted below, before the balance invoice overwrites
+      // payment_intent_id) once its own 24h dispute window passes.
+      //
       // Save the card so the baker can collect the balance later via a
       // balance-type invoice, reusing this same payment method.
       intentParams["setup_future_usage"] = "off_session";
@@ -129,6 +133,7 @@ Deno.serve(async (req: Request) => {
         baker_id: order.user_id,
         client_secret: intent.client_secret,
         amount_cents: amountCents,
+        platform_fee_cents: platformFeeCents,
         invoice_type: invoiceType,
         baker_name: bakerName,
         // Customer-facing item list — deliberately not order_name, which is a

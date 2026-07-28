@@ -16,6 +16,11 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Must match create-invoice-payment-intent's fee math — recomputed here
+// (never trusted from the client) at the point payment is actually verified,
+// since that's also when the deposit leg's sweep-eligibility timer starts.
+const PLATFORM_FEE_RATE = 0.05;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -63,10 +68,31 @@ Deno.serve(async (req: Request) => {
     const intent = await stripeRes.json();
     if (intent.status !== "succeeded") throw new Error(`Payment not confirmed. Status: ${intent.status}`);
 
+    // Recompute the pre-fee base amount for whichever leg this is, to derive
+    // the exact platform fee already baked into what Stripe just charged —
+    // same bases create-invoice-payment-intent used.
+    const depositCents = order.deposit_amount_cents ?? 0;
+    let baseAmountCents = depositCents;
+    if (order.invoice_type !== "deposit") {
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("quantity, price_per_unit")
+        .eq("order_id", order.id)
+        .is("deleted_at", null);
+      const itemsTotalCents = Math.round(
+        (items ?? []).reduce((sum: number, i: { quantity: number; price_per_unit: number }) => sum + i.quantity * i.price_per_unit, 0) * 100
+      );
+      baseAmountCents = order.invoice_type === "balance" ? itemsTotalCents - depositCents : itemsTotalCents;
+    }
+    const platformFeeCents = Math.round(baseAmountCents * PLATFORM_FEE_RATE);
+
     const paidAt = new Date().toISOString();
     // 'full' and 'balance' invoices settle the order; 'deposit' only records
     // the deposit and leaves is_paid false — same full-vs-deposit split as
-    // confirm_real_quote_payment for the in-app quote flow.
+    // confirm_real_quote_payment for the in-app quote flow. The deposit leg
+    // gets its own tracking columns (mirroring the cart/quote deposit flows)
+    // since release-baker-payouts sweeps it separately, on its own 24h timer
+    // starting now rather than waiting for the whole order to complete.
     const updatePayload: Record<string, unknown> =
       order.invoice_type === "deposit"
         ? {
@@ -74,6 +100,9 @@ Deno.serve(async (req: Request) => {
             deposit_amount: (order.deposit_amount_cents ?? 0) / 100,
             deposit_paid_at: paidAt,
             deposit_note: "Non-refundable deposit",
+            deposit_payment_intent_id: payment_intent_id,
+            deposit_charged_at: paidAt,
+            deposit_platform_fee_cents: platformFeeCents,
             updated_at: paidAt,
           }
         : {
@@ -81,6 +110,7 @@ Deno.serve(async (req: Request) => {
             paid_at: paidAt,
             payment_status: "captured",
             payment_note: order.invoice_type === "balance" ? "Balance paid online via invoice link" : "Paid online via invoice link",
+            platform_fee_cents: platformFeeCents,
             // Manual/invoice orders never go through the marketplace pickup-
             // confirmation flow (confirm_pickup/authorize_pickup), so nothing
             // else ever sets marketplace_status or completed_at for them —

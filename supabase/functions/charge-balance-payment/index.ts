@@ -24,6 +24,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
+// Fee added on top of the balance, not deducted from the baker's cut — the
+// deposit leg already added its own share via create-payment-intent/
+// pay-quote-order/create-invoice-payment-intent.
+const PLATFORM_FEE_RATE = 0.05;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -65,8 +70,11 @@ Deno.serve(async (req: Request) => {
 
     const depositCents = order.deposit_amount_cents ?? 0;
     const totalCents = Math.round((order.quoted_price ?? 0) * 100);
-    const balanceCents = totalCents - depositCents;
-    if (balanceCents <= 0) throw new Error("No balance remaining to charge");
+    const baseBalanceCents = totalCents - depositCents;
+    if (baseBalanceCents <= 0) throw new Error("No balance remaining to charge");
+    // Fee added on top of the balance, matching the deposit leg.
+    const platformFeeCents = Math.round(baseBalanceCents * PLATFORM_FEE_RATE);
+    const balanceCents = baseBalanceCents + platformFeeCents;
 
     // Pull the payment method off the original deposit intent — it was saved
     // via setup_future_usage: "off_session" at deposit time.
@@ -116,6 +124,7 @@ Deno.serve(async (req: Request) => {
         payment_status: "captured",
         is_paid: true,
         paid_at: new Date().toISOString(),
+        platform_fee_cents: platformFeeCents,
         updated_at: new Date().toISOString(),
       })
       .eq("id", order_id);
@@ -123,7 +132,7 @@ Deno.serve(async (req: Request) => {
     if (updateErr) throw new Error(`DB update failed: ${updateErr.message}`);
 
     return new Response(
-      JSON.stringify({ success: true, balance_payment_intent_id: balanceIntent.id, amount_charged_cents: balanceCents }),
+      JSON.stringify({ success: true, balance_payment_intent_id: balanceIntent.id, amount_charged_cents: balanceCents, platform_fee_cents: platformFeeCents }),
       { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
     );
   } catch (err: unknown) {

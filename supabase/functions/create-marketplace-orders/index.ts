@@ -5,6 +5,21 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Must match create-payment-intent's PLATFORM_FEE_RATE — the charge already
+// created there added this fee on top of what the buyer's cart totaled, so
+// here we just record each order's fair share of that fee (proportional to
+// its own item subtotal) for release-baker-payouts to read back verbatim.
+const PLATFORM_FEE_RATE = 0.05;
+
+interface FormResponseAnswer {
+  fieldID: string;
+  label: string;
+  fieldType: string;
+  textValue?: string | null;
+  choiceValues?: string[] | null;
+  photoPaths?: string[] | null;
+}
+
 interface CartItemPayload {
   listing_id: string;
   baker_id: string;
@@ -14,6 +29,10 @@ interface CartItemPayload {
   listing_kind: "ready_now" | "preorder" | "custom";
   scheduled_pickup?: string | null;
   notes?: string;
+  form_responses?: FormResponseAnswer[] | null;
+  wants_delivery?: boolean;
+  delivery_fee?: number;
+  delivery_address?: string | null;
 }
 
 interface RequestBody {
@@ -137,6 +156,11 @@ Deno.serve(async (req: Request) => {
         .map((i) => `${i.name}: ${i.notes}`)
         .join("; ");
 
+      // One baker per group, so delivery is effectively an all-or-nothing choice
+      // for this order — take it from whichever item(s) requested it.
+      const groupWantsDelivery = groupItems.some((i) => i.wants_delivery === true);
+      const groupDeliveryAddress = groupItems.find((i) => i.wants_delivery && i.delivery_address)?.delivery_address ?? null;
+
       const itemNames = groupItems.map((i) => i.name);
       const orderName = itemNames.length === 1
         ? itemNames[0]
@@ -162,6 +186,18 @@ Deno.serve(async (req: Request) => {
         ? new Date(Date.now() + 86400000).toISOString()   // tomorrow — urgent
         : firstPickup ?? new Date(Date.now() + 86400000).toISOString();
 
+      // This group's fair share of the fee already baked into the charge —
+      // for deposit_and_save the whole charge *is* the deposit (one group in
+      // practice, since "custom" listings go through their own request/quote
+      // flow rather than sharing a cart with other kinds), so it gets the
+      // full deposit fee rather than a per-item split.
+      const groupSubtotalCents = Math.round(
+        groupItems.reduce((sum, i) => sum + i.price_from * i.quantity, 0) * 100
+      );
+      const groupPlatformFeeCents = payment_flow === "deposit_and_save"
+        ? Math.round((deposit_amount_cents ?? 0) * PLATFORM_FEE_RATE)
+        : Math.round(groupSubtotalCents * PLATFORM_FEE_RATE);
+
       const { error: orderErr } = await supabase.from("orders").insert({
         id: orderID,
         user_id: bakerID,
@@ -177,8 +213,10 @@ Deno.serve(async (req: Request) => {
         payment_note: "",
         deposit_amount: 0,
         deposit_note: "",
-        fulfillment_type: "Pickup",
+        fulfillment_type: groupWantsDelivery ? "Delivery" : "Pickup",
         delivery_details: "",
+        is_delivery: groupWantsDelivery,
+        delivery_address: groupDeliveryAddress,
         created_at: now,
         updated_at: now,
         color_name: kind === "ready_now" ? "red" : "blue",
@@ -194,6 +232,10 @@ Deno.serve(async (req: Request) => {
         setup_intent_id: setup_intent_id ?? null,
         deposit_amount_cents: deposit_amount_cents ?? null,
         scheduled_hold_at: scheduled_hold_at ?? null,
+        platform_fee_cents: payment_flow === "deposit_and_save" ? null : groupPlatformFeeCents,
+        deposit_payment_intent_id: payment_flow === "deposit_and_save" ? (payment_intent_id ?? null) : null,
+        deposit_charged_at: payment_flow === "deposit_and_save" ? now : null,
+        deposit_platform_fee_cents: payment_flow === "deposit_and_save" ? groupPlatformFeeCents : null,
       });
 
       if (orderErr) throw new Error(`Failed to create order: ${orderErr.message}`);
@@ -208,6 +250,8 @@ Deno.serve(async (req: Request) => {
         unit: "pieces",
         price_per_unit: item.price_from,
         notes: item.notes ?? "",
+        form_responses: item.form_responses && item.form_responses.length > 0 ? item.form_responses : null,
+        wants_delivery: item.wants_delivery ?? false,
         updated_at: now,
       }));
 

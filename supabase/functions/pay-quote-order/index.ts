@@ -5,6 +5,11 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Must match confirm_real_quote_payment's fee math — the fee is added to the
+// charge here, then recorded (never trusting the client) once payment is
+// confirmed.
+const PLATFORM_FEE_RATE = 0.05;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -57,7 +62,11 @@ Deno.serve(async (req: Request) => {
     // the balance gets collected later via charge-balance-payment, off the
     // saved card from this same intent (setup_future_usage below).
     const isPartialDeposit = depositCents > 0 && depositCents < totalCents;
-    const amountCents = isPartialDeposit ? depositCents : totalCents;
+    const baseAmountCents = isPartialDeposit ? depositCents : totalCents;
+    // Fee added on top of what the buyer pays, not deducted from the baker's
+    // quoted price.
+    const platformFeeCents = Math.round(baseAmountCents * PLATFORM_FEE_RATE);
+    const amountCents = baseAmountCents + platformFeeCents;
 
     // Create Stripe PaymentIntent
     const intentParams: Record<string, string> = {
@@ -97,6 +106,7 @@ Deno.serve(async (req: Request) => {
         payment_intent_id: intent.id,
         client_secret: intent.client_secret,
         amount_cents: amountCents,
+        platform_fee_cents: platformFeeCents,
       }),
       {
         headers: {

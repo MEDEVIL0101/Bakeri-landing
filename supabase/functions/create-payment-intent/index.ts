@@ -39,20 +39,26 @@ function detectPaymentFlow(items: CartItemPayload[]): PaymentFlow {
   return "immediate";
 }
 
-async function getBakerConnectAccountId(bakerId: string): Promise<string | null> {
-  const supabase = createClient(
+function getSupabaseClient() {
+  return createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
   );
-  const { data } = await supabase
+}
+
+// A storefront can't take a real checkout until its baker has finished
+// Stripe Connect — otherwise there's no destination to eventually pay them
+// out to. Checked against every baker present in the cart, not just the
+// primary one, since a connect account can lapse between page load and
+// submit.
+async function allBakersStripeReady(bakerIds: string[]): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
     .from("profiles")
-    .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
-    .eq("id", bakerId)
-    .single();
-  if (data?.stripe_connect_onboarding_complete && data?.stripe_connect_account_id) {
-    return data.stripe_connect_account_id as string;
-  }
-  return null;
+    .select("id, stripe_connect_account_id, stripe_connect_onboarding_complete")
+    .in("id", bakerIds);
+  if (error || !data || data.length !== bakerIds.length) return false;
+  return data.every((p) => p.stripe_connect_onboarding_complete && p.stripe_connect_account_id);
 }
 
 Deno.serve(async (req: Request) => {
@@ -60,7 +66,12 @@ Deno.serve(async (req: Request) => {
     return new Response(null, {
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, content-type",
+        // apikey added: this function had only ever been called from the
+        // native app (URLSession, not subject to CORS at all) until
+        // baker/checkout.html — a browser fetch() with an apikey header
+        // fails preflight without it. No change to the function's own
+        // logic; it already has no auth check either way.
+        "Access-Control-Allow-Headers": "authorization, apikey, content-type",
       },
     });
   }
@@ -98,25 +109,39 @@ Deno.serve(async (req: Request) => {
       ? Math.round(itemsTotalCents * DEPOSIT_FRACTION)
       : null;
 
-    const chargeCents = depositAmountCents ?? fullTotalCents;
-    const applicationFeeCents = Math.round(chargeCents * PLATFORM_FEE_RATE);
+    // Platform fee is added to what the customer pays rather than deducted
+    // from the baker's cut — computed off the pre-tax item/deposit base (tax
+    // is a pass-through, not something the platform takes a cut of). The
+    // baker still absorbs the real Stripe processing fee, at payout time.
+    const platformFeeCents = Math.round((depositAmountCents ?? itemsTotalCents) * PLATFORM_FEE_RATE);
+    const chargeCents = (depositAmountCents ?? fullTotalCents) + platformFeeCents;
 
-    // All flows now capture immediately at checkout — QR scan is authorization only
-    const captureMethod = "automatic";
+    // Regular (non-deposit) orders now hold the funds — authorize at checkout,
+    // capture only once the baker actually accepts the order (capture-payment,
+    // called from MarketplaceOrderSheet's accept actions). If the baker never
+    // accepts (declines, or the guest-order expiry cron times it out), the
+    // authorization is simply cancelled — no charge, no non-refundable Stripe
+    // fee. Deposits capture immediately (non-refundable) but no longer
+    // transfer at checkout — see below, they now go through the same
+    // "capture into Bakeri's balance, sweep a transfer later" model as every
+    // other order, so the baker's cut can reflect the real Stripe fee instead
+    // of the platform absorbing it via a destination-charge split.
+    const captureMethod = paymentFlow === "deposit_and_save" ? "automatic" : "manual";
 
     const bakerIDs = [...new Set(items.map((i) => i.baker_id))];
-    const primaryBakerId = bakerIDs[0];
 
-    // Only needed for deposit_and_save — that's the only flow that still
-    // transfers at checkout time (see below).
-    const connectAccountId = primaryBakerId && paymentFlow === "deposit_and_save"
-      ? await getBakerConnectAccountId(primaryBakerId)
-      : null;
+    if (!(await allBakersStripeReady(bakerIDs))) {
+      return new Response(
+        JSON.stringify({ error: "This baker hasn't finished setting up payments yet. Check back soon!" }),
+        { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
+      );
+    }
 
     const metadata: Record<string, string> = {
       baker_ids: bakerIDs.join(","),
       item_count: String(items.length),
       payment_flow: paymentFlow,
+      platform_fee_cents: String(platformFeeCents),
     };
 
     const intentParams: Record<string, string> = {
@@ -129,16 +154,10 @@ Deno.serve(async (req: Request) => {
       ),
     };
 
-    // Only the deposit charge transfers to the baker immediately — it's
-    // non-refundable, so there's no dispute-window risk to hold it against.
-    // Regular full-payment orders capture into Bakeri's own balance and get
-    // released to the baker later by release-baker-payouts, once the 24h
-    // dispute window (orders.completed_at + 24h) has passed.
-    if (connectAccountId && paymentFlow === "deposit_and_save") {
-      intentParams["application_fee_amount"] = String(applicationFeeCents);
-      intentParams["transfer_data[destination]"] = connectAccountId;
-    }
-
+    // No application_fee_amount/transfer_data here for any flow — every
+    // charge (including deposits, as of 2026-07-28) lands in Bakeri's own
+    // balance and is released to the baker later by release-baker-payouts,
+    // once its own dispute window has passed.
     if (paymentFlow === "deposit_and_save") {
       intentParams["setup_future_usage"] = "off_session";
     }
@@ -167,7 +186,7 @@ Deno.serve(async (req: Request) => {
         capture_method: captureMethod,
         payment_flow: paymentFlow,
         deposit_amount_cents: depositAmountCents,
-        connect_account_id: paymentFlow === "deposit_and_save" ? connectAccountId : null,
+        platform_fee_cents: platformFeeCents,
       }),
       {
         headers: {
