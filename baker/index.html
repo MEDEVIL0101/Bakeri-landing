@@ -76,7 +76,16 @@
       font-size: 1.6rem;
     }
 
-    /* ══════════════════════ Header ══════════════════════ */
+    /* ══════════════════════ Page shell ══════════════════════
+       Everything (header through footer) lives in one width-constrained,
+       opaque column — matches the in-app screen anatomy (flat cream band,
+       white filter strip, then the pattern behind the product grid) and
+       keeps every section the same width instead of some bleeding full-
+       width and others not. The fixed pattern layer (theme.js) sits behind
+       this whole shell, so on desktop it only shows in the side margins;
+       on mobile the shell fills the viewport, so no margin — no pattern. */
+    #page-shell { max-width: 720px; margin: 0 auto; background: var(--bg); position: relative; }
+
     #site-header {
       position: sticky; top: 0; z-index: 40;
       display: flex; align-items: center; gap: 10px;
@@ -106,75 +115,75 @@
     }
     #cart-btn-count:empty { display: none; }
 
-    /* ══════════════════════ Profile Block ══════════════════════
-       A proper card — same surface/shadow treatment as product cards —
-       so it reads as the page's anchor, not just text on the pattern. */
-    #profile-block {
-      margin: 10px 16px 18px; padding: 24px 20px;
-      background: var(--surface); border-radius: 24px;
-      box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 10px 28px rgba(36,23,18,.07);
-    }
-    #profile-block .avatar { width: 88px; height: 88px; font-size: 32px; }
-    #shop-name { font-size: 21px; font-weight: 700; color: var(--ink); margin-top: 14px; }
+    #profile-block { text-align: center; padding: 8px 20px 22px; }
+    #profile-block .avatar { width: 96px; height: 96px; font-size: 34px; margin: 0 auto; }
+    #shop-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 14px; }
     #shop-meta {
-      display: inline-flex; align-items: center; gap: 5px; margin-top: 9px;
+      display: inline-flex; align-items: center; gap: 5px; margin-top: 8px;
       background: var(--line-soft); padding: 5px 12px; border-radius: 9999px;
     }
     #shop-meta span { font-size: 12.5px; font-weight: 500; color: var(--chip-text); }
     #shop-bio {
       font-size: 14.5px; line-height: 1.6; color: var(--bio);
-      margin-top: 14px; max-width: 480px;
+      margin: 14px auto 0; max-width: 440px;
     }
 
-    /* About the baker / Store policies — sub-sections folded into the
-       same profile card (mobile #profile-block, desktop #profile-rail). */
-    .profile-sub { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
-    .profile-sub-head { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+    /* About the baker / Store policies — plain expandable rows, no card. */
+    #profile-extras { max-width: 440px; margin: 4px auto 0; text-align: left; }
+    .profile-sub { border-top: 1px solid var(--line); }
+    .profile-sub-head {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+      background: none; border: none; cursor: pointer; padding: 14px 0;
+      font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
+    }
+    .profile-sub-head .ind { font-size: 10px; transition: transform .15s ease; }
+    .profile-sub.open .profile-sub-head .ind { transform: rotate(180deg); }
+    .profile-sub-body { max-height: 0; overflow: hidden; transition: max-height .2s ease-out; }
+    .profile-sub.open .profile-sub-body { max-height: 600px; padding-bottom: 16px; }
     .profile-about-inner { display: flex; gap: 14px; align-items: flex-start; }
     .about-portrait { width: 60px; height: 76px; border-radius: 12px; object-fit: cover; flex-shrink: 0; background: var(--line-soft); }
     .profile-sub p { font-size: 13.5px; line-height: 1.65; color: var(--bio); }
     .about-signature { font-style: italic; font-size: 13.5px; margin-top: 8px; color: var(--ink); }
 
-    /* ══════════════════════ Filter Chips ══════════════════════ */
+    /* ══════════════════════ Filter strip — white band ══════════════════ */
+    #filter-strip { background: var(--surface); }
     #filter-bar {
-      display: flex; gap: 8px; overflow-x: auto; padding: 6px 20px 16px;
-      scrollbar-width: none;
+      display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px;
+      justify-content: center; scrollbar-width: none;
     }
     #filter-bar::-webkit-scrollbar { display: none; }
     .filter-chip {
       flex-shrink: 0; padding: 8px 16px; border-radius: 9999px; border: 1.5px solid var(--line);
-      background: transparent; color: var(--ink); cursor: pointer;
+      background: var(--bg); color: var(--ink); cursor: pointer;
       font-family: var(--sans); font-size: 13px; font-weight: 600; white-space: nowrap;
     }
     .filter-chip.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 
     /* ══════════════════════ Product Grid ══════════════════════
-       A solid surface card behind each tile — a baker's background
-       pattern (stripes/polka dot/gingham) sits right behind these on the
-       page, and text with no card underneath got unreadable against it. */
-    #feed { padding: 0 20px 8px; }
-    #product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 12px; }
+       Matches the app's own Market (listings) card exactly: photo with an
+       overlaid kind badge, name + availability, a divider, then price +
+       action on their own row — not an invented layout. The baker's
+       chosen background pattern shows behind these cards (theme.js's
+       #theme-pattern-layer). */
+    #feed { background: var(--surface); padding: 18px 20px 8px; }
+    #product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
     .p-card {
-      cursor: pointer; background: var(--surface); border-radius: 20px; overflow: hidden;
-      box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 8px 20px rgba(36,23,18,.07);
+      cursor: pointer; background: var(--surface); border-radius: 16px; overflow: hidden;
+      box-shadow: 0 2px 5px rgba(36,23,18,.08);
     }
-    .p-card .p-photo { position: relative; width: 100%; aspect-ratio: 1/1; background: var(--line-soft); }
+    .p-card .p-photo { position: relative; width: 100%; aspect-ratio: 1/1; background: var(--bg); }
     .p-card .p-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
     .p-badge {
-      position: absolute; top: 8px; left: 8px; font-size: 10px; font-weight: 600;
-      padding: 4px 10px; border-radius: 9999px; color: #fff;
+      position: absolute; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 700; padding: 4px 10px; border-radius: 9999px; color: #fff;
     }
-    .p-left-badge {
-      position: absolute; bottom: 8px; left: 8px; background: rgba(20,15,10,.5);
-      padding: 3px 9px; border-radius: 9999px; display: flex; align-items: center; gap: 5px;
-    }
-    .p-left-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ready); }
-    .p-left-badge span { font-size: 9px; font-weight: 700; color: #fff; }
-    .p-body { padding: 10px 12px 12px; }
+    .p-badge .dot { width: 5px; height: 5px; border-radius: 50%; background: #fff; }
+    .p-body { padding: 10px 12px 11px; }
     .p-name { font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.3; }
-    .p-meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .p-price-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
-    .p-price { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+    .p-meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+    .p-divider { border-top: 1px solid var(--line); margin-top: 9px; padding-top: 8px; }
+    .p-price-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .p-price { font-size: 13.5px; font-weight: 700; color: var(--accent); }
     .p-price .from { font-size: 9.5px; font-weight: 400; color: var(--muted); display: block; }
 
     .add-btn, .qty-stepper { height: 32px; flex-shrink: 0; }
@@ -195,15 +204,9 @@
 
     .empty-state { text-align: center; padding: 50px 20px; color: var(--muted); font-size: 14px; }
 
-    /* ══════════════════════ Good To Know / FAQ ══════════════════════
-       Same surface-card treatment as the profile block and product tiles —
-       two cards stacked on mobile, side by side on desktop. */
-    #info-section { padding: 0 16px 30px; display: flex; flex-direction: column; gap: 14px; }
-    #info-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
-    #faq-col {
-      background: var(--surface); border-radius: 20px; padding: 20px;
-      box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 8px 20px rgba(36,23,18,.06);
-    }
+    /* ══════════════════════ Good To Know / FAQ ══════════════════════ */
+    #info-section { background: var(--surface); max-width: 440px; margin: 0 auto; padding: 8px 20px 30px; display: flex; flex-direction: column; gap: 6px; }
+    #info-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
     .faq-row { border-bottom: 1px solid var(--line); }
     .faq-row:last-child { border-bottom: none; }
     .faq-q {
@@ -216,16 +219,13 @@
     .faq-a p { font-size: 13.5px; line-height: 1.7; color: var(--bio); padding-bottom: 14px; }
     .faq-row.open .faq-a { max-height: 400px; }
 
-    #hours-card {
-      background: var(--surface); border-radius: 20px; padding: 20px;
-      box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 8px 20px rgba(36,23,18,.06);
-    }
+    #hours-card { border-top: 1px solid var(--line); padding-top: 14px; }
     #hours-card .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
     #hours-card .day { color: var(--muted); }
     #hours-card .time { color: var(--ink); }
 
     /* ══════════════════════ Footer ══════════════════════ */
-    #site-footer { padding: 20px 20px 120px; text-align: center; }
+    #site-footer { background: var(--surface); padding: 20px 20px 120px; text-align: center; }
     #footer-contact { font-size: 12.5px; line-height: 1.7; color: var(--muted); }
     #footer-credit { margin-top: 18px; font-size: 12px; color: var(--muted); }
     #footer-credit a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
@@ -239,15 +239,15 @@
     }
     #action-bar-cart {
       display: none; align-items: center; justify-content: space-between; height: 56px;
-      background: var(--ink); color: var(--bg); border-radius: 9999px; padding: 0 8px 0 20px; cursor: pointer;
+      background: var(--accent); color: var(--accent-fg); border-radius: 9999px; padding: 0 8px 0 20px; cursor: pointer;
       border: none; width: 100%; box-shadow: 0 10px 30px -8px rgba(0,0,0,.35);
       animation: popIn .18s ease-out;
     }
     #action-bar-cart .l { text-align: left; }
     #action-bar-cart .l .t { font-size: 14.5px; font-weight: 700; }
-    #action-bar-cart .l .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    #action-bar-cart .l .s { font-size: 11px; color: var(--accent-fg); opacity: .75; margin-top: 2px; }
     #action-bar-cart .r {
-      font-size: 14px; font-weight: 700; background: var(--bg); color: var(--ink);
+      font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink);
       border-radius: 9999px; padding: 10px 16px;
     }
 
@@ -274,14 +274,14 @@
       border-radius: 9999px; border: none; cursor: pointer; font-weight: 700; font-size: 15px;
       text-decoration: none; font-family: var(--sans);
     }
-    .btn-primary { height: 50px; background: var(--ink); color: var(--bg); }
+    .btn-primary { height: 50px; background: var(--accent); color: var(--accent-fg); }
     .btn-outline { height: 48px; background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
 
     #item-sheet-photo { position: relative; aspect-ratio: 4/3; background: var(--line-soft); }
     #item-sheet-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
     #item-sheet-body { padding: 18px 20px 22px; }
     #item-sheet-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 10px; }
-    #item-sheet-price { font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+    #item-sheet-price { font-size: 17px; font-weight: 700; color: var(--accent); margin-top: 4px; }
     #item-sheet-desc { font-size: 14px; line-height: 1.7; color: var(--bio); margin-top: 12px; }
     .spec-list { margin-top: 14px; }
     .spec-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 7px 0; border-top: 1px solid var(--line); color: var(--muted); }
@@ -328,35 +328,18 @@
 
     /* ══════════════════════ Desktop ══════════════════════ */
     @media (min-width: 860px) {
-      #site-header { padding: 20px 40px; }
+      /* Stands the column off the patterned backdrop showing in the side
+         margins — on mobile the shell fills the viewport edge to edge, so
+         there's no backdrop to separate from and no shadow needed there. */
+      #page-shell { box-shadow: 0 8px 40px rgba(20,15,10,.14); }
 
-      #profile-block { display: none; } /* replaced by sticky rail */
-
-      #desktop-shell { max-width: 1120px; margin: 0 auto; padding: 8px 40px 0; display: grid; grid-template-columns: 320px 1fr; gap: 40px; }
-      #profile-rail {
-        display: block; position: sticky; top: 24px; align-self: start;
-        background: var(--surface); border-radius: 24px; padding: 26px;
-        box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 10px 30px rgba(36,23,18,.06);
-      }
-      #profile-rail .avatar { width: 84px; height: 84px; font-size: 30px; }
-      #profile-rail #rail-name { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 14px; }
-      #profile-rail #rail-meta {
-        display: inline-flex; align-items: center; gap: 5px; margin-top: 9px;
-        background: var(--line-soft); padding: 5px 12px; border-radius: 9999px;
-        font-size: 12.5px; font-weight: 500; color: var(--chip-text);
-      }
-      #profile-rail #rail-bio { font-size: 14px; line-height: 1.7; color: var(--bio); margin-top: 14px; }
-
-      #feed { padding: 0 0 40px; }
-      #filter-bar { padding: 0 0 16px; }
-      #product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 20px 16px; }
-      .p-card:hover { box-shadow: 0 4px 10px rgba(36,23,18,.08), 0 14px 32px rgba(36,23,18,.10); }
-
-      #info-section { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 40px 40px; }
-
-      #site-footer { margin-left: calc(-1 * (100vw - 100%) / 2); padding: 20px 40px; text-align: left; }
+      #info-section { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: none; }
+      #product-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 18px; }
+      .p-card:hover .p-photo { opacity: .92; }
 
       #action-bar { display: none; }
+      #desktop-cart-btn { display: flex !important; }
+      #cart-btn { display: none; }
 
       .scrim { align-items: center; }
       #item-sheet, #cart-sheet { max-width: 800px; width: 90%; border-radius: 24px; max-height: 88vh; }
@@ -365,17 +348,12 @@
 
       #cart-sheet { max-width: 440px; margin-left: auto; margin-right: 0; height: 100%; max-height: 100%; border-radius: 0; box-shadow: -20px 0 50px -20px rgba(0,0,0,.4); }
       .scrim:has(#cart-sheet) { justify-content: flex-end; }
-
-      #desktop-cart-btn { display: flex !important; }
-      #cart-btn { display: none; }
-    }
-    @media (max-width: 859px) {
-      #profile-rail, #desktop-cart-btn { display: none; }
-      #desktop-shell { display: block; }
     }
   </style>
 </head>
 <body>
+
+<div id="page-shell">
 
 <header id="site-header">
   <div id="header-id">
@@ -389,39 +367,16 @@
   <button class="circle-btn" id="cart-btn" aria-label="Cart">🛒<span id="cart-btn-count"></span></button>
 </header>
 
-<div id="desktop-shell">
-  <aside id="profile-rail">
-    <div class="avatar" id="rail-avatar"><span id="rail-avatar-letter"></span></div>
-    <div id="rail-name"></div>
-    <div id="rail-meta" class="hidden"><span id="rail-meta-text"></span></div>
-    <div id="rail-bio"></div>
+<section id="profile-block">
+  <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
+  <div id="shop-name"></div>
+  <div id="shop-meta" class="hidden"><span id="shop-meta-text"></span></div>
+  <div id="shop-bio" class="hidden"></div>
 
-    <div id="rail-about" class="profile-sub hidden">
-      <div class="profile-sub-head">About the baker</div>
-      <div class="profile-about-inner">
-        <img id="rail-about-portrait" class="about-portrait" alt="" />
-        <div>
-          <p id="rail-about-text"></p>
-          <div id="rail-about-signature" class="about-signature"></div>
-        </div>
-      </div>
-    </div>
-
-    <div id="rail-policies" class="profile-sub hidden">
-      <div class="profile-sub-head">Store policies</div>
-      <p id="rail-policies-text"></p>
-    </div>
-  </aside>
-
-  <div id="main-col">
-    <section id="profile-block">
-      <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
-      <div id="shop-name"></div>
-      <div id="shop-meta" class="hidden"><span id="shop-meta-text"></span></div>
-      <div id="shop-bio" class="hidden"></div>
-
-      <div id="pb-about" class="profile-sub hidden">
-        <div class="profile-sub-head">About the baker</div>
+  <div id="profile-extras">
+    <div id="pb-about" class="profile-sub hidden">
+      <button class="profile-sub-head" type="button">About the baker <span class="ind">▾</span></button>
+      <div class="profile-sub-body">
         <div class="profile-about-inner">
           <img id="pb-about-portrait" class="about-portrait" alt="" />
           <div>
@@ -430,20 +385,22 @@
           </div>
         </div>
       </div>
+    </div>
 
-      <div id="pb-policies" class="profile-sub hidden">
-        <div class="profile-sub-head">Store policies</div>
-        <p id="pb-policies-text"></p>
-      </div>
-    </section>
-
-    <div id="filter-bar" class="hidden"></div>
-
-    <section id="feed">
-      <div id="product-grid"></div>
-    </section>
+    <div id="pb-policies" class="profile-sub hidden">
+      <button class="profile-sub-head" type="button">Store policies <span class="ind">▾</span></button>
+      <div class="profile-sub-body"><p id="pb-policies-text"></p></div>
+    </div>
   </div>
+</section>
+
+<div id="filter-strip">
+  <div id="filter-bar" class="hidden"></div>
 </div>
+
+<section id="feed">
+  <div id="product-grid"></div>
+</section>
 
 <section id="info-section" class="hidden">
   <div id="faq-col" class="hidden">
@@ -462,6 +419,8 @@
   </div>
 </footer>
 
+</div><!-- /page-shell -->
+
 <div id="action-bar">
   <button id="action-bar-cart">
     <div class="l">
@@ -479,7 +438,7 @@
       <div id="item-sheet-photo">
         <div class="ph-fallback" id="item-sheet-ph" style="position:absolute;inset:0;"></div>
         <img id="item-sheet-img" alt="" />
-        <div class="p-badge" id="item-sheet-badge" style="top:12px;right:12px;"></div>
+        <div class="p-badge" id="item-sheet-badge" style="top:12px;left:12px;"></div>
         <button class="sheet-close" id="item-sheet-close">✕</button>
       </div>
       <div id="item-sheet-body">
@@ -599,18 +558,14 @@
     }
 
     document.getElementById('shop-name').textContent = name;
-    document.getElementById('rail-name').textContent = name;
     if (location) {
       document.getElementById('shop-meta-text').textContent = location;
-      document.getElementById('rail-meta-text').textContent = location;
       document.getElementById('shop-meta').classList.remove('hidden');
-      document.getElementById('rail-meta').classList.remove('hidden');
     }
 
     if (profile.bio) {
       document.getElementById('shop-bio').textContent = profile.bio;
       document.getElementById('shop-bio').classList.remove('hidden');
-      document.getElementById('rail-bio').textContent = profile.bio;
     }
 
     renderHours(profile.pickup_hours_json);
@@ -636,16 +591,14 @@
   function renderAvatar(name) {
     const logoURL = STORAGE_URL + '/business-logos/' + resolvedBakerId.toUpperCase() + '/logo.jpg';
     const initial = name.charAt(0).toUpperCase();
-    ['pb-avatar', 'rail-avatar'].forEach(function (id) {
-      const el = document.getElementById(id);
-      const letterEl = document.getElementById(id + '-letter');
-      letterEl.textContent = initial;
-      const img = document.createElement('img');
-      img.alt = name;
-      img.onload = function () { img.style.display = 'block'; letterEl.style.display = 'none'; };
-      img.src = logoURL;
-      el.appendChild(img);
-    });
+    const el = document.getElementById('pb-avatar');
+    const letterEl = document.getElementById('pb-avatar-letter');
+    letterEl.textContent = initial;
+    const img = document.createElement('img');
+    img.alt = name;
+    img.onload = function () { img.style.display = 'block'; letterEl.style.display = 'none'; };
+    img.src = logoURL;
+    el.appendChild(img);
   }
 
   // Only renders if the baker has actually configured hours in the app (the
@@ -676,26 +629,26 @@
     }
   }
 
-  // About the baker + Store policies both fold into the profile card itself
-  // (mobile #profile-block, desktop #profile-rail) rather than living as
-  // separate bands further down the page — each renders twice, once per
-  // breakpoint's copy of the markup, and independently no-ops if the baker
-  // hasn't filled in that field.
+  // About the baker + Store policies fold into the profile block itself,
+  // as collapsed disclosure rows — independently no-ops if the baker hasn't
+  // filled in that field.
   function renderAboutAndPolicies(profile, name) {
-    ['pb', 'rail'].forEach(function (prefix) {
-      if (profile.about_story) {
-        document.getElementById(prefix + '-about').classList.remove('hidden');
-        document.getElementById(prefix + '-about-text').textContent = profile.about_story;
-        document.getElementById(prefix + '-about-signature').textContent = '— ' + name;
-        const img = document.getElementById(prefix + '-about-portrait');
-        img.alt = name;
-        img.onerror = function () { img.style.display = 'none'; };
-        img.src = STORAGE_URL + '/baker-portraits/' + resolvedBakerId.toUpperCase() + '/portrait.jpg';
-      }
-      if (profile.store_policies) {
-        document.getElementById(prefix + '-policies').classList.remove('hidden');
-        document.getElementById(prefix + '-policies-text').textContent = profile.store_policies;
-      }
+    if (profile.about_story) {
+      document.getElementById('pb-about').classList.remove('hidden');
+      document.getElementById('pb-about-text').textContent = profile.about_story;
+      document.getElementById('pb-about-signature').textContent = '— ' + name;
+      const img = document.getElementById('pb-about-portrait');
+      img.alt = name;
+      img.onerror = function () { img.style.display = 'none'; };
+      img.src = STORAGE_URL + '/baker-portraits/' + resolvedBakerId.toUpperCase() + '/portrait.jpg';
+    }
+    if (profile.store_policies) {
+      document.getElementById('pb-policies').classList.remove('hidden');
+      document.getElementById('pb-policies-text').textContent = profile.store_policies;
+    }
+
+    document.querySelectorAll('.profile-sub .profile-sub-head').forEach(function (btn) {
+      btn.addEventListener('click', function () { btn.closest('.profile-sub').classList.toggle('open'); });
     });
   }
 
@@ -800,23 +753,15 @@
     img.src = itemImgURL(item);
     photo.appendChild(img);
 
-    // Plain kind badge — always shown regardless of sold-out, matching the
-    // in-app baker profile grid (BakerPublicProfileView): a sold-out
-    // ready_now item keeps its normal badge, distinguished only by the
-    // lighter subtitle text below.
+    // Plain kind badge overlaid on the photo — matches the app's own
+    // Market listing card exactly (a sold-out ready_now item keeps its
+    // normal badge, distinguished only by the lighter meta text below).
     const kind = kindBadgeInfo(item);
     const badge = document.createElement('div');
     badge.className = 'p-badge';
     badge.style.background = kind.bg;
-    badge.textContent = kind.label;
+    badge.innerHTML = '<span class="dot"></span>' + kind.label;
     photo.appendChild(badge);
-
-    if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) {
-      const left = document.createElement('div');
-      left.className = 'p-left-badge';
-      left.innerHTML = '<div class="dot"></div><span>' + item.available_qty_today + ' left</span>';
-      photo.appendChild(left);
-    }
 
     const body = document.createElement('div');
     body.className = 'p-body';
@@ -827,6 +772,8 @@
     metaEl.className = 'p-meta';
     metaEl.textContent = subtitleFor(item);
 
+    const divider = document.createElement('div');
+    divider.className = 'p-divider';
     const priceRow = document.createElement('div');
     priceRow.className = 'p-price-row';
     const priceEl = document.createElement('div');
@@ -834,10 +781,11 @@
     priceEl.innerHTML = priceIsFrom(item) ? '<span class="from">from</span>$' + formatPrice(item.price) : '$' + formatPrice(item.price);
     priceRow.appendChild(priceEl);
     priceRow.appendChild(buildAddControl(item));
+    divider.appendChild(priceRow);
 
     body.appendChild(nameEl);
     body.appendChild(metaEl);
-    body.appendChild(priceRow);
+    body.appendChild(divider);
     card.appendChild(photo);
     card.appendChild(body);
     return card;
@@ -949,7 +897,7 @@
     const badge = badgeInfo(item);
     const badgeEl = document.getElementById('item-sheet-badge');
     badgeEl.style.background = badge.bg;
-    badgeEl.textContent = badge.label;
+    badgeEl.innerHTML = '<span class="dot"></span>' + badge.label;
 
     const ph = document.getElementById('item-sheet-ph');
     ph.textContent = categoryEmoji(item.category);
@@ -1140,8 +1088,8 @@
   }
 
   // Plain kind badge — used on grid cards. A sold-out ready_now item keeps
-  // its normal "Ready Now" badge, distinguished only by lighter subtitle
-  // text below (see subtitleFor) — swapping the badge itself in a dense
+  // its normal "Ready Now" tag, distinguished only by lighter subtitle
+  // text below (see subtitleFor) — swapping the tag itself in a dense
   // grid would read as a second, competing badge type.
   function kindBadgeInfo(item) {
     if (item.listing_kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };

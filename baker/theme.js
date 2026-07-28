@@ -66,8 +66,11 @@
   // AppBackgroundPattern's stripes/polkaDot/gingham logic closely enough to
   // read as "the same theme" without reproducing the exact Canvas math.
   function patternBackground(pattern, theme, dark) {
-    var stripeOpacity = dark ? 0.05 : 0.07;
-    var dotOpacity = dark ? 0.11 : 0.15;
+    // Kept deliberately quiet on web — a full-bleed page background this
+    // busy pulls focus off the products themselves, more than it does at
+    // in-app scale where UI chrome (nav bars, cards) breaks it up more.
+    var stripeOpacity = dark ? 0.025 : 0.035;
+    var dotOpacity = dark ? 0.05 : 0.07;
     var stripeColor = theme.primary[dark ? 'dark' : 'light'];
 
     if (pattern === 'Stripes') {
@@ -93,7 +96,7 @@
       return {
         backgroundImage: 'url(assets/gingham-background.jpg)',
         backgroundRepeat: 'repeat',
-        opacity: dark ? '0.06' : '0.10'
+        opacity: dark ? '0.03' : '0.05'
       };
     }
     return null; // Standard — no pattern
@@ -102,7 +105,7 @@
   // Applies theme + pattern from a fetched web-profile RPC response onto the
   // current page. Safe to call with a missing/unknown theme — falls back to
   // Classic so the page never renders unstyled.
-  function apply(profile) {
+  function apply(profile, opts) {
     var themeName = (profile && profile.selected_theme) || 'Classic';
     var theme = THEMES[themeName] || THEMES['Classic'];
     var pattern = (profile && profile.background_pattern) || 'Standard';
@@ -119,6 +122,13 @@
     var existing = document.getElementById('theme-pattern-layer');
     if (existing) existing.remove();
 
+    // The storefront (baker/index.html) renders the pattern inside a
+    // contained cover band instead of tiling the full page — a full-bleed
+    // repeating texture behind every section read as noise, not brand.
+    // Callers that want that (checkout/custom-order/pay-quote, which have
+    // no cover band of their own) get the old full-page layer unchanged.
+    if (opts && opts.suppressPatternLayer) return;
+
     var css = patternBackground(pattern, theme, dark);
     if (css) {
       var layer = document.createElement('div');
@@ -132,5 +142,5 @@
     }
   }
 
-  global.BakeriTheme = { THEMES: THEMES, apply: apply };
+  global.BakeriTheme = { THEMES: THEMES, apply: apply, patternBackground: patternBackground, isDarkMode: isDarkMode };
 })(window);
