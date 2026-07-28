@@ -11,60 +11,52 @@
 
   <style>
     :root {
-      --bg:      #F6F1E6;
-      --white:   #FFFFFF;
+      --bg:      #FAF6EE;
       --ink:     #241712;
       --muted:   #948577;
+      --bio:     #4A3E33;
       --error:   #C0392B;
-      --green:   #3FA672;
       --line:    rgba(36,23,18,0.08);
-      --line-2:  rgba(36,23,18,0.14);
       --sans:    -apple-system, "SF Pro Text", system-ui, sans-serif;
     }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #17110C; --ink: #F6F1E6; --bio: #E4D9C8; --muted: #A69B8C; --line: rgba(246,241,230,0.10); }
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: var(--sans); background: var(--bg); color: var(--ink); min-height: 100dvh; -webkit-font-smoothing: antialiased; }
-    #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 32px 18px; box-sizing: border-box; }
-    @media (min-width: 640px) { #page { padding: 56px 24px; } }
-    .wordmark-row { text-align: center; margin-bottom: 28px; }
-    .wordmark { height: 26px; width: auto; display: inline-block; }
-    .card { background: var(--white); border-radius: 28px; padding: 28px 24px; box-shadow: 0 2px 8px rgba(36,23,18,0.06), 0 12px 32px rgba(36,23,18,0.06); box-sizing: border-box; }
-    .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 0.6px; color: var(--muted); text-transform: uppercase; }
-    .item-name { font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 6px; letter-spacing: -0.3px; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--bio); min-height: 100dvh; -webkit-font-smoothing: antialiased; }
+    button { font-family: inherit; }
+    #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
+    @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
+    .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .item-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 4px; }
     .quote-note { font-size: 14px; color: var(--muted); margin-top: 10px; line-height: 1.5; font-style: italic; }
-    .amount { font-size: 34px; font-weight: 800; color: var(--ink); margin-top: 18px; }
+    .amount { font-size: 32px; font-weight: 700; color: var(--ink); margin-top: 18px; font-variant-numeric: tabular-nums; }
     #payment-element { margin-top: 20px; }
-    .btn-primary { display: flex; align-items: center; justify-content: center; width: 100%; height: 50px; margin-top: 24px; background: var(--ink); color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 700; border-radius: 9999px; border: none; cursor: pointer; }
+    .btn-primary { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; margin-top: 22px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 700; border-radius: 9999px; border: none; cursor: pointer; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
     .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
-    .pickup-note { margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
-    .success-state { text-align: center; padding: 20px 0; }
-    .success-state .icon { font-size: 40px; }
-    .success-state h2 { font-size: 19px; font-weight: 800; color: var(--ink); margin-top: 12px; }
-    .success-state p { font-size: 14px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
-    .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
-    .not-found h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--ink); }
-    .footer-links { margin-top: 28px; text-align: center; font-size: 12.5px; color: var(--muted); }
-    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
-    @media (prefers-color-scheme: dark) {
-      :root { --bg: #17110C; }
-      .card { background: #241A14; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-      .wordmark { filter: invert(1); }
-      .item-name, .not-found h2, .success-state h2, .amount { color: #F6F1E6; }
+    .pickup-note { margin-top: 16px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .success-state { text-align: center; padding: 30px 0; }
+    .success-state .icon {
+      width: 54px; height: 54px; border-radius: 50%; background: #3FA672; color: #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto;
     }
+    .success-state h2 { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 16px; }
+    .success-state p { font-size: 14px; color: var(--bio); margin-top: 10px; line-height: 1.6; }
+    .not-found { text-align: center; color: var(--muted); padding: 40px 0; }
+    .not-found h2 { font-size: 18px; margin-bottom: 8px; color: var(--ink); }
+    .footer-links { margin-top: 30px; text-align: center; font-size: 12px; color: var(--muted); }
+    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
   </style>
 </head>
 <body>
 
 <div id="page">
-  <div class="wordmark-row">
-    <img class="wordmark" src="../wordmark.png" alt="Bakeri" />
-  </div>
   <div class="card" id="card">
     <div class="eyebrow">Loading…</div>
   </div>
   <div class="footer-links">
-    <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
-    <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+    <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
   </div>
 </div>
 
@@ -213,7 +205,7 @@
   function renderSuccess() {
     card.innerHTML =
       '<div class="success-state">' +
-        '<div class="icon">✅</div>' +
+        '<div class="icon">✓</div>' +
         '<h2>Payment confirmed</h2>' +
         '<p>Your baker has been notified. You\'ll get pickup details by email shortly.</p>' +
       '</div>';

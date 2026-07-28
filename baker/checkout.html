@@ -12,168 +12,113 @@
 
   <style>
     :root {
-      --theme-primary:   #241712;
-      --theme-secondary: #F2A6C6;
-      --theme-bg:        #F6F1E6;
+      --theme-primary:   #1C1C1E;
+      --theme-secondary: #A89B8C;
+      --theme-bg:        #FAF6EE;
       --theme-button-fg: #FFFFFF;
 
-      --bg:      var(--theme-bg);
-      --white:   #FFFFFF;
-      --ink:     #241712;
-      --muted:   #948577;
-      --error:   #C0392B;
-      --green:   #3FA672;
-      --line:    rgba(36,23,18,0.08);
-      --line-2:  rgba(36,23,18,0.14);
-      --sans:    -apple-system, "SF Pro Text", system-ui, sans-serif;
+      --bg:        var(--theme-bg);
+      --accent:    var(--theme-primary);
+      --accent-fg: var(--theme-button-fg);
+
+      --ink:       #241712;
+      --muted:     #948577;
+      --bio:       #4A3E33;
+      --line:      rgba(36,23,18,0.08);
+      --error:     #C0392B;
+
+      --sans: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --theme-bg: #17110C; --ink: #F6F1E6; --bio: #E4D9C8; --muted: #A69B8C; --line: rgba(246,241,230,0.10); }
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--bio); min-height: 100dvh; -webkit-font-smoothing: antialiased; }
+    button, input { font-family: inherit; }
 
-    body {
-      font-family: var(--sans);
-      background: var(--bg);
-      color: var(--ink);
-      min-height: 100dvh;
-      -webkit-font-smoothing: antialiased;
-    }
+    #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
+    @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
 
-    #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 32px 18px; box-sizing: border-box; }
-    @media (min-width: 640px) { #page { padding: 56px 24px; } }
+    .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .heading { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 4px; }
 
-    .wordmark-row { text-align: center; margin-bottom: 28px; }
-    .wordmark { height: 26px; width: auto; display: inline-block; }
+    .order-line { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .order-line .n { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+    .order-line .m { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .order-line .p { font-size: 14.5px; font-weight: 600; color: var(--ink); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
-    .card {
-      background: var(--white);
-      border-radius: 28px;
-      padding: 28px 24px;
-      box-shadow: 0 2px 8px rgba(36,23,18,0.06), 0 12px 32px rgba(36,23,18,0.06);
-      box-sizing: border-box;
-    }
-
-    .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 0.6px; color: var(--muted); text-transform: uppercase; }
-    .item-name { font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 6px; letter-spacing: -0.3px; }
-    .item-price { font-size: 14px; color: var(--muted); margin-top: 4px; }
-
-    .qty-row { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; }
-    .qty-label { font-size: 14px; font-weight: 700; color: var(--ink); }
-    .qty-stepper { display: flex; align-items: center; gap: 14px; }
-    .qty-btn {
-      width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--line-2);
-      background: var(--white); font-size: 18px; font-weight: 600; color: var(--ink);
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-    }
-    .qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .qty-value { font-size: 16px; font-weight: 700; min-width: 20px; text-align: center; }
-    .qty-note { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
-
-    .field-group { margin-top: 20px; }
-    .field-label { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: block; }
-    input[type="text"], input[type="email"], input[type="tel"] {
-      width: 100%; padding: 12px 14px; font-family: var(--sans); font-size: 15px;
-      color: var(--ink); background: var(--bg); border: 1.5px solid transparent;
-      border-radius: 12px; outline: none;
-    }
-    input:focus { border-color: var(--ink); }
-    input.field-error { border-color: var(--error); }
-    .error-text { font-size: 12.5px; color: var(--error); margin-top: 6px; display: none; }
-    .error-text.show { display: block; }
-
-    .totals { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 14px; }
-    .totals-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); padding: 3px 0; }
-    .totals-row.grand { font-size: 17px; font-weight: 800; color: var(--ink); margin-top: 6px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); font-variant-numeric: tabular-nums; }
+    .totals-row.grand { font-weight: 700; color: var(--ink); font-size: 17px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
 
     #payment-element { margin-top: 20px; }
 
     .btn-primary {
       display: flex; align-items: center; justify-content: center;
-      width: 100%; height: 50px; margin-top: 24px;
-      background: var(--theme-primary); color: var(--theme-button-fg);
-      font-family: var(--sans); font-size: 15px; font-weight: 700;
+      width: 100%; height: 52px; margin-top: 22px;
+      background: var(--ink); color: var(--bg);
+      font-size: 15px; font-weight: 700;
       border-radius: 9999px; border: none; cursor: pointer;
     }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
-    .pickup-note { margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+    .pickup-note { margin-top: 16px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
-    .success-state { text-align: center; padding: 20px 0; }
-    .success-state .icon { font-size: 40px; }
-    .success-state h2 { font-size: 19px; font-weight: 800; color: var(--ink); margin-top: 12px; }
-    .success-state p { font-size: 14px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
-    .success-state .receipt { text-align: left; margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
-    .success-state .receipt-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
-
-    .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
-    .not-found h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--ink); }
-
-    .footer-links { margin-top: 28px; text-align: center; font-size: 12.5px; color: var(--muted); }
-    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
-
-    @media (prefers-color-scheme: dark) {
-      :root { --theme-bg: #17110C; }
-      .card { background: #241A14; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-      .wordmark { filter: invert(1); }
-      .item-name, .not-found h2, .success-state h2, .field-label, .qty-label, .totals-row.grand { color: #F6F1E6; }
-      input { background: #17110C; color: #F6F1E6; }
-      .qty-btn { background: #17110C; color: #F6F1E6; border-color: rgba(246,241,230,0.24); }
+    .success-state { text-align: center; padding: 30px 0; }
+    .success-state .icon {
+      width: 54px; height: 54px; border-radius: 50%; background: #3FA672; color: #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto;
     }
+    .success-state h2 { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 16px; }
+    .success-state p { font-size: 14px; color: var(--bio); margin-top: 10px; line-height: 1.6; }
+    .success-state .receipt { text-align: left; margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
+
+    .not-found { text-align: center; color: var(--muted); padding: 40px 0; }
+    .not-found h2 { font-size: 18px; margin-bottom: 8px; color: var(--ink); }
+    .not-found button {
+      margin-top: 16px; border: 1.5px solid var(--line); background: none; color: var(--ink);
+      border-radius: 9999px; padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+
+    .footer-links { margin-top: 30px; text-align: center; font-size: 12px; color: var(--muted); }
+    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
   </style>
 </head>
 <body>
 
 <div id="page">
-  <div class="wordmark-row">
-    <img class="wordmark" src="../wordmark.png" alt="Bakeri" />
-  </div>
-  <div class="card" id="card">
-    <div class="eyebrow">Loading…</div>
-  </div>
+  <div id="content"><div class="eyebrow">Loading…</div></div>
   <div class="footer-links">
-    <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
-    <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+    <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
   </div>
 </div>
 
 <script>
 (function () {
   const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
-  const ANON_KEY      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
-  const STRIPE_PK    = 'pk_live_51TdqbXRpI8DhqX3Ful2hqNWdNtdd4Rt0QQC6IZVhxA5Du89YIEo1638vSaJmBmk5XqRbfxcbqiYJCsMJgpRWvzoP00NUFyirgh';
+  const ANON_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const STRIPE_PK  = 'pk_live_51TdqbXRpI8DhqX3Ful2hqNWdNtdd4Rt0QQC6IZVhxA5Du89YIEo1638vSaJmBmk5XqRbfxcbqiYJCsMJgpRWvzoP00NUFyirgh';
 
   const params = new URLSearchParams(window.location.search);
-  const bakerId   = (params.get('baker') || '').trim();
-  const itemId    = (params.get('item')  || '').trim();
-  const itemName  = (params.get('name')  || 'this item').trim();
-  const price     = parseFloat(params.get('price') || '0');
-  const kind      = (params.get('kind')  || 'ready_now').trim();
-  const dropDate  = (params.get('dropDate') || '').trim();
-  const maxQty    = parseInt(params.get('maxQty') || '0', 10);
-  const availQty  = parseInt(params.get('availQty') || '0', 10);
-  const taxCategory     = (params.get('taxCategory') || 'sweetened_single_serving').trim();
-  const unitWeightGrams = params.get('unitWeightGrams') ? parseInt(params.get('unitWeightGrams'), 10) : null;
-  const gstRegistered   = params.get('gstRegistered') === '1';
-  const province        = (params.get('province') || '').trim();
+  const content = document.getElementById('content');
 
-  const card = document.getElementById('card');
+  let cart = null;
+  try { cart = JSON.parse(sessionStorage.getItem('bakeri_checkout_cart') || 'null'); } catch (e) { cart = null; }
 
-  if (!bakerId || !itemId || !price) {
-    showNotFound('Link not found', 'This checkout link appears to be invalid.');
+  if (!cart || !cart.baker || !Array.isArray(cart.items) || cart.items.length === 0) {
+    showNotFound();
     return;
   }
 
   if (window.BakeriTheme) {
-    window.BakeriTheme.apply({
-      selected_theme: params.get('theme') || 'Classic',
-      background_pattern: params.get('pattern') || 'Standard'
-    });
+    window.BakeriTheme.apply({ selected_theme: cart.theme || params.get('theme') || 'Classic', background_pattern: cart.pattern || params.get('pattern') || 'Standard' });
   }
 
-  document.title = 'Checkout — ' + itemName;
+  document.title = 'Checkout — Bakeri';
 
-  // ── Tax — mirrors Bakerly/Bakerly/Bakeri/Services/TaxCalculator.swift ──
+  // ── Tax — mirrors create-guest-marketplace-order/index.ts exactly, so the
+  // total shown here matches what the server actually charges. ──
   function taxRateForProvince(p) {
     switch ((p || '').toUpperCase().trim()) {
       case 'ON': return 0.13;
@@ -183,128 +128,70 @@
       default: return 0.05;
     }
   }
-  function isSingleServing() {
+  function isSingleServing(taxCategory, unitWeightGrams) {
     if (taxCategory !== 'sweetened_single_serving') return false;
     if (unitWeightGrams != null) return unitWeightGrams <= 230;
     return true;
   }
-  function calcTaxCents(qty) {
-    if (!gstRegistered) return 0;
-    if (taxCategory === 'plain_bread' || taxCategory === 'whole_item') return 0;
-    if (!isSingleServing()) return 0;
-    // Single item type in this cart, so "total single-servings" is just qty.
-    if (qty >= 6) {
-      return Math.round(price * qty * taxRateForProvince(province) * 100);
-    }
-    return 0;
+  function calcTaxCents(items) {
+    if (cart.gstRegistered !== '1') return 0;
+    const rate = taxRateForProvince(cart.province);
+    const totalSingleServings = items.filter(function (i) { return isSingleServing(i.taxCategory, i.unitWeightGrams); })
+      .reduce(function (s, i) { return s + i.qty; }, 0);
+    let taxableSubtotal = 0;
+    items.forEach(function (item) {
+      if (item.taxCategory === 'plain_bread' || item.taxCategory === 'whole_item') return;
+      if (isSingleServing(item.taxCategory, item.unitWeightGrams) && totalSingleServings < 6) {
+        taxableSubtotal += item.price * item.qty;
+      }
+    });
+    return Math.round(taxableSubtotal * rate * 100);
   }
 
-  let quantity = 1;
-  const maxAllowed = Math.max(1, maxQty > 0 ? maxQty : (availQty > 0 ? availQty : 99));
+  const subtotal = cart.items.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
+  const taxCents = calcTaxCents(cart.items);
+  const total = subtotal + taxCents / 100;
 
-  renderStep1();
+  renderSummary();
 
-  function renderStep1() {
-    const subtotal = price * quantity;
-    const taxCents = calcTaxCents(quantity);
-    const total = subtotal + taxCents / 100;
+  function renderSummary() {
+    const lines = cart.items.map(function (i) {
+      return '<div class="order-line">' +
+        '<div><div class="n">' + escapeHtml(i.name) + '</div><div class="m">' + i.qty + ' × $' + i.price.toFixed(2) + '</div></div>' +
+        '<div class="p">$' + (i.price * i.qty).toFixed(2) + '</div>' +
+        '</div>';
+    }).join('');
 
-    card.innerHTML =
-      '<div class="eyebrow">' + (kind === 'preorder' ? 'Pre-order' : 'Buy Now') + '</div>' +
-      '<div class="item-name">' + escapeHtml(itemName) + '</div>' +
-      '<div class="item-price">$' + price.toFixed(2) + ' each' + (dropDate ? ' · Ready ' + new Date(dropDate).toLocaleDateString(undefined, {month:'short', day:'numeric'}) : '') + '</div>' +
-
-      '<div class="qty-row">' +
-        '<span class="qty-label">Quantity</span>' +
-        '<div class="qty-stepper">' +
-          '<button class="qty-btn" id="qty-minus" type="button">−</button>' +
-          '<span class="qty-value" id="qty-value">' + quantity + '</span>' +
-          '<button class="qty-btn" id="qty-plus" type="button">+</button>' +
-        '</div>' +
-      '</div>' +
-
-      '<div class="field-group">' +
-        '<label class="field-label">Your name <span style="color:var(--error);">*</span></label>' +
-        '<input type="text" id="f-name" />' +
-        '<div class="error-text" id="err-name">Please enter your name.</div>' +
-      '</div>' +
-      '<div class="field-group">' +
-        '<label class="field-label">Email <span style="color:var(--error);">*</span></label>' +
-        '<input type="email" id="f-email" />' +
-        '<div class="error-text" id="err-email">Please enter a valid email address.</div>' +
-      '</div>' +
-      '<div class="field-group">' +
-        '<label class="field-label">Phone <span style="color:var(--error);">*</span></label>' +
-        '<input type="tel" id="f-phone" />' +
-        '<div class="error-text" id="err-phone">Please enter a valid phone number.</div>' +
-      '</div>' +
-
-      '<div class="totals">' +
-        '<div class="totals-row"><span>Subtotal</span><span>$' + subtotal.toFixed(2) + '</span></div>' +
-        '<div class="totals-row"><span>Tax</span><span>$' + (taxCents / 100).toFixed(2) + '</span></div>' +
-        '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
-      '</div>' +
-
+    content.innerHTML =
+      '<div class="eyebrow">Your Order</div>' +
+      '<div class="heading">Checkout</div>' +
+      lines +
+      '<div class="totals-row"><span>Subtotal</span><span>$' + subtotal.toFixed(2) + '</span></div>' +
+      '<div class="totals-row"><span>Tax</span><span>$' + (taxCents / 100).toFixed(2) + '</span></div>' +
+      '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
       '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
       '<div class="pickup-note">📍 Exact pickup address is provided by email once your order is confirmed.</div>';
 
-    document.getElementById('qty-minus').addEventListener('click', function () {
-      if (quantity > 1) { quantity--; renderStep1(); }
-    });
-    document.getElementById('qty-plus').addEventListener('click', function () {
-      if (quantity < maxAllowed) { quantity++; renderStep1(); }
-    });
-    document.getElementById('qty-plus').disabled = quantity >= maxAllowed;
-    document.getElementById('qty-minus').disabled = quantity <= 1;
-
     document.getElementById('continue-btn').addEventListener('click', goToPayment);
   }
 
-  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-  const PHONE_RE = /^[0-9+()\-.\s]{7,20}$/;
-
-  function validateContact() {
-    const name = document.getElementById('f-name').value.trim();
-    const email = document.getElementById('f-email').value.trim();
-    const phone = document.getElementById('f-phone').value.trim();
-    let ok = true;
-    if (!name) { toggleErr('name', true); ok = false; } else toggleErr('name', false);
-    if (!EMAIL_RE.test(email)) { toggleErr('email', true); ok = false; } else toggleErr('email', false);
-    if (!PHONE_RE.test(phone)) { toggleErr('phone', true); ok = false; } else toggleErr('phone', false);
-    return ok ? { name, email, phone } : null;
-  }
-
-  function toggleErr(key, show) {
-    document.getElementById('err-' + key).classList.toggle('show', show);
-    document.getElementById('f-' + key).classList.toggle('field-error', show);
-  }
-
   function goToPayment() {
-    const contact = validateContact();
-    if (!contact) return;
-
     const btn = document.getElementById('continue-btn');
     const status = document.getElementById('submit-status');
     btn.disabled = true;
     status.textContent = '';
 
-    const taxCents = calcTaxCents(quantity);
-
     fetch(SUPABASE_URL + '/functions/v1/create-payment-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
-        items: [{
-          listing_id: itemId,
-          baker_id: bakerId,
-          name: itemName,
-          quantity: quantity,
-          price_from: price,
-          listing_kind: kind
-          // deliberately no pickup_date — keeps this on the immediate-charge
-          // flow regardless of how far out a preorder's drop date is.
-        }],
+        items: cart.items.map(function (i) {
+          return {
+            listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty,
+            price_from: i.price, listing_kind: i.listingKind, pickup_date: i.dropDate || null
+          };
+        }),
         currency: 'cad',
         tax_amount_cents: taxCents
       })
@@ -316,7 +203,7 @@
         btn.disabled = false;
         return;
       }
-      renderStep2(data.client_secret, contact);
+      renderPayment(data.client_secret);
     })
     .catch(function () {
       status.textContent = 'Something went wrong. Please check your connection and try again.';
@@ -324,15 +211,10 @@
     });
   }
 
-  function renderStep2(clientSecret, contact) {
-    const subtotal = price * quantity;
-    const taxCents = calcTaxCents(quantity);
-    const total = subtotal + taxCents / 100;
-
-    card.innerHTML =
-      '<div class="eyebrow">' + (kind === 'preorder' ? 'Pre-order' : 'Buy Now') + '</div>' +
-      '<div class="item-name">' + escapeHtml(itemName) + ' × ' + quantity + '</div>' +
-      '<div class="item-price">Total: $' + total.toFixed(2) + '</div>' +
+  function renderPayment(clientSecret) {
+    content.innerHTML =
+      '<div class="eyebrow">Pay</div>' +
+      '<div class="heading">$' + total.toFixed(2) + '</div>' +
       '<div id="payment-element"></div>' +
       '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
@@ -356,32 +238,30 @@
           return;
         }
         const intent = result.paymentIntent;
-        // 'requires_capture' = card authorized and held, not yet charged —
-        // the expected outcome now that regular orders use a manual-capture
-        // hold instead of charging immediately. 'succeeded' still covers
-        // deposit orders, which capture right away.
+        // 'requires_capture' = card authorized and held, not yet charged — the
+        // expected outcome for a regular manual-capture hold; 'succeeded'
+        // still covers deposit orders, which capture right away.
         if (!intent || (intent.status !== 'succeeded' && intent.status !== 'requires_capture')) {
           status.textContent = 'Payment did not complete. Please try again.';
           btn.disabled = false;
           return;
         }
-        finalizeOrder(intent.id, contact);
+        finalizeOrder(intent.id);
       });
     });
   }
 
-  function finalizeOrder(paymentIntentId, contact) {
+  function finalizeOrder(paymentIntentId) {
     return fetch(SUPABASE_URL + '/functions/v1/create-guest-marketplace-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         payment_intent_id: paymentIntentId,
-        baker_id: bakerId,
-        menu_item_id: itemId,
-        quantity: quantity,
-        customer_name: contact.name,
-        customer_email: contact.email,
-        customer_phone: contact.phone
+        baker_id: cart.baker,
+        items: cart.items.map(function (i) { return { menu_item_id: i.id, quantity: i.qty }; }),
+        customer_name: cart.customer.name,
+        customer_email: cart.customer.email,
+        customer_phone: cart.customer.phone
       })
     })
     .then(function (r) { return r.json(); })
@@ -391,36 +271,42 @@
         if (status) status.textContent = 'Payment succeeded but we had trouble recording your order — contact the baker with this reference: ' + paymentIntentId;
         return;
       }
-      // Fire-and-forget — don't block the confirmation screen on this.
       fetch(SUPABASE_URL + '/functions/v1/send-guest-order-received-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
         body: JSON.stringify({ order_id: data.order_id })
       }).catch(function () {});
 
+      sessionStorage.removeItem('bakeri_checkout_cart');
       renderSuccess(data);
     });
   }
 
   function renderSuccess(data) {
     const itemRows = (data.items || []).map(function (i) {
-      return '<div class="receipt-row"><span>' + i.quantity + '× ' + escapeHtml(i.name) + '</span><span>$' + (i.price_per_unit * i.quantity).toFixed(2) + '</span></div>';
+      return '<div class="order-line"><span class="n">' + i.quantity + '× ' + escapeHtml(i.name) + '</span><span class="p">$' + (i.price_per_unit * i.quantity).toFixed(2) + '</span></div>';
     }).join('');
 
-    card.innerHTML =
+    content.innerHTML =
       '<div class="success-state">' +
-        '<div class="icon">✅</div>' +
-        '<h2>Payment processed</h2>' +
+        '<div class="icon">✓</div>' +
+        '<h2>Order confirmed</h2>' +
         '<p>' + escapeHtml(data.baker_name || 'The baker') + ' is reviewing your order. You\'ll get an email as soon as it\'s confirmed, with your pickup details.</p>' +
         '<div class="receipt">' +
           itemRows +
-          '<div class="receipt-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-weight:700;"><span>Total</span><span>$' + (data.total_cents / 100).toFixed(2) + '</span></div>' +
+          '<div class="totals-row grand"><span>Total</span><span>$' + (data.total_cents / 100).toFixed(2) + '</span></div>' +
         '</div>' +
       '</div>';
   }
 
-  function showNotFound(title, subtitle) {
-    card.innerHTML = '<div class="not-found"><h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(subtitle) + '</p></div>';
+  function showNotFound() {
+    content.innerHTML =
+      '<div class="not-found">' +
+        '<h2>Your cart session has expired</h2>' +
+        '<p>Go back to the storefront and add your items again.</p>' +
+        '<button id="back-btn">Go back</button>' +
+      '</div>';
+    document.getElementById('back-btn').addEventListener('click', function () { history.back(); });
   }
 
   function escapeHtml(str) {

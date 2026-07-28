@@ -14,20 +14,22 @@
     :root {
       /* Overwritten at runtime by theme.js from the baker/index.html link's
          theme/pattern params — these are the pre-load fallback. */
-      --theme-primary:   #241712;
-      --theme-bg:        #F6F1E6;
+      --theme-primary:   #1C1C1E;
+      --theme-secondary: #A89B8C;
+      --theme-bg:        #FAF6EE;
       --theme-button-fg: #FFFFFF;
 
       --bg:      var(--theme-bg);
-      --white:   #FFFFFF;
+      --accent:  var(--theme-primary);
       --ink:     #241712;
       --muted:   #948577;
       --bio:     #4A3E33;
-      --chip:    #7A6C5D;
       --line:    rgba(36,23,18,0.08);
-      --line-2:  rgba(36,23,18,0.14);
       --error:   #C0392B;
       --sans:    -apple-system, "SF Pro Text", system-ui, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --theme-bg: #17110C; --ink: #F6F1E6; --bio: #E4D9C8; --muted: #A69B8C; --line: rgba(246,241,230,0.10); }
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -36,39 +38,30 @@
     body {
       font-family: var(--sans);
       background: var(--bg);
-      color: var(--ink);
+      color: var(--bio);
       min-height: 100dvh;
       -webkit-font-smoothing: antialiased;
     }
+    button, input, textarea { font-family: inherit; }
 
-    #page { width: 100%; max-width: 560px; margin: 0 auto; padding: 32px 18px; box-sizing: border-box; }
-    @media (min-width: 640px) { #page { padding: 56px 24px; } }
+    #page { width: 100%; max-width: 560px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
+    @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
 
-    .wordmark-row { text-align: center; margin-bottom: 28px; }
-    .wordmark { height: 26px; width: auto; display: inline-block; }
     .grecaptcha-badge { visibility: hidden; }
 
-    .card {
-      background: var(--white);
-      border-radius: 28px;
-      padding: 28px 24px;
-      box-shadow: 0 2px 8px rgba(36,23,18,0.06), 0 12px 32px rgba(36,23,18,0.06);
-      box-sizing: border-box;
-    }
-
-    .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: 0.6px; color: var(--muted); text-transform: uppercase; }
-    .item-name { font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 6px; letter-spacing: -0.3px; }
+    .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .item-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 4px; }
     .lede { font-size: 14px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
 
-    .field-group { margin-top: 22px; }
-    .field-label { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: block; }
-    .field-help { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+    .field-group { margin-top: 20px; }
+    .field-label { font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 6px; display: block; }
+    .field-help { font-size: 12px; color: var(--muted); margin-top: 4px; }
     .field-required { color: var(--error); }
 
     input[type="text"], input[type="email"], input[type="tel"], input[type="number"],
     input[type="date"], textarea {
       width: 100%; padding: 12px 14px; font-family: var(--sans); font-size: 15px;
-      color: var(--ink); background: var(--bg); border: 1.5px solid transparent;
+      color: var(--ink); background: var(--bg); border: 1.5px solid var(--line);
       border-radius: 12px; outline: none;
     }
     textarea { resize: vertical; min-height: 88px; }
@@ -78,74 +71,64 @@
     .choice-list { display: flex; flex-direction: column; gap: 8px; }
     .choice-option {
       display: flex; align-items: center; gap: 10px; padding: 12px 14px;
-      background: var(--bg); border-radius: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+      background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent;
     }
-    .choice-option.selected { outline: 1.5px solid var(--ink); }
+    .choice-option.selected { border-color: var(--ink); }
     .choice-option input { margin: 0; }
     .choice-option span { font-size: 14.5px; color: var(--ink); }
 
     .photo-field { display: flex; flex-wrap: wrap; gap: 10px; }
-    .photo-thumb { width: 72px; height: 72px; border-radius: 10px; overflow: hidden; position: relative; background: var(--bg); }
+    .photo-thumb { width: 72px; height: 72px; border-radius: 14px; overflow: hidden; position: relative; background: var(--bg); }
     .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .photo-remove {
-      position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%;
+      position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%;
       background: rgba(20,15,10,0.7); border: none; color: #fff; font-size: 12px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
     }
     .photo-add {
-      width: 72px; height: 72px; border-radius: 10px; border: 1.5px dashed var(--line-2);
+      width: 72px; height: 72px; border-radius: 14px; border: 1.5px dashed var(--line);
       display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); font-size: 22px;
     }
 
-    .error-text { font-size: 12.5px; color: var(--error); margin-top: 6px; display: none; }
+    .error-text { font-size: 12px; color: var(--error); margin-top: 6px; display: none; }
     .error-text.show { display: block; }
 
     .btn-submit {
       display: flex; align-items: center; justify-content: center;
-      width: 100%; height: 50px; margin-top: 28px;
-      background: var(--theme-primary); color: var(--theme-button-fg);
-      font-family: var(--sans); font-size: 15px; font-weight: 700;
+      width: 100%; height: 52px; margin-top: 26px;
+      background: var(--ink); color: var(--bg);
+      font-size: 15px; font-weight: 700;
       border-radius: 9999px; border: none; cursor: pointer;
     }
     .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-submit:active:not(:disabled) { opacity: 0.85; }
 
     .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
-    .pickup-note { margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+    .pickup-note { margin-top: 16px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
-    .success-state { text-align: center; padding: 20px 0; }
-    .success-state .icon { font-size: 40px; }
-    .success-state h2 { font-size: 19px; font-weight: 800; color: var(--ink); margin-top: 12px; }
-    .success-state p { font-size: 14px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
-
-    .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
-    .not-found h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--ink); }
-
-    .footer-links { margin-top: 28px; text-align: center; font-size: 12.5px; color: var(--muted); }
-    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
-
-    @media (prefers-color-scheme: dark) {
-      :root { --theme-bg: #17110C; }
-      .card { background: #241A14; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-      .wordmark { filter: invert(1); }
-      .item-name, .not-found h2, .success-state h2, .field-label, .choice-option span { color: #F6F1E6; }
-      input, textarea, .choice-option, .photo-thumb { background: #17110C; color: #F6F1E6; }
-      .choice-option.selected { outline-color: #F6F1E6; }
+    .success-state { text-align: center; padding: 30px 0; }
+    .success-state .icon {
+      width: 54px; height: 54px; border-radius: 50%; background: #3FA672; color: #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto;
     }
+    .success-state h2 { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 16px; }
+    .success-state p { font-size: 14px; color: var(--bio); margin-top: 10px; line-height: 1.6; }
+
+    .not-found { text-align: center; color: var(--muted); padding: 40px 0; }
+    .not-found h2 { font-size: 18px; margin-bottom: 8px; color: var(--ink); }
+
+    .footer-links { margin-top: 30px; text-align: center; font-size: 12px; color: var(--muted); }
+    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
   </style>
 </head>
 <body>
 
 <div id="page">
-  <div class="wordmark-row">
-    <img class="wordmark" src="../wordmark.png" alt="Bakeri" />
-  </div>
   <div class="card" id="card">
     <div class="eyebrow">Loading…</div>
   </div>
   <div class="footer-links">
-    <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
-    <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+    <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
   </div>
 </div>
 
@@ -499,7 +482,7 @@
   function showSuccess() {
     card.innerHTML =
       '<div class="success-state">' +
-        '<div class="icon">🎉</div>' +
+        '<div class="icon">✓</div>' +
         '<h2>Request sent!</h2>' +
         '<p>' + escapeHtml(itemName) + ' — the baker will follow up with you by email or phone with a quote.</p>' +
       '</div>';
