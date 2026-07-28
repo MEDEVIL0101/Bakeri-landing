@@ -106,8 +106,14 @@
     }
     #cart-btn-count:empty { display: none; }
 
-    /* ══════════════════════ Profile Block ══════════════════════ */
-    #profile-block { padding: 4px 20px 20px; }
+    /* ══════════════════════ Profile Block ══════════════════════
+       A proper card — same surface/shadow treatment as product cards —
+       so it reads as the page's anchor, not just text on the pattern. */
+    #profile-block {
+      margin: 10px 16px 18px; padding: 24px 20px;
+      background: var(--surface); border-radius: 24px;
+      box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 10px 28px rgba(36,23,18,.07);
+    }
     #profile-block .avatar { width: 88px; height: 88px; font-size: 32px; }
     #shop-name { font-size: 21px; font-weight: 700; color: var(--ink); margin-top: 14px; }
     #shop-meta {
@@ -119,6 +125,15 @@
       font-size: 14.5px; line-height: 1.6; color: var(--bio);
       margin-top: 14px; max-width: 480px;
     }
+
+    /* About the baker / Store policies — sub-sections folded into the
+       same profile card (mobile #profile-block, desktop #profile-rail). */
+    .profile-sub { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .profile-sub-head { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+    .profile-about-inner { display: flex; gap: 14px; align-items: flex-start; }
+    .about-portrait { width: 60px; height: 76px; border-radius: 12px; object-fit: cover; flex-shrink: 0; background: var(--line-soft); }
+    .profile-sub p { font-size: 13.5px; line-height: 1.65; color: var(--bio); }
+    .about-signature { font-style: italic; font-size: 13.5px; margin-top: 8px; color: var(--ink); }
 
     /* ══════════════════════ Filter Chips ══════════════════════ */
     #filter-bar {
@@ -134,12 +149,16 @@
     .filter-chip.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 
     /* ══════════════════════ Product Grid ══════════════════════
-       Compact square tiles, flat (no card panel/shadow) — image does the
-       work, text sits directly on the page background. ══════════════════ */
+       A solid surface card behind each tile — a baker's background
+       pattern (stripes/polka dot/gingham) sits right behind these on the
+       page, and text with no card underneath got unreadable against it. */
     #feed { padding: 0 20px 8px; }
     #product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 12px; }
-    .p-card { cursor: pointer; }
-    .p-card .p-photo { position: relative; width: 100%; aspect-ratio: 1/1; background: var(--line-soft); border-radius: 18px; overflow: hidden; }
+    .p-card {
+      cursor: pointer; background: var(--surface); border-radius: 20px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 8px 20px rgba(36,23,18,.07);
+    }
+    .p-card .p-photo { position: relative; width: 100%; aspect-ratio: 1/1; background: var(--line-soft); }
     .p-card .p-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
     .p-badge {
       position: absolute; top: 8px; left: 8px; font-size: 10px; font-weight: 600;
@@ -151,7 +170,7 @@
     }
     .p-left-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ready); }
     .p-left-badge span { font-size: 9px; font-weight: 700; color: #fff; }
-    .p-body { padding: 10px 2px 0; }
+    .p-body { padding: 10px 12px 12px; }
     .p-name { font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.3; }
     .p-meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .p-price-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
@@ -176,17 +195,17 @@
 
     .empty-state { text-align: center; padding: 50px 20px; color: var(--muted); font-size: 14px; }
 
-    /* ══════════════════════ About Band ══════════════════════ */
-    #about-band { padding: 30px 20px; display: flex; gap: 16px; align-items: flex-start; margin-top: 8px; }
-    #about-portrait { width: 74px; height: 92px; border-radius: 14px; object-fit: cover; flex-shrink: 0; background: var(--line-soft); }
-    #about-band .label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-    #about-story-text { font-size: 14.5px; line-height: 1.6; color: var(--bio); }
-    #about-signature { font-style: italic; font-size: 15px; margin-top: 10px; color: var(--ink); }
-
-    /* ══════════════════════ Good To Know / FAQ ══════════════════════ */
-    #info-section { padding: 8px 20px 30px; }
-    #info-section h2 { font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+    /* ══════════════════════ Good To Know / FAQ ══════════════════════
+       Same surface-card treatment as the profile block and product tiles —
+       two cards stacked on mobile, side by side on desktop. */
+    #info-section { padding: 0 16px 30px; display: flex; flex-direction: column; gap: 14px; }
+    #info-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+    #faq-col {
+      background: var(--surface); border-radius: 20px; padding: 20px;
+      box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 8px 20px rgba(36,23,18,.06);
+    }
     .faq-row { border-bottom: 1px solid var(--line); }
+    .faq-row:last-child { border-bottom: none; }
     .faq-q {
       width: 100%; min-height: 50px; display: flex; align-items: center; justify-content: space-between;
       background: none; border: none; text-align: left; cursor: pointer; padding: 10px 0;
@@ -197,7 +216,10 @@
     .faq-a p { font-size: 13.5px; line-height: 1.7; color: var(--bio); padding-bottom: 14px; }
     .faq-row.open .faq-a { max-height: 400px; }
 
-    #hours-card { margin-top: 16px; background: var(--line-soft); border-radius: 16px; padding: 14px 16px; }
+    #hours-card {
+      background: var(--surface); border-radius: 20px; padding: 20px;
+      box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 8px 20px rgba(36,23,18,.06);
+    }
     #hours-card .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
     #hours-card .day { color: var(--muted); }
     #hours-card .time { color: var(--ink); }
@@ -330,14 +352,9 @@
       #product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 20px 16px; }
       .p-card:hover { box-shadow: 0 4px 10px rgba(36,23,18,.08), 0 14px 32px rgba(36,23,18,.10); }
 
-      #about-band, #info-section, #site-footer { margin-left: calc(-1 * (100vw - 100%) / 2); }
-      #about-band { padding: 40px; display: grid; grid-template-columns: 220px 1fr; gap: 30px; max-width: 1120px; margin: 16px auto 0; }
-      #about-portrait { width: 100%; height: 100%; aspect-ratio: 3/4; }
-      #about-story-text { font-size: 15px; max-width: 640px; }
+      #info-section { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 40px 40px; }
 
-      #info-section { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; padding: 8px 40px 40px; }
-
-      #site-footer { padding: 20px 40px; text-align: left; }
+      #site-footer { margin-left: calc(-1 * (100vw - 100%) / 2); padding: 20px 40px; text-align: left; }
 
       #action-bar { display: none; }
 
@@ -378,6 +395,22 @@
     <div id="rail-name"></div>
     <div id="rail-meta" class="hidden"><span id="rail-meta-text"></span></div>
     <div id="rail-bio"></div>
+
+    <div id="rail-about" class="profile-sub hidden">
+      <div class="profile-sub-head">About the baker</div>
+      <div class="profile-about-inner">
+        <img id="rail-about-portrait" class="about-portrait" alt="" />
+        <div>
+          <p id="rail-about-text"></p>
+          <div id="rail-about-signature" class="about-signature"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="rail-policies" class="profile-sub hidden">
+      <div class="profile-sub-head">Store policies</div>
+      <p id="rail-policies-text"></p>
+    </div>
   </aside>
 
   <div id="main-col">
@@ -386,6 +419,22 @@
       <div id="shop-name"></div>
       <div id="shop-meta" class="hidden"><span id="shop-meta-text"></span></div>
       <div id="shop-bio" class="hidden"></div>
+
+      <div id="pb-about" class="profile-sub hidden">
+        <div class="profile-sub-head">About the baker</div>
+        <div class="profile-about-inner">
+          <img id="pb-about-portrait" class="about-portrait" alt="" />
+          <div>
+            <p id="pb-about-text"></p>
+            <div id="pb-about-signature" class="about-signature"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="pb-policies" class="profile-sub hidden">
+        <div class="profile-sub-head">Store policies</div>
+        <p id="pb-policies-text"></p>
+      </div>
     </section>
 
     <div id="filter-bar" class="hidden"></div>
@@ -395,15 +444,6 @@
     </section>
   </div>
 </div>
-
-<section id="about-band" class="hidden">
-  <img id="about-portrait" alt="" />
-  <div>
-    <div class="label">The baker</div>
-    <p id="about-story-text"></p>
-    <div id="about-signature"></div>
-  </div>
-</section>
 
 <section id="info-section" class="hidden">
   <div id="faq-col" class="hidden">
@@ -574,7 +614,7 @@
     }
 
     renderHours(profile.pickup_hours_json);
-    renderAboutBand(profile, name);
+    renderAboutAndPolicies(profile, name);
     renderFAQ(faqs);
     renderFooter(profile, name);
 
@@ -636,15 +676,27 @@
     }
   }
 
-  function renderAboutBand(profile, name) {
-    if (!profile.about_story) return;
-    document.getElementById('about-band').classList.remove('hidden');
-    document.getElementById('about-story-text').textContent = profile.about_story;
-    document.getElementById('about-signature').textContent = '— ' + name;
-    const img = document.getElementById('about-portrait');
-    img.alt = name;
-    img.onerror = function () { document.getElementById('about-band').style.gridTemplateColumns = '1fr'; img.style.display = 'none'; };
-    img.src = STORAGE_URL + '/baker-portraits/' + resolvedBakerId.toUpperCase() + '/portrait.jpg';
+  // About the baker + Store policies both fold into the profile card itself
+  // (mobile #profile-block, desktop #profile-rail) rather than living as
+  // separate bands further down the page — each renders twice, once per
+  // breakpoint's copy of the markup, and independently no-ops if the baker
+  // hasn't filled in that field.
+  function renderAboutAndPolicies(profile, name) {
+    ['pb', 'rail'].forEach(function (prefix) {
+      if (profile.about_story) {
+        document.getElementById(prefix + '-about').classList.remove('hidden');
+        document.getElementById(prefix + '-about-text').textContent = profile.about_story;
+        document.getElementById(prefix + '-about-signature').textContent = '— ' + name;
+        const img = document.getElementById(prefix + '-about-portrait');
+        img.alt = name;
+        img.onerror = function () { img.style.display = 'none'; };
+        img.src = STORAGE_URL + '/baker-portraits/' + resolvedBakerId.toUpperCase() + '/portrait.jpg';
+      }
+      if (profile.store_policies) {
+        document.getElementById(prefix + '-policies').classList.remove('hidden');
+        document.getElementById(prefix + '-policies-text').textContent = profile.store_policies;
+      }
+    });
   }
 
   // #info-section holds both the FAQ column and the hours card — each
