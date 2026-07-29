@@ -152,6 +152,10 @@
     .about-signature { font-style: italic; font-size: 13.5px; margin-top: 8px; color: var(--ink); }
 
     /* ══════════════════════ Filter strip — white band ══════════════════ */
+    .section-heading {
+      background: var(--surface); color: var(--ink); font-size: 16px; font-weight: 700;
+      padding: 16px 20px 4px; max-width: 720px; margin: 0 auto;
+    }
     #filter-strip { background: var(--surface); border-bottom: 1px solid var(--line); }
     #filter-bar {
       display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px;
@@ -445,7 +449,7 @@
 
   <div id="profile-extras">
     <div id="pb-about" class="profile-sub hidden">
-      <button class="profile-sub-head" type="button">About the baker <span class="ind">▾</span></button>
+      <button class="profile-sub-head" type="button">About <span class="ind">▾</span></button>
       <div class="profile-sub-body">
         <div class="profile-about-inner">
           <img id="pb-about-portrait" class="about-portrait" alt="" />
@@ -468,6 +472,8 @@
   <div id="section-nav"></div>
 </div>
 
+<h2 id="feed-heading" class="section-heading"></h2>
+
 <div id="filter-strip">
   <div id="filter-bar" class="hidden"></div>
 </div>
@@ -484,6 +490,7 @@
     <div id="faq-list"></div>
   </div>
   <div id="hours-card" class="hidden">
+    <h2>Store Hours</h2>
     <div id="hours-rows"></div>
   </div>
 </section>
@@ -856,6 +863,8 @@
     document.getElementById('filter-strip').classList.toggle('hidden', sectionTab !== 'menu');
     document.getElementById('feed').classList.toggle('hidden', isLinkTab);
     document.getElementById('links-feed').classList.toggle('hidden', !isLinkTab);
+    document.getElementById('feed-heading').textContent =
+      sectionTab === 'menu' ? 'Menu' : sectionTab === 'courses' ? 'Courses' : sectionTab.slice('link:'.length);
     if (isLinkTab) {
       renderLinksFeed(sectionTab.slice('link:'.length));
     } else {
