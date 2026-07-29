@@ -277,6 +277,7 @@
     /* ══════════════════════ Footer ══════════════════════ */
     #site-footer { background: var(--surface); padding: 20px 20px 120px; text-align: center; }
     #footer-contact { font-size: 12.5px; line-height: 1.7; color: var(--muted); }
+    #footer-contact a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
     #footer-credit { margin-top: 18px; font-size: 12px; color: var(--muted); }
     #footer-credit a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
 
@@ -714,12 +715,11 @@
       return '<div class="row"><span class="day">' + label + '</span><span class="time">' + time + '</span></div>';
     }).join('');
     document.getElementById('hours-rows').innerHTML = rowsHTML;
-    const openDays = WEEKDAY_ORDER.filter(function (k) { return hoursJSON[k] && !hoursJSON[k].closed; });
-    if (openDays.length) {
-      document.getElementById('footer-contact').innerHTML =
-        openDays.map(function (k) { return WEEKDAY_LABELS[k] + ' ' + hoursJSON[k].open + '–' + hoursJSON[k].close; }).join(' · ');
-      document.getElementById('footer-contact').classList.remove('hidden');
-    }
+    // A link back up to the one place hours actually live, not a second
+    // copy of the same data.
+    const footerContact = document.getElementById('footer-contact');
+    footerContact.innerHTML = '<a href="#hours-card">See pickup hours ↑</a>';
+    footerContact.classList.remove('hidden');
   }
 
   // About the baker + Store policies fold into the profile block itself,
