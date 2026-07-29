@@ -174,6 +174,9 @@
     #section-nav {
       display: flex; gap: 18px; overflow-x: auto; padding: 0 20px 8px;
       scrollbar-width: none;
+      /* On a full-viewport-width bar, keep the tab row itself aligned with
+         the same centered column as the rest of the content below it. */
+      max-width: 720px; margin: 0 auto;
     }
     #section-nav::-webkit-scrollbar { display: none; }
     .section-tab {
@@ -379,6 +382,19 @@
          margins — on mobile the shell fills the viewport edge to edge, so
          there's no backdrop to separate from and no shadow needed there. */
       #page-shell { box-shadow: 0 8px 40px rgba(20,15,10,.14); }
+
+      /* Header image + section nav break out of the shell's 720px column to
+         span the true viewport width — everything else (profile info, feed,
+         links, about/policies) stays in the centered column. As the window
+         grows, the header/nav keep stretching edge to edge while the
+         content column itself stays put in the middle. */
+      #storefront-header, #section-nav-wrap {
+        width: 100vw; position: relative; left: 50%; margin-left: -50vw;
+      }
+      /* Uncapped, a 21:9 band at true viewport width gets absurdly tall on
+         a wide desktop screen — cap it and keep the crop centered. */
+      #storefront-header { max-height: 380px; }
+      #storefront-header img { object-position: center; }
 
       #info-section { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: none; }
       #product-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 18px; }
