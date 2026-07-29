@@ -376,22 +376,11 @@
          there's no backdrop to separate from and no shadow needed there. */
       #page-shell { box-shadow: 0 8px 40px rgba(20,15,10,.14); }
 
-      /* Header image + profile block (the whole cream top band) + section
-         nav break out of the shell's column to span the true viewport
-         width — the feed/links/about content further down stays in the
-         centered column. This applies whether or not a header photo is
-         set — the cream band itself is the "top portion," not just
-         whatever image happens to sit in it — and as the window grows,
-         these keep stretching edge to edge while the content column
-         itself stays put in the middle. profile-block's own children
-         (name, bio, about/policies) already have their own narrower
-         max-width + auto-margin, so they stay centered and readable even
-         though their parent is now full width. */
-      #storefront-header, #profile-block, #section-nav-wrap {
-        width: 100vw; position: relative; left: 50%; margin-left: -50vw;
-      }
-      /* Uncapped, a 21:9 band at true viewport width gets absurdly tall on
-         a wide desktop screen — cap it and keep the crop centered. */
+      /* Header image, profile block, and section nav are genuinely outside
+         #page-shell in the markup now (see body structure) — they render
+         full width automatically, no breakout CSS needed. Uncapped, a 21:9
+         header band at true viewport width gets absurdly tall on a wide
+         desktop screen — cap it and keep the crop centered. */
       #storefront-header { max-height: 380px; }
       #storefront-header img { object-position: center; }
 
@@ -419,7 +408,10 @@
 </head>
 <body>
 
-<div id="page-shell">
+<!-- These render full-bleed, edge to edge — genuinely outside the
+     width-constrained #page-shell in the markup itself, not just visually
+     "broken out" of it via CSS positioning tricks (which depend on
+     containing-block math that's proven fragile across browsers). -->
 
 <header id="site-header">
   <button class="circle-btn" id="share-btn" aria-label="Share">
@@ -469,6 +461,9 @@
 <div id="section-nav-wrap">
   <div id="section-nav"></div>
 </div>
+
+<!-- Everything below stays in the centered, width-capped column. -->
+<div id="page-shell">
 
 <div id="filter-strip">
   <div id="filter-bar" class="hidden"></div>
