@@ -152,10 +152,6 @@
     .about-signature { font-style: italic; font-size: 13.5px; margin-top: 8px; color: var(--ink); }
 
     /* ══════════════════════ Filter strip — white band ══════════════════ */
-    .section-heading {
-      background: var(--surface); color: var(--ink); font-size: 16px; font-weight: 700;
-      padding: 16px 20px 4px; max-width: 720px; margin: 0 auto;
-    }
     #filter-strip { background: var(--surface); border-bottom: 1px solid var(--line); }
     #filter-bar {
       display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px;
@@ -169,14 +165,16 @@
     }
     .filter-chip.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 
-    /* ══════════════════════ Section nav — circular avatar row ══════════
-       Full-width, horizontally scrollable — Menu (pinned first) + Courses
-       (auto, if any digital listings) + one per distinct baker_links
-       section, each shown as a photo circle + label underneath rather than
-       a flat pill tab. */
-    #section-nav-wrap { background: var(--surface); padding: 16px 0 4px; }
+    /* ══════════════════════ Section nav ══════════════════════
+       The section names themselves ARE the navigation — Menu (pinned
+       first) + Courses (auto, if any digital listings) + one per distinct
+       baker_links section — no separate heading text anywhere else, no
+       redundant second label. The active one reads as this page's heading;
+       the others are how you get to a different one. Always visible, even
+       with only "Menu" — a lone heading is still the section's title. */
+    #section-nav-wrap { background: var(--surface); border-bottom: 1px solid var(--line); }
     #section-nav {
-      display: flex; gap: 18px; overflow-x: auto; padding: 0 20px 8px;
+      display: flex; gap: 22px; overflow-x: auto; padding: 14px 20px;
       scrollbar-width: none;
       /* On a full-viewport-width bar, keep the tab row itself aligned with
          the same centered column as the rest of the content below it. */
@@ -184,21 +182,11 @@
     }
     #section-nav::-webkit-scrollbar { display: none; }
     .section-tab {
-      flex-shrink: 0; width: 64px; display: flex; flex-direction: column; align-items: center; gap: 6px;
-      background: none; border: none; cursor: pointer; font-family: var(--sans);
+      flex-shrink: 0; background: none; border: none; cursor: pointer; font-family: var(--sans);
+      font-size: 16px; font-weight: 700; color: var(--muted); padding: 0 0 4px;
+      border-bottom: 2px solid transparent; white-space: nowrap;
     }
-    .section-tab .circle {
-      width: 56px; height: 56px; border-radius: 50%; overflow: hidden; position: relative;
-      background: var(--line-soft); border: 2px solid transparent;
-      display: flex; align-items: center; justify-content: center; font-size: 22px;
-    }
-    .section-tab.active .circle { border-color: var(--accent); }
-    .section-tab .circle img { width: 100%; height: 100%; object-fit: cover; display: none; position: absolute; inset: 0; }
-    .section-tab .label {
-      font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap;
-      max-width: 64px; overflow: hidden; text-overflow: ellipsis;
-    }
-    .section-tab.active .label { color: var(--ink); }
+    .section-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
 
     /* ══════════════════════ Links feed ══════════════════════ */
     #links-feed { background: var(--surface); padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -468,11 +456,9 @@
   </div>
 </section>
 
-<div id="section-nav-wrap" class="hidden">
+<div id="section-nav-wrap">
   <div id="section-nav"></div>
 </div>
-
-<h2 id="feed-heading" class="section-heading"></h2>
 
 <div id="filter-strip">
   <div id="filter-bar" class="hidden"></div>
@@ -820,33 +806,18 @@
     return tabs;
   }
 
-  // A representative photo for a tab's circle — first item's photo for
-  // Menu/Courses, first link's own section has no baker-uploaded image (the
-  // links table is plain url/label), so those get a plain icon instead.
-  function sectionTabThumb(t) {
-    if (t.key === 'menu') { const first = menuListings()[0]; return first ? itemImgURL(first) : null; }
-    if (t.key === 'courses') { const first = courseListings()[0]; return first ? itemImgURL(first) : null; }
-    return null;
-  }
-
+  // The section names are the nav — no separate thumbnail/icon per tab,
+  // no separate heading text anywhere else. Always rendered, even with
+  // just "Menu" alone, since it's also that content's only heading.
   function renderSectionNav() {
-    const wrap = document.getElementById('section-nav-wrap');
     const tabs = sectionTabs();
-    if (tabs.length <= 1) { wrap.classList.add('hidden'); return; }
-    wrap.classList.remove('hidden');
     const nav = document.getElementById('section-nav');
     nav.innerHTML = '';
     tabs.forEach(function (t) {
       const btn = document.createElement('button');
       btn.className = 'section-tab' + (t.key === sectionTab ? ' active' : '');
       btn.dataset.key = t.key;
-      const thumbURL = sectionTabThumb(t);
-      const icon = t.key === 'courses' ? '📚' : (t.key.indexOf('link:') === 0 ? '🔗' : '🧁');
-      btn.innerHTML =
-        '<span class="circle">' + (thumbURL ? '' : icon) +
-          (thumbURL ? '<img alt="" src="' + thumbURL + '" onload="this.style.display=\'block\'" onerror="this.style.display=\'none\'" />' : '') +
-        '</span>' +
-        '<span class="label">' + escapeHtml(t.label) + '</span>';
+      btn.textContent = t.label;
       btn.addEventListener('click', function () { setSectionTab(t.key); });
       nav.appendChild(btn);
     });
@@ -863,8 +834,6 @@
     document.getElementById('filter-strip').classList.toggle('hidden', sectionTab !== 'menu');
     document.getElementById('feed').classList.toggle('hidden', isLinkTab);
     document.getElementById('links-feed').classList.toggle('hidden', !isLinkTab);
-    document.getElementById('feed-heading').textContent =
-      sectionTab === 'menu' ? 'Menu' : sectionTab === 'courses' ? 'Courses' : sectionTab.slice('link:'.length);
     if (isLinkTab) {
       renderLinksFeed(sectionTab.slice('link:'.length));
     } else {
