@@ -66,7 +66,7 @@ function isSingleServing(taxCategory: TaxCategory, unitWeightGrams: number | nul
 }
 
 function calculateTaxCents(
-  items: { taxCategory: TaxCategory; unitWeightGrams: number | null; quantity: number; pricePerUnit: number }[],
+  items: { taxCategory: TaxCategory; unitWeightGrams: number | null; quantity: number; pricePerUnit: number; listingKind?: string }[],
   bakerIsGSTRegistered: boolean,
   province: string
 ): number {
@@ -74,12 +74,17 @@ function calculateTaxCents(
 
   const rate = taxRateForProvince(province || "AB");
 
-  const totalSingleServings = items
+  // Digital goods (know-how/PDFs/courses) never have a physical
+  // single-serving/weight concept — always $0 tax, excluded from the
+  // single-serving count too.
+  const physicalItems = items.filter((i) => i.listingKind !== "digital");
+
+  const totalSingleServings = physicalItems
     .filter((i) => isSingleServing(i.taxCategory, i.unitWeightGrams))
     .reduce((sum, i) => sum + i.quantity, 0);
 
   let taxableSubtotal = 0;
-  for (const item of items) {
+  for (const item of physicalItems) {
     if (item.taxCategory === "plain_bread" || item.taxCategory === "whole_item") continue;
     // sweetened_single_serving: taxable only when total single-servings < 6
     if (isSingleServing(item.taxCategory, item.unitWeightGrams) && totalSingleServings < 6) {
@@ -171,6 +176,9 @@ Deno.serve(async (req: Request) => {
     }
     if (item.listing_kind === "custom") {
       return json({ error: `"${item.name}" requires a custom order request, not direct checkout.` }, 400);
+    }
+    if (item.listing_kind === "digital") {
+      return json({ error: `"${item.name}" is a digital download — buy it directly from its own page, not the cart.` }, 400);
     }
   }
 

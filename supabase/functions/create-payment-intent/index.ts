@@ -13,7 +13,7 @@ interface CartItemPayload {
   name: string;
   quantity: number;
   price_from: number;
-  listing_kind: "ready_now" | "preorder" | "custom";
+  listing_kind: "ready_now" | "preorder" | "custom" | "digital";
   pickup_date?: string | null;
 }
 
@@ -125,8 +125,14 @@ Deno.serve(async (req: Request) => {
     // transfer at checkout — see below, they now go through the same
     // "capture into Bakeri's balance, sweep a transfer later" model as every
     // other order, so the baker's cut can reflect the real Stripe fee instead
-    // of the platform absorbing it via a destination-charge split.
-    const captureMethod = paymentFlow === "deposit_and_save" ? "automatic" : "manual";
+    // of the platform absorbing it via a destination-charge split. Digital
+    // goods also capture immediately — there's no physical handoff to wait
+    // for, so the sale (and the buyer's download) is done the moment payment
+    // succeeds. Digital purchases are always solo (never mixed into a cart
+    // with physical items — see finalize-guest-digital-order), so checking
+    // the first item is sufficient.
+    const isDigital = items.every((i) => i.listing_kind === "digital");
+    const captureMethod = (paymentFlow === "deposit_and_save" || isDigital) ? "automatic" : "manual";
 
     const bakerIDs = [...new Set(items.map((i) => i.baker_id))];
 
