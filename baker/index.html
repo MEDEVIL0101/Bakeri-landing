@@ -112,7 +112,9 @@
        convention as the about-portrait fallback. The business logo (avatar)
        overlaps its bottom edge by half, cover-photo/profile-photo style. */
     #storefront-header {
-      position: relative; width: 100%; aspect-ratio: 21/9; overflow: hidden;
+      /* Matches YouTube channel-art proportions (2560×1440 = 16:9) —
+         noticeably less thin/panoramic than the previous 21:9. */
+      position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden;
       background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
       margin-bottom: -64px;
     }
@@ -376,9 +378,9 @@
          there's no backdrop to separate from and no shadow needed there. */
       #page-shell { box-shadow: 0 8px 40px rgba(20,15,10,.14); }
 
-      /* Uncapped, a 21:9 header band at the column's own (wider desktop)
-         width still gets tall — cap it and keep the crop centered. */
-      #storefront-header { max-height: 380px; }
+      /* At 16:9 and the column's max 1200px width, natural height tops out
+         around 675px — this is just a safety net, not an active crop. */
+      #storefront-header { max-height: 700px; }
       #storefront-header img { object-position: center; }
 
       #info-section { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: none; }
