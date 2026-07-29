@@ -641,6 +641,14 @@
 
     document.getElementById('share-btn').addEventListener('click', shareLink);
 
+    // Default to whichever tab actually exists — a baker who only sells
+    // digital courses (no physical menu items, no links) has no "Menu" tab
+    // at all, so landing on the plain 'menu' default would show a tab-less
+    // empty state instead of their real content.
+    const availableTabs = sectionTabs();
+    if (!availableTabs.some(function (t) { return t.key === sectionTab; })) {
+      sectionTab = availableTabs[0].key;
+    }
     renderSectionNav();
     applySectionTab();
     updateCartUI();
@@ -800,9 +808,14 @@
   }
 
   function sectionTabs() {
-    const tabs = [{ key: 'menu', label: 'Menu' }];
+    const tabs = [];
+    if (menuListings().length > 0) tabs.push({ key: 'menu', label: 'Menu' });
     if (courseListings().length > 0) tabs.push({ key: 'courses', label: 'Courses' });
     linkSections().forEach(function (s) { tabs.push({ key: 'link:' + s, label: s }); });
+    // A brand-new baker with nothing added yet still needs a tab to land
+    // on — fall back to "Menu" (with its own empty-state prompting them to
+    // add their first item) rather than a blank page with no heading at all.
+    if (tabs.length === 0) tabs.push({ key: 'menu', label: 'Menu' });
     return tabs;
   }
 
