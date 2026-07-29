@@ -396,7 +396,11 @@
       #storefront-header img { object-position: center; }
 
       #info-section { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: none; }
-      #product-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 18px; }
+      /* auto-fit (not auto-fill) — with only a few cards, auto-fill still
+         reserves the grid columns unfilled cards WOULD have used, leaving
+         a dead gap where a phantom next card should be. auto-fit collapses
+         those, letting the real cards stretch to actually fill the row. */
+      #product-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
       .p-card:hover .p-photo { opacity: .92; }
 
       #action-bar { display: none; }
