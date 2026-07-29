@@ -376,11 +376,8 @@
          there's no backdrop to separate from and no shadow needed there. */
       #page-shell { box-shadow: 0 8px 40px rgba(20,15,10,.14); }
 
-      /* Header image, profile block, and section nav are genuinely outside
-         #page-shell in the markup now (see body structure) — they render
-         full width automatically, no breakout CSS needed. Uncapped, a 21:9
-         header band at true viewport width gets absurdly tall on a wide
-         desktop screen — cap it and keep the crop centered. */
+      /* Uncapped, a 21:9 header band at the column's own (wider desktop)
+         width still gets tall — cap it and keep the crop centered. */
       #storefront-header { max-height: 380px; }
       #storefront-header img { object-position: center; }
 
@@ -408,10 +405,7 @@
 </head>
 <body>
 
-<!-- These render full-bleed, edge to edge — genuinely outside the
-     width-constrained #page-shell in the markup itself, not just visually
-     "broken out" of it via CSS positioning tricks (which depend on
-     containing-block math that's proven fragile across browsers). -->
+<div id="page-shell">
 
 <header id="site-header">
   <button class="circle-btn" id="share-btn" aria-label="Share">
@@ -461,9 +455,6 @@
 <div id="section-nav-wrap">
   <div id="section-nav"></div>
 </div>
-
-<!-- Everything below stays in the centered, width-capped column. -->
-<div id="page-shell">
 
 <div id="filter-strip">
   <div id="filter-bar" class="hidden"></div>
