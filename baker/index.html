@@ -692,12 +692,16 @@
   // Pickup & Hours editor) — an untouched profile has an empty object, and
   // showing a fake "closed every day" table would be worse than showing
   // nothing at all.
+  // The native "Pickup & Hours" editor always encodes all 7 days (every
+  // unedited day defaults to closed:true) — so a key merely existing
+  // doesn't mean the baker actually set anything. Only treat this as
+  // "configured" once at least one day is explicitly marked open.
+  function hasConfiguredHours(hoursJSON) {
+    return !!(hoursJSON && WEEKDAY_ORDER.some(function (k) { return hoursJSON[k] && hoursJSON[k].closed === false; }));
+  }
+
   function renderHours(hoursJSON) {
-    // The native "Pickup & Hours" editor always encodes all 7 days (every
-    // unedited day defaults to closed:true) — so a key merely existing
-    // doesn't mean the baker actually set anything. Only treat this as
-    // "configured" once at least one day is explicitly marked open.
-    const hasHours = hoursJSON && WEEKDAY_ORDER.some(function (k) { return hoursJSON[k] && hoursJSON[k].closed === false; });
+    const hasHours = hasConfiguredHours(hoursJSON);
     if (!hasHours) {
       document.getElementById('hours-card').classList.add('hidden');
       updateInfoSectionVisibility();
@@ -815,19 +819,40 @@
     return tabs;
   }
 
+  // Hours/FAQ aren't switchable content panels like Menu/Courses/Links —
+  // they're supplementary info that stays in place further down the page.
+  // Still, per the same "an element in use gets a nav entry" rule, a
+  // configured one shows up here too — just as a scroll-to shortcut
+  // (scroll:<id>) rather than a tab that swaps out the feed.
+  function scrollTabs() {
+    const tabs = [];
+    if (hasConfiguredHours(profile && profile.pickup_hours_json)) {
+      tabs.push({ key: 'scroll:hours-card', label: 'Store Hours' });
+    }
+    return tabs;
+  }
+
   // The section names are the nav — no separate thumbnail/icon per tab,
   // no separate heading text anywhere else. Always rendered, even with
   // just "Menu" alone, since it's also that content's only heading.
   function renderSectionNav() {
-    const tabs = sectionTabs();
+    const tabs = sectionTabs().concat(scrollTabs());
     const nav = document.getElementById('section-nav');
     nav.innerHTML = '';
     tabs.forEach(function (t) {
+      const isScroll = t.key.indexOf('scroll:') === 0;
       const btn = document.createElement('button');
-      btn.className = 'section-tab' + (t.key === sectionTab ? ' active' : '');
+      btn.className = 'section-tab' + (!isScroll && t.key === sectionTab ? ' active' : '');
       btn.dataset.key = t.key;
       btn.textContent = t.label;
-      btn.addEventListener('click', function () { setSectionTab(t.key); });
+      btn.addEventListener('click', function () {
+        if (isScroll) {
+          const target = document.getElementById(t.key.slice('scroll:'.length));
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          setSectionTab(t.key);
+        }
+      });
       nav.appendChild(btn);
     });
   }
