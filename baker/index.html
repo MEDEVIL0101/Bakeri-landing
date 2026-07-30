@@ -179,9 +179,20 @@
     /* About / Store policies — plain body sections, same card as FAQ/Hours
        further down (#info-section), not disclosure rows in the header block
        anymore: they're real content, not something to tuck away. */
-    .profile-about-inner { display: flex; gap: 14px; align-items: flex-start; }
-    .about-portrait { width: 120px; height: 152px; border-radius: 14px; object-fit: cover; flex-shrink: 0; background: var(--line-soft); }
-    #pb-about p, #pb-policies p { flex: 1; font-size: 13.5px; line-height: 1.65; color: var(--bio); }
+    /* Editorial — the portrait floats within the text (magazine-style pull
+       image) instead of sitting in a fixed-size side column next to it, so
+       it actually scales with the available width instead of staying a
+       small fixed thumbnail regardless of how much room there is. Mobile
+       width is a plain percentage; the >=860px override below pushes it out
+       to roughly a quarter of the (up to 1200px) content column. */
+    .profile-about-inner { margin-top: 12px; }
+    .profile-about-inner::after { content: ""; display: table; clear: both; }
+    .about-portrait {
+      float: left; width: 42%; max-width: 220px; aspect-ratio: 4 / 5; height: auto;
+      border-radius: 14px; object-fit: cover; background: var(--line-soft);
+      margin: 0 18px 10px 0;
+    }
+    #pb-about p, #pb-policies p { font-size: 13.5px; line-height: 1.65; color: var(--bio); }
     /* First one in #info-section (About, when present) needs no divider
        above it — matches FAQ always having been the top item before this.
        Every section after the first gets one. */
@@ -228,7 +239,11 @@
        Always visible, every configured section stacked at once — not one
        swapped in behind a nav click, which made Social links effectively
        invisible unless a visitor happened to tap the tab. */
-    #links-feed { background: var(--surface); padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+    /* Every top-level section on the page (Menu, Links, About/FAQ/etc.,
+       Footer) shares the same --surface background, so with no border
+       between them they'd all just blend into one continuous block — this
+       line is what actually reads as "a new section starts here". */
+    #links-feed { background: var(--surface); border-top: 1px solid var(--line); padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
     .link-section + .link-section { border-top: 1px solid var(--line); padding-top: 14px; }
     .link-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
     .link-list { display: flex; flex-direction: column; gap: 10px; }
@@ -249,7 +264,7 @@
        action on their own row — not an invented layout. The baker's
        chosen background pattern shows behind these cards (theme.js's
        #theme-pattern-layer). */
-    #feed { background: var(--surface); padding: 18px 20px 8px; }
+    #feed { background: var(--surface); padding: 18px 20px 28px; }
     #product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
     .p-card {
       cursor: pointer; background: var(--surface); border-radius: 16px; overflow: hidden;
@@ -292,7 +307,7 @@
     /* Full width, matching #feed/#links-feed/#filter-strip — these used to
        be capped at 440px and centered, looking like a narrow inset column
        against everything else on the page. */
-    #info-section { background: var(--surface); padding: 8px 20px 30px; display: flex; flex-direction: column; gap: 6px; }
+    #info-section { background: var(--surface); border-top: 1px solid var(--line); padding: 8px 20px 30px; display: flex; flex-direction: column; gap: 6px; }
     #info-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
     .faq-row { border-bottom: 1px solid var(--line); }
     .faq-row:last-child { border-bottom: none; }
@@ -318,7 +333,7 @@
     #hours-card .time { color: var(--ink); }
 
     /* ══════════════════════ Footer ══════════════════════ */
-    #site-footer { background: var(--surface); padding: 20px 20px 120px; text-align: center; }
+    #site-footer { background: var(--surface); border-top: 1px solid var(--line); padding: 20px 20px 120px; text-align: center; }
     #footer-contact { font-size: 12.5px; line-height: 1.7; color: var(--muted); }
     #footer-contact a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
     #footer-credit { margin-top: 18px; font-size: 12px; color: var(--muted); }
@@ -433,6 +448,11 @@
          those, letting the real cards stretch to actually fill the row. */
       #product-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
       .p-card:hover .p-photo { opacity: .92; }
+
+      /* Roughly a quarter of the (up to 1200px) content column, not the 42%
+         the narrower mobile width uses — at this width 42% would swallow
+         the paragraph down to a sliver next to it. */
+      .about-portrait { width: 25%; max-width: 300px; margin: 0 28px 10px 0; }
 
       #action-bar { display: none; }
       #desktop-cart-btn { display: flex !important; }
