@@ -136,22 +136,16 @@
       margin: 14px auto 0; max-width: 440px;
     }
 
-    /* About the baker / Store policies — plain expandable rows, no card. */
-    #profile-extras { max-width: 440px; margin: 4px auto 0; text-align: left; }
-    .profile-sub { border-top: 1px solid var(--line); }
-    .profile-sub-head {
-      width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
-      background: none; border: none; cursor: pointer; padding: 14px 0;
-      font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
-    }
-    .profile-sub-head .ind { font-size: 10px; transition: transform .15s ease; }
-    .profile-sub.open .profile-sub-head .ind { transform: rotate(180deg); }
-    .profile-sub-body { max-height: 0; overflow: hidden; transition: max-height .2s ease-out; }
-    .profile-sub.open .profile-sub-body { max-height: 600px; padding-bottom: 16px; }
+    /* About / Store policies — plain body sections, same card as FAQ/Hours
+       further down (#info-section), not disclosure rows in the header block
+       anymore: they're real content, not something to tuck away. */
     .profile-about-inner { display: flex; gap: 14px; align-items: flex-start; }
     .about-portrait { width: 60px; height: 76px; border-radius: 12px; object-fit: cover; flex-shrink: 0; background: var(--line-soft); }
-    .profile-sub p { font-size: 13.5px; line-height: 1.65; color: var(--bio); }
-    .about-signature { font-style: italic; font-size: 13.5px; margin-top: 8px; color: var(--ink); }
+    #pb-about p, #pb-policies p { flex: 1; font-size: 13.5px; line-height: 1.65; color: var(--bio); }
+    /* First one in #info-section (About, when present) needs no divider
+       above it — matches "Good to know" always having been the top item
+       before this. Every section after the first gets one. */
+    #faq-col, #pb-policies { border-top: 1px solid var(--line); padding-top: 14px; }
 
     /* ══════════════════════ Filter strip — white band ══════════════════ */
     #filter-strip { background: var(--surface); border-bottom: 1px solid var(--line); }
@@ -432,26 +426,6 @@
   <div id="shop-name"></div>
   <div id="shop-meta" class="hidden"><span id="shop-meta-text"></span></div>
   <div id="shop-bio" class="hidden"></div>
-
-  <div id="profile-extras">
-    <div id="pb-about" class="profile-sub hidden">
-      <button class="profile-sub-head" type="button">About <span class="ind">▾</span></button>
-      <div class="profile-sub-body">
-        <div class="profile-about-inner">
-          <img id="pb-about-portrait" class="about-portrait" alt="" />
-          <div>
-            <p id="pb-about-text"></p>
-            <div id="pb-about-signature" class="about-signature"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div id="pb-policies" class="profile-sub hidden">
-      <button class="profile-sub-head" type="button">Store policies <span class="ind">▾</span></button>
-      <div class="profile-sub-body"><p id="pb-policies-text"></p></div>
-    </div>
-  </div>
 </section>
 
 <div id="section-nav-wrap">
@@ -469,9 +443,20 @@
 <section id="links-feed" class="hidden"></section>
 
 <section id="info-section" class="hidden">
+  <div id="pb-about" class="hidden">
+    <h2 id="pb-about-heading">About</h2>
+    <div class="profile-about-inner">
+      <img id="pb-about-portrait" class="about-portrait" alt="" />
+      <p id="pb-about-text"></p>
+    </div>
+  </div>
   <div id="faq-col" class="hidden">
     <h2>Good to know</h2>
     <div id="faq-list"></div>
+  </div>
+  <div id="pb-policies" class="hidden">
+    <h2>Store policies</h2>
+    <p id="pb-policies-text"></p>
   </div>
   <div id="hours-card" class="hidden">
     <h2>Store Hours</h2>
@@ -725,14 +710,18 @@
     footerContact.classList.remove('hidden');
   }
 
-  // About the baker + Store policies fold into the profile block itself,
-  // as collapsed disclosure rows — independently no-ops if the baker hasn't
-  // filled in that field.
+  // About the baker + Store policies live in #info-section, further down the
+  // page with FAQ/Hours — independently no-ops if the baker hasn't filled in
+  // that field. The heading is baker-editable (about_heading, e.g. "Meet
+  // Juliana") since the story is often about the person, not the bakery
+  // brand — falls back to a plain "About" if unset. Never derived from
+  // business_name/name; the nav tab (scrollTabs, below) always just says
+  // "About" regardless of this heading.
   function renderAboutAndPolicies(profile, name) {
     if (profile.about_story) {
       document.getElementById('pb-about').classList.remove('hidden');
+      document.getElementById('pb-about-heading').textContent = profile.about_heading || 'About';
       document.getElementById('pb-about-text').textContent = profile.about_story;
-      document.getElementById('pb-about-signature').textContent = '— ' + name;
       const img = document.getElementById('pb-about-portrait');
       img.alt = name;
       img.onerror = function () { img.style.display = 'none'; };
@@ -742,19 +731,18 @@
       document.getElementById('pb-policies').classList.remove('hidden');
       document.getElementById('pb-policies-text').textContent = profile.store_policies;
     }
-
-    document.querySelectorAll('.profile-sub .profile-sub-head').forEach(function (btn) {
-      btn.addEventListener('click', function () { btn.closest('.profile-sub').classList.toggle('open'); });
-    });
+    updateInfoSectionVisibility();
   }
 
-  // #info-section holds both the FAQ column and the hours card — each
-  // self-hides independently (checked again after renderHours), and the
-  // whole section only hides if neither has anything to show.
+  // #info-section holds About, FAQ, Store policies, and the hours card —
+  // each self-hides independently (checked again after renderHours), and
+  // the whole section only hides if none of them have anything to show.
   function updateInfoSectionVisibility() {
+    const hasAbout = !document.getElementById('pb-about').classList.contains('hidden');
     const hasFAQ = !document.getElementById('faq-col').classList.contains('hidden');
+    const hasPolicies = !document.getElementById('pb-policies').classList.contains('hidden');
     const hasHours = !document.getElementById('hours-card').classList.contains('hidden');
-    document.getElementById('info-section').classList.toggle('hidden', !hasFAQ && !hasHours);
+    document.getElementById('info-section').classList.toggle('hidden', !hasAbout && !hasFAQ && !hasPolicies && !hasHours);
   }
 
   function renderFAQ(faqs) {
@@ -828,6 +816,15 @@
   // (scroll:<id>) rather than a tab that swaps out the feed.
   function scrollTabs() {
     const tabs = [];
+    // Label is always the plain section name, never the baker-editable
+    // about_heading — the nav is a fixed set of destinations, not a place
+    // for a custom, possibly-long "Meet Juliana"-style heading to show up.
+    if (profile && profile.about_story) {
+      tabs.push({ key: 'scroll:pb-about', label: 'About' });
+    }
+    if (profile && profile.store_policies) {
+      tabs.push({ key: 'scroll:pb-policies', label: 'Store Policies' });
+    }
     if (hasConfiguredHours(profile && profile.pickup_hours_json)) {
       tabs.push({ key: 'scroll:hours-card', label: 'Store Hours' });
     }
