@@ -87,10 +87,13 @@
        on mobile the shell fills the viewport, so no margin — no pattern. */
     #page-shell { max-width: 1200px; margin: 0 auto; background: var(--bg); position: relative; }
 
+    /* Floats over the hero (photo or plain background) instead of a
+       separate fixed/sticky bar — scrolls away with the hero, doesn't
+       persist over the rest of the page. */
     #site-header {
-      position: sticky; top: 0; z-index: 40;
+      position: absolute; top: 0; left: 0; right: 0; z-index: 2;
       display: flex; align-items: center; justify-content: flex-end; gap: 10px;
-      padding: 14px 16px; background: var(--bg);
+      padding: 14px 16px;
     }
     .circle-btn {
       width: 40px; height: 40px; border-radius: 50%; border: none;
@@ -107,20 +110,25 @@
     #cart-btn-count:empty { display: none; }
 
     /* ══════════════════════ Header image ══════════════════════
-       Full-width dynamic banner — falls back to a plain theme-colored
-       gradient when the baker hasn't set one (img.onerror below), same
-       convention as the about-portrait fallback. The business logo (avatar)
-       overlaps its bottom edge by half, cover-photo/profile-photo style. */
+       The photo is a full-bleed background behind the entire hero (logo,
+       name, meta pill, bio) rather than a banner that just peeks above it —
+       #storefront-header is absolutely positioned to fill #profile-hero,
+       whatever height that ends up being (driven by profile-block's actual
+       content), not a fixed aspect ratio. Falls back to a plain
+       theme-colored gradient when the baker hasn't set one (img.onerror
+       below), same convention as the about-portrait fallback. */
+    #profile-hero { position: relative; }
     #storefront-header {
-      /* Matches YouTube channel-art proportions (2560×1440 = 16:9) —
-         noticeably less thin/panoramic than the previous 21:9. */
-      position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden;
+      position: absolute; inset: 0; overflow: hidden;
       background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
-      margin-bottom: -64px;
     }
-    #storefront-header img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    #storefront-header img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+    /* Flat scrim, not just a bottom gradient — text sits everywhere in the
+       block now (avatar ring, name, meta pill, bio), not only at the
+       bottom, so it all needs consistent legibility against the photo. */
+    #header-scrim { position: absolute; inset: 0; background: rgba(20,15,10,.42); }
 
-    #profile-block { text-align: center; padding: 8px 20px 22px; position: relative; z-index: 1; }
+    #profile-block { text-align: center; padding: 64px 20px 22px; position: relative; z-index: 1; }
     #profile-block .avatar {
       width: 128px; height: 128px; font-size: 42px; margin: 0 auto;
       box-shadow: 0 0 0 4px var(--bg), 0 2px 6px rgba(36,23,18,.15);
@@ -135,16 +143,48 @@
       font-size: 14.5px; line-height: 1.45; color: var(--bio);
       margin: 14px auto 0; max-width: 600px;
     }
+    /* Social accounts (baker_links section literally named "Social") — small
+       round icons in the hero, not rectangular rows in the body. Real
+       platform icons (assets/social/*.png): a solid black circle with the
+       logo cut out as transparent. Used as a CSS mask (not a plain <img>)
+       on a var(--accent)-colored circle — the theme color paints the circle
+       itself, the logo shape shows the wrapper's --bg behind it. Recoloring
+       this way (vs. layering the image on top of a color) keeps the logo
+       legible even for a near-black theme accent (Classic is #1C1C1E) —
+       stacking the raw image over a same-toned color would make the cutout
+       collapse into the circle with no contrast at all. */
+    #social-icons { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+    .social-icon {
+      position: relative; width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      text-decoration: none; background: var(--bg);
+      box-shadow: 0 1px 3px rgba(36,23,18,.15);
+    }
+    .social-icon-mask {
+      position: absolute; inset: 0; background: var(--accent);
+      -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+      -webkit-mask-position: center; mask-position: center;
+      -webkit-mask-size: cover; mask-size: cover;
+    }
+    .social-icon-fallback { position: relative; font-size: 15px; }
+    /* Once a header photo is showing, name/meta/bio switch to light text
+       over the scrim instead of the plain-background dark ink tones. The
+       icons themselves don't need a variant — they're already a solid
+       black circle, legible against photo or plain background alike. */
+    #profile-hero.has-photo #shop-name,
+    #profile-hero.has-photo #shop-bio { color: #fff; }
+    #profile-hero.has-photo #shop-meta { background: rgba(255,255,255,.22); }
+    #profile-hero.has-photo #shop-meta span { color: #fff; }
 
     /* About / Store policies — plain body sections, same card as FAQ/Hours
        further down (#info-section), not disclosure rows in the header block
        anymore: they're real content, not something to tuck away. */
     .profile-about-inner { display: flex; gap: 14px; align-items: flex-start; }
-    .about-portrait { width: 60px; height: 76px; border-radius: 12px; object-fit: cover; flex-shrink: 0; background: var(--line-soft); }
+    .about-portrait { width: 120px; height: 152px; border-radius: 14px; object-fit: cover; flex-shrink: 0; background: var(--line-soft); }
     #pb-about p, #pb-policies p { flex: 1; font-size: 13.5px; line-height: 1.65; color: var(--bio); }
     /* First one in #info-section (About, when present) needs no divider
-       above it — matches "Good to know" always having been the top item
-       before this. Every section after the first gets one. */
+       above it — matches FAQ always having been the top item before this.
+       Every section after the first gets one. */
     #faq-col, #pb-policies { border-top: 1px solid var(--line); padding-top: 14px; }
 
     /* ══════════════════════ Filter strip — white band ══════════════════ */
@@ -169,14 +209,14 @@
        the others are how you get to a different one. Always visible, even
        with only "Menu" — a lone heading is still the section's title. */
     #section-nav-wrap { background: var(--surface); border-bottom: 1px solid var(--line); }
+    /* Wraps instead of horizontally scrolling — every section name needs to
+       be visible up front, not hidden behind a swipe. */
     #section-nav {
-      display: flex; gap: 22px; overflow-x: auto; padding: 14px 20px;
-      scrollbar-width: none;
+      display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 14px 20px;
       /* On a full-viewport-width bar, keep the tab row itself aligned with
          the same centered column as the rest of the content below it. */
       max-width: 1200px; margin: 0 auto;
     }
-    #section-nav::-webkit-scrollbar { display: none; }
     .section-tab {
       flex-shrink: 0; background: none; border: none; cursor: pointer; font-family: var(--sans);
       font-size: 16px; font-weight: 700; color: var(--muted); padding: 0 0 4px;
@@ -184,8 +224,14 @@
     }
     .section-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
 
-    /* ══════════════════════ Links feed ══════════════════════ */
-    #links-feed { background: var(--surface); padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+    /* ══════════════════════ Link sections ══════════════════════
+       Always visible, every configured section stacked at once — not one
+       swapped in behind a nav click, which made Social links effectively
+       invisible unless a visitor happened to tap the tab. */
+    #links-feed { background: var(--surface); padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .link-section + .link-section { border-top: 1px solid var(--line); padding-top: 14px; }
+    .link-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+    .link-list { display: flex; flex-direction: column; gap: 10px; }
     .link-row {
       display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 16px;
       background: var(--bg); text-decoration: none; cursor: pointer;
@@ -243,7 +289,10 @@
     .empty-state { text-align: center; padding: 50px 20px; color: var(--muted); font-size: 14px; }
 
     /* ══════════════════════ Good To Know / FAQ ══════════════════════ */
-    #info-section { background: var(--surface); max-width: 440px; margin: 0 auto; padding: 8px 20px 30px; display: flex; flex-direction: column; gap: 6px; }
+    /* Full width, matching #feed/#links-feed/#filter-strip — these used to
+       be capped at 440px and centered, looking like a narrow inset column
+       against everything else on the page. */
+    #info-section { background: var(--surface); padding: 8px 20px 30px; display: flex; flex-direction: column; gap: 6px; }
     #info-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
     .faq-row { border-bottom: 1px solid var(--line); }
     .faq-row:last-child { border-bottom: none; }
@@ -257,8 +306,14 @@
     .faq-a p { font-size: 13.5px; line-height: 1.7; color: var(--bio); padding-bottom: 14px; }
     .faq-row.open .faq-a { max-height: 400px; }
 
+    /* Everything else in #info-section is free-flowing text that's fine
+       filling the full-width container — a day/time list isn't. A
+       space-between row stretched across the whole container would strand
+       "Mon" and "9:00–17:00" at opposite edges with a long dead gap between
+       them, so the row list itself stays a compact, natural width. */
     #hours-card { border-top: 1px solid var(--line); padding-top: 14px; }
-    #hours-card .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+    #hours-rows { max-width: 320px; }
+    #hours-card .row { display: flex; justify-content: space-between; gap: 24px; padding: 4px 0; font-size: 13px; }
     #hours-card .day { color: var(--muted); }
     #hours-card .time { color: var(--ink); }
 
@@ -372,12 +427,6 @@
          there's no backdrop to separate from and no shadow needed there. */
       #page-shell { box-shadow: 0 8px 40px rgba(20,15,10,.14); }
 
-      /* At 16:9 and the column's max 1200px width, natural height tops out
-         around 675px — this is just a safety net, not an active crop. */
-      #storefront-header { max-height: 700px; }
-      #storefront-header img { object-position: center; }
-
-      #info-section { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: none; }
       /* auto-fit (not auto-fill) — with only a few cards, auto-fill still
          reserves the grid columns unfilled cards WOULD have used, leaving
          a dead gap where a phantom next card should be. auto-fit collapses
@@ -403,30 +452,34 @@
 
 <div id="page-shell">
 
-<header id="site-header">
-  <button class="circle-btn" id="share-btn" aria-label="Share">
-    <svg width="16" height="19" viewBox="0 0 17 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M8.5 1V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-      <path d="M4.5 5L8.5 1L12.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M1.5 9V17.5C1.5 18.3284 2.17157 19 3 19H14C14.8284 19 15.5 18.3284 15.5 17.5V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  </button>
-  <button class="circle-btn" id="desktop-cart-btn" style="display:none; width:auto; padding:0 16px; border-radius:9999px;">
-    <span id="desktop-cart-label">Cart</span>
-  </button>
-  <button class="circle-btn" id="cart-btn" aria-label="Cart">🛒<span id="cart-btn-count"></span></button>
-</header>
+<div id="profile-hero">
+  <div id="storefront-header" class="hidden">
+    <img id="header-img" alt="" />
+    <div id="header-scrim"></div>
+  </div>
 
-<div id="storefront-header" class="hidden">
-  <img id="header-img" alt="" />
+  <header id="site-header">
+    <button class="circle-btn" id="share-btn" aria-label="Share">
+      <svg width="16" height="19" viewBox="0 0 17 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8.5 1V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M4.5 5L8.5 1L12.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M1.5 9V17.5C1.5 18.3284 2.17157 19 3 19H14C14.8284 19 15.5 18.3284 15.5 17.5V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="circle-btn" id="desktop-cart-btn" style="display:none; width:auto; padding:0 16px; border-radius:9999px;">
+      <span id="desktop-cart-label">Cart</span>
+    </button>
+    <button class="circle-btn" id="cart-btn" aria-label="Cart">🛒<span id="cart-btn-count"></span></button>
+  </header>
+
+  <section id="profile-block">
+    <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
+    <div id="shop-name"></div>
+    <div id="shop-meta" class="hidden"><span id="shop-meta-text"></span></div>
+    <div id="shop-bio" class="hidden"></div>
+    <div id="social-icons" class="hidden"></div>
+  </section>
 </div>
-
-<section id="profile-block">
-  <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
-  <div id="shop-name"></div>
-  <div id="shop-meta" class="hidden"><span id="shop-meta-text"></span></div>
-  <div id="shop-bio" class="hidden"></div>
-</section>
 
 <div id="section-nav-wrap">
   <div id="section-nav"></div>
@@ -451,11 +504,11 @@
     </div>
   </div>
   <div id="faq-col" class="hidden">
-    <h2>Good to know</h2>
+    <h2>FAQ</h2>
     <div id="faq-list"></div>
   </div>
   <div id="pb-policies" class="hidden">
-    <h2>Store policies</h2>
+    <h2>Store Policies</h2>
     <p id="pb-policies-text"></p>
   </div>
   <div id="hours-card" class="hidden">
@@ -616,10 +669,12 @@
       document.getElementById('shop-bio').textContent = profile.bio;
       document.getElementById('shop-bio').classList.remove('hidden');
     }
+    renderSocialIcons();
 
     renderHours(profile.pickup_hours_json);
     renderAboutAndPolicies(profile, name);
     renderFAQ(faqs);
+    renderLinkSections();
     renderFooter(profile, name);
 
     document.getElementById('share-btn').addEventListener('click', shareLink);
@@ -660,18 +715,17 @@
 
   // Falls back to the plain gradient already set on #storefront-header if
   // the baker hasn't uploaded one — same onerror-hide convention as the
-  // about-portrait image.
-  // No banner uploaded → the whole band collapses (display:none), not a
-  // decorative gradient placeholder — a display:none element's negative
-  // margin-bottom doesn't apply either, so the avatar overlap cancels
-  // automatically and the profile block falls back to its plain centered
-  // layout, same as before this feature existed.
+  // about-portrait image. No banner uploaded → the whole layer collapses
+  // (display:none) and .has-photo comes off #profile-hero, so name/meta/bio
+  // fall back to their plain dark-ink colors instead of the light-over-photo
+  // treatment.
   function renderHeaderImage(name) {
+    const hero = document.getElementById('profile-hero');
     const header = document.getElementById('storefront-header');
     const img = document.getElementById('header-img');
     img.alt = name;
-    img.onerror = function () { header.classList.add('hidden'); };
-    img.onload = function () { header.classList.remove('hidden'); img.style.display = 'block'; };
+    img.onerror = function () { header.classList.add('hidden'); hero.classList.remove('has-photo'); };
+    img.onload = function () { header.classList.remove('hidden'); img.style.display = 'block'; hero.classList.add('has-photo'); };
     img.src = STORAGE_URL + '/storefront-headers/' + resolvedBakerId.toUpperCase() + '/header.jpg';
   }
 
@@ -761,16 +815,11 @@
       row.innerHTML =
         '<button class="faq-q"><span>' + escapeHtml(faq.question) + '</span><span class="ind">' + (i === 0 ? '−' : '+') + '</span></button>' +
         '<div class="faq-a"><p>' + escapeHtml(faq.answer) + '</p></div>';
+      // Independent per row — opening one doesn't close the others.
       row.querySelector('.faq-q').addEventListener('click', function () {
         const willOpen = !row.classList.contains('open');
-        list.querySelectorAll('.faq-row').forEach(function (r) {
-          r.classList.remove('open');
-          r.querySelector('.ind').textContent = '+';
-        });
-        if (willOpen) {
-          row.classList.add('open');
-          row.querySelector('.ind').textContent = '−';
-        }
+        row.classList.toggle('open', willOpen);
+        row.querySelector('.ind').textContent = willOpen ? '−' : '+';
       });
       list.appendChild(row);
     });
@@ -797,11 +846,19 @@
     return seen;
   }
 
+  // A baker_links section literally named "Social" gets pulled out of the
+  // ordinary rectangular link-row treatment entirely — those render as small
+  // round platform icons up in the hero instead (see renderSocialIcons),
+  // same convention any social-in-bio page uses. Any other section (Amazon
+  // Faves, Recipes, whatever) still renders as a normal link-row list
+  // further down.
+  function isSocialSection(section) { return (section || '').trim().toLowerCase() === 'social'; }
+  function bodyLinkSections() { return linkSections().filter(function (s) { return !isSocialSection(s); }); }
+
   function sectionTabs() {
     const tabs = [];
     if (menuListings().length > 0) tabs.push({ key: 'menu', label: 'Menu' });
     if (courseListings().length > 0) tabs.push({ key: 'courses', label: 'Courses' });
-    linkSections().forEach(function (s) { tabs.push({ key: 'link:' + s, label: s }); });
     // A brand-new baker with nothing added yet still needs a tab to land
     // on — fall back to "Menu" (with its own empty-state prompting them to
     // add their first item) rather than a blank page with no heading at all.
@@ -809,11 +866,18 @@
     return tabs;
   }
 
-  // Hours/FAQ aren't switchable content panels like Menu/Courses/Links —
-  // they're supplementary info that stays in place further down the page.
-  // Still, per the same "an element in use gets a nav entry" rule, a
-  // configured one shows up here too — just as a scroll-to shortcut
-  // (scroll:<id>) rather than a tab that swaps out the feed.
+  function linkSectionId(section) {
+    return 'link-section-' + (section || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  // Hours/FAQ/About/Policies/Links aren't switchable content panels like
+  // Menu/Courses — they're supplementary content that stays in place,
+  // always visible, further down the page (link sections used to be a
+  // swappable tab like Menu/Courses, hidden until clicked — bakers reported
+  // that made their Social links effectively invisible, since nothing
+  // hinted a visitor needed to tap the nav to find them). Each configured
+  // one gets a scroll-to shortcut (scroll:<id>) in the nav instead of a tab
+  // that swaps out the feed.
   function scrollTabs() {
     const tabs = [];
     // Label is always the plain section name, never the baker-editable
@@ -828,6 +892,11 @@
     if (hasConfiguredHours(profile && profile.pickup_hours_json)) {
       tabs.push({ key: 'scroll:hours-card', label: 'Store Hours' });
     }
+    // Social isn't in this list — it's not a scroll-to destination further
+    // down the page anymore, it's the icon row already visible in the hero.
+    bodyLinkSections().forEach(function (s) {
+      tabs.push({ key: 'scroll:' + linkSectionId(s), label: s });
+    });
     return tabs;
   }
 
@@ -863,31 +932,83 @@
   }
 
   function applySectionTab() {
-    const isLinkTab = sectionTab.indexOf('link:') === 0;
     document.getElementById('filter-strip').classList.toggle('hidden', sectionTab !== 'menu');
-    document.getElementById('feed').classList.toggle('hidden', isLinkTab);
-    document.getElementById('links-feed').classList.toggle('hidden', !isLinkTab);
-    if (isLinkTab) {
-      renderLinksFeed(sectionTab.slice('link:'.length));
-    } else {
-      renderFilterBar();
-      renderGrid();
-    }
+    renderFilterBar();
+    renderGrid();
   }
 
-  function renderLinksFeed(section) {
-    const feed = document.getElementById('links-feed');
-    const items = allLinks.filter(function (l) { return l.section === section; });
-    if (items.length === 0) {
-      feed.innerHTML = '<div class="empty-state">No links in this section yet.</div>';
+  // Always-visible — every non-Social link section renders at once, each in
+  // its own labeled block, instead of one section swapped in at a time
+  // behind a nav click. Independent no-op if the baker has no links at all.
+  // Social itself is excluded here — see renderSocialIcons.
+  function renderLinkSections() {
+    const wrap = document.getElementById('links-feed');
+    const sections = bodyLinkSections();
+    if (sections.length === 0) {
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
       return;
     }
-    feed.innerHTML = items.map(function (l) {
-      return '<a class="link-row" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener noreferrer">' +
-        '<span class="circle">🔗</span>' +
-        '<span class="label">' + escapeHtml(l.label) + '</span>' +
-        '<span class="arrow">→</span>' +
-      '</a>';
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = sections.map(function (s) {
+      const items = allLinks.filter(function (l) { return l.section === s; });
+      return '<div class="link-section" id="' + linkSectionId(s) + '">' +
+        '<h2>' + escapeHtml(s) + '</h2>' +
+        '<div class="link-list">' + items.map(function (l) {
+          return '<a class="link-row" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener noreferrer">' +
+            '<span class="circle">🔗</span>' +
+            '<span class="label">' + escapeHtml(l.label) + '</span>' +
+            '<span class="arrow">→</span>' +
+          '</a>';
+        }).join('') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // Guesses the platform from the URL's hostname to pick each icon — the
+  // baker only ever enters a plain URL (same "Social" section as any other
+  // link), there's no separate platform field to key off of. Icon files are
+  // cropped from assets/social/*.png (the baker's own downloaded icon set —
+  // see assets/social/README.txt). Unrecognized hosts still render, just
+  // with a generic glyph instead of a missing image, so an unusual link
+  // never silently disappears.
+  function socialPlatform(url) {
+    let host = '';
+    try { host = new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch (e) { /* leave blank → generic */ }
+    if (host.indexOf('instagram') !== -1) return { label: 'Instagram', icon: 'instagram' };
+    if (host.indexOf('tiktok') !== -1) return { label: 'TikTok', icon: 'tiktok' };
+    if (host.indexOf('facebook') !== -1) return { label: 'Facebook', icon: 'facebook' };
+    if (host === 'x.com' || host.indexOf('twitter') !== -1) return { label: 'X', icon: 'x' };
+    if (host.indexOf('pinterest') !== -1) return { label: 'Pinterest', icon: 'pinterest' };
+    if (host.indexOf('linkedin') !== -1) return { label: 'LinkedIn', icon: 'linkedin' };
+    if (host.indexOf('whatsapp') !== -1 || host === 'wa.me') return { label: 'WhatsApp', icon: 'whatsapp' };
+    return { label: 'Link', icon: null };
+  }
+
+  // Small round icons in the hero, not rows in the body — the visual
+  // convention every social-in-bio page uses for actual social accounts,
+  // distinct from a plain link list (Amazon Faves, Recipes, etc., which
+  // stay as link-rows further down — see renderLinkSections).
+  function renderSocialIcons() {
+    const wrap = document.getElementById('social-icons');
+    const items = allLinks.filter(function (l) { return isSocialSection(l.section); });
+    if (items.length === 0) {
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = items.map(function (l) {
+      const platform = socialPlatform(l.url);
+      // The icon PNG is used as a mask (see .social-icon-mask), not a plain
+      // <img> — that's what lets the theme's accent color paint the circle
+      // itself instead of just sitting behind a fixed-black raster image.
+      const inner = platform.icon
+        ? '<span class="social-icon-mask" style="-webkit-mask-image:url(../assets/social/' + platform.icon + '.png);mask-image:url(../assets/social/' + platform.icon + '.png)"></span>'
+        : '<span class="social-icon-fallback">🔗</span>';
+      return '<a class="social-icon" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener noreferrer" ' +
+        'title="' + escapeHtml(platform.label) + '" aria-label="' + escapeHtml(platform.label) + '">' +
+        inner + '</a>';
     }).join('');
   }
 
