@@ -1693,7 +1693,10 @@
   // text below (see subtitleFor) — swapping the tag itself in a dense
   // grid would read as a second, competing badge type.
   function kindBadgeInfo(item) {
-    if (item.is_assorted_box) return { bg: 'var(--ready)', label: 'Box' };
+    // Assorted Box is a composition detail, not a fulfillment type — the
+    // badge should still say Ready Now/Pre-order like any other listing
+    // (that's the info a buyer actually needs at a glance); "pick your own
+    // flavors" in the subtitle already signals it's a box.
     if (item.listing_kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
     if (item.listing_kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
     if (item.listing_kind === 'digital')   return { bg: 'var(--digital)', label: 'Digital' };
