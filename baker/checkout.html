@@ -149,20 +149,26 @@
   }
 
   // Bakeri's fee is added to what the customer pays (not deducted from the
-  // baker's price) — mirrors create-payment-intent's PLATFORM_FEE_RATE
-  // exactly, computed off the pre-tax subtotal.
-  const PLATFORM_FEE_RATE = 0.05;
+  // baker's price), computed off the pre-tax subtotal. This is a display-only
+  // estimate for the order summary shown before payment starts — the
+  // authoritative figure (and what's actually charged) comes back from
+  // create-payment-intent in goToPayment() below and is what the payment step
+  // actually displays/charges, so this can never drift from the real charge.
+  const PLATFORM_FEE_RATE_ESTIMATE = 0.05;
   const subtotal = cart.items.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
   const taxCents = calcTaxCents(cart.items);
-  const platformFeeCents = Math.round(subtotal * 100 * PLATFORM_FEE_RATE);
+  const platformFeeCents = Math.round(subtotal * 100 * PLATFORM_FEE_RATE_ESTIMATE);
   const total = subtotal + platformFeeCents / 100 + taxCents / 100;
 
   renderSummary();
 
   function renderSummary() {
     const lines = cart.items.map(function (i) {
+      const meta = i.isAssortedBox
+        ? (i.variants || []).map(function (v) { return v.qty + '× ' + v.name; }).join(', ')
+        : i.qty + ' × $' + i.price.toFixed(2);
       return '<div class="order-line">' +
-        '<div><div class="n">' + escapeHtml(i.name) + '</div><div class="m">' + i.qty + ' × $' + i.price.toFixed(2) + '</div></div>' +
+        '<div><div class="n">' + escapeHtml(i.name) + '</div><div class="m">' + escapeHtml(meta) + '</div></div>' +
         '<div class="p">$' + (i.price * i.qty).toFixed(2) + '</div>' +
         '</div>';
     }).join('');
@@ -209,7 +215,7 @@
         btn.disabled = false;
         return;
       }
-      renderPayment(data.client_secret);
+      renderPayment(data.client_secret, data.amount_cents, data.platform_fee_cents, data.stripe_connect_account_id);
     })
     .catch(function () {
       status.textContent = 'Something went wrong. Please check your connection and try again.';
@@ -217,16 +223,23 @@
     });
   }
 
-  function renderPayment(clientSecret) {
+  function renderPayment(clientSecret, amountCents, platformFeeCentsActual, connectedAccountId) {
+    // Authoritative charge amount from create-payment-intent — not the
+    // pre-flight estimate computed above — so what's shown here always
+    // matches exactly what Stripe actually charges.
+    const payTotal = (typeof amountCents === 'number' ? amountCents : Math.round(total * 100)) / 100;
+
     content.innerHTML =
       '<div class="eyebrow">Pay</div>' +
-      '<div class="heading">$' + total.toFixed(2) + '</div>' +
+      '<div class="heading">$' + payTotal.toFixed(2) + '</div>' +
       '<div id="payment-element"></div>' +
-      '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + '</button>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + payTotal.toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
       '<div class="pickup-note">📍 Exact pickup address is provided by email once your order is confirmed.</div>';
 
-    const stripe = Stripe(STRIPE_PK);
+    // A direct charge's PaymentIntent lives on the baker's own connected
+    // account — Stripe.js must be told that account to confirm against it.
+    const stripe = connectedAccountId ? Stripe(STRIPE_PK, { stripeAccount: connectedAccountId }) : Stripe(STRIPE_PK);
     const elements = stripe.elements({ clientSecret: clientSecret });
     const paymentElement = elements.create('payment');
     paymentElement.mount('#payment-element');
@@ -264,7 +277,15 @@
       body: JSON.stringify({
         payment_intent_id: paymentIntentId,
         baker_id: cart.baker,
-        items: cart.items.map(function (i) { return { menu_item_id: i.id, quantity: i.qty }; }),
+        items: cart.items.map(function (i) {
+          if (i.isAssortedBox) {
+            return {
+              menu_item_id: i.id, quantity: i.qty, tier_id: i.tierId,
+              variant_selections: (i.variants || []).map(function (v) { return { variant_id: v.variantId, quantity: v.qty }; })
+            };
+          }
+          return { menu_item_id: i.id, quantity: i.qty };
+        }),
         customer_name: cart.customer.name,
         customer_email: cart.customer.email,
         customer_phone: cart.customer.phone
@@ -277,12 +298,9 @@
         if (status) status.textContent = 'Payment succeeded but we had trouble recording your order — contact the baker with this reference: ' + paymentIntentId;
         return;
       }
-      fetch(SUPABASE_URL + '/functions/v1/send-guest-order-received-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
-        body: JSON.stringify({ order_id: data.order_id })
-      }).catch(function () {});
-
+      // "Payment received" email now fires server-side (the DB trigger on the
+      // orders INSERT), not from here — that survives the tab closing before
+      // this script finishes, which a fire-and-forget fetch() did not.
       sessionStorage.removeItem('bakeri_checkout_cart');
       renderSuccess(data);
     });
@@ -290,7 +308,12 @@
 
   function renderSuccess(data) {
     const itemRows = (data.items || []).map(function (i) {
-      return '<div class="order-line"><span class="n">' + i.quantity + '× ' + escapeHtml(i.name) + '</span><span class="p">$' + (i.price_per_unit * i.quantity).toFixed(2) + '</span></div>';
+      // i.name already includes " — {tier label}" for box lines (set server-side).
+      const breakdown = (i.variant_breakdown || []).map(function (v) { return v.quantity + '× ' + v.name; }).join(', ');
+      return '<div class="order-line">' +
+        '<div><div class="n">' + i.quantity + '× ' + escapeHtml(i.name) + '</div>' +
+        (breakdown ? '<div class="m">' + escapeHtml(breakdown) + '</div>' : '') + '</div>' +
+        '<span class="p">$' + (i.price_per_unit * i.quantity).toFixed(2) + '</span></div>';
     }).join('');
 
     content.innerHTML =

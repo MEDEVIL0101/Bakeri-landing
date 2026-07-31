@@ -176,8 +176,8 @@
     #profile-hero.has-photo #shop-meta { background: rgba(255,255,255,.22); }
     #profile-hero.has-photo #shop-meta span { color: #fff; }
 
-    /* About / Store policies — plain body sections, same card as FAQ/Hours
-       further down (#info-section), not disclosure rows in the header block
+    /* About / Store policies — plain body sections further down the page,
+       same treatment as FAQ/Hours, not disclosure rows in the header block
        anymore: they're real content, not something to tuck away. */
     /* Editorial — the portrait floats within the text (magazine-style pull
        image) instead of sitting in a fixed-size side column next to it, so
@@ -193,10 +193,17 @@
       margin: 0 18px 10px 0;
     }
     #pb-about p, #pb-policies p { font-size: 13.5px; line-height: 1.65; color: var(--bio); }
-    /* First one in #info-section (About, when present) needs no divider
-       above it — matches FAQ always having been the top item before this.
-       Every section after the first gets one. */
-    #faq-col, #pb-policies { border-top: 1px solid var(--line); padding-top: 14px; }
+    /* ══════════════════════ Section bands ══════════════════════
+       Every top-level content section (Menu, Links, About, FAQ, Store
+       Policies, Store Hours) shares this — a plain white background, and a
+       divider line automatic between any two of them regardless of which
+       are hidden (a hidden one in between takes no visual space, so the
+       divider still lands exactly at the seam a visitor actually sees).
+       Footer is deliberately excluded — it reads as the page's close, not
+       another content section. */
+    .section-band { background: var(--surface); padding: 20px 20px 24px; }
+    .section-band + .section-band { border-top: 1px solid var(--line); }
+    .section-band h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
 
     /* ══════════════════════ Filter strip — white band ══════════════════ */
     #filter-strip { background: var(--surface); border-bottom: 1px solid var(--line); }
@@ -213,11 +220,11 @@
     .filter-chip.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 
     /* ══════════════════════ Section nav ══════════════════════
-       The section names themselves ARE the navigation — Menu (pinned
-       first) + Courses (auto, if any digital listings) + one per distinct
-       baker_links section — no separate heading text anywhere else, no
-       redundant second label. The active one reads as this page's heading;
-       the others are how you get to a different one. Always visible, even
+       The section names themselves ARE the navigation — Menu (the only
+       swappable tab) + a scroll-to shortcut for every other always-visible
+       section (Digital Downloads, About, Store Policies, Store Hours, one
+       per distinct baker_links section) — no separate heading text
+       anywhere else, no redundant second label. Always visible, even
        with only "Menu" — a lone heading is still the section's title. */
     #section-nav-wrap { background: var(--surface); border-bottom: 1px solid var(--line); }
     /* Wraps instead of horizontally scrolling — every section name needs to
@@ -239,11 +246,7 @@
        Always visible, every configured section stacked at once — not one
        swapped in behind a nav click, which made Social links effectively
        invisible unless a visitor happened to tap the tab. */
-    /* Every top-level section on the page (Menu, Links, About/FAQ/etc.,
-       Footer) shares the same --surface background, so with no border
-       between them they'd all just blend into one continuous block — this
-       line is what actually reads as "a new section starts here". */
-    #links-feed { background: var(--surface); border-top: 1px solid var(--line); padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+    #links-feed { padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
     .link-section + .link-section { border-top: 1px solid var(--line); padding-top: 14px; }
     .link-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
     .link-list { display: flex; flex-direction: column; gap: 10px; }
@@ -264,8 +267,8 @@
        action on their own row — not an invented layout. The baker's
        chosen background pattern shows behind these cards (theme.js's
        #theme-pattern-layer). */
-    #feed { background: var(--surface); padding: 18px 20px 28px; }
-    #product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    #feed { padding: 18px 20px 28px; }
+    #product-grid, #digital-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
     .p-card {
       cursor: pointer; background: var(--surface); border-radius: 16px; overflow: hidden;
       box-shadow: 0 2px 5px rgba(36,23,18,.08);
@@ -303,12 +306,7 @@
 
     .empty-state { text-align: center; padding: 50px 20px; color: var(--muted); font-size: 14px; }
 
-    /* ══════════════════════ Good To Know / FAQ ══════════════════════ */
-    /* Full width, matching #feed/#links-feed/#filter-strip — these used to
-       be capped at 440px and centered, looking like a narrow inset column
-       against everything else on the page. */
-    #info-section { background: var(--surface); border-top: 1px solid var(--line); padding: 8px 20px 30px; display: flex; flex-direction: column; gap: 6px; }
-    #info-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+    /* ══════════════════════ FAQ ══════════════════════ */
     .faq-row { border-bottom: 1px solid var(--line); }
     .faq-row:last-child { border-bottom: none; }
     .faq-q {
@@ -321,12 +319,11 @@
     .faq-a p { font-size: 13.5px; line-height: 1.7; color: var(--bio); padding-bottom: 14px; }
     .faq-row.open .faq-a { max-height: 400px; }
 
-    /* Everything else in #info-section is free-flowing text that's fine
-       filling the full-width container — a day/time list isn't. A
+    /* Store Hours — free-flowing text elsewhere in these sections is fine
+       filling the full-width container; a day/time list isn't. A
        space-between row stretched across the whole container would strand
        "Mon" and "9:00–17:00" at opposite edges with a long dead gap between
        them, so the row list itself stays a compact, natural width. */
-    #hours-card { border-top: 1px solid var(--line); padding-top: 14px; }
     #hours-rows { max-width: 320px; }
     #hours-card .row { display: flex; justify-content: space-between; gap: 24px; padding: 4px 0; font-size: 13px; }
     #hours-card .day { color: var(--muted); }
@@ -397,6 +394,27 @@
     .spec-row b { color: var(--ink); font-weight: 600; }
     #item-sheet-body .btn { width: 100%; height: 50px; margin-top: 18px; }
 
+    #item-sheet-box { margin-top: 16px; }
+    .box-step-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin-bottom: 8px; }
+    .box-tiers { display: flex; gap: 8px; margin-bottom: 18px; }
+    .box-tier {
+      flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 14px; background: transparent;
+      padding: 10px 6px; text-align: center; cursor: pointer;
+    }
+    .box-tier.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+    .box-tier-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+    .box-tier-price { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .box-flavor-header { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+    .box-flavor-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+    .box-flavor-thumb { width: 38px; height: 38px; border-radius: 10px; object-fit: cover; background: var(--line-soft); flex-shrink: 0; }
+    .box-flavor-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+    .box-flavor-row .stepper {
+      display: flex; align-items: center; border: 1px solid var(--line); border-radius: 9999px; height: 32px; flex-shrink: 0;
+    }
+    .box-flavor-row .stepper button { width: 28px; height: 100%; border: none; background: none; font-size: 15px; cursor: pointer; color: var(--ink); }
+    .box-flavor-row .stepper button:disabled { opacity: .3; cursor: default; }
+    .box-flavor-row .stepper .qty { font-size: 13px; min-width: 16px; text-align: center; }
+
     #cart-sheet-body { padding: 18px 20px 24px; }
     #cart-step-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin-bottom: 8px; }
     .cart-line { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -446,7 +464,7 @@
          reserves the grid columns unfilled cards WOULD have used, leaving
          a dead gap where a phantom next card should be. auto-fit collapses
          those, letting the real cards stretch to actually fill the row. */
-      #product-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+      #product-grid, #digital-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
       .p-card:hover .p-photo { opacity: .92; }
 
       /* Roughly a quarter of the (up to 1200px) content column, not the 42%
@@ -509,33 +527,39 @@
   <div id="filter-bar" class="hidden"></div>
 </div>
 
-<section id="feed">
+<section id="feed" class="section-band">
   <div id="product-grid"></div>
 </section>
 
-<section id="links-feed" class="hidden"></section>
+<section id="digital-feed" class="section-band hidden">
+  <h2 id="digital-feed-heading">Digital Downloads</h2>
+  <div id="digital-grid"></div>
+</section>
 
-<section id="info-section" class="hidden">
-  <div id="pb-about" class="hidden">
-    <h2 id="pb-about-heading">About</h2>
-    <div class="profile-about-inner">
-      <img id="pb-about-portrait" class="about-portrait" alt="" />
-      <p id="pb-about-text"></p>
-    </div>
-  </div>
-  <div id="faq-col" class="hidden">
-    <h2>FAQ</h2>
-    <div id="faq-list"></div>
-  </div>
-  <div id="pb-policies" class="hidden">
-    <h2>Store Policies</h2>
-    <p id="pb-policies-text"></p>
-  </div>
-  <div id="hours-card" class="hidden">
-    <h2>Store Hours</h2>
-    <div id="hours-rows"></div>
+<section id="pb-about" class="section-band hidden">
+  <h2 id="pb-about-heading">About</h2>
+  <div class="profile-about-inner">
+    <img id="pb-about-portrait" class="about-portrait" alt="" />
+    <p id="pb-about-text"></p>
   </div>
 </section>
+
+<section id="faq-col" class="section-band hidden">
+  <h2>FAQ</h2>
+  <div id="faq-list"></div>
+</section>
+
+<section id="pb-policies" class="section-band hidden">
+  <h2>Store Policies</h2>
+  <p id="pb-policies-text"></p>
+</section>
+
+<section id="hours-card" class="section-band hidden">
+  <h2>Store Hours</h2>
+  <div id="hours-rows"></div>
+</section>
+
+<section id="links-feed" class="section-band hidden"></section>
 
 <footer id="site-footer">
   <div id="footer-contact" class="hidden"></div>
@@ -571,6 +595,7 @@
         <div id="item-sheet-price" class="tabular"></div>
         <div id="item-sheet-desc"></div>
         <div class="spec-list" id="item-sheet-specs"></div>
+        <div id="item-sheet-box" style="display:none;"></div>
         <button class="btn btn-primary" id="item-sheet-cta"></button>
       </div>
     </div>
@@ -614,8 +639,10 @@
   let allLinks = [];
   let resolvedBakerId = bakerID;
   let tab = 'all';
-  let sectionTab = 'menu'; // 'menu' | 'courses' | a baker_links section name
+  let sectionTab = 'menu'; // 'menu' is the only real tab now — see sectionTabs()
   let cart = {}; // { itemId: qty }
+  let boxCartLines = []; // Assorted Box lines: { lineId, menuItemId, tierId, tierLabel, unitCount, price, qty, variants: [{variantId, name, qty}] }
+  let boxState = null; // in-progress box picker: { item, tierId, chosen: {variantId: qty} }
   let cartStep = 0; // 0 order, 1 pickup&payment, 2 confirmed
   let toastTimer = null;
   // Direct checkout (ready_now / preorder) needs the baker's Stripe Connect
@@ -628,10 +655,21 @@
   // storefront never bleeds into another's. ──
   function cartStorageKey() { return 'bakeri_cart_' + resolvedBakerId; }
   function loadCart() {
-    try { cart = JSON.parse(sessionStorage.getItem(cartStorageKey()) || '{}'); } catch (e) { cart = {}; }
+    try {
+      const raw = JSON.parse(sessionStorage.getItem(cartStorageKey()) || '{}');
+      // Backward compatible with sessions saved before Assorted Box shipped,
+      // when this key held the flat { itemId: qty } map directly.
+      if (raw && (raw.cart || raw.boxLines)) {
+        cart = raw.cart || {};
+        boxCartLines = raw.boxLines || [];
+      } else {
+        cart = raw || {};
+        boxCartLines = [];
+      }
+    } catch (e) { cart = {}; boxCartLines = []; }
   }
   function saveCart() {
-    try { sessionStorage.setItem(cartStorageKey(), JSON.stringify(cart)); } catch (e) {}
+    try { sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines })); } catch (e) {}
   }
 
   if (!slug && !bakerID) {
@@ -694,19 +732,12 @@
     renderHours(profile.pickup_hours_json);
     renderAboutAndPolicies(profile, name);
     renderFAQ(faqs);
+    renderDigitalFeed();
     renderLinkSections();
     renderFooter(profile, name);
 
     document.getElementById('share-btn').addEventListener('click', shareLink);
 
-    // Default to whichever tab actually exists — a baker who only sells
-    // digital courses (no physical menu items, no links) has no "Menu" tab
-    // at all, so landing on the plain 'menu' default would show a tab-less
-    // empty state instead of their real content.
-    const availableTabs = sectionTabs();
-    if (!availableTabs.some(function (t) { return t.key === sectionTab; })) {
-      sectionTab = availableTabs[0].key;
-    }
     renderSectionNav();
     applySectionTab();
     updateCartUI();
@@ -765,11 +796,9 @@
     const hasHours = hasConfiguredHours(hoursJSON);
     if (!hasHours) {
       document.getElementById('hours-card').classList.add('hidden');
-      updateInfoSectionVisibility();
       return;
     }
     document.getElementById('hours-card').classList.remove('hidden');
-    updateInfoSectionVisibility();
     const rowsHTML = WEEKDAY_ORDER.map(function (key) {
       const day = hoursJSON[key];
       const label = WEEKDAY_LABELS[key];
@@ -784,13 +813,13 @@
     footerContact.classList.remove('hidden');
   }
 
-  // About the baker + Store policies live in #info-section, further down the
-  // page with FAQ/Hours — independently no-ops if the baker hasn't filled in
-  // that field. The heading is baker-editable (about_heading, e.g. "Meet
-  // Juliana") since the story is often about the person, not the bakery
-  // brand — falls back to a plain "About" if unset. Never derived from
-  // business_name/name; the nav tab (scrollTabs, below) always just says
-  // "About" regardless of this heading.
+  // About + Store Policies are now independent top-level sections (each
+  // self-hides on its own — no shared wrapper to keep in sync anymore). The
+  // heading is baker-editable (about_heading, e.g. "Meet Juliana") since the
+  // story is often about the person, not the bakery brand — falls back to a
+  // plain "About" if unset. Never derived from business_name/name; the nav
+  // tab (scrollTabs, below) always just says "About" regardless of this
+  // heading.
   function renderAboutAndPolicies(profile, name) {
     if (profile.about_story) {
       document.getElementById('pb-about').classList.remove('hidden');
@@ -805,28 +834,14 @@
       document.getElementById('pb-policies').classList.remove('hidden');
       document.getElementById('pb-policies-text').textContent = profile.store_policies;
     }
-    updateInfoSectionVisibility();
-  }
-
-  // #info-section holds About, FAQ, Store policies, and the hours card —
-  // each self-hides independently (checked again after renderHours), and
-  // the whole section only hides if none of them have anything to show.
-  function updateInfoSectionVisibility() {
-    const hasAbout = !document.getElementById('pb-about').classList.contains('hidden');
-    const hasFAQ = !document.getElementById('faq-col').classList.contains('hidden');
-    const hasPolicies = !document.getElementById('pb-policies').classList.contains('hidden');
-    const hasHours = !document.getElementById('hours-card').classList.contains('hidden');
-    document.getElementById('info-section').classList.toggle('hidden', !hasAbout && !hasFAQ && !hasPolicies && !hasHours);
   }
 
   function renderFAQ(faqs) {
     if (!faqs || faqs.length === 0) {
       document.getElementById('faq-col').classList.add('hidden');
-      updateInfoSectionVisibility();
       return;
     }
     document.getElementById('faq-col').classList.remove('hidden');
-    updateInfoSectionVisibility();
     const list = document.getElementById('faq-list');
     list.innerHTML = '';
     faqs.forEach(function (faq, i) {
@@ -849,14 +864,18 @@
     document.getElementById('footer-copy').textContent = '© ' + new Date().getFullYear() + ' ' + name;
   }
 
-  // ══════════════════════ Section Nav (Menu / Courses / Links) ══════════
-  // Top-level: Menu (pinned first, everything sellable except digital
-  // goods) + Courses (auto-added only if any digital listings exist) + one
-  // tab per distinct baker_links section, in first-seen order. Today's
-  // Ready-Now/Pre-order/Custom chips live one level deeper, inside Menu only.
+  // ══════════════════════ Section Nav (Menu / Links / etc.) ═════════════
+  // Only "Menu" is ever a swappable tab (Ready-Now/Pre-order/Custom chips
+  // live one level deeper, inside it). Everything else — Digital Downloads,
+  // About, Store Policies, Store Hours, each baker_links section — is
+  // always-visible body content further down the page, with a scroll-to
+  // shortcut in the nav instead of a tab that hides it until clicked.
+  // Nav order and page order are kept identical on purpose (see
+  // scrollTabs()): a visitor should never have to guess that a nav item
+  // leads to content that isn't otherwise reachable by scrolling.
 
   function menuListings() { return allListings.filter(function (l) { return l.listing_kind !== 'digital'; }); }
-  function courseListings() { return allListings.filter(function (l) { return l.listing_kind === 'digital'; }); }
+  function digitalListings() { return allListings.filter(function (l) { return l.listing_kind === 'digital'; }); }
 
   function linkSections() {
     const seen = [];
@@ -876,30 +895,33 @@
   function bodyLinkSections() { return linkSections().filter(function (s) { return !isSocialSection(s); }); }
 
   function sectionTabs() {
-    const tabs = [];
-    if (menuListings().length > 0) tabs.push({ key: 'menu', label: 'Menu' });
-    if (courseListings().length > 0) tabs.push({ key: 'courses', label: 'Courses' });
-    // A brand-new baker with nothing added yet still needs a tab to land
-    // on — fall back to "Menu" (with its own empty-state prompting them to
-    // add their first item) rather than a blank page with no heading at all.
-    if (tabs.length === 0) tabs.push({ key: 'menu', label: 'Menu' });
-    return tabs;
+    // "Menu" is the only real swappable tab now — always present, even for
+    // a brand-new baker with nothing added yet (its own empty-state prompts
+    // them to add their first item, rather than a blank page with no
+    // heading at all).
+    return [{ key: 'menu', label: 'Menu' }];
   }
 
   function linkSectionId(section) {
     return 'link-section-' + (section || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   }
 
-  // Hours/FAQ/About/Policies/Links aren't switchable content panels like
-  // Menu/Courses — they're supplementary content that stays in place,
-  // always visible, further down the page (link sections used to be a
-  // swappable tab like Menu/Courses, hidden until clicked — bakers reported
-  // that made their Social links effectively invisible, since nothing
-  // hinted a visitor needed to tap the nav to find them). Each configured
-  // one gets a scroll-to shortcut (scroll:<id>) in the nav instead of a tab
-  // that swaps out the feed.
+  // Digital Downloads/Hours/FAQ/About/Policies/Links aren't switchable
+  // content panels like Menu — they're supplementary content that stays in
+  // place, always visible, further down the page (link sections and
+  // digital listings used to be swappable tabs, hidden until clicked —
+  // bakers reported that made that content effectively invisible, since
+  // nothing hinted a visitor needed to tap the nav to find it). Each
+  // configured one gets a scroll-to shortcut (scroll:<id>) in the nav
+  // instead of a tab that swaps out the feed.
   function scrollTabs() {
     const tabs = [];
+    // Digital Downloads comes first here to match its position in the page
+    // (right under the Menu grid) — nav order and DOM order must stay in
+    // lockstep for every entry in this list.
+    if (digitalListings().length > 0) {
+      tabs.push({ key: 'scroll:digital-feed', label: 'Digital Downloads' });
+    }
     // Label is always the plain section name, never the baker-editable
     // about_heading — the nav is a fixed set of destinations, not a place
     // for a custom, possibly-long "Meet Juliana"-style heading to show up.
@@ -1060,10 +1082,9 @@
 
   function renderGrid() {
     const grid = document.getElementById('product-grid');
-    const listings = sectionTab === 'courses' ? courseListings() : listingsForTab(tab);
-    const emptyMessage = sectionTab === 'courses' ? 'No courses listed yet.' : 'No items listed yet.';
+    const listings = listingsForTab(tab);
     if (allListings.length === 0) {
-      grid.innerHTML = '<div class="empty-state">' + emptyMessage + '</div>';
+      grid.innerHTML = '<div class="empty-state">No items listed yet.</div>';
       return;
     }
     if (listings.length === 0) {
@@ -1076,6 +1097,25 @@
     });
   }
 
+  // Always-visible, directly under the Menu grid — matches how Links/About/
+  // Policies/Hours already behave (see renderLinkSections), instead of
+  // hiding digital items behind a swappable tab a visitor has to discover.
+  function renderDigitalFeed() {
+    const section = document.getElementById('digital-feed');
+    const grid = document.getElementById('digital-grid');
+    const items = digitalListings();
+    if (items.length === 0) {
+      section.classList.add('hidden');
+      grid.innerHTML = '';
+      return;
+    }
+    section.classList.remove('hidden');
+    grid.innerHTML = '';
+    items.forEach(function (item) {
+      grid.appendChild(buildCard(item));
+    });
+  }
+
   function buildCard(item) {
     const card = document.createElement('div');
     card.className = 'p-card';
@@ -1083,10 +1123,11 @@
 
     const photo = document.createElement('div');
     photo.className = 'p-photo';
-    photo.appendChild(photoFallback(item));
+    const ph = photoFallback(item);
+    photo.appendChild(ph);
     const img = document.createElement('img');
     img.alt = item.name;
-    img.onload = function () { img.style.display = 'block'; };
+    img.onload = function () { img.style.display = 'block'; ph.style.display = 'none'; };
     img.src = itemImgURL(item);
     photo.appendChild(img);
 
@@ -1163,6 +1204,21 @@
       wrap.appendChild(btn);
       return;
     }
+    if (item.is_assorted_box) {
+      // Boxes don't track a plain sold-out quantity — building the flavor
+      // mix always happens in the sheet, never a direct card stepper.
+      const btn = document.createElement('button');
+      btn.className = 'add-btn';
+      if (!stripeReady) {
+        btn.style.opacity = '.4'; btn.disabled = true; btn.textContent = '—';
+      } else {
+        btn.textContent = '+';
+        btn.setAttribute('aria-label', 'Build your box');
+        btn.addEventListener('click', function (e) { e.stopPropagation(); openItemSheet(item); });
+      }
+      wrap.appendChild(btn);
+      return;
+    }
     const qty = cart[item.id] || 0;
     if (isSoldOut(item) || !stripeReady) {
       const btn = document.createElement('button');
@@ -1209,7 +1265,9 @@
   }
 
   function updateCartUI() {
-    const count = Object.values(cart).reduce(function (s, q) { return s + q; }, 0);
+    const plainCount = Object.values(cart).reduce(function (s, q) { return s + q; }, 0);
+    const boxCount = boxCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
+    const count = plainCount + boxCount;
     document.getElementById('cart-btn-count').textContent = count > 0 ? count : '';
     const total = cartSubtotal();
     document.getElementById('desktop-cart-label').textContent = count > 0 ? ('Cart · ' + count) : 'Cart';
@@ -1225,14 +1283,23 @@
   }
 
   function cartLines() {
-    return Object.keys(cart).map(function (id) {
+    const plain = Object.keys(cart).map(function (id) {
       const item = allListings.find(function (l) { return l.id === id; });
-      return item ? { item: item, qty: cart[id] } : null;
+      return item ? { kind: 'plain', item: item, qty: cart[id] } : null;
     }).filter(Boolean);
+    const boxed = boxCartLines.map(function (bl) {
+      const item = allListings.find(function (l) { return l.id === bl.menuItemId; }) ||
+        { id: bl.menuItemId, name: bl.itemName, tax_category: bl.taxCategory, unit_weight_grams: bl.unitWeightGrams };
+      return { kind: 'box', item: item, line: bl, qty: bl.qty };
+    });
+    return plain.concat(boxed);
   }
 
   function cartSubtotal() {
-    return cartLines().reduce(function (sum, l) { return sum + l.item.price * l.qty; }, 0);
+    return cartLines().reduce(function (sum, l) {
+      const price = l.kind === 'box' ? l.line.price : l.item.price;
+      return sum + price * l.qty;
+    }, 0);
   }
 
   // ══════════════════════ Item Sheet ══════════════════════
@@ -1266,38 +1333,180 @@
     }).join('');
 
     const cta = document.getElementById('item-sheet-cta');
-    if (item.listing_kind === 'custom') {
-      cta.textContent = 'Request a Custom Order';
-      cta.disabled = false;
-      cta.style.opacity = '1';
-      cta.onclick = function () { window.location.href = customOrderURL(item); };
-    } else if (item.listing_kind === 'digital') {
-      cta.textContent = 'Buy & Download — $' + formatPrice(item.price);
-      cta.disabled = !stripeReady;
-      cta.style.opacity = stripeReady ? '1' : '.5';
-      cta.onclick = stripeReady ? function () { window.location.href = digitalCheckoutURL(item); } : null;
-    } else if (isSoldOut(item)) {
-      cta.textContent = 'Sold Out';
-      cta.disabled = true;
-      cta.style.opacity = '.5';
-    } else if (!stripeReady) {
-      cta.textContent = 'Ordering Opens Soon';
-      cta.disabled = true;
-      cta.style.opacity = '.5';
+    const boxEl = document.getElementById('item-sheet-box');
+
+    if (item.is_assorted_box) {
+      boxEl.style.display = 'block';
+      openBoxPicker(item);
     } else {
-      cta.textContent = 'Add to Order';
-      cta.disabled = false;
-      cta.style.opacity = '1';
-      cta.onclick = function () {
-        changeQty(item, 1);
-        closeItemSheet();
-        showToast('Added to your order');
-      };
+      boxEl.style.display = 'none';
+      boxEl.innerHTML = '';
+      boxState = null;
+      if (item.listing_kind === 'custom') {
+        cta.textContent = 'Request a Custom Order';
+        cta.disabled = false;
+        cta.style.opacity = '1';
+        cta.onclick = function () { window.location.href = customOrderURL(item); };
+      } else if (item.listing_kind === 'digital') {
+        cta.textContent = 'Buy & Download — $' + formatPrice(item.price);
+        cta.disabled = !stripeReady;
+        cta.style.opacity = stripeReady ? '1' : '.5';
+        cta.onclick = stripeReady ? function () { window.location.href = digitalCheckoutURL(item); } : null;
+      } else if (isSoldOut(item)) {
+        cta.textContent = 'Sold Out';
+        cta.disabled = true;
+        cta.style.opacity = '.5';
+      } else if (!stripeReady) {
+        cta.textContent = 'Ordering Opens Soon';
+        cta.disabled = true;
+        cta.style.opacity = '.5';
+      } else {
+        cta.textContent = 'Add to Order';
+        cta.disabled = false;
+        cta.style.opacity = '1';
+        cta.onclick = function () {
+          changeQty(item, 1);
+          closeItemSheet();
+          showToast('Added to your order');
+        };
+      }
     }
 
     document.getElementById('item-scrim').classList.add('open');
   }
   function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); }
+
+  // ══════════════════════ Assorted Box picker ══════════════════════
+
+  function openBoxPicker(item) {
+    boxState = { item: item, tierId: null, chosen: {} };
+    renderBoxPickerBody();
+  }
+
+  function renderBoxPickerBody() {
+    const item = boxState.item;
+    const tiers = item.size_tiers || [];
+    const variants = item.variants || [];
+    const activeTier = tiers.find(function (t) { return t.id === boxState.tierId; });
+    const target = activeTier ? activeTier.unit_count : 0;
+    const chosenTotal = Object.values(boxState.chosen).reduce(function (s, q) { return s + q; }, 0);
+
+    const tierHtml = '<div class="box-tiers">' + tiers.map(function (t) {
+      return '<button type="button" class="box-tier' + (t.id === boxState.tierId ? ' active' : '') + '" data-tier-id="' + t.id + '">' +
+        '<div class="box-tier-label">' + escapeHtml(t.label) + '</div>' +
+        '<div class="box-tier-price tabular">$' + formatPrice(t.price) + '</div>' +
+        '</button>';
+    }).join('') + '</div>';
+
+    const flavorHtml = !activeTier ? '' :
+      '<div class="box-flavor-header">Choose your flavors (' + chosenTotal + '/' + target + ')</div>' +
+      variants.map(function (v) {
+        const q = boxState.chosen[v.id] || 0;
+        const plusDisabled = chosenTotal >= target;
+        const minusDisabled = q === 0;
+        return '<div class="box-flavor-row" data-variant-id="' + v.id + '">' +
+          '<img class="box-flavor-thumb" src="' + variantImgURL(item, v) + '" alt="" onerror="this.style.visibility=\'hidden\'" />' +
+          '<div class="box-flavor-name">' + escapeHtml(v.name) + '</div>' +
+          '<div class="stepper">' +
+          '<button type="button" class="box-minus"' + (minusDisabled ? ' disabled' : '') + '>−</button>' +
+          '<span class="qty">' + q + '</span>' +
+          '<button type="button" class="box-plus"' + (plusDisabled ? ' disabled' : '') + '>+</button>' +
+          '</div></div>';
+      }).join('');
+
+    document.getElementById('item-sheet-box').innerHTML =
+      '<div class="box-step-label">Choose your size</div>' + tierHtml + flavorHtml;
+
+    wireBoxPickerEvents();
+    updateBoxCTA();
+  }
+
+  function wireBoxPickerEvents() {
+    document.querySelectorAll('.box-tier').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (boxState.tierId !== btn.dataset.tierId) {
+          boxState.tierId = btn.dataset.tierId;
+          boxState.chosen = {}; // switching size starts the flavor mix over
+          renderBoxPickerBody();
+        }
+      });
+    });
+    document.querySelectorAll('.box-plus').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const vid = btn.closest('.box-flavor-row').dataset.variantId;
+        const tiers = boxState.item.size_tiers || [];
+        const tier = tiers.find(function (t) { return t.id === boxState.tierId; });
+        const target = tier ? tier.unit_count : 0;
+        const total = Object.values(boxState.chosen).reduce(function (s, q) { return s + q; }, 0);
+        if (total >= target) return;
+        boxState.chosen[vid] = (boxState.chosen[vid] || 0) + 1;
+        renderBoxPickerBody();
+      });
+    });
+    document.querySelectorAll('.box-minus').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const vid = btn.closest('.box-flavor-row').dataset.variantId;
+        const q = boxState.chosen[vid] || 0;
+        if (q <= 0) return;
+        if (q - 1 <= 0) { delete boxState.chosen[vid]; } else { boxState.chosen[vid] = q - 1; }
+        renderBoxPickerBody();
+      });
+    });
+  }
+
+  function updateBoxCTA() {
+    const cta = document.getElementById('item-sheet-cta');
+    const tiers = boxState.item.size_tiers || [];
+    const tier = tiers.find(function (t) { return t.id === boxState.tierId; });
+    if (!tier) {
+      cta.textContent = 'Choose a size';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    const chosenTotal = Object.values(boxState.chosen).reduce(function (s, q) { return s + q; }, 0);
+    const ready = chosenTotal === tier.unit_count;
+    const canBuy = ready && stripeReady;
+    cta.textContent = ready ? ('Add to Order — $' + formatPrice(tier.price)) : ('Choose ' + (tier.unit_count - chosenTotal) + ' more');
+    cta.disabled = !canBuy;
+    cta.style.opacity = canBuy ? '1' : '.5';
+    cta.onclick = canBuy ? addBoxToCart : null;
+  }
+
+  function addBoxToCart() {
+    const item = boxState.item;
+    const tier = (item.size_tiers || []).find(function (t) { return t.id === boxState.tierId; });
+    if (!tier) return;
+    const variants = item.variants || [];
+    const breakdown = Object.keys(boxState.chosen).filter(function (id) { return boxState.chosen[id] > 0; }).map(function (id) {
+      const v = variants.find(function (x) { return x.id === id; });
+      return { variantId: id, name: v ? v.name : '', qty: boxState.chosen[id] };
+    });
+    boxCartLines.push({
+      lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
+      menuItemId: item.id, itemName: item.name, tierId: tier.id, tierLabel: tier.label,
+      unitCount: tier.unit_count, price: tier.price, qty: 1, variants: breakdown,
+      taxCategory: item.tax_category, unitWeightGrams: item.unit_weight_grams
+    });
+    saveCart();
+    updateCartUI();
+    closeItemSheet();
+    showToast('Added to your order');
+  }
+
+  function changeBoxLineQty(lineId, delta) {
+    const line = boxCartLines.find(function (l) { return l.lineId === lineId; });
+    if (!line) return;
+    line.qty = Math.max(0, line.qty + delta);
+    if (line.qty === 0) { boxCartLines = boxCartLines.filter(function (l) { return l.lineId !== lineId; }); }
+    saveCart();
+    updateCartUI();
+  }
+
+  function variantImgURL(item, variant) {
+    return STORAGE_URL + '/menu-item-images/' + resolvedBakerId.toUpperCase() + '/' + item.id.toUpperCase() + '/variants/' + variant.id.toUpperCase() + '.jpg';
+  }
 
   // ══════════════════════ Cart / Checkout Sheet ══════════════════════
 
@@ -1324,7 +1533,16 @@
         '<button class="btn btn-outline" id="cart-see-ready" style="width:100%;margin-top:12px;">Browse the menu</button>';
     }
     const rows = lines.map(function (l) {
-      return '<div class="cart-line" data-line-id="' + l.item.id + '">' +
+      if (l.kind === 'box') {
+        const breakdownStr = l.line.variants.map(function (v) { return v.qty + '× ' + v.name; }).join(', ');
+        return '<div class="cart-line" data-line-kind="box" data-line-id="' + l.line.lineId + '">' +
+          '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
+          '<div class="info"><div class="n">' + escapeHtml(l.item.name) + ' — ' + escapeHtml(l.line.tierLabel) + '</div><div class="m">' + escapeHtml(breakdownStr) + '</div></div>' +
+          '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
+          '<div class="total tabular">$' + formatPrice(l.line.price * l.qty) + '</div>' +
+          '</div>';
+      }
+      return '<div class="cart-line" data-line-kind="plain" data-line-id="' + l.item.id + '">' +
         '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
         '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(subtitleFor(l.item)) + '</div></div>' +
         '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
@@ -1352,6 +1570,7 @@
       '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
       '<div class="field"><label>Mobile</label><input id="f-phone" type="tel" autocomplete="tel" /></div>' +
       '<div class="field"><label>Email</label><input id="f-email" type="email" autocomplete="email" /></div>' +
+      '<div class="field"><label>Confirm email</label><input id="f-email-confirm" type="email" autocomplete="email" onpaste="return false" oncopy="return false" oncut="return false" /></div>' +
       '<div class="cart-financial-row total"><span>Total</span><span class="tabular">$' + formatPrice(cartSubtotal()) + '</span></div>' +
       '<div id="pay-error" style="color:var(--error);font-size:13px;margin-top:6px;"></div>' +
       '<button class="btn btn-primary" id="cart-pay" style="width:100%;">Pay $' + formatPrice(cartSubtotal()) + '</button>' +
@@ -1372,9 +1591,15 @@
     if (seeReady) seeReady.addEventListener('click', function () { closeCartSheet(); });
     document.querySelectorAll('.line-minus, .line-plus').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        const id = btn.closest('.cart-line').dataset.lineId;
-        const item = allListings.find(function (l) { return l.id === id; });
-        changeQty(item, btn.classList.contains('line-plus') ? 1 : -1);
+        const row = btn.closest('.cart-line');
+        const id = row.dataset.lineId;
+        const delta = btn.classList.contains('line-plus') ? 1 : -1;
+        if (row.dataset.lineKind === 'box') {
+          changeBoxLineQty(id, delta);
+        } else {
+          const item = allListings.find(function (l) { return l.id === id; });
+          changeQty(item, delta);
+        }
         renderCartSheet();
       });
     });
@@ -1386,7 +1611,7 @@
     if (pay) pay.addEventListener('click', goToCheckout);
     const keep = document.getElementById('cart-keep-shopping');
     if (keep) keep.addEventListener('click', function () {
-      cart = {}; saveCart(); updateCartUI(); closeCartSheet();
+      cart = {}; boxCartLines = []; saveCart(); updateCartUI(); closeCartSheet();
     });
   }
 
@@ -1396,9 +1621,19 @@
     const name = document.getElementById('f-name').value.trim();
     const phone = document.getElementById('f-phone').value.trim();
     const email = document.getElementById('f-email').value.trim();
+    const emailConfirm = document.getElementById('f-email-confirm').value.trim();
     const errEl = document.getElementById('pay-error');
-    if (!name || !phone || !email) {
-      errEl.textContent = 'Please fill in your name, mobile and email.';
+    if (!name || !phone || !email || !emailConfirm) {
+      errEl.textContent = 'Please fill in your name, mobile and email (twice, to confirm).';
+      return;
+    }
+    // A single mistyped character in the domain (e.g. .ckm instead of .com)
+    // still looks like a syntactically valid email, so it passes any regex
+    // check but silently fails to deliver — the confirmation email never
+    // arrives and the baker has no working way to reach the customer.
+    // Requiring the address twice catches exactly that class of typo.
+    if (email.toLowerCase() !== emailConfirm.toLowerCase()) {
+      errEl.textContent = "Those emails don't match — please check for typos.";
       return;
     }
     const payload = {
@@ -1409,6 +1644,14 @@
       province: profile.pickup_province || '',
       customer: { name: name, phone: phone, email: email },
       items: cartLines().map(function (l) {
+        if (l.kind === 'box') {
+          return {
+            id: l.item.id, name: l.item.name + ' — ' + l.line.tierLabel, qty: l.qty, price: l.line.price,
+            taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
+            listingKind: 'ready_now', dropDate: '', maxQty: 0, availQty: 0,
+            isAssortedBox: true, tierId: l.line.tierId, tierLabel: l.line.tierLabel, variants: l.line.variants
+          };
+        }
         return {
           id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
           taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
@@ -1440,7 +1683,9 @@
   }
 
   function isSoldOut(item) {
-    return item.listing_kind === 'ready_now' && (item.available_qty_today || 0) <= 0;
+    // Boxes don't track a plain daily quantity yet — availability just
+    // follows the listing being active, so they're never flagged sold out.
+    return !item.is_assorted_box && item.listing_kind === 'ready_now' && (item.available_qty_today || 0) <= 0;
   }
 
   // Plain kind badge — used on grid cards. A sold-out ready_now item keeps
@@ -1448,6 +1693,7 @@
   // text below (see subtitleFor) — swapping the tag itself in a dense
   // grid would read as a second, competing badge type.
   function kindBadgeInfo(item) {
+    if (item.is_assorted_box) return { bg: 'var(--ready)', label: 'Box' };
     if (item.listing_kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
     if (item.listing_kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
     if (item.listing_kind === 'digital')   return { bg: 'var(--digital)', label: 'Digital' };
@@ -1461,6 +1707,7 @@
   }
 
   function subtitleFor(item) {
+    if (item.is_assorted_box) return 'Pick your own flavors';
     if (item.listing_kind === 'custom') return item.lead_time_note || 'Request a custom quote';
     if (item.listing_kind === 'digital') return 'Instant digital download';
     if (isSoldOut(item)) return 'Sold out for today';
@@ -1469,7 +1716,7 @@
     return item.item_description || '';
   }
 
-  function priceIsFrom(item) { return item.listing_kind === 'custom'; }
+  function priceIsFrom(item) { return item.listing_kind === 'custom' || item.is_assorted_box === true; }
   function formatPrice(v) { return parseFloat(v).toFixed(2); }
 
   function photoFallback(item) {
