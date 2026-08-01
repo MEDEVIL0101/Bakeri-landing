@@ -669,10 +669,16 @@
   let resolvedBakerId = bakerID;
   let tab = 'all';
   let sectionTab = 'menu'; // 'menu' is the only real tab now — see sectionTabs()
-  let cart = {}; // { itemId: qty }
+  let cart = {}; // { itemId: qty } — ready_now items only; preorder always uses preorderCartLines below
   let boxCartLines = []; // Assorted Box lines: { lineId, menuItemId, tierId, tierLabel, unitCount, price, qty, variants: [{variantId, name, qty}] }
   let boxState = null; // in-progress box picker: { item, tierId, chosen: {variantId: qty} }
-  let preorderChosenDates = {}; // itemId -> chosen ISO date string (fixed_dates mode with 2+ dates only)
+  // Preorder lines: { lineId, menuItemId, chosenISO, qty }. A separate line per
+  // distinct (item, chosenISO) pair — a buyer choosing 3 different pickup
+  // dates for the same item is 3 separate lines, not one line with a
+  // silently-overwritten date (chosenISO is null for weekday/lead_time modes
+  // and for fixed_dates-with-1-date, where every add always resolves to the
+  // same deterministic date anyway, so repeat adds correctly bump one line's qty).
+  let preorderCartLines = [];
   let preorderState = null; // in-progress preorder date picker: { item, chosenISO }
   let cartStep = 0; // 0 order, 1 pickup&payment, 2 confirmed
   let toastTimer = null;
@@ -689,21 +695,25 @@
     try {
       const raw = JSON.parse(sessionStorage.getItem(cartStorageKey()) || '{}');
       // Backward compatible with sessions saved before Assorted Box shipped,
-      // when this key held the flat { itemId: qty } map directly.
-      if (raw && (raw.cart || raw.boxLines || raw.preorderDates)) {
+      // when this key held the flat { itemId: qty } map directly, and with
+      // sessions saved before per-date preorder lines shipped, when a
+      // preorder's date lived in a flat { itemId: isoString } map (raw.preorderDates)
+      // instead of preorderCartLines — that old shape is simply dropped, since
+      // sessionStorage is ephemeral and re-picking a date is a one-click fix.
+      if (raw && (raw.cart || raw.boxLines || raw.preorderLines || raw.preorderDates)) {
         cart = raw.cart || {};
         boxCartLines = raw.boxLines || [];
-        preorderChosenDates = raw.preorderDates || {};
+        preorderCartLines = raw.preorderLines || [];
       } else {
         cart = raw || {};
         boxCartLines = [];
-        preorderChosenDates = {};
+        preorderCartLines = [];
       }
-    } catch (e) { cart = {}; boxCartLines = []; preorderChosenDates = {}; }
+    } catch (e) { cart = {}; boxCartLines = []; preorderCartLines = []; }
   }
   function saveCart() {
     try {
-      sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines, preorderDates: preorderChosenDates }));
+      sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines }));
     } catch (e) {}
   }
 
@@ -1345,7 +1355,7 @@
   function changeQty(item, delta) {
     const current = cart[item.id] || 0;
     const next = Math.max(0, current + delta);
-    if (next === 0) { delete cart[item.id]; delete preorderChosenDates[item.id]; } else { cart[item.id] = next; }
+    if (next === 0) { delete cart[item.id]; } else { cart[item.id] = next; }
     saveCart();
     document.querySelectorAll('[data-item-id="' + item.id + '"]').forEach(function (wrap) {
       refreshAddControl(wrap, item);
@@ -1356,7 +1366,8 @@
   function updateCartUI() {
     const plainCount = Object.values(cart).reduce(function (s, q) { return s + q; }, 0);
     const boxCount = boxCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
-    const count = plainCount + boxCount;
+    const preorderCount = preorderCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
+    const count = plainCount + boxCount + preorderCount;
     document.getElementById('cart-btn-count').textContent = count > 0 ? count : '';
     const total = cartSubtotal();
     document.getElementById('desktop-cart-label').textContent = count > 0 ? ('Cart · ' + count) : 'Cart';
@@ -1381,7 +1392,11 @@
         { id: bl.menuItemId, name: bl.itemName, tax_category: bl.taxCategory, unit_weight_grams: bl.unitWeightGrams };
       return { kind: 'box', item: item, line: bl, qty: bl.qty };
     });
-    return plain.concat(boxed);
+    const preordered = preorderCartLines.map(function (pl) {
+      const item = allListings.find(function (l) { return l.id === pl.menuItemId; });
+      return item ? { kind: 'preorder', item: item, line: pl, qty: pl.qty } : null;
+    }).filter(Boolean);
+    return plain.concat(boxed).concat(preordered);
   }
 
   function cartSubtotal() {
@@ -1667,7 +1682,11 @@
       const dates = futurePreorderDates(item);
       if (dates.length > 1) {
         boxEl.style.display = 'block';
-        preorderState = { item: item, chosenISO: preorderChosenDates[item.id] || null };
+        // Always starts blank, even if this item already has cart lines —
+        // re-opening the sheet is for adding another (possibly different)
+        // date, not editing a prior choice; the existing line's qty stepper
+        // in the cart is how a buyer adds more of an already-chosen date.
+        preorderState = { item: item, chosenISO: null };
         renderPreorderDatePicker(dates);
         updatePreorderCTA();
         return;
@@ -1732,11 +1751,29 @@
   }
 
   function addPreorderToCart(item, chosenISO) {
-    changeQty(item, 1);
-    if (chosenISO) { preorderChosenDates[item.id] = chosenISO; } else { delete preorderChosenDates[item.id]; }
+    const iso = chosenISO || null;
+    const existing = preorderCartLines.find(function (l) { return l.menuItemId === item.id && l.chosenISO === iso; });
+    if (existing) {
+      existing.qty += 1;
+    } else {
+      preorderCartLines.push({
+        lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
+        menuItemId: item.id, chosenISO: iso, qty: 1
+      });
+    }
     saveCart();
+    updateCartUI();
     closeItemSheet();
     showToast('Added to your order');
+  }
+
+  function changePreorderLineQty(lineId, delta) {
+    const line = preorderCartLines.find(function (l) { return l.lineId === lineId; });
+    if (!line) return;
+    line.qty = Math.max(0, line.qty + delta);
+    if (line.qty === 0) { preorderCartLines = preorderCartLines.filter(function (l) { return l.lineId !== lineId; }); }
+    saveCart();
+    updateCartUI();
   }
 
   // ══════════════════════ Cart / Checkout Sheet ══════════════════════
@@ -1773,9 +1810,19 @@
           '<div class="total tabular">$' + formatPrice(l.line.price * l.qty) + '</div>' +
           '</div>';
       }
+      if (l.kind === 'preorder') {
+        const date = resolvePreorderDate(l.item, l.line.chosenISO);
+        const meta = date ? 'Ready ' + formatDateShort(date) : subtitleFor(l.item);
+        return '<div class="cart-line" data-line-kind="preorder" data-line-id="' + l.line.lineId + '">' +
+          '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
+          '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(meta) + '</div></div>' +
+          '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
+          '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
+          '</div>';
+      }
       return '<div class="cart-line" data-line-kind="plain" data-line-id="' + l.item.id + '">' +
         '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
-        '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(cartLineMetaFor(l.item)) + '</div></div>' +
+        '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(subtitleFor(l.item)) + '</div></div>' +
         '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
         '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
         '</div>';
@@ -1831,6 +1878,8 @@
         const delta = btn.classList.contains('line-plus') ? 1 : -1;
         if (row.dataset.lineKind === 'box') {
           changeBoxLineQty(id, delta);
+        } else if (row.dataset.lineKind === 'preorder') {
+          changePreorderLineQty(id, delta);
         } else {
           const item = allListings.find(function (l) { return l.id === id; });
           changeQty(item, delta);
@@ -1846,7 +1895,7 @@
     if (pay) pay.addEventListener('click', goToCheckout);
     const keep = document.getElementById('cart-keep-shopping');
     if (keep) keep.addEventListener('click', function () {
-      cart = {}; boxCartLines = []; saveCart(); updateCartUI(); closeCartSheet();
+      cart = {}; boxCartLines = []; preorderCartLines = []; saveCart(); updateCartUI(); closeCartSheet();
     });
   }
 
@@ -1887,16 +1936,26 @@
             isAssortedBox: true, tierId: l.line.tierId, tierLabel: l.line.tierLabel, variants: l.line.variants
           };
         }
+        if (l.kind === 'preorder') {
+          return {
+            id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
+            taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
+            listingKind: l.item.listing_kind, dropDate: l.item.preorder_drop_date || '',
+            maxQty: l.item.max_preorder_quantity || 0, availQty: l.item.available_qty_today || 0,
+            // Only meaningful for fixed_dates mode with 2+ candidates — the
+            // server re-validates this against the listing's actual dates
+            // rather than trusting it outright; weekday/lead_time modes are
+            // computed server-side from the listing itself, no buyer choice.
+            // This line's own chosenISO (not a global per-item value), so a
+            // cart with the same item on 3 different dates sends 3 distinct
+            // line objects here instead of collapsing to one.
+            chosenPreorderDate: l.line.chosenISO || ''
+          };
+        }
         return {
           id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
           taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
-          listingKind: l.item.listing_kind, dropDate: l.item.preorder_drop_date || '',
-          maxQty: l.item.max_preorder_quantity || 0, availQty: l.item.available_qty_today || 0,
-          // Only meaningful for fixed_dates mode with 2+ candidates — the
-          // server re-validates this against the listing's actual dates
-          // rather than trusting it outright; weekday/lead_time modes are
-          // computed server-side from the listing itself, no buyer choice.
-          chosenPreorderDate: preorderChosenDates[l.item.id] || ''
+          listingKind: l.item.listing_kind, dropDate: '', maxQty: 0, availQty: l.item.available_qty_today || 0
         };
       })
     };
@@ -2033,17 +2092,6 @@
     if (isSoldOut(item)) return 'Sold out for today';
     if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) return item.available_qty_today + ' available today';
     return item.item_description || '';
-  }
-
-  // Cart-line meta text — shows the buyer's actually-chosen preorder date
-  // (once one exists) instead of subtitleFor's generic "Pick a pickup date",
-  // which doesn't know about a choice already made for a multi-date item.
-  function cartLineMetaFor(item) {
-    if (item.listing_kind === 'preorder') {
-      const date = resolvePreorderDate(item, preorderChosenDates[item.id]);
-      if (date) return 'Ready ' + formatDateShort(date);
-    }
-    return subtitleFor(item);
   }
 
   function priceIsFrom(item) { return item.listing_kind === 'custom' || item.is_assorted_box === true; }

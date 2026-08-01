@@ -341,13 +341,22 @@ Deno.serve(async (req: Request) => {
         .map((s) => ({ name: variantsById.get(s.variant_id)?.name ?? "", quantity: s.quantity }));
       return {
         item, quantity: line.quantity, pricePerUnit: tier.price,
-        tierLabel: tier.label, variantBreakdown,
+        tierLabel: tier.label, variantBreakdown, preorderDate: null as string | null,
       };
     }
     const priceFrom = (item.marketplace_price_from ?? 0) > 0
       ? item.marketplace_price_from
       : item.default_price;
-    return { item, quantity: line.quantity, pricePerUnit: priceFrom, tierLabel: null as string | null, variantBreakdown: null as { name: string; quantity: number }[] | null };
+    // Per-line resolved date — an order can hold several preorder lines for
+    // the same listing on different dates (see resolveDueDate/baker/index.html),
+    // so this rides on each order_item rather than only the order's own
+    // due_date/scheduled_pickup_date (which stays the earliest across lines).
+    const preorderDate = item.listing_kind === "preorder" ? resolveDueDate(item, line.chosen_preorder_date) : null;
+    return {
+      item, quantity: line.quantity, pricePerUnit: priceFrom,
+      tierLabel: null as string | null, variantBreakdown: null as { name: string; quantity: number }[] | null,
+      preorderDate,
+    };
   });
 
   const taxCents = calculateTaxCents(
@@ -440,6 +449,7 @@ Deno.serve(async (req: Request) => {
       updated_at: now,
       tier_label: l.tierLabel,
       variant_breakdown: l.variantBreakdown,
+      preorder_date: l.preorderDate,
     }))
   );
 
@@ -456,6 +466,7 @@ Deno.serve(async (req: Request) => {
       price_per_unit: l.pricePerUnit,
       tier_label: l.tierLabel,
       variant_breakdown: l.variantBreakdown,
+      preorder_date: l.preorderDate,
     })),
     subtotal_cents: subtotalCents,
     platform_fee_cents: platformFeeCents,
