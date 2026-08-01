@@ -1669,9 +1669,9 @@
       '<div class="cart-financial-row"><span>Subtotal</span><span class="tabular">$' + formatPrice(subtotal) + '</span></div>' +
       '<div class="cart-financial-row"><span>Platform fee (5%)</span><span class="tabular">$' + formatPrice(platformFee) + '</span></div>' +
       (taxCents > 0 ? '<div class="cart-financial-row"><span>Tax</span><span class="tabular">$' + formatPrice(taxCents / 100) + '</span></div>' : '') +
-      '<div class="cart-financial-row"><span>Pickup — no delivery fee</span><span class="tabular">$0.00</span></div>' +
       '<div class="cart-financial-row total"><span>Total</span><span class="tabular">$' + formatPrice(cartTotal()) + '</span></div>' +
-      '<button class="btn btn-primary" id="cart-continue" style="width:100%;">Continue to pickup details</button>';
+      '<button class="btn btn-primary" id="cart-continue" style="width:100%;">Continue to pickup details</button>' +
+      '<div class="cart-note">Upon confirmation of your order, pickup details will be provided. Customers are responsible for coordinating pickup of their order with the Seller. Platform fees are non-refundable.</div>';
   }
 
   function renderCartStepPickup() {
