@@ -426,6 +426,7 @@
       padding: 10px 6px; text-align: center; cursor: pointer;
     }
     .box-tier.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+    .box-tier.disabled { opacity: .45; cursor: not-allowed; }
     .box-tier-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
     .box-tier-price { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .box-flavor-header { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
@@ -1663,6 +1664,46 @@
 
   // ══════════════════════ Pre-order date picker ══════════════════════
 
+  // Per-date capacity cache — { menuItemId: { dateTimeMs: committedQty } }.
+  // Refetched fresh every time a multi-date picker opens (cheap aggregate
+  // query), so it's never more than one sheet-open stale; the edge function
+  // is the real authority and re-checks at checkout regardless.
+  let preorderCommitmentsCache = {};
+
+  function fetchPreorderCommitments(menuItemId) {
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/get_preorder_date_commitments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+      body: JSON.stringify({ p_menu_item_id: menuItemId })
+    })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) {
+        const map = {};
+        (rows || []).forEach(function (row) {
+          map[new Date(row.preorder_date).getTime()] = Number(row.committed_qty) || 0;
+        });
+        preorderCommitmentsCache[menuItemId] = map;
+        return map;
+      })
+      .catch(function () { return preorderCommitmentsCache[menuItemId] || {}; });
+  }
+
+  // Remaining stock for one candidate date — server-committed quantity plus
+  // whatever this buyer already has in their own cart for that same date
+  // (so repeatedly clicking + can't exceed the cap before a page refresh
+  // would next refetch commitments), against the listing's shared per-date
+  // cap (max_preorder_quantity; 0 = unlimited, matching MenuItem's semantics).
+  function remainingForPreorderDate(item, dateMs) {
+    const cap = item.max_preorder_quantity || 0;
+    if (cap <= 0) return Infinity;
+    const committed = (preorderCommitmentsCache[item.id] || {})[dateMs] || 0;
+    const iso = new Date(dateMs).toISOString();
+    const inCart = preorderCartLines
+      .filter(function (l) { return l.menuItemId === item.id && l.chosenISO === iso; })
+      .reduce(function (s, l) { return s + l.qty; }, 0);
+    return Math.max(0, cap - committed - inCart);
+  }
+
   function openPreorderPicker(item) {
     const boxEl = document.getElementById('item-sheet-box');
     const cta = document.getElementById('item-sheet-cta');
@@ -1687,8 +1728,16 @@
         // date, not editing a prior choice; the existing line's qty stepper
         // in the cart is how a buyer adds more of an already-chosen date.
         preorderState = { item: item, chosenISO: null };
-        renderPreorderDatePicker(dates);
-        updatePreorderCTA();
+        boxEl.innerHTML = '<div class="box-step-label">Choose a pickup date</div><div class="box-tiers" style="flex-wrap:wrap;"></div>';
+        cta.textContent = 'Choose a date';
+        cta.disabled = true;
+        cta.style.opacity = '.5';
+        cta.onclick = null;
+        fetchPreorderCommitments(item.id).then(function () {
+          if (!preorderState || preorderState.item !== item) return; // buyer moved to a different item
+          renderPreorderDatePicker(dates);
+          updatePreorderCTA();
+        });
         return;
       }
     }
@@ -1717,15 +1766,21 @@
 
   function renderPreorderDatePicker(dates) {
     const boxEl = document.getElementById('item-sheet-box');
+    const item = preorderState.item;
     boxEl.innerHTML = '<div class="box-step-label">Choose a pickup date</div>' +
       '<div class="box-tiers" style="flex-wrap:wrap;">' + dates.map(function (d) {
         const iso = d.toISOString();
         const active = preorderState.chosenISO === iso;
-        return '<button type="button" class="box-tier' + (active ? ' active' : '') + '" data-date="' + iso + '">' +
+        const remaining = remainingForPreorderDate(item, d.getTime());
+        const soldOut = remaining <= 0;
+        if (soldOut && active) preorderState.chosenISO = null;
+        return '<button type="button" class="box-tier' + (active && !soldOut ? ' active' : '') + (soldOut ? ' disabled' : '') + '"' +
+          (soldOut ? ' disabled' : '') + ' data-date="' + iso + '">' +
           '<div class="box-tier-label">' + formatDateShort(d) + '</div>' +
+          (soldOut ? '<div class="box-tier-price">Sold out</div>' : '') +
         '</button>';
       }).join('') + '</div>';
-    boxEl.querySelectorAll('.box-tier').forEach(function (btn) {
+    boxEl.querySelectorAll('.box-tier:not(.disabled)').forEach(function (btn) {
       btn.addEventListener('click', function () {
         preorderState.chosenISO = btn.dataset.date;
         renderPreorderDatePicker(dates);
@@ -1770,6 +1825,16 @@
   function changePreorderLineQty(lineId, delta) {
     const line = preorderCartLines.find(function (l) { return l.lineId === lineId; });
     if (!line) return;
+    if (delta > 0 && line.chosenISO) {
+      // Best-effort client-side guard using whatever commitments this
+      // session already fetched (see preorderCommitmentsCache) — the edge
+      // function is the real authority and re-checks fresh at checkout.
+      const item = allListings.find(function (l) { return l.id === line.menuItemId; });
+      if (item && remainingForPreorderDate(item, new Date(line.chosenISO).getTime()) <= 0) {
+        showToast('No more available for that date');
+        return;
+      }
+    }
     line.qty = Math.max(0, line.qty + delta);
     if (line.qty === 0) { preorderCartLines = preorderCartLines.filter(function (l) { return l.lineId !== lineId; }); }
     saveCart();

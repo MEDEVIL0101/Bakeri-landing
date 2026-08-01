@@ -232,7 +232,7 @@ Deno.serve(async (req: Request) => {
     .select(
       "id, user_id, name, default_price, marketplace_price_from, listing_kind, " +
       "is_listed_in_marketplace, is_active, tax_category, unit_weight_grams, preorder_drop_date, is_assorted_box, " +
-      "preorder_schedule_mode, preorder_dates, preorder_weekday, preorder_order_cutoff_date, lead_days"
+      "preorder_schedule_mode, preorder_dates, preorder_weekday, preorder_order_cutoff_date, lead_days, max_preorder_quantity"
     )
     .in("id", menuItemIds);
 
@@ -242,6 +242,45 @@ Deno.serve(async (req: Request) => {
 
   const menuItemsById = new Map(menuItems.map((m) => [m.id, m]));
   const boxItemIds = menuItems.filter((m) => m.is_assorted_box).map((m) => m.id);
+
+  // Per-date capacity — fixed_dates preorder items only, and only when the
+  // baker actually set a cap (max_preorder_quantity > 0; 0 means unlimited,
+  // matching MenuItem.maxPreorderQuantity's existing "0 = unlimited" semantics).
+  // A date's remaining capacity is its own cap minus every non-declined/
+  // non-cancelled order already committed to that exact date — never trust
+  // the client, recompute fresh at checkout time just like Assorted Box's
+  // tier/variant validation.
+  const cappedPreorderItemIds = menuItems
+    .filter((m) => m.listing_kind === "preorder" && (m.preorder_schedule_mode || "fixed_dates") === "fixed_dates" && (m.max_preorder_quantity ?? 0) > 0)
+    .map((m) => m.id);
+  const commitmentsByItem = new Map<string, Map<number, number>>();
+  if (cappedPreorderItemIds.length > 0) {
+    const { data: commitmentRows } = await db
+      .from("order_items")
+      .select("menu_item_id, preorder_date, quantity, order_id")
+      .in("menu_item_id", cappedPreorderItemIds)
+      .not("preorder_date", "is", null)
+      .is("deleted_at", null);
+    const rows = commitmentRows ?? [];
+    const orderIds = [...new Set(rows.map((r) => r.order_id))];
+    const activeOrderIds = new Set<string>();
+    if (orderIds.length > 0) {
+      const { data: orderRows } = await db
+        .from("orders")
+        .select("id, marketplace_status")
+        .in("id", orderIds);
+      for (const o of orderRows ?? []) {
+        if (o.marketplace_status !== "declined" && o.marketplace_status !== "cancelled") activeOrderIds.add(o.id);
+      }
+    }
+    for (const row of rows) {
+      if (!activeOrderIds.has(row.order_id)) continue;
+      const dateKey = new Date(row.preorder_date).getTime();
+      const perItem = commitmentsByItem.get(row.menu_item_id) ?? new Map<number, number>();
+      perItem.set(dateKey, (perItem.get(dateKey) ?? 0) + row.quantity);
+      commitmentsByItem.set(row.menu_item_id, perItem);
+    }
+  }
 
   // Live tier/variant catalog for any Assorted Box lines — never trust the
   // client's price or breakdown, only which ids it picked.
@@ -306,6 +345,7 @@ Deno.serve(async (req: Request) => {
         }
       } else if (mode === "fixed_dates") {
         const dates: string[] = Array.isArray(item.preorder_dates) ? item.preorder_dates : [];
+        let targetDate: string | undefined;
         if (dates.length > 1) {
           if (!line.chosen_preorder_date || !dates.includes(line.chosen_preorder_date)) {
             return json({ error: `Please choose a pickup date for "${item.name}".` }, 400);
@@ -313,10 +353,24 @@ Deno.serve(async (req: Request) => {
           if (new Date(line.chosen_preorder_date).getTime() <= now) {
             return json({ error: `That pickup date for "${item.name}" has passed — please refresh and pick another.` }, 400);
           }
+          targetDate = line.chosen_preorder_date;
         } else {
           const onlyDate = dates[0] ?? item.preorder_drop_date;
           if (onlyDate && new Date(onlyDate).getTime() <= now) {
             return json({ error: `"${item.name}" is no longer available for pre-order.` }, 400);
+          }
+          targetDate = onlyDate ?? undefined;
+        }
+        const cap = item.max_preorder_quantity ?? 0;
+        if (cap > 0 && targetDate) {
+          const committed = commitmentsByItem.get(item.id)?.get(new Date(targetDate).getTime()) ?? 0;
+          const remaining = Math.max(0, cap - committed);
+          if (line.quantity > remaining) {
+            return json({
+              error: remaining > 0
+                ? `Only ${remaining} left of "${item.name}" for that date.`
+                : `"${item.name}" is sold out for that date — please pick another.`,
+            }, 400);
           }
         }
       }
@@ -441,6 +495,7 @@ Deno.serve(async (req: Request) => {
       user_id: baker_id,
       order_id: orderId,
       recipe_id: null,
+      menu_item_id: l.item.id,
       custom_name: l.tierLabel ? `${l.item.name} — ${l.tierLabel}` : l.item.name,
       quantity: l.quantity,
       unit: "pieces",
