@@ -1667,17 +1667,15 @@
   }
 
   function renderCartStepPickup() {
-    const hours = (profile && profile.pickup_hours_json) || {};
-    const openDays = WEEKDAY_ORDER.filter(function (k) { return hours[k] && !hours[k].closed; });
-    const windowOptions = openDays.length
-      ? openDays.map(function (k) { return '<option>' + WEEKDAY_LABELS[k] + ' ' + hours[k].open + '–' + hours[k].close + '</option>'; }).join('')
-      : '<option>By arrangement</option>';
-    // No total/pay amount shown here — this step only collects pickup
-    // logistics and contact info. checkout.html (next) is the one place
-    // that shows the definitive fee/tax-inclusive total and actually takes
-    // payment, so there's only ever one number for a buyer to trust.
+    // No pickup-window picker — the baker coordinates the actual pickup
+    // time directly with the customer using the contact details below,
+    // rather than having the customer pre-select a slot here (this field
+    // was also never actually read into the order payload).
+    // No total/pay amount shown here either — this step only collects
+    // contact info. checkout.html (next) is the one place that shows the
+    // definitive fee/tax-inclusive total and actually takes payment, so
+    // there's only ever one number for a buyer to trust.
     return '<div id="cart-step-label">Pickup &amp; payment</div>' +
-      '<div class="field"><label>Pickup window</label><select id="f-window">' + windowOptions + '</select></div>' +
       '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
       '<div class="field"><label>Mobile</label><input id="f-phone" type="tel" autocomplete="tel" /></div>' +
       '<div class="field"><label>Email</label><input id="f-email" type="email" autocomplete="email" /></div>' +
