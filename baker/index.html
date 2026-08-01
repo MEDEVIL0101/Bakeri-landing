@@ -404,7 +404,10 @@
     .btn-primary { height: 50px; background: var(--accent); color: var(--accent-fg); }
     .btn-outline { height: 48px; background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
 
-    #item-sheet-photo { position: relative; aspect-ratio: 4/3; background: var(--line-soft); }
+    /* Same 1/1 ratio as .p-card .p-photo in the grid — the detail sheet's
+       photo should look like the same product photo, just larger, not a
+       differently-cropped shape. */
+    #item-sheet-photo { position: relative; aspect-ratio: 1/1; background: var(--line-soft); }
     #item-sheet-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
     #item-sheet-body { padding: 18px 20px 22px; }
     #item-sheet-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 10px; }
@@ -498,15 +501,14 @@
       #cart-btn { display: none; }
 
       .scrim { align-items: center; }
-      #item-sheet, #cart-sheet { max-width: 800px; width: 90%; border-radius: 24px; max-height: 88vh; }
-      /* Image stays stacked on top (same as mobile) rather than side-by-side
-         with the details column — a side-by-side layout forced the photo to
-         stretch to match whatever height the details column happened to be
-         (aspect-ratio: auto; height: 100%), so it visibly rescaled/jumped as
-         more content appeared (choosing a size, then flavors). A fixed
-         aspect-ratio photo on top is uniform across every listing and every
-         step of the Assorted Box picker regardless of how tall the content
-         below it grows. */
+      #cart-sheet { max-width: 800px; width: 90%; border-radius: 24px; max-height: 88vh; }
+      /* Narrower than cart-sheet — at 800px wide, even a same-ratio square
+         photo was too large a presence. Image stays stacked on top (not
+         side-by-side with the details column, which forced it to stretch
+         via aspect-ratio: auto; height: 100% to match whatever height the
+         details column happened to be, visibly rescaling as more content —
+         a chosen size, then flavors — appeared). */
+      #item-sheet { max-width: 560px; width: 90%; border-radius: 24px; max-height: 88vh; }
 
       #cart-sheet { max-width: 440px; margin-left: auto; margin-right: 0; height: 100%; max-height: 100%; border-radius: 0; box-shadow: -20px 0 50px -20px rgba(0,0,0,.4); }
       .scrim:has(#cart-sheet) { justify-content: flex-end; }
