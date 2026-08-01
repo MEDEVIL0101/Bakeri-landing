@@ -499,8 +499,14 @@
 
       .scrim { align-items: center; }
       #item-sheet, #cart-sheet { max-width: 800px; width: 90%; border-radius: 24px; max-height: 88vh; }
-      #item-sheet-inner { display: grid; grid-template-columns: 1fr 1fr; }
-      #item-sheet-photo { aspect-ratio: auto; height: 100%; }
+      /* Image stays stacked on top (same as mobile) rather than side-by-side
+         with the details column — a side-by-side layout forced the photo to
+         stretch to match whatever height the details column happened to be
+         (aspect-ratio: auto; height: 100%), so it visibly rescaled/jumped as
+         more content appeared (choosing a size, then flavors). A fixed
+         aspect-ratio photo on top is uniform across every listing and every
+         step of the Assorted Box picker regardless of how tall the content
+         below it grows. */
 
       #cart-sheet { max-width: 440px; margin-left: auto; margin-right: 0; height: 100%; max-height: 100%; border-radius: 0; box-shadow: -20px 0 50px -20px rgba(0,0,0,.4); }
       .scrim:has(#cart-sheet) { justify-content: flex-end; }
