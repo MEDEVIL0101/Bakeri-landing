@@ -28,6 +28,15 @@ const PHONE_RE = /^[0-9+()\-.\s]{7,20}$/;
 const RATE_LIMIT_PER_24H = 5;
 const MAX_PHOTOS_PER_FIELD = 5;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+// Mirrors the maxlength attributes in custom-order.html — enforced here too
+// since a client-side attribute is trivially bypassed by anyone calling this
+// endpoint directly. Caps how much arbitrary buyer-authored text can land in
+// form_responses, which the baker's app renders as plain text today, but a
+// hard length limit is cheap insurance against abuse (huge payloads, or a
+// future feature that summarizes this text) regardless of what reads it.
+const MAX_SHORT_TEXT_LENGTH = 300;
+const MAX_LONG_TEXT_LENGTH = 2000;
+const MAX_NAME_LENGTH = 200;
 
 const ANSWER_FIELD_TYPES = new Set([
   "short_text", "long_text", "number", "single_choice", "multi_choice", "date", "photo",
@@ -118,7 +127,7 @@ Deno.serve(async (req: Request) => {
 
   const baker_id = String(body.baker_id ?? "").trim();
   const menu_item_id = String(body.menu_item_id ?? "").trim();
-  const customer_name = String(body.customer_name ?? "").trim();
+  const customer_name = String(body.customer_name ?? "").trim().slice(0, MAX_NAME_LENGTH);
   const customer_email = String(body.customer_email ?? "").trim().toLowerCase();
   const customer_phone = String(body.customer_phone ?? "").trim();
   const answers: IncomingAnswer[] = Array.isArray(body.answers) ? body.answers as IncomingAnswer[] : [];
@@ -150,6 +159,17 @@ Deno.serve(async (req: Request) => {
   }
   if (!menuItem.intake_form_id) {
     return json({ error: "This listing doesn't accept custom order requests." }, 400);
+  }
+
+  const { data: bakerProfile, error: bakerProfileErr } = await db
+    .from("profiles")
+    .select("business_name, user_name, stripe_connect_onboarding_complete")
+    .eq("id", baker_id)
+    .single();
+
+  if (bakerProfileErr || !bakerProfile) return json({ error: "This listing is no longer available." }, 400);
+  if (!bakerProfile.stripe_connect_onboarding_complete) {
+    return json({ error: "This baker hasn't finished setting up payments yet. Check back soon!" }, 400);
   }
 
   const { data: fields, error: fieldsErr } = await db
@@ -207,19 +227,15 @@ Deno.serve(async (req: Request) => {
         textValue: null, choiceValues: answer.choiceValues ?? [], photoPaths: null,
       });
     } else {
+      const maxLen = field.field_type === "long_text" ? MAX_LONG_TEXT_LENGTH : MAX_SHORT_TEXT_LENGTH;
       finalAnswers.push({
         fieldID: field.id, label: field.label, fieldType: field.field_type,
-        textValue: answer.textValue ?? "", choiceValues: null, photoPaths: null,
+        textValue: (answer.textValue ?? "").slice(0, maxLen), choiceValues: null, photoPaths: null,
       });
     }
   }
 
-  const { data: bakerProfile } = await db
-    .from("profiles")
-    .select("business_name, user_name")
-    .eq("id", baker_id)
-    .single();
-  const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || "Baker";
+  const bakerDisplayName = bakerProfile.business_name?.trim() || bakerProfile.user_name?.trim() || "Baker";
 
   const priceFrom = (menuItem.marketplace_price_from ?? 0) > 0
     ? menuItem.marketplace_price_from

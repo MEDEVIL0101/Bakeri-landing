@@ -335,9 +335,10 @@
 
     let body = '';
     if (field.field_type === 'short_text' || field.field_type === 'number') {
-      body = '<input type="' + (field.field_type === 'number' ? 'number' : 'text') + '" id="' + id + '" />';
+      body = '<input type="' + (field.field_type === 'number' ? 'number' : 'text') + '" id="' + id + '"' +
+        (field.field_type === 'short_text' ? ' maxlength="300"' : '') + ' />';
     } else if (field.field_type === 'long_text') {
-      body = '<textarea id="' + id + '"></textarea>';
+      body = '<textarea id="' + id + '" maxlength="2000"></textarea>';
     } else if (field.field_type === 'date') {
       const today = new Date().toISOString().split('T')[0];
       body = '<input type="date" id="' + id + '" min="' + today + '" />';
