@@ -43,9 +43,41 @@
       -webkit-font-smoothing: antialiased;
     }
     button, input, textarea { font-family: inherit; }
+    .hidden { display: none !important; }
+
+    #page-shell { max-width: 720px; margin: 0 auto; background: var(--bg); position: relative; }
+
+    /* Header image + logo — same treatment as the baker's main storefront
+       page (baker/index.html's #profile-hero/#profile-block), simplified to
+       just the identity block (no nav/cart/bio) since this page has one job. */
+    #profile-hero { position: relative; }
+    #storefront-header {
+      position: absolute; inset: 0; overflow: hidden;
+      background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
+    }
+    #storefront-header img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+    #header-scrim { position: absolute; inset: 0; background: rgba(20,15,10,.42); }
+    #profile-block { text-align: center; padding: 40px 20px 26px; position: relative; z-index: 1; }
+    .avatar {
+      width: 84px; height: 84px; margin: 0 auto; font-size: 28px;
+      border-radius: 50%; background: var(--theme-secondary); display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #fff; overflow: hidden; position: relative;
+      box-shadow: 0 2px 6px rgba(36,23,18,.15);
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; display: none; }
+    #shop-name { font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 12px; }
+    #profile-hero.has-photo #shop-name { color: #fff; }
 
     #page { width: 100%; max-width: 560px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
     @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
+
+    /* The form now actually sits in a card instead of directly on the page
+       background — was previously just a bare, unstyled div. */
+    .card {
+      background: var(--surface, #fff); border-radius: 20px; padding: 26px 22px;
+      box-shadow: 0 1px 3px rgba(36,23,18,.06), 0 8px 24px rgba(36,23,18,.06);
+    }
+    @media (prefers-color-scheme: dark) { .card { --surface: #241a12; } }
 
     .grecaptcha-badge { visibility: hidden; }
 
@@ -123,12 +155,25 @@
 </head>
 <body>
 
-<div id="page">
-  <div class="card" id="card">
-    <div class="eyebrow">Loading…</div>
+<div id="page-shell">
+  <div id="profile-hero">
+    <div id="storefront-header" class="hidden">
+      <img id="header-img" alt="" />
+      <div id="header-scrim"></div>
+    </div>
+    <section id="profile-block">
+      <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
+      <div id="shop-name"></div>
+    </section>
   </div>
-  <div class="footer-links">
-    <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+
+  <div id="page">
+    <div class="card" id="card">
+      <div class="eyebrow">Loading…</div>
+    </div>
+    <div class="footer-links">
+      <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+    </div>
   </div>
 </div>
 
@@ -136,6 +181,7 @@
 (function () {
   const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
   const ANON_KEY      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const STORAGE_URL  = SUPABASE_URL + '/storage/v1/object/public';
   const RECAPTCHA_SITE_KEY = '6LcIGEgtAAAAAAYXr8zyy_jJse4xc9LgjN43otQf';
   const RECAPTCHA_ACTION   = 'submit_custom_order_inquiry';
   const MAX_PHOTOS = 5;
@@ -163,12 +209,22 @@
 
   document.title = 'Request a Custom Order — ' + itemName;
 
-  fetch(SUPABASE_URL + '/rest/v1/intake_form_fields?form_id=eq.' + encodeURIComponent(formId) +
+  const profileFetch = fetch(SUPABASE_URL + '/rest/v1/rpc/get_baker_web_profile_by_id', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+    body: JSON.stringify({ p_user_id: bakerId })
+  }).then(function (r) { return r.json(); });
+
+  const fieldsFetch = fetch(SUPABASE_URL + '/rest/v1/intake_form_fields?form_id=eq.' + encodeURIComponent(formId) +
         '&select=id,position,field_type,label,help_text,is_required,options&order=position.asc', {
     headers: { 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }
-  })
-  .then(function (r) { return r.json(); })
-  .then(function (fields) {
+  }).then(function (r) { return r.json(); });
+
+  Promise.all([profileFetch, fieldsFetch])
+  .then(function (results) {
+    const profileData = results[0];
+    const fields = results[1];
+    if (profileData && profileData.profile) renderHeader(profileData.profile);
     if (!Array.isArray(fields) || fields.length === 0) {
       showNotFound('Form not found', 'This baker hasn\'t set up a custom order form for this item yet.');
       return;
@@ -178,6 +234,30 @@
   .catch(function () {
     showNotFound('Something went wrong', 'Could not load this form. Please try again later.');
   });
+
+  // Same treatment as baker/index.html's header image + avatar — this page
+  // is reached by clicking through from the storefront, so it should still
+  // look like the same store, not a bare, unbranded form.
+  function renderHeader(profile) {
+    const name = profile.business_name || profile.user_name || 'Baker';
+    document.getElementById('shop-name').textContent = name;
+
+    const letterEl = document.getElementById('pb-avatar-letter');
+    letterEl.textContent = name.charAt(0).toUpperCase();
+    const avatarImg = document.createElement('img');
+    avatarImg.alt = name;
+    avatarImg.onload = function () { avatarImg.style.display = 'block'; letterEl.style.display = 'none'; };
+    avatarImg.src = STORAGE_URL + '/business-logos/' + bakerId.toUpperCase() + '/logo.jpg';
+    document.getElementById('pb-avatar').appendChild(avatarImg);
+
+    const hero = document.getElementById('profile-hero');
+    const header = document.getElementById('storefront-header');
+    const headerImg = document.getElementById('header-img');
+    headerImg.alt = name;
+    headerImg.onerror = function () { header.classList.add('hidden'); hero.classList.remove('has-photo'); };
+    headerImg.onload = function () { header.classList.remove('hidden'); headerImg.style.display = 'block'; hero.classList.add('has-photo'); };
+    headerImg.src = STORAGE_URL + '/storefront-headers/' + bakerId.toUpperCase() + '/header.jpg';
+  }
 
   function showNotFound(title, subtitle) {
     card.innerHTML = '<div class="not-found"><h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(subtitle) + '</p></div>';
@@ -210,6 +290,11 @@
         '<div class="error-text" id="err-email">Please enter a valid email address.</div>' +
       '</div>' +
       '<div class="field-group">' +
+        '<label class="field-label">Confirm email <span class="field-required">*</span></label>' +
+        '<input type="email" id="f-email-confirm" data-touch="email-confirm" onpaste="return false" oncopy="return false" oncut="return false" />' +
+        '<div class="error-text" id="err-email-confirm">Those emails don\'t match — please check for typos.</div>' +
+      '</div>' +
+      '<div class="field-group">' +
         '<label class="field-label">Phone <span class="field-required">*</span></label>' +
         '<input type="tel" id="f-phone" data-touch="phone" />' +
         '<div class="error-text" id="err-phone">Please enter a valid phone number.</div>' +
@@ -225,7 +310,7 @@
 
     card.innerHTML = html;
 
-    ['name', 'email', 'phone'].forEach(function (key) {
+    ['name', 'email', 'email-confirm', 'phone'].forEach(function (key) {
       const input = document.getElementById('f-' + key);
       input.addEventListener('blur', function () { touched[key] = true; validateField(key, fields); });
     });
@@ -376,6 +461,13 @@
     const err = document.getElementById('err-' + key);
     if (key === 'name') ok = el.value.trim().length > 0;
     if (key === 'email') ok = EMAIL_RE.test(el.value.trim());
+    // A single mistyped character in the domain (e.g. .ckm instead of .com)
+    // still passes EMAIL_RE, so the confirmation email silently never
+    // arrives. Requiring the address twice catches that class of typo.
+    if (key === 'email-confirm') {
+      const emailEl = document.getElementById('f-email');
+      ok = el.value.trim().toLowerCase() === emailEl.value.trim().toLowerCase() && el.value.trim().length > 0;
+    }
     if (key === 'phone') ok = PHONE_RE.test(el.value.trim());
     err.classList.toggle('show', !ok);
     el.classList.toggle('field-error', !ok);
@@ -405,11 +497,11 @@
   }
 
   function submit(fields) {
-    ['name', 'email', 'phone'].forEach(function (k) { touched[k] = true; });
+    ['name', 'email', 'email-confirm', 'phone'].forEach(function (k) { touched[k] = true; });
     fields.forEach(function (f) { if (f.field_type !== 'heading') touched['field-' + f.id] = true; });
 
     let valid = true;
-    ['name', 'email', 'phone'].forEach(function (k) { if (!validateField(k)) valid = false; });
+    ['name', 'email', 'email-confirm', 'phone'].forEach(function (k) { if (!validateField(k)) valid = false; });
     fields.forEach(function (f) { if (f.field_type !== 'heading' && !validateCustomField(f)) valid = false; });
 
     if (!valid) return;
