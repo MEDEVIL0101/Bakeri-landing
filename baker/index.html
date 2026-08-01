@@ -672,6 +672,8 @@
   let cart = {}; // { itemId: qty }
   let boxCartLines = []; // Assorted Box lines: { lineId, menuItemId, tierId, tierLabel, unitCount, price, qty, variants: [{variantId, name, qty}] }
   let boxState = null; // in-progress box picker: { item, tierId, chosen: {variantId: qty} }
+  let preorderChosenDates = {}; // itemId -> chosen ISO date string (fixed_dates mode with 2+ dates only)
+  let preorderState = null; // in-progress preorder date picker: { item, chosenISO }
   let cartStep = 0; // 0 order, 1 pickup&payment, 2 confirmed
   let toastTimer = null;
   // Direct checkout (ready_now / preorder) needs the baker's Stripe Connect
@@ -688,17 +690,21 @@
       const raw = JSON.parse(sessionStorage.getItem(cartStorageKey()) || '{}');
       // Backward compatible with sessions saved before Assorted Box shipped,
       // when this key held the flat { itemId: qty } map directly.
-      if (raw && (raw.cart || raw.boxLines)) {
+      if (raw && (raw.cart || raw.boxLines || raw.preorderDates)) {
         cart = raw.cart || {};
         boxCartLines = raw.boxLines || [];
+        preorderChosenDates = raw.preorderDates || {};
       } else {
         cart = raw || {};
         boxCartLines = [];
+        preorderChosenDates = {};
       }
-    } catch (e) { cart = {}; boxCartLines = []; }
+    } catch (e) { cart = {}; boxCartLines = []; preorderChosenDates = {}; }
   }
   function saveCart() {
-    try { sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines })); } catch (e) {}
+    try {
+      sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines, preorderDates: preorderChosenDates }));
+    } catch (e) {}
   }
 
   if (!slug && !bakerID) {
@@ -1285,6 +1291,23 @@
       wrap.appendChild(btn);
       return;
     }
+    if (item.listing_kind === 'preorder') {
+      // Always routes through the sheet — even single-date/weekday/lead-time
+      // modes benefit from showing the ready date there, and a multi-date
+      // listing requires picking one before it can be added at all.
+      const btn = document.createElement('button');
+      btn.className = 'add-btn';
+      if (isSoldOut(item) || !stripeReady) {
+        btn.style.opacity = '.4'; btn.disabled = true; btn.textContent = '—';
+        btn.title = stripeReady ? 'Ordering closed' : 'Ordering isn\'t live yet';
+      } else {
+        btn.textContent = '+';
+        btn.setAttribute('aria-label', 'Choose pickup date');
+        btn.addEventListener('click', function (e) { e.stopPropagation(); openItemSheet(item); });
+      }
+      wrap.appendChild(btn);
+      return;
+    }
     const qty = cart[item.id] || 0;
     if (isSoldOut(item) || !stripeReady) {
       const btn = document.createElement('button');
@@ -1322,7 +1345,7 @@
   function changeQty(item, delta) {
     const current = cart[item.id] || 0;
     const next = Math.max(0, current + delta);
-    if (next === 0) { delete cart[item.id]; } else { cart[item.id] = next; }
+    if (next === 0) { delete cart[item.id]; delete preorderChosenDates[item.id]; } else { cart[item.id] = next; }
     saveCart();
     document.querySelectorAll('[data-item-id="' + item.id + '"]').forEach(function (wrap) {
       refreshAddControl(wrap, item);
@@ -1446,14 +1469,17 @@
 
     const cta = document.getElementById('item-sheet-cta');
     const boxEl = document.getElementById('item-sheet-box');
+    boxState = null;
+    preorderState = null;
 
     if (item.is_assorted_box) {
       boxEl.style.display = 'block';
       openBoxPicker(item);
+    } else if (item.listing_kind === 'preorder') {
+      openPreorderPicker(item);
     } else {
       boxEl.style.display = 'none';
       boxEl.innerHTML = '';
-      boxState = null;
       if (item.listing_kind === 'custom') {
         cta.textContent = 'Request a Custom Order';
         cta.disabled = false;
@@ -1620,6 +1646,99 @@
     return STORAGE_URL + '/menu-item-images/' + resolvedBakerId.toUpperCase() + '/' + item.id.toUpperCase() + '/variants/' + variant.id.toUpperCase() + '.jpg';
   }
 
+  // ══════════════════════ Pre-order date picker ══════════════════════
+
+  function openPreorderPicker(item) {
+    const boxEl = document.getElementById('item-sheet-box');
+    const cta = document.getElementById('item-sheet-cta');
+
+    if (isPreorderClosed(item)) {
+      boxEl.style.display = 'block';
+      boxEl.innerHTML = '<div class="box-step-label">Ordering has closed for this item.</div>';
+      cta.textContent = 'Ordering Closed';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+
+    const mode = item.preorder_schedule_mode || 'fixed_dates';
+    if (mode === 'fixed_dates') {
+      const dates = futurePreorderDates(item);
+      if (dates.length > 1) {
+        boxEl.style.display = 'block';
+        preorderState = { item: item, chosenISO: preorderChosenDates[item.id] || null };
+        renderPreorderDatePicker(dates);
+        updatePreorderCTA();
+        return;
+      }
+    }
+
+    // Single deterministic date (or none, for lead_time) — no picker needed.
+    const readyDate = resolvePreorderDate(item, null);
+    if (readyDate) {
+      boxEl.style.display = 'block';
+      boxEl.innerHTML = '<div class="box-step-label">Ready ' + formatDateLong(readyDate) + '</div>';
+    } else {
+      boxEl.style.display = 'none';
+      boxEl.innerHTML = '';
+    }
+    if (!stripeReady) {
+      cta.textContent = 'Ordering Opens Soon';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    cta.textContent = 'Add to Order';
+    cta.disabled = false;
+    cta.style.opacity = '1';
+    cta.onclick = function () { addPreorderToCart(item, readyDate ? readyDate.toISOString() : null); };
+  }
+
+  function renderPreorderDatePicker(dates) {
+    const boxEl = document.getElementById('item-sheet-box');
+    boxEl.innerHTML = '<div class="box-step-label">Choose a pickup date</div>' +
+      '<div class="box-tiers" style="flex-wrap:wrap;">' + dates.map(function (d) {
+        const iso = d.toISOString();
+        const active = preorderState.chosenISO === iso;
+        return '<button type="button" class="box-tier' + (active ? ' active' : '') + '" data-date="' + iso + '">' +
+          '<div class="box-tier-label">' + formatDateShort(d) + '</div>' +
+        '</button>';
+      }).join('') + '</div>';
+    boxEl.querySelectorAll('.box-tier').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        preorderState.chosenISO = btn.dataset.date;
+        renderPreorderDatePicker(dates);
+        updatePreorderCTA();
+      });
+    });
+  }
+
+  function updatePreorderCTA() {
+    const cta = document.getElementById('item-sheet-cta');
+    if (!preorderState.chosenISO) {
+      cta.textContent = 'Choose a date';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    const canBuy = stripeReady;
+    cta.textContent = canBuy ? 'Add to Order' : 'Ordering Opens Soon';
+    cta.disabled = !canBuy;
+    cta.style.opacity = canBuy ? '1' : '.5';
+    cta.onclick = canBuy ? function () { addPreorderToCart(preorderState.item, preorderState.chosenISO); } : null;
+  }
+
+  function addPreorderToCart(item, chosenISO) {
+    changeQty(item, 1);
+    if (chosenISO) { preorderChosenDates[item.id] = chosenISO; } else { delete preorderChosenDates[item.id]; }
+    saveCart();
+    closeItemSheet();
+    showToast('Added to your order');
+  }
+
   // ══════════════════════ Cart / Checkout Sheet ══════════════════════
 
   function openCartSheet() {
@@ -1656,7 +1775,7 @@
       }
       return '<div class="cart-line" data-line-kind="plain" data-line-id="' + l.item.id + '">' +
         '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
-        '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(subtitleFor(l.item)) + '</div></div>' +
+        '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(cartLineMetaFor(l.item)) + '</div></div>' +
         '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
         '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
         '</div>';
@@ -1772,7 +1891,12 @@
           id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
           taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
           listingKind: l.item.listing_kind, dropDate: l.item.preorder_drop_date || '',
-          maxQty: l.item.max_preorder_quantity || 0, availQty: l.item.available_qty_today || 0
+          maxQty: l.item.max_preorder_quantity || 0, availQty: l.item.available_qty_today || 0,
+          // Only meaningful for fixed_dates mode with 2+ candidates — the
+          // server re-validates this against the listing's actual dates
+          // rather than trusting it outright; weekday/lead_time modes are
+          // computed server-side from the listing itself, no buyer choice.
+          chosenPreorderDate: preorderChosenDates[l.item.id] || ''
         };
       })
     };
@@ -1799,10 +1923,70 @@
   }
 
   function isSoldOut(item) {
-    // Boxes don't track a plain daily quantity yet — availability just
-    // follows the listing being active, so they're never flagged sold out.
-    return !item.is_assorted_box && item.listing_kind === 'ready_now' && (item.available_qty_today || 0) <= 0;
+    if (item.is_assorted_box) return false; // no plain daily quantity tracked
+    if (item.listing_kind === 'preorder') return isPreorderClosed(item);
+    return item.listing_kind === 'ready_now' && (item.available_qty_today || 0) <= 0;
   }
+
+  // ══════════════════════ Pre-order scheduling ══════════════════════
+  // Three mutually exclusive modes a baker can set per listing — see
+  // MenuItem.PreorderScheduleMode (iOS) / preorder_schedule_mode (Supabase):
+  //   fixed_dates — 1+ candidate dates; buyer picks one if there's >1
+  //   weekday     — a day of week + an explicit order-by cutoff
+  //   lead_time   — ready N days after whenever the buyer orders
+
+  function futurePreorderDates(item) {
+    const raw = (item.preorder_dates && item.preorder_dates.length)
+      ? item.preorder_dates
+      : (item.preorder_drop_date ? [item.preorder_drop_date] : []);
+    return raw.map(function (d) { return new Date(d); })
+      .filter(function (d) { return d > new Date(); })
+      .sort(function (a, b) { return a - b; });
+  }
+
+  // Mirrors MenuItem.weekdayComputedReadyDate exactly: the first date
+  // strictly after the cutoff matching the chosen weekday. JS Date.getDay()
+  // is 0=Sun...6=Sat; Calendar's convention (used server-side and in the
+  // app) is 1=Sun...7=Sat, hence the +1.
+  function computeWeekdayReadyDate(weekday, cutoffISO) {
+    if (!weekday || !cutoffISO) return null;
+    const date = new Date(cutoffISO);
+    date.setDate(date.getDate() + 1);
+    for (let i = 0; i < 7; i++) {
+      if (date.getDay() + 1 === weekday) return date;
+      date.setDate(date.getDate() + 1);
+    }
+    return null;
+  }
+
+  // The listing's one deterministic ready date for fixed_dates-with-1-date,
+  // weekday, and lead_time modes — null for lead_time (no fixed date exists;
+  // the server computes now+lead_days at order time) and for fixed_dates
+  // with no chosen date yet when there's more than one candidate.
+  function resolvePreorderDate(item, chosenISO) {
+    const mode = item.preorder_schedule_mode || 'fixed_dates';
+    if (mode === 'weekday') return computeWeekdayReadyDate(item.preorder_weekday, item.preorder_order_cutoff_date);
+    if (mode === 'lead_time') return null;
+    if (chosenISO) return new Date(chosenISO);
+    const dates = futurePreorderDates(item);
+    return dates.length ? dates[0] : null;
+  }
+
+  function isPreorderClosed(item) {
+    const mode = item.preorder_schedule_mode || 'fixed_dates';
+    if (mode === 'weekday') {
+      return item.preorder_order_cutoff_date ? new Date() > new Date(item.preorder_order_cutoff_date) : false;
+    }
+    if (mode === 'lead_time') return false;
+    const raw = (item.preorder_dates && item.preorder_dates.length)
+      ? item.preorder_dates
+      : (item.preorder_drop_date ? [item.preorder_drop_date] : []);
+    if (!raw.length) return false;
+    return raw.every(function (d) { return new Date(d) < new Date(); });
+  }
+
+  function formatDateShort(d) { return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+  function formatDateLong(d) { return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
 
   // Plain kind badge — used on grid cards. A sold-out ready_now item keeps
   // its normal "Ready Now" tag, distinguished only by lighter subtitle
@@ -1829,10 +2013,37 @@
     if (item.is_assorted_box) return 'Pick your own flavors';
     if (item.listing_kind === 'custom') return item.lead_time_note || 'Request a custom quote';
     if (item.listing_kind === 'digital') return 'Instant digital download';
+    if (item.listing_kind === 'preorder') {
+      if (item.lead_time_note) return item.lead_time_note;
+      if (isPreorderClosed(item)) return 'Ordering closed';
+      const mode = item.preorder_schedule_mode || 'fixed_dates';
+      if (mode === 'weekday') {
+        const ready = computeWeekdayReadyDate(item.preorder_weekday, item.preorder_order_cutoff_date);
+        return ready ? 'Ready ' + formatDateShort(ready) : 'Order ahead';
+      }
+      if (mode === 'lead_time') {
+        const n = item.lead_days || 2;
+        return 'Ready in ' + n + ' day' + (n === 1 ? '' : 's');
+      }
+      const dates = futurePreorderDates(item);
+      if (dates.length > 1) return 'Pick a pickup date';
+      if (dates.length === 1) return 'Ready ' + formatDateShort(dates[0]);
+      return 'Order ahead';
+    }
     if (isSoldOut(item)) return 'Sold out for today';
     if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) return item.available_qty_today + ' available today';
-    if (item.listing_kind === 'preorder') return item.lead_time_note || 'Order ahead';
     return item.item_description || '';
+  }
+
+  // Cart-line meta text — shows the buyer's actually-chosen preorder date
+  // (once one exists) instead of subtitleFor's generic "Pick a pickup date",
+  // which doesn't know about a choice already made for a multi-date item.
+  function cartLineMetaFor(item) {
+    if (item.listing_kind === 'preorder') {
+      const date = resolvePreorderDate(item, preorderChosenDates[item.id]);
+      if (date) return 'Ready ' + formatDateShort(date);
+    }
+    return subtitleFor(item);
   }
 
   function priceIsFrom(item) { return item.listing_kind === 'custom' || item.is_assorted_box === true; }

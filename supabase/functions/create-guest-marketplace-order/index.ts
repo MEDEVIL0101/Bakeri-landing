@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { getStripeClient } from "../_shared/stripe.ts";
+import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 
 // Public, unauthenticated endpoint for baker/checkout.html — records a
 // guest's already-paid marketplace purchase (one or more ready_now/preorder
@@ -9,15 +11,16 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // function's insert shape closely so the order behaves identically in the
 // baker's existing Orders UI, notify trigger, and payout sweep.
 
-const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// Must match create-payment-intent's PLATFORM_FEE_RATE — the PaymentIntent
-// this finalizes already charged subtotal + this fee + tax, so it's recorded
-// here (never trusting a client-supplied figure) for release-baker-payouts
-// to read back verbatim at payout time.
-const PLATFORM_FEE_RATE = 0.05;
+const stripe = getStripeClient();
+
+// The PaymentIntent this finalizes already charged subtotal + platform fee +
+// tax (create-payment-intent), so the fee is recorded here (never trusting a
+// client-supplied figure) — read back verbatim by release-baker-payouts for
+// platform_custody orders, or already reflected in the direct charge's
+// application_fee_amount for direct orders.
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const PHONE_RE = /^[0-9+()\-.\s]{7,20}$/;
@@ -95,7 +98,53 @@ function calculateTaxCents(
   return Math.round(taxableSubtotal * rate * 100);
 }
 
-type CartLine = { menu_item_id: string; quantity: number };
+type VariantSelection = { variant_id: string; quantity: number };
+type CartLine = {
+  menu_item_id: string;
+  quantity: number;
+  tier_id?: string;
+  variant_selections?: VariantSelection[];
+  chosen_preorder_date?: string;
+};
+
+// ── Pre-order scheduling — ported from Bakerly/Bakerly/Bakeri/Models/MenuItem.swift
+// (weekdayComputedReadyDate) and baker/index.html (computeWeekdayReadyDate).
+// Never trust a client-supplied due date beyond "which fixed_dates candidate
+// they picked" — weekday/lead_time due dates are always computed here. ──
+
+function computeWeekdayReadyDate(weekday: number, cutoffISO: string): string | null {
+  const cutoff = new Date(cutoffISO);
+  if (isNaN(cutoff.getTime())) return null;
+  let date = new Date(cutoff.getTime() + 86400000);
+  for (let i = 0; i < 7; i++) {
+    // JS Date#getDay(): 0=Sunday...6=Saturday; Swift Calendar .weekday: 1=Sunday...7=Saturday.
+    if (date.getDay() + 1 === weekday) return date.toISOString();
+    date = new Date(date.getTime() + 86400000);
+  }
+  return null;
+}
+
+function resolveDueDate(item: Record<string, unknown>, chosenPreorderDate?: string): string {
+  const nextDay = new Date(Date.now() + 86400000).toISOString();
+  if (item.listing_kind !== "preorder") return nextDay;
+
+  const mode = (item.preorder_schedule_mode as string) || "fixed_dates";
+  if (mode === "weekday") {
+    const weekday = item.preorder_weekday as number | null;
+    const cutoff = item.preorder_order_cutoff_date as string | null;
+    if (weekday == null || !cutoff) return nextDay;
+    return computeWeekdayReadyDate(weekday, cutoff) ?? nextDay;
+  }
+  if (mode === "lead_time") {
+    const days = (item.lead_days as number | null) ?? 2;
+    return new Date(Date.now() + days * 86400000).toISOString();
+  }
+  // fixed_dates
+  const dates = Array.isArray(item.preorder_dates) ? (item.preorder_dates as string[]) : [];
+  if (dates.length > 1 && chosenPreorderDate && dates.includes(chosenPreorderDate)) return chosenPreorderDate;
+  if (dates.length >= 1) return dates[0];
+  return (item.preorder_drop_date as string | null) ?? nextDay;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
@@ -120,6 +169,16 @@ Deno.serve(async (req: Request) => {
       .map((raw) => ({
         menu_item_id: String(raw.menu_item_id ?? "").trim(),
         quantity: Math.max(1, Math.floor(Number(raw.quantity) || 1)),
+        tier_id: raw.tier_id != null ? String(raw.tier_id).trim() : undefined,
+        variant_selections: Array.isArray(raw.variant_selections)
+          ? (raw.variant_selections as Record<string, unknown>[]).map((v) => ({
+              variant_id: String(v.variant_id ?? "").trim(),
+              quantity: Math.max(0, Math.floor(Number(v.quantity) || 0)),
+            }))
+          : undefined,
+        chosen_preorder_date: raw.chosenPreorderDate != null && String(raw.chosenPreorderDate).trim().length > 0
+          ? String(raw.chosenPreorderDate).trim()
+          : undefined,
       }))
       .filter((line) => line.menu_item_id.length > 0);
   } else {
@@ -139,15 +198,29 @@ Deno.serve(async (req: Request) => {
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // This function only ever handles a single baker's cart (enforced below),
+  // so the PaymentIntent create-payment-intent made for it was always a
+  // direct charge on that baker's own connected account — verification must
+  // target the same account or the retrieve 404s.
+  const { data: connectRow } = await db
+    .from("profiles")
+    .select("stripe_connect_account_id")
+    .eq("id", baker_id)
+    .single();
+  const connectedAccountId = connectRow?.stripe_connect_account_id ?? null;
+
   // Re-verify the PaymentIntent actually authorized (or, for deposits, fully
   // captured) — never trust the client. "requires_capture" is the expected
   // state for a regular (non-deposit) order now that create-payment-intent
   // holds funds instead of capturing immediately; "succeeded" covers deposits.
-  const stripeRes = await fetch(`https://api.stripe.com/v1/payment_intents/${payment_intent_id}`, {
-    headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
-  });
-  if (!stripeRes.ok) return json({ error: "Could not verify payment." }, 400);
-  const intent = await stripeRes.json();
+  let intent;
+  try {
+    intent = connectedAccountId
+      ? await stripe.paymentIntents.retrieve(payment_intent_id, { stripeAccount: connectedAccountId })
+      : await stripe.paymentIntents.retrieve(payment_intent_id);
+  } catch {
+    return json({ error: "Could not verify payment." }, 400);
+  }
   if (intent.status !== "succeeded" && intent.status !== "requires_capture") {
     return json({ error: `Payment not confirmed. Status: ${intent.status}` }, 400);
   }
@@ -158,7 +231,8 @@ Deno.serve(async (req: Request) => {
     .from("menu_items")
     .select(
       "id, user_id, name, default_price, marketplace_price_from, listing_kind, " +
-      "is_listed_in_marketplace, is_active, tax_category, unit_weight_grams, preorder_drop_date"
+      "is_listed_in_marketplace, is_active, tax_category, unit_weight_grams, preorder_drop_date, is_assorted_box, " +
+      "preorder_schedule_mode, preorder_dates, preorder_weekday, preorder_order_cutoff_date, lead_days"
     )
     .in("id", menuItemIds);
 
@@ -167,6 +241,36 @@ Deno.serve(async (req: Request) => {
   }
 
   const menuItemsById = new Map(menuItems.map((m) => [m.id, m]));
+  const boxItemIds = menuItems.filter((m) => m.is_assorted_box).map((m) => m.id);
+
+  // Live tier/variant catalog for any Assorted Box lines — never trust the
+  // client's price or breakdown, only which ids it picked.
+  let tiersByItemId = new Map<string, { id: string; label: string; unit_count: number; price: number }[]>();
+  let variantsByItemId = new Map<string, { id: string; name: string }[]>();
+  if (boxItemIds.length > 0) {
+    const { data: tierRows } = await db
+      .from("menu_item_size_tiers")
+      .select("id, menu_item_id, label, unit_count, price")
+      .in("menu_item_id", boxItemIds)
+      .is("deleted_at", null);
+    for (const t of tierRows ?? []) {
+      const list = tiersByItemId.get(t.menu_item_id) ?? [];
+      list.push({ id: t.id, label: t.label, unit_count: t.unit_count, price: t.price });
+      tiersByItemId.set(t.menu_item_id, list);
+    }
+
+    const { data: variantRows } = await db
+      .from("menu_item_variants")
+      .select("id, menu_item_id, name")
+      .in("menu_item_id", boxItemIds)
+      .is("deleted_at", null);
+    for (const v of variantRows ?? []) {
+      const list = variantsByItemId.get(v.menu_item_id) ?? [];
+      list.push({ id: v.id, name: v.name });
+      variantsByItemId.set(v.menu_item_id, list);
+    }
+  }
+
   for (const line of cartLines) {
     const item = menuItemsById.get(line.menu_item_id);
     if (!item) return json({ error: "One or more items in your order are no longer available." }, 400);
@@ -180,6 +284,44 @@ Deno.serve(async (req: Request) => {
     if (item.listing_kind === "digital") {
       return json({ error: `"${item.name}" is a digital download — buy it directly from its own page, not the cart.` }, 400);
     }
+    if (item.is_assorted_box) {
+      const tier = (tiersByItemId.get(item.id) ?? []).find((t) => t.id === line.tier_id);
+      if (!tier) return json({ error: `Please choose a size for "${item.name}".` }, 400);
+      const validVariantIds = new Set((variantsByItemId.get(item.id) ?? []).map((v) => v.id));
+      const selections = line.variant_selections ?? [];
+      if (selections.length === 0 || selections.some((s) => !validVariantIds.has(s.variant_id))) {
+        return json({ error: `Please choose your flavors for "${item.name}".` }, 400);
+      }
+      const total = selections.reduce((sum, s) => sum + s.quantity, 0);
+      if (total !== tier.unit_count) {
+        return json({ error: `"${item.name}" needs exactly ${tier.unit_count} pieces chosen — got ${total}.` }, 400);
+      }
+    }
+    if (item.listing_kind === "preorder") {
+      const mode = item.preorder_schedule_mode || "fixed_dates";
+      const now = Date.now();
+      if (mode === "weekday") {
+        if (!item.preorder_order_cutoff_date || now > new Date(item.preorder_order_cutoff_date).getTime()) {
+          return json({ error: `Ordering has closed for "${item.name}".` }, 400);
+        }
+      } else if (mode === "fixed_dates") {
+        const dates: string[] = Array.isArray(item.preorder_dates) ? item.preorder_dates : [];
+        if (dates.length > 1) {
+          if (!line.chosen_preorder_date || !dates.includes(line.chosen_preorder_date)) {
+            return json({ error: `Please choose a pickup date for "${item.name}".` }, 400);
+          }
+          if (new Date(line.chosen_preorder_date).getTime() <= now) {
+            return json({ error: `That pickup date for "${item.name}" has passed — please refresh and pick another.` }, 400);
+          }
+        } else {
+          const onlyDate = dates[0] ?? item.preorder_drop_date;
+          if (onlyDate && new Date(onlyDate).getTime() <= now) {
+            return json({ error: `"${item.name}" is no longer available for pre-order.` }, 400);
+          }
+        }
+      }
+      // lead_time: always open, ready date computed server-side from lead_days.
+    }
   }
 
   const { data: bakerProfile } = await db
@@ -191,10 +333,21 @@ Deno.serve(async (req: Request) => {
 
   const lines = cartLines.map((line) => {
     const item = menuItemsById.get(line.menu_item_id)!;
+    if (item.is_assorted_box) {
+      const tier = tiersByItemId.get(item.id)!.find((t) => t.id === line.tier_id)!;
+      const variantsById = new Map((variantsByItemId.get(item.id) ?? []).map((v) => [v.id, v]));
+      const variantBreakdown = (line.variant_selections ?? [])
+        .filter((s) => s.quantity > 0)
+        .map((s) => ({ name: variantsById.get(s.variant_id)?.name ?? "", quantity: s.quantity }));
+      return {
+        item, quantity: line.quantity, pricePerUnit: tier.price,
+        tierLabel: tier.label, variantBreakdown,
+      };
+    }
     const priceFrom = (item.marketplace_price_from ?? 0) > 0
       ? item.marketplace_price_from
       : item.default_price;
-    return { item, quantity: line.quantity, pricePerUnit: priceFrom };
+    return { item, quantity: line.quantity, pricePerUnit: priceFrom, tierLabel: null as string | null, variantBreakdown: null as { name: string; quantity: number }[] | null };
   });
 
   const taxCents = calculateTaxCents(
@@ -219,10 +372,12 @@ Deno.serve(async (req: Request) => {
     ? lines[0].item.name
     : `${lines[0].item.name} + ${lines.length - 1} more`;
 
-  // Earliest due date across the cart's lines (a preorder's own drop date,
-  // else next-day) — a mixed ready-now/preorder cart is due on the soonest
-  // commitment the baker actually made.
-  const dueDates = lines.map((l) => l.item.preorder_drop_date ?? new Date(Date.now() + 86400000).toISOString());
+  // Earliest due date across the cart's lines (mode-aware resolution per
+  // line — see resolveDueDate) — a mixed ready-now/preorder cart is due on
+  // the soonest commitment the baker actually made.
+  const dueDates = cartLines.map((line) =>
+    resolveDueDate(menuItemsById.get(line.menu_item_id)!, line.chosen_preorder_date)
+  );
   const dueDate = dueDates.sort()[0];
   const hasPreorderLine = lines.some((l) => l.item.listing_kind === "preorder");
 
@@ -260,6 +415,7 @@ Deno.serve(async (req: Request) => {
     scheduled_pickup_date: dueDate,
     payment_intent_id,
     payment_status: "authorized",
+    payment_model: connectedAccountId ? "direct" : "platform_custody",
     reference_photo_count: 0,
     lead_channel: "website",
     ip_address: clientIp,
@@ -276,12 +432,14 @@ Deno.serve(async (req: Request) => {
       user_id: baker_id,
       order_id: orderId,
       recipe_id: null,
-      custom_name: l.item.name,
+      custom_name: l.tierLabel ? `${l.item.name} — ${l.tierLabel}` : l.item.name,
       quantity: l.quantity,
       unit: "pieces",
       price_per_unit: l.pricePerUnit,
       notes: "",
       updated_at: now,
+      tier_label: l.tierLabel,
+      variant_breakdown: l.variantBreakdown,
     }))
   );
 
@@ -292,7 +450,13 @@ Deno.serve(async (req: Request) => {
 
   return json({
     order_id: orderId,
-    items: lines.map((l) => ({ name: l.item.name, quantity: l.quantity, price_per_unit: l.pricePerUnit })),
+    items: lines.map((l) => ({
+      name: l.tierLabel ? `${l.item.name} — ${l.tierLabel}` : l.item.name,
+      quantity: l.quantity,
+      price_per_unit: l.pricePerUnit,
+      tier_label: l.tierLabel,
+      variant_breakdown: l.variantBreakdown,
+    })),
     subtotal_cents: subtotalCents,
     platform_fee_cents: platformFeeCents,
     tax_cents: taxCents,

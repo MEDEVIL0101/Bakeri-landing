@@ -284,7 +284,7 @@
               variant_selections: (i.variants || []).map(function (v) { return { variant_id: v.variantId, quantity: v.qty }; })
             };
           }
-          return { menu_item_id: i.id, quantity: i.qty };
+          return { menu_item_id: i.id, quantity: i.qty, chosenPreorderDate: i.chosenPreorderDate || '' };
         }),
         customer_name: cart.customer.name,
         customer_email: cart.customer.email,
