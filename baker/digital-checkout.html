@@ -102,7 +102,6 @@
   const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
   const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
   const STRIPE_PK    = 'pk_live_51TdqbXRpI8DhqX3Ful2hqNWdNtdd4Rt0QQC6IZVhxA5Du89YIEo1638vSaJmBmk5XqRbfxcbqiYJCsMJgpRWvzoP00NUFyirgh';
-  const PLATFORM_FEE_RATE = 0.05; // must match create-payment-intent
 
   const params  = new URLSearchParams(window.location.search);
   const bakerID = (params.get('baker') || '').trim();
@@ -119,7 +118,7 @@
   }
 
   let item = null;
-  let subtotal = 0, platformFee = 0, total = 0;
+  let total = 0;
 
   fetch(SUPABASE_URL + '/rest/v1/rpc/get_baker_web_profile_by_id', {
     method: 'POST',
@@ -131,9 +130,9 @@
     if (!data || !data.profile) { showMessage('Not found', 'This storefront could not be found.'); return; }
     item = (data.listings || []).find(function (l) { return l.id === itemID && l.listing_kind === 'digital'; });
     if (!item) { showMessage('Not found', 'This item is no longer available.'); return; }
-    subtotal = item.price;
-    platformFee = Math.round(subtotal * 100 * PLATFORM_FEE_RATE) / 100;
-    total = subtotal + platformFee;
+    // Guest checkout: buyer pays exactly the listed price — no fee added
+    // on top (Bakeri's service charge comes out of the baker's side).
+    total = item.price;
     renderForm();
   })
   .catch(function () { showMessage('Something went wrong', 'Could not load this item. Please try again later.'); });
@@ -142,11 +141,11 @@
     content.innerHTML =
       '<div class="eyebrow">Buy &amp; Download</div>' +
       '<div class="heading">' + escapeHtml(item.name) + '</div>' +
-      '<div class="totals-row"><span>Price</span><span>$' + subtotal.toFixed(2) + '</span></div>' +
-      '<div class="totals-row"><span>Bakeri fee</span><span>$' + platformFee.toFixed(2) + '</span></div>' +
       '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
       '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
       '<div class="field"><label>Email</label><input id="f-email" type="email" autocomplete="email" /></div>' +
+      '<div class="field"><label>Confirm email</label><input id="f-email-confirm" type="email" autocomplete="email" onpaste="return false" oncopy="return false" oncut="return false" /></div>' +
+      '<div style="font-size:12.5px;color:var(--muted,#6B5F54);margin-top:6px;">Your download link is sent to this address — please make sure it\'s typed correctly.</div>' +
       '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
@@ -156,9 +155,17 @@
   function goToPayment() {
     const name = document.getElementById('f-name').value.trim();
     const email = document.getElementById('f-email').value.trim();
+    const emailConfirm = document.getElementById('f-email-confirm').value.trim();
     const status = document.getElementById('submit-status');
-    if (!name || !email) {
-      status.textContent = 'Please fill in your name and email.';
+    if (!name || !email || !emailConfirm) {
+      status.textContent = 'Please fill in your name and email (twice, to confirm).';
+      return;
+    }
+    // The download link only ever goes to this address — a single mistyped
+    // character in the domain still looks like a valid email, so a plain
+    // regex can't catch it. Requiring it twice does.
+    if (email.toLowerCase() !== emailConfirm.toLowerCase()) {
+      status.textContent = "Those emails don't match — please check for typos.";
       return;
     }
 
@@ -184,7 +191,7 @@
         btn.disabled = false;
         return;
       }
-      renderPayment(data.client_secret, name, email);
+      renderPayment(data.client_secret, name, email, data.stripe_connect_account_id);
     })
     .catch(function () {
       status.textContent = 'Something went wrong. Please check your connection and try again.';
@@ -192,7 +199,7 @@
     });
   }
 
-  function renderPayment(clientSecret, name, email) {
+  function renderPayment(clientSecret, name, email, connectedAccountId) {
     content.innerHTML =
       '<div class="eyebrow">Pay</div>' +
       '<div class="heading">$' + total.toFixed(2) + '</div>' +
@@ -200,7 +207,10 @@
       '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
-    const stripe = Stripe(STRIPE_PK);
+    // A direct charge's PaymentIntent lives on the baker's own connected
+    // account — Stripe.js must be told that account to confirm against it,
+    // or the Payment Element mounts with no fields (see checkout.html).
+    const stripe = connectedAccountId ? Stripe(STRIPE_PK, { stripeAccount: connectedAccountId }) : Stripe(STRIPE_PK);
     const elements = stripe.elements({ clientSecret: clientSecret });
     const paymentElement = elements.create('payment');
     paymentElement.mount('#payment-element');

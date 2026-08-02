@@ -18,12 +18,15 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // create-payment-intent's isDigital capture_method handling and
 // create-guest-marketplace-order's rejection of listing_kind='digital'.
 
-const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
+import { getStripeClient } from "../_shared/stripe.ts";
+import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { readDirectChargeSettlement } from "../_shared/settlement.ts";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// Must match create-payment-intent's PLATFORM_FEE_RATE.
-const PLATFORM_FEE_RATE = 0.05;
+const stripe = getStripeClient();
+
 const SIGNED_URL_EXPIRY_SECONDS = 60 * 60 * 24 * 7; // 7 days — plenty for a buyer to grab their download
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -72,16 +75,6 @@ Deno.serve(async (req: Request) => {
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Re-verify the PaymentIntent actually succeeded — never trust the client.
-  const stripeRes = await fetch(`https://api.stripe.com/v1/payment_intents/${payment_intent_id}`, {
-    headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
-  });
-  if (!stripeRes.ok) return json({ error: "Could not verify payment." }, 400);
-  const intent = await stripeRes.json();
-  if (intent.status !== "succeeded") {
-    return json({ error: `Payment not confirmed. Status: ${intent.status}` }, 400);
-  }
-
   // Re-fetch the listing server-side — never trust client-supplied price/name.
   const { data: item, error: itemErr } = await db
     .from("menu_items")
@@ -98,16 +91,42 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("business_name, user_name")
+    .select("business_name, user_name, stripe_connect_account_id")
     .eq("id", bakerId)
     .single();
   const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || "Baker";
+  const connectedAccountId = bakerProfile?.stripe_connect_account_id ?? null;
+
+  // Digital purchases are always solo (one item, one baker), so the
+  // PaymentIntent create-payment-intent made for this was a direct charge on
+  // that baker's own connected account — verification must target the same
+  // account. Never trust the client alone on payment success.
+  let intent;
+  try {
+    intent = connectedAccountId
+      ? await stripe.paymentIntents.retrieve(payment_intent_id, { stripeAccount: connectedAccountId })
+      : await stripe.paymentIntents.retrieve(payment_intent_id);
+  } catch {
+    return json({ error: "Could not verify payment." }, 400);
+  }
+  if (intent.status !== "succeeded") {
+    return json({ error: `Payment not confirmed. Status: ${intent.status}` }, 400);
+  }
 
   const priceCents = Math.round(
     ((item.marketplace_price_from ?? 0) > 0 ? item.marketplace_price_from : item.default_price) * 100
   );
+  // Guest checkout: buyer pays exactly the item price — Bakeri's service
+  // charge comes out of the baker's cut instead (see create-payment-intent).
   const platformFeeCents = Math.round(priceCents * PLATFORM_FEE_RATE);
-  const totalCents = priceCents + platformFeeCents;
+  const totalCents = priceCents;
+
+  // Already settled instantly if direct — record the real Stripe fee now so
+  // this closes the payout loop immediately instead of waiting on
+  // release-baker-payouts (whose sweep only runs for platform_custody orders).
+  const settlement = connectedAccountId
+    ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, platformFeeCents)
+    : null;
 
   const { data: signedUrlData, error: signedUrlErr } = await db.storage
     .from("digital-products")
@@ -134,7 +153,7 @@ Deno.serve(async (req: Request) => {
     status: "Confirmed",
     notes: "",
     is_paid: true,
-    payment_note: `Subtotal: $${(priceCents / 100).toFixed(2)}, Bakeri fee: $${(platformFeeCents / 100).toFixed(2)}, Total: $${(totalCents / 100).toFixed(2)}`,
+    payment_note: `Total charged: $${(totalCents / 100).toFixed(2)} (Bakeri service charge: $${(platformFeeCents / 100).toFixed(2)}, deducted from your payout)`,
     platform_fee_cents: platformFeeCents,
     deposit_amount: 0,
     deposit_note: "",
@@ -153,9 +172,11 @@ Deno.serve(async (req: Request) => {
     scheduled_pickup_date: null,
     payment_intent_id,
     payment_status: "captured",
+    payment_model: connectedAccountId ? "direct" : "platform_custody",
     reference_photo_count: 0,
     lead_channel: "website",
     ip_address: clientIp,
+    ...(settlement ?? {}),
   });
 
   if (orderErr) {

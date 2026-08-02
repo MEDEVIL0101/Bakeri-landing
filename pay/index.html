@@ -362,7 +362,7 @@
       : data.invoice_type === 'balance' ? 'Pay Balance $'
       : 'Pay $';
     const feeAmount = data.platform_fee_cents != null ? (data.platform_fee_cents / 100).toFixed(2) : null;
-    const feeNoteHtml = feeAmount ? '<div class="due-date">Includes $' + feeAmount + ' Bakeri fee</div>' : '';
+    const feeNoteHtml = feeAmount ? '<div class="due-date">Includes $' + feeAmount + ' Bakeri service charge</div>' : '';
     const noteHtml = (data.invoice_type === 'deposit'
       ? '<div class="due-date">Non-refundable deposit — the remaining balance will be invoiced separately</div>'
       : data.invoice_type === 'balance'

@@ -1,7 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logNotification } from "../_shared/notificationLog.ts";
-import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 
 // Sends the "here's your quote, pay here" email for a guest (web, no
 // account) custom-order request. Two callers, one function:
@@ -146,14 +145,11 @@ Deno.serve(async (req: Request) => {
     ? `<p style="line-height:1.5;color:#6B5F54;"><em>"${escapeHtml(order.quote_note)}"</em></p>`
     : "";
 
-  // Mirrors create-guest-quote-payment-intent/pay-quote.html exactly — the
-  // customer pays quote + platform fee, so the amount shown here (and on
-  // the "Pay" button) must be the true total, not the bare quoted_price
-  // the baker typed in, or this email quietly undersells what Stripe
-  // actually charges.
+  // Guest checkout: the customer pays exactly the quoted price — Bakeri's
+  // service charge comes out of the baker's side instead (see
+  // create-guest-quote-payment-intent), so it's never shown or added here.
   const baseCents = Math.round(quotedPrice * 100);
-  const platformFeeCents = Math.round(baseCents * PLATFORM_FEE_RATE);
-  const totalCents = baseCents + platformFeeCents;
+  const totalCents = baseCents;
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
   const answers = Array.isArray(order.form_responses) ? order.form_responses : [];
@@ -170,11 +166,9 @@ Deno.serve(async (req: Request) => {
       ${noteBlock}
       ${requestBlock}
       <table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-top:16px;">
-        <tr><td style="padding:4px 0;color:#6B5F54;">Quote</td><td style="padding:4px 0;text-align:right;">${fmt(baseCents)}</td></tr>
-        <tr><td style="padding:4px 0;color:#6B5F54;">Bakeri platform fee (5%)</td><td style="padding:4px 0;text-align:right;">${fmt(platformFeeCents)}</td></tr>
         <tr>
-          <td style="padding:10px 0 0;font-weight:700;border-top:1px solid #E4D9C8;">Total</td>
-          <td style="padding:10px 0 0;text-align:right;font-weight:700;border-top:1px solid #E4D9C8;">${fmt(totalCents)}</td>
+          <td style="padding:10px 0 0;font-weight:700;">Total</td>
+          <td style="padding:10px 0 0;text-align:right;font-weight:700;">${fmt(totalCents)}</td>
         </tr>
       </table>
       <div style="text-align:center;margin:28px 0;">
@@ -189,7 +183,7 @@ Deno.serve(async (req: Request) => {
         This quote is provided directly by ${escapeHtml(bakerName)}, who is solely
         responsible for preparing and fulfilling your order. Once your payment is
         confirmed, pickup details will be provided by email — you're responsible
-        for coordinating pickup with the baker. Platform fees are non-refundable.
+        for coordinating pickup with the baker.
       </p>
     </div>
   `;

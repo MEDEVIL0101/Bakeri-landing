@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { PLATFORM_FEE_RATE, calcDirectChargeApplicationFee } from "../_shared/fees.ts";
+import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 
 const stripe = getStripeClient();
@@ -73,6 +73,25 @@ function allBakersStripeReady(rows: BakerConnectRow[]): boolean {
   return rows.every((p) => p.stripe_connect_onboarding_complete && p.stripe_connect_account_id);
 }
 
+// Both the app (CheckoutView.swift, real signed-in buyer) and the guest
+// storefront (baker/checkout.html, digital-checkout.html — always just the
+// anon key, no session) call this same endpoint. The service charge is only
+// added to the customer's total for the app; a guest checkout pays exactly
+// the item price and Bakeri's cut comes out of the baker's side instead —
+// see _shared/fees.ts. Detected by whether the Authorization bearer
+// resolves to a real signed-in user, not a client-supplied flag, since the
+// fee side this determines shouldn't be something the client can choose.
+async function isAuthenticatedBuyer(authHeader: string | null): Promise<boolean> {
+  if (!authHeader) return false;
+  const anonClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    { global: { headers: { Authorization: authHeader } } }
+  );
+  const { data: { user } } = await anonClient.auth.getUser();
+  return Boolean(user);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -89,6 +108,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const isApp = await isAuthenticatedBuyer(req.headers.get("Authorization"));
     const { items, currency = "cad", tax_amount_cents = 0 }: RequestBody = await req.json();
 
     if (!items || items.length === 0) {
@@ -117,11 +137,21 @@ Deno.serve(async (req: Request) => {
       ? Math.round(itemsTotalCents * DEPOSIT_FRACTION)
       : null;
 
-    // Platform fee is added to what the customer pays rather than deducted
-    // from the baker's cut — computed off the pre-tax item/deposit base (tax
-    // is a pass-through, not something the platform takes a cut of).
+    // Service charge — computed off the pre-tax item/deposit base (tax is a
+    // pass-through, not something the platform takes a cut of).
+    //
+    // Guest/website checkout: NOT added to the customer's charge — the
+    // customer pays exactly the item/deposit price, and Bakeri's one 5% cut
+    // comes entirely out of the baker's side (applicationFeeCents below).
+    //
+    // App: added to what the customer pays AND taken from the baker's side
+    // — both parties pay their own 5% (2026-08-02 decision), so Bakeri
+    // collects platformFeeCents twice: once already embedded in chargeCents
+    // via the customer's added fee, once more carved out of the baker's own
+    // base price. See _shared/fees.ts.
     const platformFeeCents = Math.round((depositAmountCents ?? itemsTotalCents) * PLATFORM_FEE_RATE);
-    const chargeCents = (depositAmountCents ?? fullTotalCents) + platformFeeCents;
+    const chargeCents = (depositAmountCents ?? fullTotalCents) + (isApp ? platformFeeCents : 0);
+    const applicationFeeCents = isApp ? platformFeeCents * 2 : platformFeeCents;
 
     // Regular (non-deposit) orders now hold the funds — authorize at checkout,
     // capture only once the baker actually accepts the order (capture-payment,
@@ -174,12 +204,12 @@ Deno.serve(async (req: Request) => {
     if (isSingleBaker) {
       // Direct charge: created on the baker's own connected account, so
       // funds settle instantly and Stripe's fee is deducted from the
-      // baker's balance automatically. application_fee_amount is shrunk so
-      // the baker only ever bears Stripe's fee on their own price, not on
-      // Bakeri's cut riding along in the same charge — see
-      // calcDirectChargeApplicationFee.
+      // baker's balance automatically. application_fee_amount is
+      // applicationFeeCents (see above) — one 5% cut for a guest order,
+      // taken entirely from the baker; two 5% cuts for an app order (the
+      // customer's added fee plus a matching cut from the baker's own base).
       connectedAccountId = bakerRows[0].stripe_connect_account_id!;
-      createParams.application_fee_amount = calcDirectChargeApplicationFee(chargeCents, platformFeeCents);
+      createParams.application_fee_amount = applicationFeeCents;
       intent = await stripe.paymentIntents.create(
         // deno-lint-ignore no-explicit-any
         createParams as any,

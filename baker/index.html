@@ -1440,11 +1440,10 @@
     }, 0);
   }
 
-  // Bakeri's 5% platform fee is added on top of what the baker priced the
-  // item at — the customer pays it, it's never taken out of the baker's
-  // price. Mirrors PLATFORM_FEE_RATE in supabase/functions/_shared/fees.ts.
-  const PLATFORM_FEE_RATE = 0.05;
-  function cartPlatformFee() { return cartSubtotal() * PLATFORM_FEE_RATE; }
+  // Guest checkout: the customer pays exactly the item subtotal (+ tax) —
+  // Bakeri's service charge comes out of the baker's side instead, so it's
+  // never shown or added to this preview. Mirrors create-payment-intent's
+  // guest branch in supabase/functions/create-payment-intent/index.ts.
 
   // Tax estimate — mirrors create-guest-marketplace-order/index.ts and
   // checkout.html exactly, so this preview never drifts from what's
@@ -1484,7 +1483,7 @@
     });
     return Math.round(taxableSubtotal * rate * 100);
   }
-  function cartTotal() { return cartSubtotal() + cartPlatformFee() + cartTaxCents() / 100; }
+  function cartTotal() { return cartSubtotal() + cartTaxCents() / 100; }
 
   // ══════════════════════ Item Sheet ══════════════════════
 
@@ -1926,16 +1925,14 @@
         '</div>';
     }).join('');
     const subtotal = cartSubtotal();
-    const platformFee = cartPlatformFee();
     const taxCents = cartTaxCents();
     return '<div id="cart-step-label">Your order</div>' +
       rows +
       '<div class="cart-financial-row"><span>Subtotal</span><span class="tabular">$' + formatPrice(subtotal) + '</span></div>' +
-      '<div class="cart-financial-row"><span>Platform fee (5%)</span><span class="tabular">$' + formatPrice(platformFee) + '</span></div>' +
       (taxCents > 0 ? '<div class="cart-financial-row"><span>Tax</span><span class="tabular">$' + formatPrice(taxCents / 100) + '</span></div>' : '') +
       '<div class="cart-financial-row total"><span>Total</span><span class="tabular">$' + formatPrice(cartTotal()) + '</span></div>' +
       '<button class="btn btn-primary" id="cart-continue" style="width:100%;">Continue to pickup details</button>' +
-      '<div class="cart-note">Upon confirmation of your order, pickup details will be provided by email. Customers are responsible for coordinating pickup of their order with the Seller. Platform fees are non-refundable.</div>';
+      '<div class="cart-note">Upon confirmation of your order, pickup details will be provided by email. Customers are responsible for coordinating pickup of their order with the Seller.</div>';
   }
 
   function renderCartStepPickup() {

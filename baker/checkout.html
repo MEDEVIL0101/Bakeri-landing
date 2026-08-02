@@ -148,17 +148,12 @@
     return Math.round(taxableSubtotal * rate * 100);
   }
 
-  // Bakeri's fee is added to what the customer pays (not deducted from the
-  // baker's price), computed off the pre-tax subtotal. This is a display-only
-  // estimate for the order summary shown before payment starts — the
-  // authoritative figure (and what's actually charged) comes back from
-  // create-payment-intent in goToPayment() below and is what the payment step
-  // actually displays/charges, so this can never drift from the real charge.
-  const PLATFORM_FEE_RATE_ESTIMATE = 0.05;
+  // Guest checkout: the customer pays exactly the item subtotal + tax —
+  // Bakeri's service charge comes out of the baker's side instead (see
+  // create-payment-intent), so it's never added here.
   const subtotal = cart.items.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
   const taxCents = calcTaxCents(cart.items);
-  const platformFeeCents = Math.round(subtotal * 100 * PLATFORM_FEE_RATE_ESTIMATE);
-  const total = subtotal + platformFeeCents / 100 + taxCents / 100;
+  const total = subtotal + taxCents / 100;
 
   renderSummary();
 
@@ -178,7 +173,6 @@
       '<div class="heading">Checkout</div>' +
       lines +
       '<div class="totals-row"><span>Subtotal</span><span>$' + subtotal.toFixed(2) + '</span></div>' +
-      '<div class="totals-row"><span>Bakeri fee</span><span>$' + (platformFeeCents / 100).toFixed(2) + '</span></div>' +
       (taxCents > 0 ? '<div class="totals-row"><span>Tax</span><span>$' + (taxCents / 100).toFixed(2) + '</span></div>' : '') +
       '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
       '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
@@ -323,7 +317,6 @@
         '<p>' + escapeHtml(data.baker_name || 'The baker') + ' is reviewing your order. You\'ll get an email as soon as it\'s confirmed, with your pickup details.</p>' +
         '<div class="receipt">' +
           itemRows +
-          '<div class="totals-row"><span>Bakeri fee</span><span>$' + ((data.platform_fee_cents || 0) / 100).toFixed(2) + '</span></div>' +
           '<div class="totals-row grand"><span>Total</span><span>$' + (data.total_cents / 100).toFixed(2) + '</span></div>' +
         '</div>' +
       '</div>';

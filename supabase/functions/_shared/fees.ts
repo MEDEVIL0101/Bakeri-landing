@@ -1,10 +1,15 @@
-// Single source of truth for Bakeri's platform fee math — was previously
+// Single source of truth for Bakeri's service charge math — was previously
 // copy-pasted independently across ~11 files (each with a comment warning it
 // must be kept in sync manually).
 
-// Added on top of the customer's charge, not carved out of the baker's cut —
-// see 20260728000001_customer_paid_platform_fee.sql for the 2026-07-27
-// decision behind this.
+// As of 2026-08-02: for in-app marketplace orders, added on top of the
+// customer's charge (see 20260728000001_customer_paid_platform_fee.sql for
+// the original 2026-07-27 decision) AND taken in full from the baker's cut
+// via application_fee_amount — both sides pay. For guest/website-storefront
+// orders, NOT added to the customer's charge at all — taken only from the
+// baker's cut, same as the app's baker-side share. Each call site computes
+// and applies this rate according to which of those two it is; this
+// constant is just the shared 5% number.
 export const PLATFORM_FEE_RATE = 0.05;
 
 // Stripe's published CAD domestic-card rate. Used only to estimate, at

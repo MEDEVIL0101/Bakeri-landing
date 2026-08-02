@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { PLATFORM_FEE_RATE, calcDirectChargeApplicationFee } from "../_shared/fees.ts";
+import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 
 // Public, unauthenticated endpoint for baker/pay-quote.html — lets a guest
@@ -77,9 +77,12 @@ Deno.serve(async (req: Request) => {
   const quotedPrice = Number(order.quoted_price ?? 0);
   if (!(quotedPrice > 0)) return json({ error: "This quote has no amount set." }, 400);
 
+  // Website/guest orders: the buyer pays exactly the quoted price — Bakeri's
+  // service charge comes out of the baker's cut instead (application_fee_amount
+  // below), not added on top. See _shared/fees.ts.
   const baseCents = Math.round(quotedPrice * 100);
   const platformFeeCents = Math.round(baseCents * PLATFORM_FEE_RATE);
-  const chargeCents = baseCents + platformFeeCents;
+  const chargeCents = baseCents;
 
   let intent;
   try {
@@ -89,7 +92,7 @@ Deno.serve(async (req: Request) => {
         currency: "cad",
         capture_method: "automatic",
         automatic_payment_methods: { enabled: true },
-        application_fee_amount: calcDirectChargeApplicationFee(chargeCents, platformFeeCents),
+        application_fee_amount: platformFeeCents,
         metadata: {
           order_id: order.id,
           baker_id: order.user_id,

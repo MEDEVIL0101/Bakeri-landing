@@ -16,11 +16,13 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const stripe = getStripeClient();
 
-// The PaymentIntent this finalizes already charged subtotal + platform fee +
-// tax (create-payment-intent), so the fee is recorded here (never trusting a
-// client-supplied figure) — read back verbatim by release-baker-payouts for
-// platform_custody orders, or already reflected in the direct charge's
-// application_fee_amount for direct orders.
+// The PaymentIntent this finalizes charged subtotal + tax only — a guest
+// checkout doesn't add Bakeri's service charge to the customer's total (see
+// create-payment-intent). platform_fee_cents is still computed and stored
+// here (never trusting a client-supplied figure) so it's available to
+// release-baker-payouts for platform_custody orders, or to reconcile against
+// the direct charge's application_fee_amount for direct orders — either way
+// it comes out of the baker's side, not the customer's.
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const PHONE_RE = /^[0-9+()\-.\s]{7,20}$/;
@@ -424,10 +426,10 @@ Deno.serve(async (req: Request) => {
     bakerProfile?.pickup_province ?? ""
   );
   const subtotalCents = lines.reduce((sum, l) => sum + Math.round(l.pricePerUnit * l.quantity * 100), 0);
-  // Fee is on the pre-tax item subtotal, matching what create-payment-intent
-  // already added to this order's charge — customer pays it, baker doesn't.
+  // Fee is on the pre-tax item subtotal — comes out of the baker's cut, not
+  // added to what the customer was actually charged (subtotal + tax only).
   const platformFeeCents = Math.round(subtotalCents * PLATFORM_FEE_RATE);
-  const totalCents = subtotalCents + platformFeeCents + taxCents;
+  const totalCents = subtotalCents + taxCents;
 
   // Order name: the single item's name, or "First item + N more" for a cart —
   // matches how the app already summarizes multi-line manual orders.
@@ -460,7 +462,7 @@ Deno.serve(async (req: Request) => {
     status: "Confirmed",
     notes: "",
     is_paid: true,
-    payment_note: `Subtotal: $${(subtotalCents / 100).toFixed(2)}, Bakeri fee: $${(platformFeeCents / 100).toFixed(2)}, Tax: $${(taxCents / 100).toFixed(2)}, Total: $${(totalCents / 100).toFixed(2)}`,
+    payment_note: `Subtotal: $${(subtotalCents / 100).toFixed(2)}, Tax: $${(taxCents / 100).toFixed(2)}, Total charged: $${(totalCents / 100).toFixed(2)} (Bakeri service charge: $${(platformFeeCents / 100).toFixed(2)}, deducted from your payout)`,
     platform_fee_cents: platformFeeCents,
     deposit_amount: 0,
     deposit_note: "",

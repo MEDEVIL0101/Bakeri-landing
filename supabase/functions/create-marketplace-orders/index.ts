@@ -1,15 +1,25 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { getStripeClient } from "../_shared/stripe.ts";
+import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { readDirectChargeSettlement, toDepositSettlementFields } from "../_shared/settlement.ts";
 
-const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// Must match create-payment-intent's PLATFORM_FEE_RATE — the charge already
-// created there added this fee on top of what the buyer's cart totaled, so
-// here we just record each order's fair share of that fee (proportional to
-// its own item subtotal) for release-baker-payouts to read back verbatim.
-const PLATFORM_FEE_RATE = 0.05;
+const stripe = getStripeClient();
+
+// This function only ever runs for in-app (authenticated) orders — the guest
+// storefront cart uses create-guest-marketplace-order instead. As of
+// 2026-08-02, app orders charge the service fee on both sides: the charge
+// create-payment-intent made already added one 5% cut on top of what the
+// buyer's cart totaled, AND application_fee_amount on that same charge took
+// a *second* 5% cut out of the baker's own base price — so the
+// platform_fee_cents recorded here (each order's fair share, proportional to
+// its own item subtotal) is doubled to match the actual total taken, not
+// just the nominal rate. Read back verbatim by release-baker-payouts for
+// platform_custody (multi-baker) carts, or by capture-payment/
+// readDirectChargeSettlement for a single-baker cart.
 
 interface FormResponseAnswer {
   fieldID: string;
@@ -96,30 +106,57 @@ Deno.serve(async (req: Request) => {
     const uname  = buyerProfile?.user_name?.trim();
     const buyer_display_name = handle ? `@${handle}` : uname || user.email || "Bakeri customer";
 
+    // A cart spanning exactly one baker was charged as a Stripe Connect
+    // direct charge on that baker's own connected account
+    // (create-payment-intent) — verification must target the same account.
+    // A multi-baker cart stays on the unchanged platform-custody model
+    // (dormant today — unreachable while the cross-baker marketplace is
+    // paused), verified against the platform account as before.
+    const distinctBakerIds = [...new Set(items.map((i) => i.baker_id))];
+    const isSingleBaker = distinctBakerIds.length === 1;
+    let connectedAccountId: string | null = null;
+    if (isSingleBaker) {
+      const { data: connectRow } = await supabase
+        .from("profiles")
+        .select("stripe_connect_account_id")
+        .eq("id", distinctBakerIds[0])
+        .single();
+      connectedAccountId = connectRow?.stripe_connect_account_id ?? null;
+    }
+    // setup_intent flow has no charge at all yet (a card is only saved, not
+    // charged — the deferred hold placement described in create-setup-intent
+    // isn't implemented), so there's no real charge to label 'direct' yet.
+    const paymentModel: "direct" | "platform_custody" =
+      connectedAccountId && payment_flow !== "setup_intent" ? "direct" : "platform_custody";
+
     // Verify payment with Stripe — skip for mock IDs and setup_intent flow
     const isMock = payment_intent_id?.startsWith("mock_") || setup_intent_id?.startsWith("mock_");
-    if (!isMock && STRIPE_SECRET_KEY) {
+    if (!isMock) {
       if (payment_flow === "setup_intent" && setup_intent_id) {
-        const stripeRes = await fetch(
-          `https://api.stripe.com/v1/setup_intents/${setup_intent_id}`,
-          { headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` } }
-        );
-        if (stripeRes.ok) {
-          const intent = await stripeRes.json();
+        // SetupIntents never carry Connect params today (no charge happens at
+        // this step), so no stripeAccount option here regardless of baker count.
+        try {
+          const intent = await stripe.setupIntents.retrieve(setup_intent_id);
           if (intent.status !== "succeeded") {
             throw new Error(`Setup intent not confirmed. Status: ${intent.status}`);
           }
+        } catch (err) {
+          if (err instanceof Error && err.message.startsWith("Setup intent not confirmed")) throw err;
+          // Stripe lookup failed for another reason — matches prior behavior
+          // of silently proceeding rather than blocking order creation on a
+          // transient verification-fetch failure.
         }
       } else if (payment_intent_id) {
-        const stripeRes = await fetch(
-          `https://api.stripe.com/v1/payment_intents/${payment_intent_id}`,
-          { headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` } }
-        );
-        if (stripeRes.ok) {
-          const intent = await stripeRes.json();
+        try {
+          const intent = connectedAccountId
+            ? await stripe.paymentIntents.retrieve(payment_intent_id, { stripeAccount: connectedAccountId })
+            : await stripe.paymentIntents.retrieve(payment_intent_id);
           if (intent.status !== "succeeded" && intent.status !== "requires_capture") {
             throw new Error(`Payment not confirmed. Status: ${intent.status}`);
           }
+        } catch (err) {
+          if (err instanceof Error && err.message.startsWith("Payment not confirmed")) throw err;
+          // Same non-blocking-on-transient-failure behavior as before.
         }
       }
     }
@@ -130,6 +167,23 @@ Deno.serve(async (req: Request) => {
       : payment_flow === "deposit_and_save"
       ? "deposit_paid"
       : "authorized";
+
+    // deposit_and_save charges capture immediately (create-payment-intent
+    // uses capture_method: "automatic" for it), so for a direct charge the
+    // settlement is already available — read it once and close the payout
+    // loop right away instead of waiting on release-baker-payouts.
+    let depositSettlement: Record<string, unknown> | null = null;
+    if (paymentModel === "direct" && payment_flow === "deposit_and_save" && payment_intent_id && connectedAccountId) {
+      // ×2 — matches the doubled application_fee_amount create-payment-intent
+      // actually took for this app order (see module header comment).
+      const settlement = await readDirectChargeSettlement(
+        stripe,
+        payment_intent_id,
+        connectedAccountId,
+        Math.round((deposit_amount_cents ?? 0) * PLATFORM_FEE_RATE) * 2
+      );
+      depositSettlement = settlement ? toDepositSettlementFields(settlement) : null;
+    }
 
     // Group items by baker AND listing kind so ready-now orders are always separate
     // from preorders — they need different urgency handling by the baker.
@@ -194,9 +248,12 @@ Deno.serve(async (req: Request) => {
       const groupSubtotalCents = Math.round(
         groupItems.reduce((sum, i) => sum + i.price_from * i.quantity, 0) * 100
       );
-      const groupPlatformFeeCents = payment_flow === "deposit_and_save"
+      // ×2 — see module header comment: an app order's application_fee_amount
+      // takes this fee twice (once from the customer's added charge, once
+      // from the baker's own base), so the stored figure must match.
+      const groupPlatformFeeCents = (payment_flow === "deposit_and_save"
         ? Math.round((deposit_amount_cents ?? 0) * PLATFORM_FEE_RATE)
-        : Math.round(groupSubtotalCents * PLATFORM_FEE_RATE);
+        : Math.round(groupSubtotalCents * PLATFORM_FEE_RATE)) * 2;
 
       const { error: orderErr } = await supabase.from("orders").insert({
         id: orderID,
@@ -227,6 +284,7 @@ Deno.serve(async (req: Request) => {
         scheduled_pickup_date: kind === "ready_now" ? null : firstPickup,
         payment_intent_id: payment_intent_id ?? null,
         payment_status: paymentStatus,
+        payment_model: paymentModel,
         reference_photo_count: 0,
         payment_flow,
         setup_intent_id: setup_intent_id ?? null,
@@ -236,6 +294,7 @@ Deno.serve(async (req: Request) => {
         deposit_payment_intent_id: payment_flow === "deposit_and_save" ? (payment_intent_id ?? null) : null,
         deposit_charged_at: payment_flow === "deposit_and_save" ? now : null,
         deposit_platform_fee_cents: payment_flow === "deposit_and_save" ? groupPlatformFeeCents : null,
+        ...(payment_flow === "deposit_and_save" ? depositSettlement ?? {} : {}),
       });
 
       if (orderErr) throw new Error(`Failed to create order: ${orderErr.message}`);

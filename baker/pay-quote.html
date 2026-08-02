@@ -192,21 +192,47 @@
     headerImg.src = STORAGE_URL + '/storefront-headers/' + String(bakerId).toUpperCase() + '/header.jpg';
   }
 
-  // Must match create-guest-quote-payment-intent's PLATFORM_FEE_RATE — shown
-  // here so the quoted price the baker gave doesn't look bait-and-switched
-  // when Stripe actually charges a little more.
-  const PLATFORM_FEE_RATE = 0.05;
+  // Shows the buyer exactly what they asked for alongside the price — matches
+  // send-guest-quote-email's renderRequestBlock so the record here is the
+  // same one the buyer already saw in their quote email.
+  function renderRequestBlock(answers) {
+    if (!answers || !answers.length) return '';
+    const rows = answers.map(function (a) {
+      let valueHtml;
+      if (a.fieldType === 'photo' && Array.isArray(a.photoPaths) && a.photoPaths.length > 0) {
+        valueHtml = a.photoPaths.map(function (p) {
+          return '<img src="' + STORAGE_URL + '/form-response-photos/' + p + '" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;margin:2px 6px 2px 0;" />';
+        }).join('');
+      } else if (Array.isArray(a.choiceValues) && a.choiceValues.length > 0) {
+        valueHtml = escapeHtml(a.choiceValues.join(', '));
+      } else if (a.textValue && String(a.textValue).trim()) {
+        valueHtml = escapeHtml(a.textValue);
+      } else {
+        return '';
+      }
+      return '<tr>' +
+        '<td style="padding:6px 10px 6px 0;color:var(--muted);font-size:12.5px;vertical-align:top;white-space:nowrap;">' + escapeHtml(a.label) + '</td>' +
+        '<td style="padding:6px 0;font-size:13.5px;">' + valueHtml + '</td>' +
+        '</tr>';
+    }).filter(Boolean).join('');
+    if (!rows) return '';
+    return '<div style="margin:18px 0;padding:14px 16px;background:rgba(148,133,119,0.08);border-radius:10px;">' +
+      '<div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">What you requested</div>' +
+      '<table style="width:100%;border-collapse:collapse;">' + rows + '</table>' +
+      '</div>';
+  }
 
   function renderQuote(data) {
+    // Guest checkout: the buyer pays exactly the quoted price — Bakeri's fee
+    // comes out of the baker's side, not added here (see
+    // create-guest-quote-payment-intent).
     const amount = Number(data.quoted_price || 0);
-    const platformFee = Math.round(amount * 100 * PLATFORM_FEE_RATE) / 100;
-    const total = amount + platformFee;
     card.innerHTML =
       '<div class="eyebrow">Quote from ' + escapeHtml(data.business_name) + '</div>' +
       '<div class="item-name">' + escapeHtml(data.order_name || 'Your order') + '</div>' +
       (data.quote_note ? '<div class="quote-note">"' + escapeHtml(data.quote_note) + '"</div>' : '') +
-      '<div class="amount">$' + total.toFixed(2) + '</div>' +
-      '<div class="quote-note">Includes $' + platformFee.toFixed(2) + ' Bakeri fee (quote: $' + amount.toFixed(2) + ')</div>' +
+      renderRequestBlock(data.form_responses) +
+      '<div class="amount">$' + amount.toFixed(2) + '</div>' +
       '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
@@ -228,7 +254,7 @@
           btn.disabled = false;
           return;
         }
-        renderPayment(piData.client_secret, (piData.amount_cents != null ? piData.amount_cents / 100 : total));
+        renderPayment(piData.client_secret, (piData.amount_cents != null ? piData.amount_cents / 100 : amount), piData.stripe_connect_account_id);
       })
       .catch(function () {
         status.textContent = 'Something went wrong. Please check your connection and try again.';
@@ -237,7 +263,7 @@
     });
   }
 
-  function renderPayment(clientSecret, amount) {
+  function renderPayment(clientSecret, amount, connectedAccountId) {
     card.innerHTML =
       '<div class="eyebrow">Pay Quote</div>' +
       '<div class="item-name">$' + amount.toFixed(2) + '</div>' +
@@ -246,7 +272,10 @@
       '<div class="submit-status" id="submit-status"></div>' +
       '<div class="pickup-note">📍 Exact pickup address is provided by email once your payment is confirmed.</div>';
 
-    const stripe = Stripe(STRIPE_PK);
+    // A direct charge's PaymentIntent lives on the baker's own connected
+    // account — Stripe.js must be told that account to confirm against it,
+    // or the Payment Element mounts with no fields.
+    const stripe = connectedAccountId ? Stripe(STRIPE_PK, { stripeAccount: connectedAccountId }) : Stripe(STRIPE_PK);
     const elements = stripe.elements({ clientSecret: clientSecret });
     const paymentElement = elements.create('payment');
     paymentElement.mount('#payment-element');
