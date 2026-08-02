@@ -941,11 +941,11 @@
   function bodyLinkSections() { return linkSections().filter(function (s) { return !isSocialSection(s); }); }
 
   function sectionTabs() {
-    // "Menu" is the only real swappable tab now — always present, even for
-    // a brand-new baker with nothing added yet (its own empty-state prompts
-    // them to add their first item, rather than a blank page with no
-    // heading at all).
-    return [{ key: 'menu', label: 'Menu' }];
+    // "Menu" is the only real swappable tab — only shown once the baker has
+    // at least one ready_now/preorder/custom listing (see updateFeedVisibility;
+    // the section itself is absent otherwise, so a nav entry pointing at
+    // nothing would be misleading).
+    return menuListings().length > 0 ? [{ key: 'menu', label: 'Menu' }] : [];
   }
 
   function linkSectionId(section) {
@@ -994,6 +994,10 @@
   function renderSectionNav() {
     const tabs = sectionTabs().concat(scrollTabs());
     const nav = document.getElementById('section-nav');
+    // Nothing to navigate to at all — a brand-new baker with no listings and
+    // no other section filled out yet. Hide the strip rather than show an
+    // empty bar with a stray border line.
+    document.getElementById('section-nav-wrap').classList.toggle('hidden', tabs.length === 0);
     nav.innerHTML = '';
     tabs.forEach(function (t) {
       const isScroll = t.key.indexOf('scroll:') === 0;
@@ -1020,7 +1024,7 @@
   }
 
   function applySectionTab() {
-    document.getElementById('filter-strip').classList.toggle('hidden', sectionTab !== 'menu');
+    updateFeedVisibility();
     renderFilterBar();
     renderGrid();
   }
@@ -1108,11 +1112,24 @@
     return menuListings().filter(function (l) { return l.listing_kind === kind; });
   }
 
+  // Only a category with at least one item gets a chip — "All" is never
+  // empty as long as the Menu section itself is showing at all, so it's
+  // exempt from the check.
+  function availableFilters() {
+    return FILTERS.filter(function (f) { return f.key === 'all' || listingsForTab(f.key).length > 0; });
+  }
+
   function renderFilterBar() {
+    const strip = document.getElementById('filter-strip');
     const bar = document.getElementById('filter-bar');
-    if (sectionTab !== 'menu' || menuListings().length === 0) { bar.classList.add('hidden'); return; }
+    if (sectionTab !== 'menu' || menuListings().length === 0) {
+      strip.classList.add('hidden');
+      bar.classList.add('hidden');
+      return;
+    }
+    strip.classList.remove('hidden');
     bar.classList.remove('hidden');
-    bar.innerHTML = FILTERS.map(function (f) {
+    bar.innerHTML = availableFilters().map(function (f) {
       return '<button class="filter-chip' + (f.key === tab ? ' active' : '') + '" data-tab="' + f.key + '">' + f.label + '</button>';
     }).join('');
     bar.querySelectorAll('.filter-chip').forEach(function (btn) {
@@ -1126,13 +1143,14 @@
     renderGrid();
   }
 
+  // The Menu section (nav entry, filter bar, and this grid) only ever
+  // renders when the baker actually has at least one ready_now/preorder/
+  // custom listing — see updateFeedVisibility. availableFilters() only ever
+  // offers a category that has items, so listings here should never
+  // legitimately come back empty; the message is a defensive fallback only.
   function renderGrid() {
     const grid = document.getElementById('product-grid');
     const listings = listingsForTab(tab);
-    if (allListings.length === 0) {
-      grid.innerHTML = '<div class="empty-state">No items listed yet.</div>';
-      return;
-    }
     if (listings.length === 0) {
       grid.innerHTML = '<div class="empty-state">No items in this category.</div>';
       return;
@@ -1141,6 +1159,14 @@
     listings.forEach(function (item) {
       grid.appendChild(buildCard(item));
     });
+  }
+
+  // Hides the whole Menu section — nav entry, filter bar, and grid — when
+  // the baker has no ready_now/preorder/custom listings, per "only show
+  // what the baker has actually made available." Digital Downloads is a
+  // fully separate section (see renderDigitalFeed) so it's unaffected.
+  function updateFeedVisibility() {
+    document.getElementById('feed').classList.toggle('hidden', menuListings().length === 0);
   }
 
   // Always-visible, directly under the Menu grid — matches how Links/About/
