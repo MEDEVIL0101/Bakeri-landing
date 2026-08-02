@@ -748,7 +748,14 @@
   // ══════════════════════ Render ══════════════════════
 
   function render(profile, listings, faqs, links) {
-    allListings = listings;
+    // A custom listing with no intake form attached has no working way to
+    // actually collect a request — customOrderURL would build a link with
+    // an empty &form= param, which custom-order.html correctly rejects as
+    // invalid. Rather than publish a card that leads to a dead end, treat
+    // it the same as any other not-actually-ready-to-show content (see the
+    // Menu-section-hides-when-empty rule) and just leave it out entirely
+    // until the baker finishes setting it up.
+    allListings = listings.filter(function (l) { return l.listing_kind !== 'custom' || l.intake_form_id; });
     allLinks = links;
     const name = profile.business_name || profile.user_name || 'Baker';
     const location = profile.neighbourhood
