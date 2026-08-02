@@ -1,11 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getStripeClient } from "../_shared/stripe.ts";
+import { PLATFORM_FEE_RATE, calcDirectChargeApplicationFee } from "../_shared/fees.ts";
+import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 
 // Public, unauthenticated endpoint for baker/pay-quote.html — lets a guest
 // (no Bakeri account) pay the price a baker quoted them for a custom order
-// request. Mirrors create-payment-intent's "immediate" flow (captures into
-// Bakeri's own balance; released to the baker later by release-baker-payouts)
-// but keyed by an existing order rather than a fresh cart.
+// request. Charges a Stripe Connect direct charge on the baker's own account
+// (funds settle instantly; Stripe's fee comes off the baker's balance) but
+// keyed by an existing order rather than a fresh cart.
 //
 // Scope decision: charges the full quoted_price in one shot, even if the
 // baker split it into deposit+balance when quoting — a guest has no saved
@@ -14,13 +17,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // remaining balance for a guest order after this is a manual follow-up
 // (baker can generate/send another invoice) rather than automatic.
 
-const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// Must match finalize-guest-quote-payment's fee math — added on top of the
-// quoted price, not deducted from the baker's payout.
-const PLATFORM_FEE_RATE = 0.05;
+const stripe = getStripeClient();
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -66,12 +66,14 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("stripe_connect_onboarding_complete")
+    .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
     .eq("id", order.user_id)
     .single();
-  if (!bakerProfile?.stripe_connect_onboarding_complete) {
+  if (!bakerProfile?.stripe_connect_onboarding_complete || !bakerProfile?.stripe_connect_account_id) {
     return json({ error: "This baker hasn't finished setting up payments yet. Check back soon!" }, 400);
   }
+  const connectedAccountId = bakerProfile.stripe_connect_account_id;
+
   const quotedPrice = Number(order.quoted_price ?? 0);
   if (!(quotedPrice > 0)) return json({ error: "This quote has no amount set." }, 400);
 
@@ -79,33 +81,32 @@ Deno.serve(async (req: Request) => {
   const platformFeeCents = Math.round(baseCents * PLATFORM_FEE_RATE);
   const chargeCents = baseCents + platformFeeCents;
 
-  const stripeRes = await fetch("https://api.stripe.com/v1/payment_intents", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      amount: String(chargeCents),
-      currency: "cad",
-      capture_method: "automatic",
-      "automatic_payment_methods[enabled]": "true",
-      "metadata[order_id]": order.id,
-      "metadata[baker_id]": order.user_id,
-      "metadata[flow]": "guest_quote_payment",
-    }),
-  });
-
-  if (!stripeRes.ok) {
-    const err = await stripeRes.json();
-    return json({ error: err.error?.message ?? "Stripe error" }, 400);
+  let intent;
+  try {
+    intent = await stripe.paymentIntents.create(
+      {
+        amount: chargeCents,
+        currency: "cad",
+        capture_method: "automatic",
+        automatic_payment_methods: { enabled: true },
+        application_fee_amount: calcDirectChargeApplicationFee(chargeCents, platformFeeCents),
+        metadata: {
+          order_id: order.id,
+          baker_id: order.user_id,
+          flow: "guest_quote_payment",
+        },
+      },
+      { stripeAccount: connectedAccountId }
+    );
+  } catch (err: unknown) {
+    return json({ error: friendlyStripeError(err) }, 400);
   }
-  const intent = await stripeRes.json();
 
   return json({
     payment_intent_id: intent.id,
     client_secret: intent.client_secret,
     amount_cents: chargeCents,
     platform_fee_cents: platformFeeCents,
+    stripe_connect_account_id: connectedAccountId,
   });
 });

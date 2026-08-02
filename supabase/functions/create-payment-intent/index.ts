@@ -1,8 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getStripeClient } from "../_shared/stripe.ts";
+import { PLATFORM_FEE_RATE, calcDirectChargeApplicationFee } from "../_shared/fees.ts";
+import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 
-const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY");
-const PLATFORM_FEE_RATE = 0.05; // 5% platform fee
+const stripe = getStripeClient();
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const DEPOSIT_FRACTION = 0.5; // 50% deposit for custom orders
@@ -46,19 +48,29 @@ function getSupabaseClient() {
   );
 }
 
+interface BakerConnectRow {
+  id: string;
+  stripe_connect_account_id: string | null;
+  stripe_connect_onboarding_complete: boolean;
+}
+
 // A storefront can't take a real checkout until its baker has finished
 // Stripe Connect — otherwise there's no destination to eventually pay them
 // out to. Checked against every baker present in the cart, not just the
 // primary one, since a connect account can lapse between page load and
 // submit.
-async function allBakersStripeReady(bakerIds: string[]): Promise<boolean> {
+async function fetchBakerConnectRows(bakerIds: string[]): Promise<BakerConnectRow[] | null> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("profiles")
     .select("id, stripe_connect_account_id, stripe_connect_onboarding_complete")
     .in("id", bakerIds);
-  if (error || !data || data.length !== bakerIds.length) return false;
-  return data.every((p) => p.stripe_connect_onboarding_complete && p.stripe_connect_account_id);
+  if (error || !data || data.length !== bakerIds.length) return null;
+  return data;
+}
+
+function allBakersStripeReady(rows: BakerConnectRow[]): boolean {
+  return rows.every((p) => p.stripe_connect_onboarding_complete && p.stripe_connect_account_id);
 }
 
 Deno.serve(async (req: Request) => {
@@ -77,10 +89,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    if (!STRIPE_SECRET_KEY) {
-      throw new Error("STRIPE_SECRET_KEY is not configured");
-    }
-
     const { items, currency = "cad", tax_amount_cents = 0 }: RequestBody = await req.json();
 
     if (!items || items.length === 0) {
@@ -111,8 +119,7 @@ Deno.serve(async (req: Request) => {
 
     // Platform fee is added to what the customer pays rather than deducted
     // from the baker's cut — computed off the pre-tax item/deposit base (tax
-    // is a pass-through, not something the platform takes a cut of). The
-    // baker still absorbs the real Stripe processing fee, at payout time.
+    // is a pass-through, not something the platform takes a cut of).
     const platformFeeCents = Math.round((depositAmountCents ?? itemsTotalCents) * PLATFORM_FEE_RATE);
     const chargeCents = (depositAmountCents ?? fullTotalCents) + platformFeeCents;
 
@@ -121,22 +128,18 @@ Deno.serve(async (req: Request) => {
     // called from MarketplaceOrderSheet's accept actions). If the baker never
     // accepts (declines, or the guest-order expiry cron times it out), the
     // authorization is simply cancelled — no charge, no non-refundable Stripe
-    // fee. Deposits capture immediately (non-refundable) but no longer
-    // transfer at checkout — see below, they now go through the same
-    // "capture into Bakeri's balance, sweep a transfer later" model as every
-    // other order, so the baker's cut can reflect the real Stripe fee instead
-    // of the platform absorbing it via a destination-charge split. Digital
-    // goods also capture immediately — there's no physical handoff to wait
-    // for, so the sale (and the buyer's download) is done the moment payment
-    // succeeds. Digital purchases are always solo (never mixed into a cart
-    // with physical items — see finalize-guest-digital-order), so checking
-    // the first item is sufficient.
+    // fee. Digital goods capture immediately — there's no physical handoff to
+    // wait for, so the sale (and the buyer's download) is done the moment
+    // payment succeeds. Digital purchases are always solo (never mixed into a
+    // cart with physical items — see finalize-guest-digital-order), so
+    // checking the first item is sufficient.
     const isDigital = items.every((i) => i.listing_kind === "digital");
     const captureMethod = (paymentFlow === "deposit_and_save" || isDigital) ? "automatic" : "manual";
 
     const bakerIDs = [...new Set(items.map((i) => i.baker_id))];
 
-    if (!(await allBakersStripeReady(bakerIDs))) {
+    const bakerRows = await fetchBakerConnectRows(bakerIDs);
+    if (!bakerRows || !allBakersStripeReady(bakerRows)) {
       return new Response(
         JSON.stringify({ error: "This baker hasn't finished setting up payments yet. Check back soon!" }),
         { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
@@ -150,39 +153,46 @@ Deno.serve(async (req: Request) => {
       platform_fee_cents: String(platformFeeCents),
     };
 
-    const intentParams: Record<string, string> = {
-      amount: String(chargeCents),
+    const isSingleBaker = bakerIDs.length === 1;
+    const paymentModel: "direct" | "platform_custody" = isSingleBaker ? "direct" : "platform_custody";
+
+    const createParams: Record<string, unknown> = {
+      amount: chargeCents,
       currency,
       capture_method: captureMethod,
-      "automatic_payment_methods[enabled]": "true",
-      ...Object.fromEntries(
-        Object.entries(metadata).map(([k, v]) => [`metadata[${k}]`, v])
-      ),
+      automatic_payment_methods: { enabled: true },
+      metadata,
     };
 
-    // No application_fee_amount/transfer_data here for any flow — every
-    // charge (including deposits, as of 2026-07-28) lands in Bakeri's own
-    // balance and is released to the baker later by release-baker-payouts,
-    // once its own dispute window has passed.
     if (paymentFlow === "deposit_and_save") {
-      intentParams["setup_future_usage"] = "off_session";
+      createParams.setup_future_usage = "off_session";
     }
 
-    const stripeRes = await fetch("https://api.stripe.com/v1/payment_intents", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams(intentParams),
-    });
+    let intent;
+    let connectedAccountId: string | null = null;
 
-    if (!stripeRes.ok) {
-      const err = await stripeRes.json();
-      throw new Error(err.error?.message ?? "Stripe error");
+    if (isSingleBaker) {
+      // Direct charge: created on the baker's own connected account, so
+      // funds settle instantly and Stripe's fee is deducted from the
+      // baker's balance automatically. application_fee_amount is shrunk so
+      // the baker only ever bears Stripe's fee on their own price, not on
+      // Bakeri's cut riding along in the same charge — see
+      // calcDirectChargeApplicationFee.
+      connectedAccountId = bakerRows[0].stripe_connect_account_id!;
+      createParams.application_fee_amount = calcDirectChargeApplicationFee(chargeCents, platformFeeCents);
+      intent = await stripe.paymentIntents.create(
+        // deno-lint-ignore no-explicit-any
+        createParams as any,
+        { stripeAccount: connectedAccountId }
+      );
+    } else {
+      // Multi-baker cart (dormant today — unreachable until the cross-baker
+      // marketplace reopens): unchanged platform-custody model. Charge lands
+      // in Bakeri's own balance; release-baker-payouts sweeps each baker's
+      // cut out later.
+      // deno-lint-ignore no-explicit-any
+      intent = await stripe.paymentIntents.create(createParams as any);
     }
-
-    const intent = await stripeRes.json();
 
     return new Response(
       JSON.stringify({
@@ -193,6 +203,8 @@ Deno.serve(async (req: Request) => {
         payment_flow: paymentFlow,
         deposit_amount_cents: depositAmountCents,
         platform_fee_cents: platformFeeCents,
+        payment_model: paymentModel,
+        stripe_connect_account_id: connectedAccountId,
       }),
       {
         headers: {
@@ -202,8 +214,7 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: friendlyStripeError(err) }), {
       status: 500,
       headers: {
         "Content-Type": "application/json",
