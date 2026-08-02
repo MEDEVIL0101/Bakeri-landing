@@ -25,6 +25,37 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: var(--sans); background: var(--bg); color: var(--bio); min-height: 100dvh; -webkit-font-smoothing: antialiased; }
     button { font-family: inherit; }
+    .hidden { display: none !important; }
+
+    #page-shell { max-width: 720px; margin: 0 auto; background: var(--bg); position: relative; }
+
+    /* Header image + logo — same treatment as baker/index.html and
+       custom-order.html's identity block. Wrapped in a link (below) so
+       tapping it takes the buyer back to the baker's storefront. */
+    #profile-hero { position: relative; }
+    #storefront-header {
+      position: absolute; inset: 0; overflow: hidden;
+      background: linear-gradient(135deg, #8a7a68, #5c5044);
+    }
+    #storefront-header img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+    #header-scrim { position: absolute; inset: 0; background: rgba(20,15,10,.42); }
+    #profile-block { text-align: center; padding: 40px 20px 26px; position: relative; z-index: 1; }
+    #profile-link { display: block; text-decoration: none; }
+    .avatar {
+      width: 84px; height: 84px; margin: 0 auto; font-size: 28px;
+      border-radius: 50%; background: #8a7a68; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #fff; overflow: hidden; position: relative;
+      box-shadow: 0 2px 6px rgba(36,23,18,.15);
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; display: none; }
+    #shop-name { font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 12px; }
+    #profile-hero.has-photo #shop-name { color: #fff; }
+
+    /* Full-width white band directly under the hero, matching custom-order.html —
+       one continuous surface, not a floating card. */
+    #form-band { background: var(--surface, #fff); }
+    @media (prefers-color-scheme: dark) { #form-band { --surface: #241a12; } }
+
     #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
     @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
     .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); }
@@ -51,12 +82,29 @@
 </head>
 <body>
 
-<div id="page">
-  <div class="card" id="card">
-    <div class="eyebrow">Loading…</div>
+<div id="page-shell">
+  <div id="profile-hero">
+    <div id="storefront-header" class="hidden">
+      <img id="header-img" alt="" />
+      <div id="header-scrim"></div>
+    </div>
+    <a id="profile-link" href="https://bakeriapp.com" target="_blank" rel="noopener">
+      <section id="profile-block">
+        <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
+        <div id="shop-name"></div>
+      </section>
+    </a>
   </div>
-  <div class="footer-links">
-    <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+
+  <div id="form-band">
+    <div id="page">
+      <div class="card" id="card">
+        <div class="eyebrow">Loading…</div>
+      </div>
+      <div class="footer-links">
+        <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -65,6 +113,7 @@
   const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
   const ANON_KEY      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
   const STRIPE_PK    = 'pk_live_51TdqbXRpI8DhqX3Ful2hqNWdNtdd4Rt0QQC6IZVhxA5Du89YIEo1638vSaJmBmk5XqRbfxcbqiYJCsMJgpRWvzoP00NUFyirgh';
+  const STORAGE_URL  = SUPABASE_URL + '/storage/v1/object/public';
 
   const params  = new URLSearchParams(window.location.search);
   const orderId = (params.get('order') || '').trim();
@@ -97,6 +146,7 @@
   .then(function (r) { return r.json(); })
   .then(function (data) {
     if (!data) { showMessage('Quote not found', 'This link is no longer valid.'); return; }
+    renderHeader(data);
     if (data.is_paid || data.marketplace_status === 'confirmed') {
       showMessage('Already paid', 'This quote has already been paid — thank you!');
       return;
@@ -110,6 +160,37 @@
   .catch(function () {
     showMessage('Something went wrong', 'Could not load this quote. Please try again later.');
   });
+
+  // Same treatment as baker/index.html and custom-order.html's identity
+  // block — a buyer reached this page via an emailed link, not by clicking
+  // through the storefront, so it should still look like (and link back to)
+  // the same store rather than a bare, unbranded payment form.
+  function renderHeader(data) {
+    const bakerId = data.baker_id;
+    const name = data.business_name || 'Baker';
+    document.getElementById('shop-name').textContent = name;
+
+    const link = document.getElementById('profile-link');
+    link.href = data.profile_slug
+      ? 'https://bakeriapp.com/' + encodeURIComponent(data.profile_slug)
+      : 'https://bakeriapp.com/baker/index.html?id=' + encodeURIComponent(bakerId);
+
+    const letterEl = document.getElementById('pb-avatar-letter');
+    letterEl.textContent = name.charAt(0).toUpperCase();
+    const avatarImg = document.createElement('img');
+    avatarImg.alt = name;
+    avatarImg.onload = function () { avatarImg.style.display = 'block'; letterEl.style.display = 'none'; };
+    avatarImg.src = STORAGE_URL + '/business-logos/' + String(bakerId).toUpperCase() + '/logo.jpg';
+    document.getElementById('pb-avatar').appendChild(avatarImg);
+
+    const hero = document.getElementById('profile-hero');
+    const header = document.getElementById('storefront-header');
+    const headerImg = document.getElementById('header-img');
+    headerImg.alt = name;
+    headerImg.onerror = function () { header.classList.add('hidden'); hero.classList.remove('has-photo'); };
+    headerImg.onload = function () { header.classList.remove('hidden'); headerImg.style.display = 'block'; hero.classList.add('has-photo'); };
+    headerImg.src = STORAGE_URL + '/storefront-headers/' + String(bakerId).toUpperCase() + '/header.jpg';
+  }
 
   // Must match create-guest-quote-payment-intent's PLATFORM_FEE_RATE — shown
   // here so the quoted price the baker gave doesn't look bait-and-switched

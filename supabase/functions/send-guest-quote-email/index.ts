@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { logNotification } from "../_shared/notificationLog.ts";
+import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 
 // Sends the "here's your quote, pay here" email for a guest (web, no
 // account) custom-order request. Two callers, one function:
@@ -15,6 +17,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
+const STORAGE_URL = `${SUPABASE_URL}/storage/v1/object/public`;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +36,49 @@ function escapeHtml(str: unknown): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+type FormAnswer = {
+  label?: string;
+  fieldType?: string;
+  textValue?: string | null;
+  choiceValues?: string[] | null;
+  photoPaths?: string[] | null;
+};
+
+// Shows the buyer exactly what they originally asked for alongside the
+// price — today's email just said "quoted $X", with no record of what
+// that price was even for beyond the listing's bare name.
+function renderRequestBlock(answers: FormAnswer[]): string {
+  if (!answers.length) return "";
+  const rows = answers
+    .map((a) => {
+      let valueHtml: string;
+      if (a.fieldType === "photo" && Array.isArray(a.photoPaths) && a.photoPaths.length > 0) {
+        valueHtml = a.photoPaths
+          .map((p) => `<img src="${STORAGE_URL}/form-response-photos/${p}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:8px;margin:2px 6px 2px 0;" />`)
+          .join("");
+      } else if (Array.isArray(a.choiceValues) && a.choiceValues.length > 0) {
+        valueHtml = escapeHtml(a.choiceValues.join(", "));
+      } else if (a.textValue && a.textValue.trim()) {
+        valueHtml = escapeHtml(a.textValue);
+      } else {
+        return "";
+      }
+      return `<tr>
+        <td style="padding:6px 10px 6px 0;color:#A89B8C;font-size:12.5px;vertical-align:top;white-space:nowrap;">${escapeHtml(a.label)}</td>
+        <td style="padding:6px 0;font-size:13.5px;color:#241712;">${valueHtml}</td>
+      </tr>`;
+    })
+    .filter(Boolean)
+    .join("");
+  if (!rows) return "";
+  return `
+    <div style="margin:18px 0;padding:14px 16px;background:#F7F2E9;border-radius:10px;">
+      <div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:#A89B8C;text-transform:uppercase;margin-bottom:6px;">What you requested</div>
+      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+    </div>
+  `;
 }
 
 Deno.serve(async (req: Request) => {
@@ -69,7 +115,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: order, error: orderErr } = await db
     .from("orders")
-    .select("id, order_name, customer_name, customer_email, user_id, quoted_price, quote_note, buyer_profile_id, lead_channel")
+    .select("id, order_name, customer_name, customer_email, user_id, quoted_price, quote_note, buyer_profile_id, lead_channel, form_responses")
     .eq("id", orderId)
     .single();
 
@@ -79,7 +125,10 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Not a guest order." }, 400);
   }
   const customerEmail = (order.customer_email ?? "").trim();
-  if (!customerEmail) return json({ error: "no_email_on_file" }, 400);
+  if (!customerEmail) {
+    await logNotification(db, orderId, "guest_quote_provided", "failed", "no_email_on_file");
+    return json({ error: "no_email_on_file" }, 400);
+  }
   const quotedPrice = Number(order.quoted_price ?? 0);
   if (!(quotedPrice > 0)) return json({ error: "no_amount_due" }, 400);
 
@@ -91,29 +140,56 @@ Deno.serve(async (req: Request) => {
   const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
 
   const payUrl = `https://bakeriapp.com/baker/pay-quote.html?order=${encodeURIComponent(order.id)}`;
-  const amount = `$${quotedPrice.toFixed(2)}`;
   const firstName = (order.customer_name ?? "").trim().split(/\s+/)[0] || "";
   const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi,";
   const noteBlock = order.quote_note
     ? `<p style="line-height:1.5;color:#6B5F54;"><em>"${escapeHtml(order.quote_note)}"</em></p>`
     : "";
 
+  // Mirrors create-guest-quote-payment-intent/pay-quote.html exactly — the
+  // customer pays quote + platform fee, so the amount shown here (and on
+  // the "Pay" button) must be the true total, not the bare quoted_price
+  // the baker typed in, or this email quietly undersells what Stripe
+  // actually charges.
+  const baseCents = Math.round(quotedPrice * 100);
+  const platformFeeCents = Math.round(baseCents * PLATFORM_FEE_RATE);
+  const totalCents = baseCents + platformFeeCents;
+  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  const answers = Array.isArray(order.form_responses) ? order.form_responses : [];
+  const requestBlock = renderRequestBlock(answers);
+
   const html = `
     <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#241712;">
       <h2 style="margin:0 0 8px;">Your quote is ready</h2>
       <p style="line-height:1.5;">${greeting}</p>
       <p style="line-height:1.5;color:#6B5F54;">
-        ${escapeHtml(bakerName)} has quoted <strong>${amount}</strong> for
-        ${escapeHtml(order.order_name || "your order")}.
+        ${escapeHtml(bakerName)} has quoted your request for
+        <strong>${escapeHtml(order.order_name || "your order")}</strong>.
       </p>
       ${noteBlock}
+      ${requestBlock}
+      <table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-top:16px;">
+        <tr><td style="padding:4px 0;color:#6B5F54;">Quote</td><td style="padding:4px 0;text-align:right;">${fmt(baseCents)}</td></tr>
+        <tr><td style="padding:4px 0;color:#6B5F54;">Bakeri platform fee (5%)</td><td style="padding:4px 0;text-align:right;">${fmt(platformFeeCents)}</td></tr>
+        <tr>
+          <td style="padding:10px 0 0;font-weight:700;border-top:1px solid #E4D9C8;">Total</td>
+          <td style="padding:10px 0 0;text-align:right;font-weight:700;border-top:1px solid #E4D9C8;">${fmt(totalCents)}</td>
+        </tr>
+      </table>
       <div style="text-align:center;margin:28px 0;">
         <a href="${payUrl}" style="display:inline-block;background:#241712;color:#fff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:600;">
-          Pay ${amount}
+          Pay ${fmt(totalCents)}
         </a>
       </div>
       <p style="color:#A89B8C;font-size:12px;line-height:1.5;">
         Or copy this link into your browser: ${payUrl}
+      </p>
+      <p style="color:#A89B8C;font-size:11.5px;line-height:1.5;margin-top:20px;border-top:1px solid #E4D9C8;padding-top:16px;">
+        This quote is provided directly by ${escapeHtml(bakerName)}, who is solely
+        responsible for preparing and fulfilling your order. Once your payment is
+        confirmed, pickup details will be provided by email — you're responsible
+        for coordinating pickup with the baker. Platform fees are non-refundable.
       </p>
     </div>
   `;
@@ -127,7 +203,7 @@ Deno.serve(async (req: Request) => {
     body: JSON.stringify({
       from: "Bakerï <hello@bakeriapp.com>",
       to: customerEmail,
-      subject: `Your quote from ${bakerName} — ${amount}`,
+      subject: `Your quote from ${bakerName} — ${fmt(totalCents)}`,
       html,
     }),
   });
@@ -135,8 +211,10 @@ Deno.serve(async (req: Request) => {
   if (!resendRes.ok) {
     const errText = await resendRes.text();
     console.error(`Resend send failed for ${customerEmail}: ${resendRes.status} ${errText}`);
+    await logNotification(db, orderId, "guest_quote_provided", "failed", errText.slice(0, 500));
     return json({ error: "send_failed" }, 400);
   }
 
+  await logNotification(db, orderId, "guest_quote_provided", "sent");
   return json({ ok: true, email: customerEmail });
 });

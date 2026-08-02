@@ -58,6 +58,7 @@
     #storefront-header img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
     #header-scrim { position: absolute; inset: 0; background: rgba(20,15,10,.42); }
     #profile-block { text-align: center; padding: 40px 20px 26px; position: relative; z-index: 1; }
+    #profile-link { display: block; text-decoration: none; }
     .avatar {
       width: 84px; height: 84px; margin: 0 auto; font-size: 28px;
       border-radius: 50%; background: var(--theme-secondary); display: flex; align-items: center; justify-content: center;
@@ -159,10 +160,12 @@
       <img id="header-img" alt="" />
       <div id="header-scrim"></div>
     </div>
-    <section id="profile-block">
-      <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
-      <div id="shop-name"></div>
-    </section>
+    <a id="profile-link" href="https://bakeriapp.com" target="_blank" rel="noopener">
+      <section id="profile-block">
+        <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
+        <div id="shop-name"></div>
+      </section>
+    </a>
   </div>
 
   <div id="form-band">
@@ -241,6 +244,11 @@
   function renderHeader(profile) {
     const name = profile.business_name || profile.user_name || 'Baker';
     document.getElementById('shop-name').textContent = name;
+
+    const link = document.getElementById('profile-link');
+    link.href = profile.profile_slug
+      ? 'https://bakeriapp.com/' + encodeURIComponent(profile.profile_slug)
+      : 'https://bakeriapp.com/baker/index.html?id=' + encodeURIComponent(bakerId);
 
     const letterEl = document.getElementById('pb-avatar-letter');
     letterEl.textContent = name.charAt(0).toUpperCase();
