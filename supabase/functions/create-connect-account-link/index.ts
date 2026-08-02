@@ -61,8 +61,21 @@ serve(async (req) => {
       });
     }
 
-    // Reuse existing account if already created; create new if not
+    // Reuse existing account if already created and still actually reachable
+    // under this platform's Stripe key — a stale account (e.g. it predates a
+    // platform Stripe key change, or the baker disconnected it from their own
+    // Stripe dashboard) would otherwise get silently reused here forever,
+    // meaning a baker tapping "Connect with Stripe" to fix a broken
+    // connection would just recreate the exact same broken account link.
+    // See the Sweet Southern Bakery incident this was hand-fixed for.
     let accountId = baker.stripe_connect_account_id;
+    if (accountId) {
+      try {
+        await stripe.accounts.retrieve(accountId);
+      } catch {
+        accountId = null;
+      }
+    }
 
     if (!accountId) {
       const account = await stripe.accounts.create({
