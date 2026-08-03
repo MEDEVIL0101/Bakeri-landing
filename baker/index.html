@@ -248,7 +248,6 @@
        invisible unless a visitor happened to tap the tab. */
     #links-feed { padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
     .link-section + .link-section { border-top: 1px solid var(--line); padding-top: 14px; }
-    .link-section h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
     .link-list { display: flex; flex-direction: column; gap: 10px; }
     .link-row {
       display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 16px;
@@ -1066,8 +1065,9 @@
       // bodyLinkSections) — grab every non-social link regardless of its
       // actual stored section, not just ones literally tagged "My Links".
       const items = allLinks.filter(function (l) { return !isSocialSection(l.section); });
+      // No heading text here — the "My Links" nav tab already labels this
+      // section, and a repeated in-body heading was redundant.
       return '<div class="link-section" id="' + linkSectionId(s) + '">' +
-        '<h2>' + escapeHtml(s) + '</h2>' +
         '<div class="link-list">' + items.map(function (l) {
           return '<a class="link-row" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener noreferrer">' +
             '<span class="circle">🔗</span>' +
