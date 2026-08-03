@@ -566,6 +566,14 @@
   <div id="digital-grid"></div>
 </section>
 
+<!-- Links sits ahead of About, right after Menu/Digital Downloads — a baker
+     selling nothing yet (no menu, no digital items) is very often running
+     this page as a linktree, so whichever of Menu/Digital Downloads/Links
+     the baker actually has becomes the first thing shown (each one already
+     self-hides when empty — see updateFeedVisibility/renderDigitalFeed/
+     renderLinkSections), with About always coming after. -->
+<section id="links-feed" class="section-band hidden"></section>
+
 <section id="pb-about" class="section-band hidden">
   <h2 id="pb-about-heading">About</h2>
   <div class="profile-about-inner">
@@ -588,8 +596,6 @@
   <h2>Store Hours</h2>
   <div id="hours-rows"></div>
 </section>
-
-<section id="links-feed" class="section-band hidden"></section>
 
 <footer id="site-footer">
   <div id="footer-contact" class="hidden"></div>
@@ -969,12 +975,17 @@
   // instead of a tab that swaps out the feed.
   function scrollTabs() {
     const tabs = [];
-    // Digital Downloads comes first here to match its position in the page
-    // (right under the Menu grid) — nav order and DOM order must stay in
-    // lockstep for every entry in this list.
+    // Digital Downloads, then Links, then About — nav order and DOM order
+    // must stay in lockstep for every entry in this list (see the markup
+    // comment above #links-feed for why Links sits ahead of About).
     if (digitalListings().length > 0) {
       tabs.push({ key: 'scroll:digital-feed', label: 'Digital Downloads' });
     }
+    // Social isn't in this list — it's not a scroll-to destination further
+    // down the page anymore, it's the icon row already visible in the hero.
+    bodyLinkSections().forEach(function (s) {
+      tabs.push({ key: 'scroll:' + linkSectionId(s), label: s });
+    });
     // Label is always the plain section name, never the baker-editable
     // about_heading — the nav is a fixed set of destinations, not a place
     // for a custom, possibly-long "Meet Juliana"-style heading to show up.
@@ -987,11 +998,6 @@
     if (hasConfiguredHours(profile && profile.pickup_hours_json)) {
       tabs.push({ key: 'scroll:hours-card', label: 'Store Hours' });
     }
-    // Social isn't in this list — it's not a scroll-to destination further
-    // down the page anymore, it's the icon row already visible in the hero.
-    bodyLinkSections().forEach(function (s) {
-      tabs.push({ key: 'scroll:' + linkSectionId(s), label: s });
-    });
     return tabs;
   }
 
