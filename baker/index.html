@@ -951,7 +951,13 @@
   // Faves, Recipes, whatever) still renders as a normal link-row list
   // further down.
   function isSocialSection(section) { return (section || '').trim().toLowerCase() === 'social'; }
-  function bodyLinkSections() { return linkSections().filter(function (s) { return !isSocialSection(s); }); }
+  // Every non-social link renders under one "My Links" heading regardless
+  // of its actual stored `section` value — older rows saved before this
+  // convention (e.g. a baker's own "Amazon Storefront") would otherwise
+  // still surface as their own separate nav heading forever, since nothing
+  // ever rewrites old data. Collapsing at render time fixes existing bakers
+  // immediately, not just links saved going forward.
+  function bodyLinkSections() { return linkSections().some(function (s) { return !isSocialSection(s); }) ? ['My Links'] : []; }
 
   function sectionTabs() {
     // "Menu" is the only real swappable tab — only shown once the baker has
@@ -1056,7 +1062,10 @@
     }
     wrap.classList.remove('hidden');
     wrap.innerHTML = sections.map(function (s) {
-      const items = allLinks.filter(function (l) { return l.section === s; });
+      // s is always the single collapsed "My Links" bucket now (see
+      // bodyLinkSections) — grab every non-social link regardless of its
+      // actual stored section, not just ones literally tagged "My Links".
+      const items = allLinks.filter(function (l) { return !isSocialSection(l.section); });
       return '<div class="link-section" id="' + linkSectionId(s) + '">' +
         '<h2>' + escapeHtml(s) + '</h2>' +
         '<div class="link-list">' + items.map(function (l) {
