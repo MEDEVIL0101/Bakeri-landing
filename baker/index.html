@@ -686,7 +686,7 @@
   // same deterministic date anyway, so repeat adds correctly bump one line's qty).
   let preorderCartLines = [];
   let preorderState = null; // in-progress preorder date picker: { item, chosenISO }
-  let cartStep = 0; // 0 order, 1 pickup&payment, 2 confirmed
+  let cartStep = 0; // 0 order, 1 customer info, 2 confirmed
   let toastTimer = null;
   // Direct checkout (ready_now / preorder) needs the baker's Stripe Connect
   // payout wired up; custom-quote inquiries don't touch payment at intake
@@ -881,7 +881,7 @@
   function renderAboutAndPolicies(profile, name) {
     if (profile.about_story) {
       document.getElementById('pb-about').classList.remove('hidden');
-      document.getElementById('pb-about-heading').textContent = profile.about_heading || 'About';
+      document.getElementById('pb-about-heading').textContent = profile.about_heading || 'About the Baker';
       document.getElementById('pb-about-text').textContent = profile.about_story;
       const img = document.getElementById('pb-about-portrait');
       img.alt = name;
@@ -1959,7 +1959,7 @@
     // contact info. checkout.html (next) is the one place that shows the
     // definitive fee/tax-inclusive total and actually takes payment, so
     // there's only ever one number for a buyer to trust.
-    return '<div id="cart-step-label">Pickup &amp; payment</div>' +
+    return '<div id="cart-step-label">Customer Information</div>' +
       '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
       '<div class="field"><label>Mobile</label><input id="f-phone" type="tel" autocomplete="tel" /></div>' +
       '<div class="field"><label>Email</label><input id="f-email" type="email" autocomplete="email" /></div>' +
