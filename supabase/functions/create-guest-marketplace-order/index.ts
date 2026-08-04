@@ -210,6 +210,7 @@ Deno.serve(async (req: Request) => {
     .eq("id", baker_id)
     .single();
   const connectedAccountId = connectRow?.stripe_connect_account_id ?? null;
+  const stripeOpts = connectedAccountId ? { stripeAccount: connectedAccountId } : undefined;
 
   // Re-verify the PaymentIntent actually authorized (or, for deposits, fully
   // captured) — never trust the client. "requires_capture" is the expected
@@ -217,15 +218,48 @@ Deno.serve(async (req: Request) => {
   // holds funds instead of capturing immediately; "succeeded" covers deposits.
   let intent;
   try {
-    intent = connectedAccountId
-      ? await stripe.paymentIntents.retrieve(payment_intent_id, { stripeAccount: connectedAccountId })
-      : await stripe.paymentIntents.retrieve(payment_intent_id);
+    intent = await stripe.paymentIntents.retrieve(payment_intent_id, stripeOpts);
   } catch {
     return json({ error: "Could not verify payment." }, 400);
   }
   if (intent.status !== "succeeded" && intent.status !== "requires_capture") {
     return json({ error: `Payment not confirmed. Status: ${intent.status}` }, 400);
   }
+
+  // From here on, Stripe has confirmed a real hold or charge exists. Every
+  // failure below this point — a listing that's no longer available, a sold
+  // -out preorder date, an unexpected DB error — used to just return an
+  // error while leaving that hold/charge in place: the customer's card was
+  // already authorized or charged, but no order existed anywhere for the
+  // baker to find, and "contact the baker with this reference" was a dead
+  // end since there's no way to look up a raw PaymentIntent id in-app.
+  // failAndRelease releases the hold (or refunds an already-captured
+  // deposit charge) before returning the error, so this can never again end
+  // in the customer being charged with nothing to show for it — either the
+  // order is created, or the money comes back. Mirrors cancel-order's own
+  // release logic (same Stripe status branch, same ignored error codes for
+  // an intent that's already been released).
+  const failAndRelease = async (error: string, status = 400) => {
+    try {
+      const current = await stripe.paymentIntents.retrieve(payment_intent_id, stripeOpts);
+      if (current.status === "succeeded") {
+        await stripe.refunds.create({ payment_intent: payment_intent_id }, stripeOpts);
+      } else if (current.status !== "canceled") {
+        await stripe.paymentIntents.cancel(payment_intent_id, stripeOpts);
+      }
+    } catch (err: unknown) {
+      // deno-lint-ignore no-explicit-any
+      const code = (err as any)?.code ?? (err as any)?.raw?.code;
+      const ignoredCodes = ["resource_missing", "charge_already_refunded", "payment_intent_unexpected_state"];
+      if (!ignoredCodes.includes(code)) {
+        // Best-effort: log so this is discoverable server-side, but still
+        // return the original error below rather than masking it — a
+        // failed release shouldn't also hide why the order wasn't created.
+        console.error("failAndRelease: could not release payment", payment_intent_id, err);
+      }
+    }
+    return json({ error }, status);
+  };
 
   // Re-fetch every listing server-side — never trust client-supplied price/name.
   const menuItemIds = cartLines.map((l) => l.menu_item_id);
@@ -239,7 +273,7 @@ Deno.serve(async (req: Request) => {
     .in("id", menuItemIds);
 
   if (menuItemErr || !menuItems || menuItems.length !== menuItemIds.length) {
-    return json({ error: "One or more items in your order are no longer available." }, 400);
+    return await failAndRelease("One or more items in your order are no longer available.");
   }
 
   const menuItemsById = new Map(menuItems.map((m) => [m.id, m]));
@@ -314,28 +348,28 @@ Deno.serve(async (req: Request) => {
 
   for (const line of cartLines) {
     const item = menuItemsById.get(line.menu_item_id);
-    if (!item) return json({ error: "One or more items in your order are no longer available." }, 400);
-    if (item.user_id !== baker_id) return json({ error: "This cart contains items from more than one baker." }, 400);
+    if (!item) return await failAndRelease("One or more items in your order are no longer available.");
+    if (item.user_id !== baker_id) return await failAndRelease("This cart contains items from more than one baker.");
     if (!item.is_listed_in_marketplace) {
-      return json({ error: `"${item.name}" is no longer available.` }, 400);
+      return await failAndRelease(`"${item.name}" is no longer available.`);
     }
     if (item.listing_kind === "custom") {
-      return json({ error: `"${item.name}" requires a custom order request, not direct checkout.` }, 400);
+      return await failAndRelease(`"${item.name}" requires a custom order request, not direct checkout.`);
     }
     if (item.listing_kind === "digital") {
-      return json({ error: `"${item.name}" is a digital download — buy it directly from its own page, not the cart.` }, 400);
+      return await failAndRelease(`"${item.name}" is a digital download — buy it directly from its own page, not the cart.`);
     }
     if (item.is_assorted_box) {
       const tier = (tiersByItemId.get(item.id) ?? []).find((t) => t.id === line.tier_id);
-      if (!tier) return json({ error: `Please choose a size for "${item.name}".` }, 400);
+      if (!tier) return await failAndRelease(`Please choose a size for "${item.name}".`);
       const validVariantIds = new Set((variantsByItemId.get(item.id) ?? []).map((v) => v.id));
       const selections = line.variant_selections ?? [];
       if (selections.length === 0 || selections.some((s) => !validVariantIds.has(s.variant_id))) {
-        return json({ error: `Please choose your flavors for "${item.name}".` }, 400);
+        return await failAndRelease(`Please choose your flavors for "${item.name}".`);
       }
       const total = selections.reduce((sum, s) => sum + s.quantity, 0);
       if (total !== tier.unit_count) {
-        return json({ error: `"${item.name}" needs exactly ${tier.unit_count} pieces chosen — got ${total}.` }, 400);
+        return await failAndRelease(`"${item.name}" needs exactly ${tier.unit_count} pieces chosen — got ${total}.`);
       }
     }
     if (item.listing_kind === "preorder") {
@@ -343,23 +377,23 @@ Deno.serve(async (req: Request) => {
       const now = Date.now();
       if (mode === "weekday") {
         if (!item.preorder_order_cutoff_date || now > new Date(item.preorder_order_cutoff_date).getTime()) {
-          return json({ error: `Ordering has closed for "${item.name}".` }, 400);
+          return await failAndRelease(`Ordering has closed for "${item.name}".`);
         }
       } else if (mode === "fixed_dates") {
         const dates: string[] = Array.isArray(item.preorder_dates) ? item.preorder_dates : [];
         let targetDate: string | undefined;
         if (dates.length > 1) {
           if (!line.chosen_preorder_date || !dates.includes(line.chosen_preorder_date)) {
-            return json({ error: `Please choose a pickup date for "${item.name}".` }, 400);
+            return await failAndRelease(`Please choose a pickup date for "${item.name}".`);
           }
           if (new Date(line.chosen_preorder_date).getTime() <= now) {
-            return json({ error: `That pickup date for "${item.name}" has passed — please refresh and pick another.` }, 400);
+            return await failAndRelease(`That pickup date for "${item.name}" has passed — please refresh and pick another.`);
           }
           targetDate = line.chosen_preorder_date;
         } else {
           const onlyDate = dates[0] ?? item.preorder_drop_date;
           if (onlyDate && new Date(onlyDate).getTime() <= now) {
-            return json({ error: `"${item.name}" is no longer available for pre-order.` }, 400);
+            return await failAndRelease(`"${item.name}" is no longer available for pre-order.`);
           }
           targetDate = onlyDate ?? undefined;
         }
@@ -368,11 +402,11 @@ Deno.serve(async (req: Request) => {
           const committed = commitmentsByItem.get(item.id)?.get(new Date(targetDate).getTime()) ?? 0;
           const remaining = Math.max(0, cap - committed);
           if (line.quantity > remaining) {
-            return json({
-              error: remaining > 0
+            return await failAndRelease(
+              remaining > 0
                 ? `Only ${remaining} left of "${item.name}" for that date.`
-                : `"${item.name}" is sold out for that date — please pick another.`,
-            }, 400);
+                : `"${item.name}" is sold out for that date — please pick another.`
+            );
           }
         }
       }
@@ -488,7 +522,7 @@ Deno.serve(async (req: Request) => {
 
   if (orderErr) {
     console.error("orders insert failed:", orderErr.message);
-    return json({ error: "Something went wrong. Please try again." }, 400);
+    return await failAndRelease("Something went wrong. Please try again.");
   }
 
   const { error: itemErr } = await db.from("order_items").insert(
@@ -512,7 +546,14 @@ Deno.serve(async (req: Request) => {
 
   if (itemErr) {
     console.error("order_items insert failed:", itemErr.message);
-    return json({ error: "Something went wrong. Please try again." }, 400);
+    // The orders row above already committed — without this, a customer
+    // who hit this path would have their card charged/held AND a headless
+    // "pending" order with zero items sitting in the baker's queue: not
+    // visible/actionable there (nothing to confirm), yet not cleanly
+    // refunded either. Delete it so failAndRelease's refund/cancel is the
+    // only trace left, matching every other failure path here.
+    await db.from("orders").delete().eq("id", orderId);
+    return await failAndRelease("Something went wrong. Please try again.");
   }
 
   return json({
