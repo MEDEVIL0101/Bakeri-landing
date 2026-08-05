@@ -277,6 +277,59 @@ Deno.serve(async (req: Request) => {
         console.error("failAndRelease: could not release payment", payment_intent_id, err);
       }
     }
+
+    // Releasing the payment fixes the money-safety problem, but it left
+    // the baker with literally nothing — the customer's only artifact was
+    // a raw PaymentIntent id they had no way to look up in-app either.
+    // Best-effort: leave a real order in the baker's normal pending queue
+    // (same review/confirm-or-decline flow as any other order) so they can
+    // see exactly who tried to order what and follow up directly, instead
+    // of the attempt vanishing without a trace. lead_channel is
+    // deliberately NOT "website" — that's what gates the automatic
+    // "Payment processed" guest email (trg_fn_marketplace_order_notify),
+    // which would be false here since the payment was just released above.
+    try {
+      const itemCount = cartLines.reduce((sum, l) => sum + l.quantity, 0);
+      const fallbackDueDate = new Date(Date.now() + 86400000).toISOString();
+      await db.from("orders").insert({
+        id: crypto.randomUUID(),
+        user_id: baker_id,
+        order_name: `Website order (${itemCount} item${itemCount === 1 ? "" : "s"}) — needs review`,
+        baker_display_name: "",
+        customer_name,
+        customer_phone,
+        customer_email,
+        due_date: fallbackDueDate,
+        status: "Confirmed",
+        notes: `⚠️ This customer's card was authorized then released — the order couldn't be ` +
+          `completed automatically (${error}). No payment has been collected. Contact the ` +
+          `customer to sort out payment and details before fulfilling, or decline if it's a dead end.`,
+        is_paid: false,
+        payment_note: "",
+        platform_fee_cents: 0,
+        deposit_amount: 0,
+        deposit_note: "",
+        fulfillment_type: "Pickup",
+        delivery_details: "",
+        is_delivery: false,
+        delivery_address: null,
+        color_name: "red",
+        order_source: "marketplace",
+        marketplace_status: "pending",
+        buyer_profile_id: null,
+        buyer_display_name: customer_name,
+        scheduled_pickup_date: fallbackDueDate,
+        payment_intent_id,
+        payment_status: "authorized",
+        payment_model: connectedAccountId ? "direct" : "platform_custody",
+        reference_photo_count: 0,
+        lead_channel: null,
+        ip_address: getClientIp(req),
+      });
+    } catch (err: unknown) {
+      console.error("failAndRelease: could not create fallback order for baker review", payment_intent_id, err);
+    }
+
     return json({ error }, status);
   };
 
