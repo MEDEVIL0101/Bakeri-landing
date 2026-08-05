@@ -126,6 +126,24 @@ function computeWeekdayReadyDate(weekday: number, cutoffISO: string): string | n
   return null;
 }
 
+// Matches by timestamp, not exact string equality — the client re-derives
+// its chosen date via JS `Date#toISOString()` (always ".000Z", 3-digit ms)
+// while preorder_dates as stored/returned by Postgres often has no
+// milliseconds component at all (e.g. "2026-08-06T06:55:45Z"). Those two
+// strings represent the identical instant but never string-match, so the
+// old `dates.includes(chosenPreorderDate)` check failed every multi-date
+// preorder checkout — confirmed live 2026-08-05 (Sweet Southern, "Dutch
+// crunch Bread"): payment succeeded, this rejected it, failAndRelease
+// correctly refunded/canceled the hold, but the baker never got an order.
+// Returns the original stored string (not the client's) so callers keep
+// getting the canonical value.
+function matchingStoredDate(dates: string[], chosen: string | undefined): string | undefined {
+  if (!chosen) return undefined;
+  const chosenTime = new Date(chosen).getTime();
+  if (isNaN(chosenTime)) return undefined;
+  return dates.find((d) => new Date(d).getTime() === chosenTime);
+}
+
 function resolveDueDate(item: Record<string, unknown>, chosenPreorderDate?: string): string {
   const nextDay = new Date(Date.now() + 86400000).toISOString();
   if (item.listing_kind !== "preorder") return nextDay;
@@ -143,7 +161,8 @@ function resolveDueDate(item: Record<string, unknown>, chosenPreorderDate?: stri
   }
   // fixed_dates
   const dates = Array.isArray(item.preorder_dates) ? (item.preorder_dates as string[]) : [];
-  if (dates.length > 1 && chosenPreorderDate && dates.includes(chosenPreorderDate)) return chosenPreorderDate;
+  const matched = dates.length > 1 ? matchingStoredDate(dates, chosenPreorderDate) : undefined;
+  if (matched) return matched;
   if (dates.length >= 1) return dates[0];
   return (item.preorder_drop_date as string | null) ?? nextDay;
 }
@@ -383,13 +402,14 @@ Deno.serve(async (req: Request) => {
         const dates: string[] = Array.isArray(item.preorder_dates) ? item.preorder_dates : [];
         let targetDate: string | undefined;
         if (dates.length > 1) {
-          if (!line.chosen_preorder_date || !dates.includes(line.chosen_preorder_date)) {
+          const matched = matchingStoredDate(dates, line.chosen_preorder_date);
+          if (!matched) {
             return await failAndRelease(`Please choose a pickup date for "${item.name}".`);
           }
-          if (new Date(line.chosen_preorder_date).getTime() <= now) {
+          if (new Date(matched).getTime() <= now) {
             return await failAndRelease(`That pickup date for "${item.name}" has passed — please refresh and pick another.`);
           }
-          targetDate = line.chosen_preorder_date;
+          targetDate = matched;
         } else {
           const onlyDate = dates[0] ?? item.preorder_drop_date;
           if (onlyDate && new Date(onlyDate).getTime() <= now) {
