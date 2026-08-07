@@ -89,7 +89,12 @@ serve(async (req) => {
         business_type: "individual",
         settings: {
           payouts: {
-            schedule: { interval: "weekly", weekly_anchor: "friday" },
+            // Fastest Stripe allows: daily auto-payout at whatever minimum
+            // settlement delay Stripe enforces for this account/country —
+            // there's no true zero-delay option. Previously weekly (Friday),
+            // which held every baker's funds for up to a week after
+            // Bakeri's own instant direct-charge settlement.
+            schedule: { interval: "daily", delay_days: "minimum" },
           },
         },
       });
