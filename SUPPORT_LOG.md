@@ -21,6 +21,31 @@ Entry format:
 
 ---
 
+## 2026-08-07 — Claiming an invoice in-app overwrote the real quote; baker-cancelled orders misattributed the cancellation
+
+**Reported by:** Harvey, live end-to-end test on Tilly Sugar Cookies — quoted a $42 listing down to $1.25 ($0.50 deposit / $0.75 balance) via a custom order form. The customer's quote email showed "Pay $1.25" with no deposit/balance breakdown even though only the $0.50 deposit was actually charged on click-through. After the deposit was paid, generating the $0.75 balance invoice worked and the email correctly said $0.75 — but the /pay/ payment page it linked to auto-triggered iOS's "Open in Bakeri" system prompt on load (before the page had even shown an amount), an accidental tap on it silently claimed the invoice in-app, and from then on the baker's own UI and every resent invoice showed $41.50/$144-range numbers instead of $0.75, with the web link now permanently "Already claimed" and no way to reissue. Separately, when the baker cancelled+refunded the order, the *baker* got a push saying "Mable has cancelled the custom cookie order" (backwards — the baker cancelled it) and the customer got no cancellation/refund notification at all.
+
+**Root cause:** Five compounding bugs:
+1. `pay/index.html` unconditionally fired `window.location.href = 'bakeri://invoice/...'` on every iPhone/iPad page load, before the visitor saw anything — that's what triggers iOS's "Open in Bakeri?" prompt, and an accidental tap claims the invoice with no real payment attempt.
+2. `claim_invoice` (RPC) unconditionally set `quoted_price = SUM(order_items)` on claim — overwriting a real, already-set quote with the listing's raw "from $X" price the instant a buyer claimed the invoice in-app. Every downstream read (baker's Generate Invoice button, resent invoice emails, `get_invoice_preview`) then used the corrupted value.
+3. `get_invoice_preview` and `pay-invoice-order` (the in-app counterpart to this morning's already-fixed `create-invoice-payment-intent`) both computed the amount from raw `order_items` only, with no `quoted_price` fallback at all — so even before the claim-corruption, the in-app preview/payment path never respected a lower quote. `pay-invoice-order` also added Bakeri's platform fee on top of the customer's payment, contradicting its own comment that it should match `create-invoice-payment-intent`'s baker-absorbs-the-fee policy.
+4. `send-guest-quote-email` never selected `deposit_amount_cents` and always showed/linked the full quoted price ("Pay $X"), even when the baker split it into a deposit + balance — the actual charge on click-through (`baker/pay-quote.html`) was already correct, this was a display-only mismatch.
+5. `trg_fn_marketplace_order_notify`'s `cancelled` branch always assumed the *buyer* cancelled (pushing the baker "{buyer} cancelled their order") regardless of who actually triggered the status change — so a baker-initiated cancel via `cancel-order` (a service-role update, `auth.uid()` NULL) misattributed the action to the buyer and never notified the buyer at all through the trigger; `cancel-order`'s own separate manual buyer-push existed but duplicated (rather than fixed) the trigger's logic.
+
+**Fix:**
+- [pay/index.html](pay/index.html) — removed the auto-fired deep link; only fires now from the explicit "Already have the Bakeri app? Open & pay there" button.
+- `claim_invoice`/`get_invoice_preview` — [20260807000002_invoice_claim_respects_quoted_price.sql](supabase/migrations/20260807000002_invoice_claim_respects_quoted_price.sql): claim never overwrites an existing `quoted_price`; preview now matches `create-invoice-payment-intent`'s `effectiveTotal` + `invoice_type` (deposit/balance/full) math exactly.
+- [pay-invoice-order/index.ts](supabase/functions/pay-invoice-order/index.ts) — added the same `quoted_price` fallback, and stopped adding the platform fee on top of the customer's payment.
+- [send-guest-quote-email/index.ts](supabase/functions/send-guest-quote-email/index.ts) — shows a deposit/balance breakdown and labels the button "Pay Deposit $X" when the quote is split, matching `baker/pay-quote.html`.
+- `trg_fn_marketplace_order_notify` — [20260807000003_fix_cancel_notification_attribution.sql](supabase/migrations/20260807000003_fix_cancel_notification_attribution.sql): branches on `auth.uid() = buyer_id` to tell a buyer-initiated cancel from a baker-initiated one and notifies/attributes correctly in each direction; removed [cancel-order](supabase/functions/cancel-order/index.ts)'s now-redundant manual buyer push.
+- Data repair: reset the one corrupted live order's `quoted_price` back to `1.25` (Tilly Sugar Cookies, already cancelled and refunded before the fix — no customer was ever overcharged, since the balance was never actually collected). Audited all other in-app invoice claims system-wide; no other orders were affected. Deployed and pushed live 2026-08-07.
+
+**Affected users:** Only the one test order above (Harvey's own end-to-end test, using a personal buyer account). No real customer's quote was corrupted or overcharged. The two general-purpose bugs (auto-open-in-app on any /pay/ visit, and every baker cancellation misattributing the notification) had been live and affecting all bakers/customers on the platform since those features shipped — fixed going forward for everyone, not just this one incident.
+
+**Follow-up:** None open. Recommend a spot-check of a real deposit→balance custom-order flow end to end (quote email → deposit → balance invoice → payment) on the next real order once bakers start using it again, since this touched five different files across the whole flow.
+
+---
+
 ## 2026-08-07 — Baker-facing balance/revenue displays also ignored a lower quoted_price
 
 **Reported by:** Harvey, asking for certainty that a quote below a listing's "from $X" price is honored everywhere, not just in the invoicing pipeline fixed earlier today (see the entry below this one).
