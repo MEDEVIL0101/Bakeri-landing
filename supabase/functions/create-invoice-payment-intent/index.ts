@@ -146,6 +146,17 @@ Deno.serve(async (req: Request) => {
         invoice_type: invoiceType,
         baker_name: bakerName,
         stripe_connect_account_id: connectedAccountId,
+        // Lets the front end tell "a real per-item price" from "the
+        // listing's raw from-price, overridden by a flat quote" — showing
+        // order_items.price_per_unit next to an item when a quote exists is
+        // misleading (it's not what was actually charged; effectiveTotalCents
+        // is). Same distinction as MarketplaceOrderSheet's item rows.
+        quoted_price: quotedPrice > 0 ? quotedPrice : null,
+        // Deposit context so a balance-invoice receipt can show the whole
+        // transaction (deposit + balance, both amounts and dates), not just
+        // the amount charged on this specific page load.
+        deposit_amount_cents: order.deposit_amount_cents ?? null,
+        deposit_paid_at: order.deposit_paid_at ?? null,
         // Customer-facing item list — deliberately not order_name, which is a
         // baker-internal label that may not be meant for the customer to see.
         items: (items ?? []).map((i: { custom_name: string; quantity: number; price_per_unit: number }) => ({

@@ -335,14 +335,48 @@
     const amount = (data.amount_cents / 100).toFixed(2);
     const paidAt = new Date(paidAtIso);
     const dateOpts = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' };
+    const shortDateOpts = { month: 'long', day: 'numeric', year: 'numeric' };
 
+    // data.quoted_price set means the baker quoted a flat total that
+    // overrides the listing's raw per-item price — showing that stale
+    // price_per_unit next to an item (it's not what was actually charged)
+    // read as a mismatch against the real total below it.
     const itemRows = (data.items || []).map(function (i) {
-      const lineTotal = i.price_per_unit ? (i.price_per_unit * i.quantity).toFixed(2) : null;
+      const lineTotal = (!data.quoted_price && i.price_per_unit) ? (i.price_per_unit * i.quantity).toFixed(2) : null;
       return '<div class="receipt-row">' +
         '<span class="label"><span class="item-qty">' + i.quantity + '×</span>' + escapeHtml(i.name) + '</span>' +
         (lineTotal ? '<span class="value">$' + lineTotal + '</span>' : '') +
         '</div>';
     }).join('');
+
+    // A balance invoice's receipt used to show only the balance amount just
+    // paid, with no record of the earlier deposit at all — this rebuilds the
+    // full transaction (deposit + balance, each with its own amount and
+    // date) whenever a deposit is actually part of this order.
+    const itemsTotal = (data.items || []).reduce(function (s, i) { return s + (i.price_per_unit || 0) * i.quantity; }, 0);
+    const fullTotal = data.quoted_price != null ? Number(data.quoted_price) : itemsTotal;
+    const depositCents = data.deposit_amount_cents || 0;
+    const hasSplit = depositCents > 0 && depositCents < Math.round(fullTotal * 100);
+
+    let paymentRows;
+    if (hasSplit) {
+      const depositAmt = (depositCents / 100).toFixed(2);
+      const balanceAmt = (fullTotal - depositCents / 100).toFixed(2);
+      const depositDateStr = data.invoice_type === 'deposit'
+        ? paidAt.toLocaleDateString(undefined, shortDateOpts)
+        : (data.deposit_paid_at ? new Date(data.deposit_paid_at).toLocaleDateString(undefined, shortDateOpts) : '—');
+      const balanceDateStr = data.invoice_type === 'balance'
+        ? paidAt.toLocaleDateString(undefined, shortDateOpts)
+        : 'Not yet paid';
+      paymentRows =
+        '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + depositAmt +
+          '<br><span style="font-size:11px;font-weight:400;color:var(--muted);">' + escapeHtml(depositDateStr) + '</span></span></div>' +
+        '<div class="receipt-row"><span class="label">Balance</span><span class="value">$' + balanceAmt +
+          '<br><span style="font-size:11px;font-weight:400;color:var(--muted);">' + escapeHtml(balanceDateStr) + '</span></span></div>' +
+        '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + fullTotal.toFixed(2) + '</span></div>';
+    } else {
+      paymentRows = '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + amount + '</span></div>';
+    }
 
     card.innerHTML =
       '<div class="success-state">' +
@@ -354,9 +388,12 @@
         ? '<div class="receipt-card">' +
             '<div class="receipt-card-title">In your order</div>' +
             itemRows +
-            '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + amount + '</span></div>' +
           '</div>'
         : '') +
+      '<div class="receipt-card">' +
+        '<div class="receipt-card-title">Payment</div>' +
+        paymentRows +
+      '</div>' +
       '<div class="receipt-card">' +
         '<div class="receipt-row"><span class="label">Paid with</span><span class="value">Credit Card</span></div>' +
         '<div class="receipt-row"><span class="label">Date</span><span class="value">' + paidAt.toLocaleDateString(undefined, dateOpts) + '</span></div>' +
