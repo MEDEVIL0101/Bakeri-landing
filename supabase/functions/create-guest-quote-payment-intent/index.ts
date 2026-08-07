@@ -10,12 +10,16 @@ import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 // (funds settle instantly; Stripe's fee comes off the baker's balance) but
 // keyed by an existing order rather than a fresh cart.
 //
-// Scope decision: charges the full quoted_price in one shot, even if the
-// baker split it into deposit+balance when quoting — a guest has no saved
-// payment method for the existing deposit_and_save (charge deposit now, save
-// card, charge balance later off-session) flow to defer onto. Collecting any
-// remaining balance for a guest order after this is a manual follow-up
-// (baker can generate/send another invoice) rather than automatic.
+// 2026-08-07 fix: a guest has no session/saved payment method for the
+// deposit_and_save (charge deposit now, save card, charge balance
+// off-session) flow the in-app cart uses, so this previously charged the
+// FULL quoted_price even when the baker had quoted a deposit+balance split —
+// silently overcharging the guest relative to what the baker configured
+// (see Tilly's Sugar Cookies incident, order 9c8de489-4e05-46a8-8f1b-cb024953c881).
+// Now: if the order has a genuine partial deposit set, charge only the
+// deposit. Collecting the balance afterward is a manual follow-up — the
+// baker sends a second payment link (invoice_code, 'balance' type), which
+// already exists as its own flow (create-invoice-payment-intent).
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -52,7 +56,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: order, error: orderErr } = await db
     .from("orders")
-    .select("id, user_id, quoted_price, marketplace_status, buyer_profile_id, lead_channel, is_paid")
+    .select("id, user_id, quoted_price, marketplace_status, buyer_profile_id, lead_channel, is_paid, deposit_amount_cents")
     .eq("id", order_id)
     .single();
 
@@ -77,12 +81,18 @@ Deno.serve(async (req: Request) => {
   const quotedPrice = Number(order.quoted_price ?? 0);
   if (!(quotedPrice > 0)) return json({ error: "This quote has no amount set." }, 400);
 
-  // Website/guest orders: the buyer pays exactly the quoted price — Bakeri's
-  // service charge comes out of the baker's cut instead (application_fee_amount
-  // below), not added on top. See _shared/fees.ts.
-  const baseCents = Math.round(quotedPrice * 100);
-  const platformFeeCents = Math.round(baseCents * PLATFORM_FEE_RATE);
-  const chargeCents = baseCents;
+  // Website/guest orders: the buyer pays exactly the quoted price (or just
+  // the deposit, below) — Bakeri's service charge comes out of the baker's
+  // cut instead (application_fee_amount below), not added on top. See
+  // _shared/fees.ts.
+  const fullCents = Math.round(quotedPrice * 100);
+  const depositCents = order.deposit_amount_cents ?? 0;
+  // A "genuine" deposit is a positive amount strictly less than the total —
+  // 0 means no deposit was configured, and >= the total means the baker
+  // effectively quoted full payment through the deposit field.
+  const isPartialDeposit = depositCents > 0 && depositCents < fullCents;
+  const chargeCents = isPartialDeposit ? depositCents : fullCents;
+  const platformFeeCents = Math.round(chargeCents * PLATFORM_FEE_RATE);
 
   let intent;
   try {
@@ -97,6 +107,7 @@ Deno.serve(async (req: Request) => {
           order_id: order.id,
           baker_id: order.user_id,
           flow: "guest_quote_payment",
+          leg: isPartialDeposit ? "deposit" : "full",
         },
       },
       { stripeAccount: connectedAccountId }
@@ -111,5 +122,6 @@ Deno.serve(async (req: Request) => {
     amount_cents: chargeCents,
     platform_fee_cents: platformFeeCents,
     stripe_connect_account_id: connectedAccountId,
+    is_deposit: isPartialDeposit,
   });
 });

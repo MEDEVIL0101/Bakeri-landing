@@ -254,7 +254,7 @@
           btn.disabled = false;
           return;
         }
-        renderPayment(piData.client_secret, (piData.amount_cents != null ? piData.amount_cents / 100 : amount), piData.stripe_connect_account_id);
+        renderPayment(piData.client_secret, (piData.amount_cents != null ? piData.amount_cents / 100 : amount), piData.stripe_connect_account_id, piData.is_deposit === true, amount);
       })
       .catch(function () {
         status.textContent = 'Something went wrong. Please check your connection and try again.';
@@ -263,13 +263,17 @@
     });
   }
 
-  function renderPayment(clientSecret, amount, connectedAccountId) {
+  function renderPayment(clientSecret, amount, connectedAccountId, isDeposit, fullAmount) {
+    const balanceNote = isDeposit
+      ? '<div class="pickup-note">This is a deposit of $' + amount.toFixed(2) + ' toward your total of $' + fullAmount.toFixed(2) + '. The baker will follow up separately to collect the remaining balance.</div>'
+      : '';
     card.innerHTML =
-      '<div class="eyebrow">Pay Quote</div>' +
+      '<div class="eyebrow">' + (isDeposit ? 'Pay Deposit' : 'Pay Quote') + '</div>' +
       '<div class="item-name">$' + amount.toFixed(2) + '</div>' +
       '<div id="payment-element"></div>' +
       '<button class="btn-primary" id="pay-btn">Pay $' + amount.toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
+      balanceNote +
       '<div class="pickup-note">📍 Exact pickup address is provided by email once your payment is confirmed.</div>';
 
     // A direct charge's PaymentIntent lives on the baker's own connected
