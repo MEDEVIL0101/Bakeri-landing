@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, is_paid, payment_intent_id, payment_model, order_source, invoice_type, deposit_amount_cents, deposit_paid_at, quoted_price")
+      .select("id, user_id, is_paid, payment_intent_id, payment_model, order_source, invoice_type, deposit_amount_cents, deposit_paid_at, quoted_price, marketplace_status")
       .eq("invoice_code", code)
       .single();
 
@@ -145,17 +145,25 @@ Deno.serve(async (req: Request) => {
             // longer flips it — see 20260805000003_order_source_immutable)
             // so an invoiced order is 'marketplace' here only if it was
             // created that way in the first place (rare — a baker can
-            // generate an invoice_code on any order regardless of source).
-            // Only THAT case gets marketplace_status/completed_at touched,
-            // since that field is NULL-for-manual by schema constraint and
-            // it's what the UI reads to route/list orders as marketplace. A
-            // manual order's invoice payment must never set it — it isn't
-            // needed for payout either: invoices are always payment_model
-            // 'direct' (settled instantly below via
-            // readDirectChargeSettlement), and release-baker-payouts' sweep
-            // only ever processes payment_model 'platform_custody'.
-            ...(order.order_source === "marketplace"
-              ? { marketplace_status: "completed", completed_at: paidAt }
+            // generate an invoice_code on any order regardless of source,
+            // and every quote-based custom order is 'marketplace' from
+            // creation, so a balance invoice on one of those hits this too).
+            // 2026-08-07 fix: this used to jump straight to 'completed' —
+            // paying the balance is NOT the same as the order being picked
+            // up/fulfilled, but this made a paid balance instantly disappear
+            // off the baker's active Orders list as if it had been. Fixed to
+            // only ever ADVANCE the order to 'confirmed' (a payment-status
+            // milestone, matching what finalize-guest-quote-payment already
+            // sets after a quote deposit/full payment) from a pre-payment
+            // marketplace_status, and never touch it once the baker has
+            // already progressed it further (ready_for_pickup/completed) or
+            // moved it terminal (cancelled/declined) — fulfillment stays the
+            // baker's own manual Mark Ready -> Mark Completed action, never
+            // implied by a payment event. Still NULL-for-manual by schema
+            // constraint, so this never regresses to NULL either.
+            ...(order.order_source === "marketplace" &&
+              ["pending", "pending_quote", "quote_provided", null].includes(order.marketplace_status)
+              ? { marketplace_status: "confirmed" }
               : {}),
             updated_at: paidAt,
             ...(settlement ?? {}),
