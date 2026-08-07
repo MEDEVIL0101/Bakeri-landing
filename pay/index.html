@@ -142,13 +142,6 @@
       <div class="card" id="card">
         <div class="eyebrow">Loading…</div>
       </div>
-      <div class="store-row hidden" id="store-row">
-        <a href="https://apps.apple.com/app/bakeri/id6745506861">
-          <img class="store-badge"
-               src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
-               alt="Download on the App Store" />
-        </a>
-      </div>
       <div class="footer-links">
         <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
       </div>
@@ -166,7 +159,6 @@
   const params = new URLSearchParams(window.location.search);
   const code   = (params.get('code') || '').trim().toUpperCase();
   const card   = document.getElementById('card');
-  const storeRow = document.getElementById('store-row');
 
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -187,14 +179,14 @@
     return;
   }
 
-  // Deliberately NOT auto-fired on page load: doing so used to trigger iOS's
-  // "Open in Bakeri?" system prompt for every iPhone/iPad visitor before they'd
-  // even seen the amount, and an accidental tap silently claimed the invoice
-  // in-app (buyer_profile_id set) with no real payment attempt — after which
-  // this page permanently shows "already claimed" with no way for the baker
-  // to reissue. Only fires now from the explicit "Open & pay there" button below.
-  const deepLink = 'bakeri://invoice/' + encodeURIComponent(code);
-  function attemptDeepLink() { window.location.href = deepLink; }
+  // No bakeri:// deep link on this page at all anymore (decision 2026-08-07,
+  // see SUPPORT_LOG.md): it used to auto-fire on page load, triggering iOS's
+  // "Open in Bakeri?" system prompt before a visitor had even seen the
+  // amount, and an accidental tap silently claimed the invoice in-app with
+  // no real payment attempt — permanently locking this page into "already
+  // claimed" with no way for the baker to reissue. Paying an invoice from
+  // inside the app is paused entirely for now (claim_invoice/pay-invoice-order
+  // are gated off server-side too) — this page is the only way to pay.
 
   fetch(SUPABASE_URL + '/functions/v1/create-invoice-payment-intent', {
     method: 'POST',
@@ -287,19 +279,7 @@
       dueHtml + noteHtml +
       '<div id="payment-element"></div>' +
       '<button class="btn-primary" id="submit-btn" type="button">' + payLabel + amount + '</button>' +
-      '<div class="submit-status" id="submit-status"></div>' +
-      '<button class="app-link" id="open-btn" type="button">Already have the Bakeri app? Open &amp; pay there</button>';
-
-    document.getElementById('open-btn').addEventListener('click', function () {
-      const status = document.getElementById('submit-status');
-      status.style.color = 'var(--muted)';
-      status.textContent = 'Opening Bakeri…';
-      attemptDeepLink();
-      setTimeout(function () {
-        status.textContent = 'App not installed? Download below ↓';
-        storeRow.classList.remove('hidden');
-      }, 1800);
-    });
+      '<div class="submit-status" id="submit-status"></div>';
 
     const stripe = Stripe(STRIPE_PK, { stripeAccount: data.stripe_connect_account_id });
     const elements = stripe.elements({ clientSecret: data.client_secret });

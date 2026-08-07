@@ -34,6 +34,17 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Paused (decision 2026-08-07) — see claim_invoice in
+  // 20260807000004_disable_in_app_invoice_claim.sql and SUPPORT_LOG.md.
+  // claim_invoice being disabled already blocks new claims, but this covers
+  // any order claimed before the pause too, so nobody can pay an invoice
+  // from inside the app while this feature is off. Guest/web payment via
+  // /pay/ + create-invoice-payment-intent is unaffected.
+  return new Response(JSON.stringify({ error: "feature_disabled" }), {
+    status: 400,
+    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+  });
+
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
