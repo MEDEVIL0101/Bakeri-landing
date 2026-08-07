@@ -48,6 +48,12 @@ type FormAnswer = {
 // Shows the buyer exactly what they originally asked for alongside the
 // price — today's email just said "quoted $X", with no record of what
 // that price was even for beyond the listing's bare name.
+//
+// Stacked label-above-value, not a two-column table: a nowrap label next to
+// a fixed-width value column squeezed the value into a sliver once the
+// label got long ("What colour palette and designs did you have in
+// mind?"), wrapping short answers like a date into "2026-" / "08-30" on a
+// phone-width screen (same fix as baker/pay-quote.html's copy of this).
 function renderRequestBlock(answers: FormAnswer[]): string {
   if (!answers.length) return "";
   const rows = answers
@@ -64,18 +70,18 @@ function renderRequestBlock(answers: FormAnswer[]): string {
       } else {
         return "";
       }
-      return `<tr>
-        <td style="padding:6px 10px 6px 0;color:#A89B8C;font-size:12.5px;vertical-align:top;white-space:nowrap;">${escapeHtml(a.label)}</td>
-        <td style="padding:6px 0;font-size:13.5px;color:#241712;">${valueHtml}</td>
-      </tr>`;
+      return `<div style="padding:6px 0;">
+        <div style="color:#A89B8C;font-size:11.5px;">${escapeHtml(a.label)}</div>
+        <div style="font-size:13.5px;color:#241712;margin-top:2px;">${valueHtml}</div>
+      </div>`;
     })
     .filter(Boolean)
     .join("");
   if (!rows) return "";
   return `
     <div style="margin:18px 0;padding:14px 16px;background:#F7F2E9;border-radius:10px;">
-      <div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:#A89B8C;text-transform:uppercase;margin-bottom:6px;">What you requested</div>
-      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+      <div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:#A89B8C;text-transform:uppercase;margin-bottom:2px;">What you requested</div>
+      ${rows}
     </div>
   `;
 }

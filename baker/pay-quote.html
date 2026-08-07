@@ -206,6 +206,11 @@
   // same one the buyer already saw in their quote email.
   function renderRequestBlock(answers) {
     if (!answers || !answers.length) return '';
+    // Stacked label-above-value, not a two-column table: a nowrap label next
+    // to a fixed-width value column squeezed the value into a sliver on a
+    // phone screen once the label got long ("What colour palette and designs
+    // did you have in mind?"), wrapping short answers like a date into
+    // "2026-" / "08-30". Full-width rows have no column to squeeze.
     const rows = answers.map(function (a) {
       let valueHtml;
       if (a.fieldType === 'photo' && Array.isArray(a.photoPaths) && a.photoPaths.length > 0) {
@@ -219,15 +224,15 @@
       } else {
         return '';
       }
-      return '<tr>' +
-        '<td style="padding:6px 10px 6px 0;color:var(--muted);font-size:12.5px;vertical-align:top;white-space:nowrap;">' + escapeHtml(a.label) + '</td>' +
-        '<td style="padding:6px 0;font-size:13.5px;">' + valueHtml + '</td>' +
-        '</tr>';
+      return '<div style="padding:6px 0;">' +
+        '<div style="color:var(--muted);font-size:11.5px;">' + escapeHtml(a.label) + '</div>' +
+        '<div style="font-size:13.5px;margin-top:2px;">' + valueHtml + '</div>' +
+        '</div>';
     }).filter(Boolean).join('');
     if (!rows) return '';
     return '<div style="margin:18px 0;padding:14px 16px;background:rgba(148,133,119,0.08);border-radius:10px;">' +
-      '<div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">What you requested</div>' +
-      '<table style="width:100%;border-collapse:collapse;">' + rows + '</table>' +
+      '<div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">What you requested</div>' +
+      rows +
       '</div>';
   }
 
