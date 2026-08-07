@@ -21,6 +21,22 @@ Entry format:
 
 ---
 
+## 2026-08-07 — Paying a balance invoice marked the order completed/fulfilled
+
+**Reported by:** Harvey, live — paid the balance on a custom-quote order and it disappeared off the active Orders list, treated as if it had been picked up. No "Mark Ready" or "Mark Completed" step ever happened.
+
+**Symptom:** Full payment (deposit + balance, or a one-shot full invoice) on a marketplace/quote-based order instantly set it to `completed`, skipping `ready_for_pickup` entirely — payment status and fulfillment status got conflated.
+
+**Root cause:** `finalize-invoice-payment`'s non-deposit branch unconditionally set `marketplace_status: "completed", completed_at: paidAt` whenever the paid order's `order_source` was `'marketplace'` — which every quote-based custom order is, from creation. The baker's own "Mark Ready" → "Mark Completed" flow (confirmed elsewhere in the app) never got a chance to run.
+
+**Fix:** [finalize-invoice-payment/index.ts](supabase/functions/finalize-invoice-payment/index.ts) now only ever *advances* `marketplace_status` to `confirmed` (a payment milestone, matching what `finalize-guest-quote-payment` already sets after a quote payment) — and only from a pre-payment status (`pending`/`pending_quote`/`quote_provided`/null). It never touches the status once the baker has already moved it further (`ready_for_pickup`/`completed`) or terminal (`cancelled`/`declined`). Fulfillment stays exclusively a manual baker action. Deployed live 2026-08-07.
+
+**Affected users:** Two of Harvey's own test orders had already been wrongly auto-completed this way — both repaired back to `confirmed` (no real customer orders were affected; checked directly).
+
+**Follow-up:** None open.
+
+---
+
 ## 2026-08-07 — Invoice receipt/order-detail showed the listing's raw price next to a quoted item, with no deposit/balance record
 
 **Reported by:** Harvey, live screenshots — the customer's post-payment receipt on `/pay/` showed "1× Custom Decorated Sugar Cookies — $42.00" directly above "Total — $0.75" (the real balance charged), reading like a math error. The baker's own order screen showed the same "$42.00" next to the item and only "Status: Paid in full" under Payment, with no record of when the $0.50 deposit vs. $0.75 balance were each paid.
