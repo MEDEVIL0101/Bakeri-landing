@@ -21,6 +21,24 @@ Entry format:
 
 ---
 
+## 2026-08-07 — Invoice receipt/order-detail showed the listing's raw price next to a quoted item, with no deposit/balance record
+
+**Reported by:** Harvey, live screenshots — the customer's post-payment receipt on `/pay/` showed "1× Custom Decorated Sugar Cookies — $42.00" directly above "Total — $0.75" (the real balance charged), reading like a math error. The baker's own order screen showed the same "$42.00" next to the item and only "Status: Paid in full" under Payment, with no record of when the $0.50 deposit vs. $0.75 balance were each paid.
+
+**Root cause:** `order_items.price_per_unit` is the listing's original "from $X" price — once a baker quotes a flat total (`quoted_price`/`order.quotedPrice`) that overrides it, nothing ever stopped the UI from still displaying that stale per-unit price next to the item, right beside a Total that's the real (lower) quote. Separately, the "Paid in full" status line was a dead end — it never broke out the deposit and balance as the two separate payments (different amounts, different dates) they actually were.
+
+**Fix:**
+- Item rows now suppress the per-unit price whenever a quote overrides it — [pay/index.html](pay/index.html)'s receipt, and both item lists in [MarketplaceOrderSheet.swift](Bakerly/Bakerly/Bakeri/Views/Orders/MarketplaceOrderSheet.swift) (editable-items Total row and the completed-order Transaction Record).
+- `create-invoice-payment-intent` now returns `quoted_price`, `deposit_amount_cents`, `deposit_paid_at` so the web receipt can reconstruct the whole transaction, not just the amount charged on that specific page load.
+- The web receipt and the baker's app-side Payment card both now show Deposit and Balance as separate rows with their own amount and paid date when a deposit was involved, instead of collapsing to one "Total"/"Paid in full" line.
+- Deployed: `create-invoice-payment-intent` edge function redeployed, `pay/index.html` pushed live; `MarketplaceOrderSheet.swift` committed and pushed to `Bakeri-app` (`1f9f671`) — ships with next app build.
+
+**Affected users:** Cosmetic/reporting only — no charge was ever wrong, this was purely what the receipt/order screen displayed. Affects any baker/customer on a quoted-below-listing order with a deposit+balance split, which is exactly the flow from the incident above.
+
+**Follow-up:** None open.
+
+---
+
 ## 2026-08-07 — Claiming an invoice in-app overwrote the real quote; baker-cancelled orders misattributed the cancellation
 
 **Reported by:** Harvey, live end-to-end test on Tilly Sugar Cookies — quoted a $42 listing down to $1.25 ($0.50 deposit / $0.75 balance) via a custom order form. The customer's quote email showed "Pay $1.25" with no deposit/balance breakdown even though only the $0.50 deposit was actually charged on click-through. After the deposit was paid, generating the $0.75 balance invoice worked and the email correctly said $0.75 — but the /pay/ payment page it linked to auto-triggered iOS's "Open in Bakeri" system prompt on load (before the page had even shown an amount), an accidental tap on it silently claimed the invoice in-app, and from then on the baker's own UI and every resent invoice showed $41.50/$144-range numbers instead of $0.75, with the web link now permanently "Already claimed" and no way to reissue. Separately, when the baker cancelled+refunded the order, the *baker* got a push saying "Mable has cancelled the custom cookie order" (backwards — the baker cancelled it) and the customer got no cancellation/refund notification at all.
