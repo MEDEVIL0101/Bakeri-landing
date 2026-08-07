@@ -21,6 +21,27 @@ Entry format:
 
 ---
 
+## 2026-08-07 — Baker-facing balance/revenue displays also ignored a lower quoted_price
+
+**Reported by:** Harvey, asking for certainty that a quote below a listing's "from $X" price is honored everywhere, not just in the invoicing pipeline fixed earlier today (see the entry below this one).
+
+**Symptom:** Not a live-reported bug — a proactive audit requested after today's balance-invoice incident, to check for the same failure class elsewhere: any screen that could show a baker "you're still owed $X" using the listing's original price instead of a lower amount actually quoted.
+
+**Root cause:** The same `order.totalPrice` (raw `order_items` sum) vs `order.effectiveTotal` (prefers `quotedPrice` when set) mismatch, in five more places the earlier pass didn't touch — all baker-facing, none of them Stripe/payment code:
+- `OrdersView.swift`'s `outstandingAmount` (the "Balance Owing" badge on every order row) and `OrderDetailView.swift`'s "Balance Due" line — both showed an inflated balance for a marketplace order quoted below its listing price.
+- `IngredientCost.swift`'s `profit(using:)`/`marginPercent(using:)`, and every place reading from them or independently repeating the same `totalPrice - cost` math: `OrderDetailView`'s Financials card, `FinancialReportView`'s pending-revenue stat/revenue sort/CSV export/order-row list, `RevenueDetailView`'s pending revenue — all overstated revenue/profit on the same class of order.
+- `OrderDetailView`'s percentage-based deposit calculator (the "Record Deposit → Percentage" entry mode) — computed a suggested deposit amount off the listing price instead of the actual quote (e.g. "50%" of a $41 listing instead of 50% of a $3 quote).
+
+Verified clean (audited, no fallback-to-listing-price bug found): every Stripe-facing edge function (`create-invoice-payment-intent`, `finalize-invoice-payment`, `send-invoice-email`, `create-guest-quote-payment-intent`, `finalize-guest-quote-payment`, `charge-balance-payment`, `pay-quote-order`, `pay-invoice-order`), `Order.swift`'s other computed properties (`effectiveTotal`, `netPayoutEstimate`, `revenueReceived`, `formattedTotal`), `BuyerOrderModels.swift`'s buyer-facing `effectiveSubtotal`/`grandTotal`/`formattedTotal`, `MarketplaceOrderSheet.swift`'s quote form (no minimum-price validation blocks a low quote), and every SQL migration (`quoted_price` is an unconstrained `NUMERIC(10,2)` — no CHECK constraint or trigger enforces a floor against the listing price). Nowhere does anything do a `max(quotedPrice, listingPrice)`-style clamp.
+
+**Fix:** All six call sites changed from `order.totalPrice` to `order.effectiveTotal` (or the local `profit`/`revenue` var recomputed the same way) — [OrdersView.swift](Bakerly/Bakerly/Bakeri/Views/Orders/OrdersView.swift), [OrderDetailView.swift](Bakerly/Bakerly/Bakeri/Views/Orders/OrderDetailView.swift), [IngredientCost.swift](Bakerly/Bakerly/Bakeri/Models/IngredientCost.swift), [FinancialReportView.swift](Bakerly/Bakerly/Bakeri/Views/Orders/FinancialReportView.swift), [RevenueDetailView.swift](Bakerly/Bakerly/Bakeri/Views/Orders/RevenueDetailView.swift). Committed and pushed (`Bakeri-app` `f826d54`); ships with the next app build.
+
+**Affected users:** Any baker with a marketplace order quoted below its listing's "from" price — cosmetic/reporting only (no money was ever mischarged by these specific spots; the actual Stripe charges go through the pipeline fixed in the entry below), but directly misleading about how much is still owed or how profitable an order was.
+
+**Follow-up:** None open. Not yet verified in a running build — recommend spot-checking the Orders list badge and a Financial Report export against a real quoted-below-listing order once the next build ships.
+
+---
+
 ## 2026-08-07 — Balance invoice on a guest quote billed the listing's "from" price, added Bakeri's fee on top, and used an outdated payment page
 
 **Reported by:** Harvey, live — quoted a guest $3 ($1 deposit + $2 balance) via a custom order. After the guest paid the $1 deposit, the baker went to invoice the $2 balance; the app showed "Generate Balance Invoice — $40.00" (the listing's real per-unit "from" price minus the deposit, not the quoted price). The baker sent it anyway; the customer got an unexpected large payment request, styled inconsistently with the app's other emails, and clicking it landed on an old payment page (`/pay/`) that added Bakeri's service charge on top of the amount instead of absorbing it baker-side. Transaction couldn't complete.
