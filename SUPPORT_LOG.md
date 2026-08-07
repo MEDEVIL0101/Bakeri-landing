@@ -21,6 +21,31 @@ Entry format:
 
 ---
 
+## 2026-08-07 — Balance invoice on a guest quote billed the listing's "from" price, added Bakeri's fee on top, and used an outdated payment page
+
+**Reported by:** Harvey, live — quoted a guest $3 ($1 deposit + $2 balance) via a custom order. After the guest paid the $1 deposit, the baker went to invoice the $2 balance; the app showed "Generate Balance Invoice — $40.00" (the listing's real per-unit "from" price minus the deposit, not the quoted price). The baker sent it anyway; the customer got an unexpected large payment request, styled inconsistently with the app's other emails, and clicking it landed on an old payment page (`/pay/`) that added Bakeri's service charge on top of the amount instead of absorbing it baker-side. Transaction couldn't complete.
+
+**Root cause:** Three separate but compounding bugs, all variants of the same theme — a legacy invoice pipeline predating `quoted_price` was never taught about it:
+
+1. **App never learns its own quote.** `MarketplaceOrderSheet.swift`'s `submitQuote()` PATCHes `quoted_price`/`deposit_amount_cents` straight to Supabase but never set the equivalent `order.quotedPrice`/`order.depositAmountCents` locally — then called `order.touch()`, bumping the local `updatedAt` *past* the timestamp it had just written server-side. `SyncService.pullOrders`'s merge is last-write-wins on `updatedAt` (`if row.updatedAt > local.updatedAt`), so the correct quote coming back down from the server was silently discarded as "older" than the stale local copy — the app kept computing the balance off `order.totalPrice` (the listing's original per-unit price from `order_items`) instead of the actual quote.
+2. **Invoice generation corrupted the deposit record.** `InvoiceSectionView.swift`'s `generateUniqueInvoiceCode()` wrote whatever dollar amount was on-screen into `deposit_amount_cents` for *every* invoice type, including `.balance` — but for a marketplace/guest-quote order that column already held the real deposit amount ($1), which `create-invoice-payment-intent` depends on to compute the balance. Generating a balance invoice clobbered it with the (already-wrong) displayed remaining figure.
+3. **Legacy invoice-code pipeline ignored `quoted_price` and used the old fee model.** `create-invoice-payment-intent`, `finalize-invoice-payment`, and `send-invoice-email` all computed the invoice amount purely from `order_items` (the listing price), with no awareness that a marketplace order might have a `quoted_price` overriding it — and `create-invoice-payment-intent` added Bakeri's 5% fee on top of the customer's charge, which was the policy prior to the 2026-08-02 guest-absorbs-fee change (see `_shared/fees.ts`) but never got updated here. Since this `/pay/` invoice-code page is guest-only by construction (`buyer_profile_id` must be null), it should always follow the guest/baker-absorbs model like `create-guest-quote-payment-intent` and `charge-balance-payment` already do.
+
+**Fix:**
+- [MarketplaceOrderSheet.swift](Bakerly/Bakerly/Bakeri/Views/Orders/MarketplaceOrderSheet.swift) — `submitQuote()` now sets `order.quotedPrice`/`order.depositAmountCents`/`order.paymentFlowRaw` locally in the same block, before `touch()`; `retractQuote()` clears `order.quotedPrice` locally to match. Removes the sync race entirely — no reliance on a subsequent pull to see your own quote.
+- [InvoiceSectionView.swift](Bakerly/Bakerly/Bakeri/Views/Orders/InvoiceSectionView.swift) — `generateUniqueInvoiceCode()` only writes `deposit_amount_cents` for `.deposit`-type invoices now; `.balance`/`.full` pass `nil` (synthesized `Encodable` omits it from the PATCH body via `encodeIfPresent`), leaving the real deposit amount untouched.
+- [create-invoice-payment-intent/index.ts](supabase/functions/create-invoice-payment-intent/index.ts) — added `quoted_price` to the order select; base amount now falls back to `quoted_price` over `order_items` total (matching `Order.swift`'s `effectiveTotal`); dropped the on-top fee addition — `amount = baseAmountCents`, fee taken only via `application_fee_amount` from the baker's side.
+- [finalize-invoice-payment/index.ts](supabase/functions/finalize-invoice-payment/index.ts) — same `quoted_price` fallback when recomputing the base amount, so the recorded `platform_fee_cents`/payout settlement matches what was actually charged.
+- [send-invoice-email/index.ts](supabase/functions/send-invoice-email/index.ts) — same `quoted_price` fallback so the emailed amount matches the real quote, not the listing price.
+- [pay/index.html](pay/index.html) — removed the "Includes $X Bakeri service charge" note (fee is no longer part of what the customer is shown/charged), matching `baker/pay-quote.html`.
+- All three edge functions deployed live via `supabase functions deploy`. The Swift changes ship with the next app build.
+
+**Affected users:** At minimum the one order Harvey hit live (guest quoted $3, $1 deposit paid, $2 balance never successfully invoiced — no balance charge was actually completed, so no refund needed). Any baker who quoted a guest a price different from a listing's "from" price and later sent a deposit or balance invoice through the app (rather than the newer `baker/pay-quote.html` full-quote flow) would have hit the same wrong-amount/wrong-fee bug — no way to enumerate from data alone without a full data audit; flag if more reports come in.
+
+**Follow-up:** Two items noted but not fixed in this pass: (1) the balance-invoice email's visual template reads close to but not identical to the app's other confirmation emails — cosmetic, lower priority, worth a follow-up template consistency pass; (2) not yet verified end-to-end with a real guest payment against the fixed pipeline — recommend a live test (quote → deposit → balance invoice → guest pays) before assuming fully closed. Swift changes not yet committed/built.
+
+---
+
 ## 2026-08-07 — Guest quote checkout charged the full order instead of the deposit
 
 **Reported by:** Harvey, live — Tilly Sugar Cookies' "Custom Decorated Sugar Cookies" order ($42, quoted as $2 deposit + $40 balance) charged the customer the full $42 immediately, and Tilly's app kept showing the payment as pending/unclear even though it had gone through.

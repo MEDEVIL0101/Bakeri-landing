@@ -1,25 +1,23 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { getStripeClient } from "../_shared/stripe.ts";
+import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { readDirectChargeSettlement, toDepositSettlementFields } from "../_shared/settlement.ts";
 
 // Called by the static /pay/ web page right after Stripe.js confirms the
 // PaymentIntent client-side. Verifies the charge actually succeeded with
 // Stripe (never trust the client alone) before marking the order paid.
-// Most invoices are paid as a pure guest — no buyer_profile_id, nothing else
-// to touch, the baker just sees their manual order flip to paid. But a buyer
-// can also claim the same invoice in-app first (via claim_invoice, which sets
-// buyer_profile_id + marketplace_status = 'quote_provided') and then pay
-// through this web page instead of the in-app flow — in that case we also
-// need to flip marketplace_status to 'confirmed', or the app is left showing
-// a stale "Quote Received / Review & Pay" for an order that's already paid.
+// order_source is fixed at order creation and never changes here (or
+// anywhere else post-creation) — a manual order stays manual even once a
+// buyer claims + pays its invoice in-app (claim_invoice only attaches
+// buyer_profile_id, it doesn't touch order_source). marketplace_status is
+// only ever set below for the rare invoice that was already order_source
+// 'marketplace' at creation.
 
-const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// Must match create-invoice-payment-intent's fee math — recomputed here
-// (never trusted from the client) at the point payment is actually verified,
-// since that's also when the deposit leg's sweep-eligibility timer starts.
-const PLATFORM_FEE_RATE = 0.05;
+const stripe = getStripeClient();
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -41,7 +39,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, is_paid, payment_intent_id, buyer_profile_id, invoice_type, deposit_amount_cents, deposit_paid_at")
+      .select("id, user_id, is_paid, payment_intent_id, payment_model, order_source, invoice_type, deposit_amount_cents, deposit_paid_at, quoted_price")
       .eq("invoice_code", code)
       .single();
 
@@ -61,16 +59,34 @@ Deno.serve(async (req: Request) => {
 
     if (order.payment_intent_id !== payment_intent_id) throw new Error("payment_intent_mismatch");
 
-    const stripeRes = await fetch(`https://api.stripe.com/v1/payment_intents/${payment_intent_id}`, {
-      headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
-    });
-    if (!stripeRes.ok) throw new Error("Could not verify payment with Stripe");
-    const intent = await stripeRes.json();
+    const isDirect = order.payment_model === "direct";
+    let connectedAccountId: string | null = null;
+    if (isDirect) {
+      const { data: baker } = await supabase
+        .from("profiles")
+        .select("stripe_connect_account_id")
+        .eq("id", order.user_id)
+        .single();
+      connectedAccountId = baker?.stripe_connect_account_id ?? null;
+    }
+
+    let intent;
+    try {
+      intent = connectedAccountId
+        ? await stripe.paymentIntents.retrieve(payment_intent_id, { stripeAccount: connectedAccountId })
+        : await stripe.paymentIntents.retrieve(payment_intent_id);
+    } catch {
+      throw new Error("Could not verify payment with Stripe");
+    }
     if (intent.status !== "succeeded") throw new Error(`Payment not confirmed. Status: ${intent.status}`);
 
     // Recompute the pre-fee base amount for whichever leg this is, to derive
     // the exact platform fee already baked into what Stripe just charged —
-    // same bases create-invoice-payment-intent used.
+    // same bases create-invoice-payment-intent used (including its
+    // quoted_price-over-order_items fallback for a custom/marketplace quote,
+    // and no fee added on top — this endpoint's payer never has a
+    // buyer_profile_id, i.e. always a guest, so Bakeri's cut always comes out
+    // of the baker's side only).
     const depositCents = order.deposit_amount_cents ?? 0;
     let baseAmountCents = depositCents;
     if (order.invoice_type !== "deposit") {
@@ -82,9 +98,19 @@ Deno.serve(async (req: Request) => {
       const itemsTotalCents = Math.round(
         (items ?? []).reduce((sum: number, i: { quantity: number; price_per_unit: number }) => sum + i.quantity * i.price_per_unit, 0) * 100
       );
-      baseAmountCents = order.invoice_type === "balance" ? itemsTotalCents - depositCents : itemsTotalCents;
+      const quotedPrice = Number(order.quoted_price ?? 0);
+      const effectiveTotalCents = quotedPrice > 0 ? Math.round(quotedPrice * 100) : itemsTotalCents;
+      baseAmountCents = order.invoice_type === "balance" ? effectiveTotalCents - depositCents : effectiveTotalCents;
     }
     const platformFeeCents = Math.round(baseAmountCents * PLATFORM_FEE_RATE);
+
+    // Direct charge already settled instantly — read the real Stripe fee now
+    // so this closes the payout loop immediately instead of waiting on
+    // release-baker-payouts (whose sweep only runs for platform_custody
+    // orders).
+    const settlement = connectedAccountId
+      ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, platformFeeCents)
+      : null;
 
     const paidAt = new Date().toISOString();
     // 'full' and 'balance' invoices settle the order; 'deposit' only records
@@ -92,7 +118,9 @@ Deno.serve(async (req: Request) => {
     // confirm_real_quote_payment for the in-app quote flow. The deposit leg
     // gets its own tracking columns (mirroring the cart/quote deposit flows)
     // since release-baker-payouts sweeps it separately, on its own 24h timer
-    // starting now rather than waiting for the whole order to complete.
+    // starting now rather than waiting for the whole order to complete
+    // (platform_custody orders only — a direct charge's deposit settlement is
+    // recorded immediately below instead).
     const updatePayload: Record<string, unknown> =
       order.invoice_type === "deposit"
         ? {
@@ -104,6 +132,7 @@ Deno.serve(async (req: Request) => {
             deposit_charged_at: paidAt,
             deposit_platform_fee_cents: platformFeeCents,
             updated_at: paidAt,
+            ...(settlement ? toDepositSettlementFields(settlement) : {}),
           }
         : {
             is_paid: true,
@@ -111,14 +140,24 @@ Deno.serve(async (req: Request) => {
             payment_status: "captured",
             payment_note: order.invoice_type === "balance" ? "Balance paid online via invoice link" : "Paid online via invoice link",
             platform_fee_cents: platformFeeCents,
-            // Manual/invoice orders never go through the marketplace pickup-
-            // confirmation flow (confirm_pickup/authorize_pickup), so nothing
-            // else ever sets marketplace_status or completed_at for them —
-            // release-baker-payouts requires both to release the baker's cut,
-            // so a paid invoice IS the completion signal for this order type.
-            marketplace_status: "completed",
-            completed_at: paidAt,
+            // order_source is immutable after creation (claim_invoice no
+            // longer flips it — see 20260805000003_order_source_immutable)
+            // so an invoiced order is 'marketplace' here only if it was
+            // created that way in the first place (rare — a baker can
+            // generate an invoice_code on any order regardless of source).
+            // Only THAT case gets marketplace_status/completed_at touched,
+            // since that field is NULL-for-manual by schema constraint and
+            // it's what the UI reads to route/list orders as marketplace. A
+            // manual order's invoice payment must never set it — it isn't
+            // needed for payout either: invoices are always payment_model
+            // 'direct' (settled instantly below via
+            // readDirectChargeSettlement), and release-baker-payouts' sweep
+            // only ever processes payment_model 'platform_custody'.
+            ...(order.order_source === "marketplace"
+              ? { marketplace_status: "completed", completed_at: paidAt }
+              : {}),
             updated_at: paidAt,
+            ...(settlement ?? {}),
           };
     const { error: updateErr } = await supabase
       .from("orders")

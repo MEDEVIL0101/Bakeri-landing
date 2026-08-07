@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, customer_name, customer_email, invoice_code, due_date, invoice_type, deposit_amount_cents")
+      .select("id, user_id, customer_name, customer_email, invoice_code, due_date, invoice_type, deposit_amount_cents, quoted_price")
       .eq("id", order_id)
       .single();
 
@@ -75,16 +75,21 @@ Deno.serve(async (req: Request) => {
       (sum: number, i: { quantity: number; price_per_unit: number }) => sum + i.quantity * i.price_per_unit,
       0
     );
-    if (itemsTotal <= 0) throw new Error("no_amount_due");
 
     // The amount stated in the email must match what this specific invoice
     // actually charges — a deposit or balance invoice covers only part of
-    // itemsTotal. Same deposit/balance math as create-invoice-payment-intent.
+    // the total. Same math (including the quoted_price-over-order_items
+    // fallback for a custom/marketplace quote) as create-invoice-payment-intent —
+    // otherwise this email can state a stale "from" price instead of what the
+    // baker actually quoted.
     const invoiceType = order.invoice_type ?? "full";
     const depositAmount = (order.deposit_amount_cents ?? 0) / 100;
+    const quotedPrice = Number(order.quoted_price ?? 0);
+    const effectiveTotal = quotedPrice > 0 ? quotedPrice : itemsTotal;
+    if (effectiveTotal <= 0) throw new Error("no_amount_due");
     const total = invoiceType === "deposit" ? depositAmount
-      : invoiceType === "balance" ? Math.max(itemsTotal - depositAmount, 0)
-      : itemsTotal;
+      : invoiceType === "balance" ? Math.max(effectiveTotal - depositAmount, 0)
+      : effectiveTotal;
     if (total <= 0) throw new Error("no_amount_due");
 
     // Customer-facing item list — deliberately not order_name, which is a

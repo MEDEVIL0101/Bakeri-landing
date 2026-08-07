@@ -1,18 +1,18 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { getStripeClient } from "../_shared/stripe.ts";
+import { PLATFORM_FEE_RATE, calcDirectChargeApplicationFee } from "../_shared/fees.ts";
+import { currencyForCountry } from "../_shared/currency.ts";
 
 // Guest-payment entry point for the pay-by-invoice-code feature. Callable with
 // only the anon key (no user session) — the static web page at /pay/ has no
 // Supabase auth context, so this function does everything via the service
 // role internally, keyed purely on the invoice code the customer was given.
 
-const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// Fee added on top of what the customer pays, not deducted from the baker's
-// payout — matches every other checkout path.
-const PLATFORM_FEE_RATE = 0.05;
+const stripe = getStripeClient();
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -33,7 +33,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, due_date, is_paid, buyer_profile_id, created_at, invoice_type, deposit_amount_cents, deposit_paid_at")
+      .select("id, user_id, due_date, is_paid, buyer_profile_id, created_at, invoice_type, deposit_amount_cents, deposit_paid_at, quoted_price")
       .eq("invoice_code", code)
       .single();
 
@@ -58,7 +58,14 @@ Deno.serve(async (req: Request) => {
         0
       ) * 100
     );
-    if (itemsTotalCents <= 0) throw new Error("no_amount_due");
+    // A custom/marketplace order's order_items still reflect the listing's
+    // original starting price (e.g. "from $42") captured when the quote
+    // request was first made — once the baker actually quotes the customer a
+    // different price, quoted_price is the real total and must win. Same
+    // fallback as Order.swift's effectiveTotal and charge-balance-payment.
+    const quotedPrice = Number(order.quoted_price ?? 0);
+    const effectiveTotalCents = quotedPrice > 0 ? Math.round(quotedPrice * 100) : itemsTotalCents;
+    if (effectiveTotalCents <= 0) throw new Error("no_amount_due");
 
     const invoiceType = order.invoice_type ?? "full";
     const depositCents = order.deposit_amount_cents ?? 0;
@@ -69,63 +76,64 @@ Deno.serve(async (req: Request) => {
       baseAmountCents = depositCents;
     } else if (invoiceType === "balance") {
       if (!order.deposit_paid_at) throw new Error("no_deposit_on_file");
-      baseAmountCents = itemsTotalCents - depositCents;
+      baseAmountCents = effectiveTotalCents - depositCents;
       if (baseAmountCents <= 0) throw new Error("no_amount_due");
     } else {
-      baseAmountCents = itemsTotalCents;
+      baseAmountCents = effectiveTotalCents;
     }
-    // Fee added on top of what the customer pays, not deducted from the
-    // baker's payout.
+    // Guest/website payer (this endpoint only ever serves someone without a
+    // buyer_profile_id — see the already_claimed check above): Bakeri's fee
+    // is never added to what they pay, it comes out of the baker's cut only,
+    // same policy as create-guest-quote-payment-intent/charge-balance-payment
+    // — see _shared/fees.ts.
     const platformFeeCents = Math.round(baseAmountCents * PLATFORM_FEE_RATE);
-    const amountCents = baseAmountCents + platformFeeCents;
+    const amountCents = baseAmountCents;
 
     const { data: baker } = await supabase
       .from("profiles")
-      .select("business_name, user_name, stripe_connect_account_id, stripe_connect_onboarding_complete")
+      .select("business_name, user_name, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
       .eq("id", order.user_id)
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Baker";
 
-    const intentParams: Record<string, string> = {
-      amount: amountCents.toString(),
-      currency: "cad",
+    if (!baker?.stripe_connect_onboarding_complete || !baker?.stripe_connect_account_id) {
+      throw new Error("This baker hasn't finished setting up payments yet. Check back soon!");
+    }
+    const connectedAccountId = baker.stripe_connect_account_id;
+
+    // Direct charge: created on the baker's own connected account, so funds
+    // settle instantly and Stripe's fee comes out of the baker's balance
+    // automatically. application_fee_amount is shrunk so the baker only ever
+    // bears Stripe's fee on their own price, not on Bakeri's cut riding along
+    // in the same charge — see calcDirectChargeApplicationFee.
+    const createParams: Record<string, unknown> = {
+      amount: amountCents,
+      currency: currencyForCountry(baker.country),
       capture_method: "automatic",
-      "automatic_payment_methods[enabled]": "true",
-      // Stripe's form-encoded API wants metadata as bracket-notation fields,
-      // not a JSON string under a single "metadata" key.
-      "metadata[order_id]": order.id,
-      "metadata[invoice_code]": code,
-      "metadata[source]": "invoice_web",
-      "metadata[invoice_type]": invoiceType,
+      automatic_payment_methods: { enabled: true },
+      application_fee_amount: calcDirectChargeApplicationFee(amountCents, platformFeeCents),
+      metadata: {
+        order_id: order.id,
+        invoice_code: code,
+        source: "invoice_web",
+        invoice_type: invoiceType,
+      },
     };
     if (invoiceType === "deposit") {
-      // No application_fee_amount/transfer_data here — the deposit charges
-      // into Bakeri's own balance like every other order, and is later swept
-      // to the baker by release-baker-payouts using deposit_payment_intent_id
-      // (snapshotted below, before the balance invoice overwrites
-      // payment_intent_id) once its own 24h dispute window passes.
-      //
       // Save the card so the baker can collect the balance later via a
-      // balance-type invoice, reusing this same payment method.
-      intentParams["setup_future_usage"] = "off_session";
+      // balance-type invoice, reusing this same payment method (charged
+      // against the same connected account, since deposit and balance are
+      // always the same baker).
+      createParams.setup_future_usage = "off_session";
     }
 
-    const stripeRes = await fetch("https://api.stripe.com/v1/payment_intents", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams(intentParams).toString(),
-    });
+    // deno-lint-ignore no-explicit-any
+    const intent = await stripe.paymentIntents.create(createParams as any, { stripeAccount: connectedAccountId });
 
-    if (!stripeRes.ok) {
-      const err = await stripeRes.text();
-      throw new Error(`Stripe error: ${err}`);
-    }
-    const intent = await stripeRes.json();
-
-    await supabase.from("orders").update({ payment_intent_id: intent.id }).eq("id", order.id);
+    await supabase.from("orders").update({
+      payment_intent_id: intent.id,
+      payment_model: "direct",
+    }).eq("id", order.id);
 
     return new Response(
       JSON.stringify({
@@ -136,6 +144,7 @@ Deno.serve(async (req: Request) => {
         platform_fee_cents: platformFeeCents,
         invoice_type: invoiceType,
         baker_name: bakerName,
+        stripe_connect_account_id: connectedAccountId,
         // Customer-facing item list — deliberately not order_name, which is a
         // baker-internal label that may not be meant for the customer to see.
         items: (items ?? []).map((i: { custom_name: string; quantity: number; price_per_unit: number }) => ({
