@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { readDirectChargeSettlement, toDepositSettlementFields } from "../_shared/settlement.ts";
+import { sendGuestPaymentReceiptEmail } from "../_shared/guestReceiptEmail.ts";
 
 // Public, unauthenticated endpoint for baker/pay-quote.html, called right
 // after Stripe confirms payment client-side. Re-verifies the PaymentIntent's
@@ -152,6 +153,16 @@ Deno.serve(async (req: Request) => {
     console.error("order update failed:", updateErr.message);
     return json({ error: "Something went wrong. Please try again." }, 400);
   }
+
+  // Best-effort — never let a receipt-email failure surface as a failed
+  // payment. A quote's first payment is either the deposit leg or, when
+  // there's no deposit split, the full quoted amount.
+  await sendGuestPaymentReceiptEmail(db, {
+    orderId: order_id,
+    leg: isDepositLeg ? "deposit" : "full",
+    amountCents: baseCents,
+    paidAtIso: paidAt,
+  });
 
   return json({ ok: true });
 });

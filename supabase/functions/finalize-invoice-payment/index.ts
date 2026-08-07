@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { readDirectChargeSettlement, toDepositSettlementFields } from "../_shared/settlement.ts";
+import { sendGuestPaymentReceiptEmail } from "../_shared/guestReceiptEmail.ts";
 
 // Called by the static /pay/ web page right after Stripe.js confirms the
 // PaymentIntent client-side. Verifies the charge actually succeeded with
@@ -164,6 +165,15 @@ Deno.serve(async (req: Request) => {
       .update(updatePayload)
       .eq("id", order.id);
     if (updateErr) throw new Error(updateErr.message);
+
+    // Best-effort — never let a receipt-email failure surface as a failed
+    // payment. invoice_type is already exactly "deposit"/"balance"/"full".
+    await sendGuestPaymentReceiptEmail(supabase, {
+      orderId: order.id,
+      leg: (order.invoice_type ?? "full") as "deposit" | "balance" | "full",
+      amountCents: baseAmountCents,
+      paidAtIso: paidAt,
+    });
 
     return new Response(JSON.stringify({ ok: true, paid_at: paidAt }), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
