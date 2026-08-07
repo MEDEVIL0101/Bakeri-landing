@@ -4,7 +4,6 @@ import { getStripeClient } from "../_shared/stripe.ts";
 
 const SUPABASE_URL               = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const WEBHOOK_SECRET             = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
 
 const stripe = getStripeClient();
 
@@ -164,28 +163,11 @@ Deno.serve(async (req: Request) => {
 
     if (msgErr) console.error("Failed to insert cancel message:", msgErr.message);
 
-    // Push notification to buyer
-    if (order.buyer_profile_id) {
-      const bakeryName = (await supabase
-        .from("orders")
-        .select("custom_baker_name")
-        .eq("id", order_id)
-        .single()).data?.custom_baker_name ?? "Your baker";
-
-      await fetch(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-webhook-secret": WEBHOOK_SECRET,
-        },
-        body: JSON.stringify({
-          recipient_user_id: order.buyer_profile_id,
-          title: "Order cancelled",
-          body: `${bakeryName} cancelled your order. A full refund has been issued.`,
-          data: { type: "order_cancelled", order_id },
-        }),
-      });
-    }
+    // Buyer/baker notification is handled by trg_fn_marketplace_order_notify
+    // on the marketplace_status update above — it fires as this function's
+    // service-role client (auth.uid() IS NULL there), so it correctly
+    // attributes the cancellation to the baker and notifies the buyer, not
+    // the other way around. Do not duplicate that push here.
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },

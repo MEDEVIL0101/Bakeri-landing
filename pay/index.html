@@ -187,9 +187,14 @@
     return;
   }
 
+  // Deliberately NOT auto-fired on page load: doing so used to trigger iOS's
+  // "Open in Bakeri?" system prompt for every iPhone/iPad visitor before they'd
+  // even seen the amount, and an accidental tap silently claimed the invoice
+  // in-app (buyer_profile_id set) with no real payment attempt — after which
+  // this page permanently shows "already claimed" with no way for the baker
+  // to reissue. Only fires now from the explicit "Open & pay there" button below.
   const deepLink = 'bakeri://invoice/' + encodeURIComponent(code);
   function attemptDeepLink() { window.location.href = deepLink; }
-  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) attemptDeepLink();
 
   fetch(SUPABASE_URL + '/functions/v1/create-invoice-payment-intent', {
     method: 'POST',

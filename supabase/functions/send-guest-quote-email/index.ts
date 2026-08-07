@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: order, error: orderErr } = await db
     .from("orders")
-    .select("id, order_name, customer_name, customer_email, user_id, quoted_price, quote_note, buyer_profile_id, lead_channel, form_responses")
+    .select("id, order_name, customer_name, customer_email, user_id, quoted_price, deposit_amount_cents, quote_note, buyer_profile_id, lead_channel, form_responses")
     .eq("id", orderId)
     .single();
 
@@ -152,6 +152,19 @@ Deno.serve(async (req: Request) => {
   const totalCents = baseCents;
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+  // When the baker split the quote into a deposit + balance, this email must
+  // ask for (and the button must state) the deposit only — the click-through
+  // page (baker/pay-quote.html) already only ever charges the deposit here,
+  // but the email previously stated and linked "Pay {full total}" with no
+  // breakdown, which read as a bill for the whole amount up front.
+  const depositCents = Math.round(Number(order.deposit_amount_cents ?? 0));
+  const isSplitQuote = depositCents > 0 && depositCents < totalCents;
+  const payNowCents = isSplitQuote ? depositCents : totalCents;
+  const payLabel = isSplitQuote ? "Pay Deposit " : "Pay ";
+  const breakdownHtml = isSplitQuote
+    ? `<div style="color:#A89B8C;font-size:12.5px;margin-top:4px;">${fmt(depositCents)} non-refundable deposit due now &middot; ${fmt(totalCents - depositCents)} balance due later</div>`
+    : "";
+
   const answers = Array.isArray(order.form_responses) ? order.form_responses : [];
   const requestBlock = renderRequestBlock(answers);
 
@@ -171,9 +184,10 @@ Deno.serve(async (req: Request) => {
           <td style="padding:10px 0 0;text-align:right;font-weight:700;">${fmt(totalCents)}</td>
         </tr>
       </table>
+      ${breakdownHtml}
       <div style="text-align:center;margin:28px 0;">
         <a href="${payUrl}" style="display:inline-block;background:#241712;color:#fff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:600;">
-          Pay ${fmt(totalCents)}
+          ${payLabel}${fmt(payNowCents)}
         </a>
       </div>
       <p style="color:#A89B8C;font-size:12px;line-height:1.5;">
