@@ -44,6 +44,29 @@ Entry format:
 
 **Follow-up:** Two items noted but not fixed in this pass: (1) the balance-invoice email's visual template reads close to but not identical to the app's other confirmation emails — cosmetic, lower priority, worth a follow-up template consistency pass; (2) not yet verified end-to-end with a real guest payment against the fixed pipeline — recommend a live test (quote → deposit → balance invoice → guest pays) before assuming fully closed. Swift changes not yet committed/built.
 
+**Follow-up (2026-08-07, same day):** Item (1) fixed — see the next entry below, which restyles both `pay/index.html` and the invoice email to match `baker/pay-quote.html`/`send-guest-quote-email`. Item (2) still open — no live end-to-end test run yet. Swift changes have since been committed and pushed (`Bakeri-app` `94f322c`); still need a real app build to reach bakers.
+
+---
+
+## 2026-08-07 — Instagram's in-app browser resumed a stale page instead of reloading; balance invoice looked like a different product than the quote
+
+**Reported by:** Harvey. Two related reports: (1) tapping a baker's Instagram bio link, browsing into `baker/custom-order.html`, closing the in-app browser, then tapping the same bio link again landed back on the custom-order form exactly as left, instead of a fresh storefront load. (2) Screenshots of a real deposit→balance invoice flow: the quote email and `baker/pay-quote.html` looked clean and on-brand, but the balance invoice (both the page at `/pay/` and its email) looked like a completely different, older product — different fonts, colors, layout.
+
+**Root cause:**
+1. **Bfcache, not Instagram caching stale content from the network.** In-app browsers (Instagram's especially) can keep a WebView "tab" alive across a visible close/reopen of the same link instead of tearing it down. Reopening the link then resumes the exact page via the browser's normal back/forward cache (bfcache) — same DOM, same JS state, same scroll/form position — rather than issuing a fresh navigation. Nothing server-side was stale; the page itself never got a chance to reload.
+2. **Two unrelated visual templates for what's really one flow.** `pay/index.html` (serif Playfair Display type, floating card, black "Open in app"/green "Pay" buttons, full receipt/print view) and the invoice email template (pink hero banner, teal CTA, dark footer — copy-pasted from `send-vendor-ack-email`, an unrelated vendor-facing template) both predate `baker/pay-quote.html`/`send-guest-quote-email` and were never brought in line with them. A guest who gets a deposit invoice then a balance invoice — or a quote then an invoice — was effectively seeing two different apps mid-transaction.
+
+**Fix:**
+- Added a `pageshow` listener (`if (event.persisted) window.location.reload()`) to [baker/theme.js](baker/theme.js) — shared by `baker/index.html`, `custom-order.html`, `checkout.html`, `digital-checkout.html` — plus directly in [baker/pay-quote.html](baker/pay-quote.html) and [pay/index.html](pay/index.html), which don't load `theme.js`. `event.persisted === true` is the standard signal a page came from bfcache rather than the network; forcing a reload there means every reopened link lands on a clean, current page.
+- [pay/index.html](pay/index.html) rewritten to match `baker/pay-quote.html`'s design system exactly: same CSS variables, same storefront header/logo/hero-photo block (linking back to the baker's storefront), same typography and black pill buttons. Kept its invoice-specific features (deposit/balance/full labeling, "Open & pay in the Bakeri app" deep link, itemized receipt after payment) but restyled them with the shared tokens instead of the old serif/green-button system.
+- [create-invoice-payment-intent/index.ts](supabase/functions/create-invoice-payment-intent/index.ts) now also returns `profile_slug` (added to the `profiles` select) so the restyled page can link back to the storefront the same way `pay-quote.html` does.
+- [send-invoice-email/template.ts](supabase/functions/send-invoice-email/template.ts) rewritten to mirror `send-guest-quote-email`'s inline HTML (plain white background, tan "For" info box, black pill button, "copy this link" fallback) instead of the old vendor-style template. [send-invoice-email/index.ts](supabase/functions/send-invoice-email/index.ts) updated to feed it a standalone greeting line and an invoice-type-aware heading ("Your deposit is due" / "Your balance is due" / "Your invoice is ready"), matching the quote email's tone.
+- Both edge functions deployed live; web changes pushed (GH Pages).
+
+**Affected users:** All guests — the bfcache issue affects any storefront visitor on Instagram (or similar in-app browsers) who navigates within the site and reopens the same bio link later. The styling mismatch affects every deposit/balance/full invoice sent through the app's "Generate Invoice" flow (not the newer full-quote-only `pay-quote.html` path, which was already consistent).
+
+**Follow-up:** Not verified against a real Instagram in-app browser session (couldn't reproduce the bfcache resume locally) — worth Harvey confirming on-device once this ships. `pay/index.html`'s new header photo/logo block depends on `create-invoice-payment-intent` returning a real `baker_id`/`profile_slug` — fine for the common case but hasn't been checked against a baker with no logo/header image uploaded (should fall back to the initial-letter avatar, same as `pay-quote.html`, but not manually confirmed).
+
 ---
 
 ## 2026-08-07 — Guest quote checkout charged the full order instead of the deposit
