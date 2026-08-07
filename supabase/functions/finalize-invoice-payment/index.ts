@@ -125,7 +125,16 @@ Deno.serve(async (req: Request) => {
     const updatePayload: Record<string, unknown> =
       order.invoice_type === "deposit"
         ? {
-            payment_status: "authorized",
+            // 2026-08-07 fix: this used to say "authorized", the same status
+            // the setup_intent/auth_hold flows use for an uncaptured hold —
+            // but an invoice deposit is a real direct charge, captured
+            // immediately (deposit_charged_at, below), not a hold. "authorized"
+            // made the baker's Payment card read "Payment held — captured at
+            // pickup" for money that had already actually moved. payment_flow
+            // "deposit_and_save" matches this order onto the same
+            // deposit-then-balance display manual orders already use.
+            payment_status: "deposit_paid",
+            payment_flow: "deposit_and_save",
             deposit_amount: (order.deposit_amount_cents ?? 0) / 100,
             deposit_paid_at: paidAt,
             deposit_note: "Non-refundable deposit",

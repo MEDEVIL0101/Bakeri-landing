@@ -123,6 +123,13 @@ Deno.serve(async (req: Request) => {
         marketplace_status: "confirmed",
         payment_intent_id,
         payment_status: "deposit_paid",
+        // Matches this order onto the same deposit-then-balance Payment card
+        // display manual orders already use (MarketplaceOrderSheet reads
+        // payment_flow to pick which UI branch to render) — never set here
+        // before, so a quote deposit fell through to the auth_hold default
+        // and showed as an uncaptured "Payment held" instead of a real,
+        // already-charged deposit.
+        payment_flow: "deposit_and_save",
         payment_model: connectedAccountId ? "direct" : "platform_custody",
         deposit_amount: depositCents / 100,
         deposit_paid_at: paidAt,
