@@ -7,256 +7,115 @@
   <meta name="description" content="Pay your baker's invoice on Bakeri." />
   <link rel="icon" type="image/png" href="../assets/favicon.png" />
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Nunito:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    // See baker/theme.js for why: forces a fresh load instead of an in-app
+    // browser (Instagram especially) silently resuming a stale, previously
+    // visited state of this page from bfcache.
+    window.addEventListener('pageshow', function (event) {
+      if (event.persisted) window.location.reload();
+    });
+  </script>
 
+  <!--
+    Matches baker/pay-quote.html's design system exactly (same CSS
+    variables, header/hero + form-band layout, typography, button style) —
+    this page used to look noticeably different (serif headings, a floating
+    card, a green "Pay" button) because it predates that design and was
+    never brought in line with it. A guest sees this page right after the
+    quote page for a deposit invoice, then again for the balance invoice —
+    it should read as the same product both times.
+  -->
   <style>
     :root {
-      --cream:   #FAF5EE;
-      --cream-2: #F3EAD8;
-      --cream-3: #E9DAC4;
-      --ink:     #1A0808;
-      --ink-2:   #3A1212;
-      --muted:   #8C7B6E;
-      --gold:    #C9963A;
+      --bg:      #FAF6EE;
+      --ink:     #241712;
+      --muted:   #948577;
+      --bio:     #4A3E33;
+      --error:   #C0392B;
       --green:   #4CAF82;
-      --red:     #C94A3A;
-      --display: 'Playfair Display', Georgia, serif;
-      --sans:    'Nunito', system-ui, sans-serif;
+      --line:    rgba(36,23,18,0.08);
+      --sans:    -apple-system, "SF Pro Text", system-ui, sans-serif;
     }
-
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #17110C; --ink: #F6F1E6; --bio: #E4D9C8; --muted: #A69B8C; --line: rgba(246,241,230,0.10); }
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--bio); min-height: 100dvh; -webkit-font-smoothing: antialiased; }
+    button { font-family: inherit; }
+    .hidden { display: none !important; }
 
-    body {
-      font-family: var(--sans);
-      background: var(--cream);
-      color: var(--ink);
-      min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 32px 16px 48px;
-      -webkit-font-smoothing: antialiased;
+    #page-shell { max-width: 720px; margin: 0 auto; background: var(--bg); position: relative; }
+
+    /* Header image + logo — same treatment as baker/index.html,
+       custom-order.html and pay-quote.html's identity block. Wrapped in a
+       link (below) so tapping it takes the buyer back to the storefront. */
+    #profile-hero { position: relative; }
+    #storefront-header {
+      position: absolute; inset: 0; overflow: hidden;
+      background: linear-gradient(135deg, #8a7a68, #5c5044);
     }
-
-    .wordmark { height: 32px; width: auto; margin-bottom: 24px; display: block; }
-    @media (prefers-color-scheme: dark) { .wordmark { filter: invert(1); } }
-
-    .card {
-      width: 100%;
-      max-width: 440px;
-      background: #fff;
-      border-radius: 24px;
-      box-shadow: 0 8px 40px rgba(26,8,8,0.10), 0 2px 8px rgba(26,8,8,0.06);
-      padding: 32px 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+    #storefront-header img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+    #header-scrim { position: absolute; inset: 0; background: rgba(20,15,10,.42); }
+    #profile-block { text-align: center; padding: 40px 20px 26px; position: relative; z-index: 1; }
+    #profile-link { display: block; text-decoration: none; }
+    .avatar {
+      width: 84px; height: 84px; margin: 0 auto; font-size: 28px;
+      border-radius: 50%; background: #8a7a68; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #fff; overflow: hidden; position: relative;
+      box-shadow: 0 2px 6px rgba(36,23,18,.15);
     }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; display: none; }
+    #shop-name { font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 12px; }
+    #profile-hero.has-photo #shop-name { color: #fff; }
 
-    .invoice-label {
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      text-transform: uppercase;
-      text-align: center;
-      margin-bottom: 6px;
+    /* Full-width surface directly under the hero, matching pay-quote.html —
+       one continuous band, not a floating card. */
+    #form-band { background: var(--surface, #fff); }
+    @media (prefers-color-scheme: dark) { #form-band { --surface: #241a12; } }
+
+    #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
+    @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
+    .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .item-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+    .amount { font-size: 32px; font-weight: 700; color: var(--ink); margin-top: 18px; font-variant-numeric: tabular-nums; }
+    .note-line { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+    #payment-element { margin-top: 20px; }
+    .btn-primary { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; margin-top: 22px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 700; border-radius: 9999px; border: none; cursor: pointer; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
+    .pickup-note { margin-top: 16px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .app-link { display: block; width: 100%; margin-top: 12px; background: none; border: none; text-align: center; font-size: 13px; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    .store-row { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 16px; }
+    .store-badge { height: 42px; width: auto; }
+    .success-state { text-align: center; padding: 30px 0; }
+    .success-state .icon {
+      width: 54px; height: 54px; border-radius: 50%; background: var(--green); color: #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto;
     }
+    .success-state h2 { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 16px; }
+    .success-state p { font-size: 14px; color: var(--bio); margin-top: 10px; line-height: 1.6; }
+    .not-found { text-align: center; color: var(--muted); padding: 40px 0; }
+    .not-found h2 { font-size: 18px; margin-bottom: 8px; color: var(--ink); }
+    .footer-links { margin-top: 30px; text-align: center; font-size: 12px; color: var(--muted); }
+    .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
 
-    .baker-name {
-      font-family: var(--display);
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: var(--ink);
-      text-align: center;
-      margin-bottom: 2px;
-    }
-
-    .order-name {
-      font-size: 0.9rem;
-      color: var(--muted);
-      text-align: center;
-      margin-bottom: 18px;
-    }
-
-    .amount {
-      font-family: var(--display);
-      font-size: 2.4rem;
-      font-weight: 700;
-      color: var(--ink);
-      text-align: center;
-      margin-bottom: 4px;
-    }
-
-    .due-date {
-      font-size: 0.82rem;
-      color: var(--muted);
-      text-align: center;
-      margin-bottom: 22px;
-    }
-
-    .btn-open {
-      display: block;
-      width: 100%;
-      background: var(--ink);
-      color: #fff;
-      font-family: var(--sans);
-      font-size: 1rem;
-      font-weight: 700;
-      padding: 14px 24px;
-      border-radius: 50px;
-      border: none;
-      cursor: pointer;
-      text-decoration: none;
-      text-align: center;
-      transition: background 0.18s, transform 0.12s;
-      margin-bottom: 10px;
-    }
-    .btn-open:hover { background: #3a1212; transform: translateY(-1px); }
-    .btn-open:active { transform: translateY(0); }
-
-    .status-msg {
-      font-size: 0.8rem;
-      color: var(--muted);
-      text-align: center;
-      min-height: 16px;
-      margin-bottom: 4px;
-    }
-
-    .divider {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 18px 0;
-    }
-    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--cream-3); }
-    .divider span { font-size: 0.72rem; color: var(--muted); font-weight: 700; letter-spacing: 0.05em; }
-
-    #payment-element { margin-bottom: 16px; }
-
-    .btn-pay {
-      display: block;
-      width: 100%;
-      background: var(--green);
-      color: #fff;
-      font-family: var(--sans);
-      font-size: 1rem;
-      font-weight: 700;
-      padding: 14px 24px;
-      border-radius: 50px;
-      border: none;
-      cursor: pointer;
-      transition: opacity 0.18s, transform 0.12s;
-    }
-    .btn-pay:hover { transform: translateY(-1px); }
-    .btn-pay:disabled { opacity: 0.5; cursor: default; transform: none; }
-
-    .pay-error {
-      font-size: 0.82rem;
-      color: var(--red);
-      text-align: center;
-      margin-top: 10px;
-      min-height: 16px;
-    }
-
-    .not-found { text-align: center; color: var(--muted); padding: 20px 0; }
-    .not-found h2 { font-family: var(--display); font-size: 1.3rem; margin-bottom: 8px; color: var(--ink); }
-
-    /* ── Receipt (mirrors the in-app Order Summary / Receipt screen) ── */
-    .receipt-checkmark { font-size: 2.2rem; text-align: center; margin-bottom: 6px; }
+    /* ── Receipt (shown after payment) ── */
     .receipt-logo-wrap { display: flex; justify-content: center; margin-bottom: 6px; }
-    .receipt-logo {
-      width: 64px; height: 64px;
-      border-radius: 50%;
-      object-fit: cover;
-      box-shadow: 0 2px 10px rgba(26,8,8,0.12);
-    }
-    .receipt-baker { font-size: 1.25rem; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
-    .receipt-status-row { font-size: 0.85rem; color: var(--muted); margin-bottom: 18px; }
-    .receipt-status-row .status-paid { color: var(--green); font-weight: 700; }
-
-    .receipt-card {
-      background: var(--cream-2);
-      border-radius: 14px;
-      overflow: hidden;
-      margin-bottom: 14px;
-    }
-    .receipt-card-title {
-      font-size: 0.95rem;
-      font-weight: 800;
-      color: var(--ink);
-      padding: 14px 16px 10px;
-    }
-    .receipt-row {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 11px 16px;
-      font-size: 0.85rem;
-      border-top: 1px solid rgba(26,8,8,0.08);
-    }
+    .receipt-logo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; box-shadow: 0 2px 10px rgba(36,23,18,.15); }
+    .receipt-card { background: rgba(148,133,119,0.08); border-radius: 10px; overflow: hidden; margin-top: 18px; }
+    .receipt-card-title { font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: var(--muted); text-transform: uppercase; padding: 14px 16px 10px; }
+    .receipt-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 11px 16px; font-size: 13.5px; border-top: 1px solid var(--line); }
     .receipt-row:first-child { border-top: none; }
     .receipt-row .label { color: var(--muted); }
     .receipt-row .value { color: var(--ink); font-weight: 600; text-align: right; }
-    .receipt-row.total .label, .receipt-row.total .value { font-weight: 800; color: var(--ink); font-size: 0.95rem; }
+    .receipt-row.total .label, .receipt-row.total .value { font-weight: 700; color: var(--ink); }
     .receipt-row .item-qty { color: var(--muted); margin-right: 6px; }
+    .btn-print { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 14px; background: none; color: var(--ink); font-size: 13px; font-weight: 700; padding: 13px 16px; border-radius: 9999px; border: 1.5px solid var(--line); cursor: pointer; }
 
-    .receipt-actions { display: flex; gap: 10px; margin-top: 6px; }
-    .btn-print {
-      flex: 1;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      background: #fff;
-      color: var(--ink);
-      font-family: var(--sans);
-      font-size: 0.9rem;
-      font-weight: 700;
-      padding: 13px 16px;
-      border-radius: 50px;
-      border: 1.5px solid var(--cream-3);
-      cursor: pointer;
-    }
-    .btn-print:hover { background: var(--cream-2); }
-
-    .skeleton {
-      background: linear-gradient(90deg, var(--cream-2) 25%, var(--cream-3) 50%, var(--cream-2) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite;
-      border-radius: 8px;
-      height: 18px;
-      margin: 0 auto 10px;
-    }
-    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-    .store-row { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 22px; }
-    .store-badge { height: 42px; width: auto; }
-
-    .footer { margin-top: 22px; font-size: 0.75rem; color: var(--muted); text-align: center; }
-    .footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
-
-    @media (prefers-color-scheme: dark) {
-      body        { background: #0e0808; }
-      .card       { background: #1a1010; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-      .wordmark, .baker-name, .amount, .not-found h2, .receipt-baker { color: var(--cream); }
-      .btn-open   { background: var(--cream); color: var(--ink); }
-      .btn-open:hover { background: var(--cream-2); }
-      .divider::before, .divider::after { background: #3a2020; }
-      .receipt-card { background: #241414; }
-      .receipt-row { border-top-color: rgba(255,255,255,0.08); }
-      .receipt-row .value, .receipt-row.total .label, .receipt-row.total .value { color: var(--cream); }
-      .btn-print { background: transparent; color: var(--cream); border-color: #3a2020; }
-      .btn-print:hover { background: #241414; }
-    }
-
-    /* ── Print ── clean, ink-friendly receipt; hide everything else */
     @media print {
-      body { background: #fff; padding: 0; }
-      .wordmark, .footer, .store-row, .btn-print, .btn-open, .status-msg { display: none !important; }
-      .card { box-shadow: none; max-width: 100%; padding: 0; }
+      body { background: #fff; }
+      #profile-hero, .footer-links, .btn-print, .app-link, .store-row, .submit-status { display: none !important; }
       .receipt-card { background: #fff; border: 1px solid #ccc; }
       .receipt-row { border-top-color: #ddd; }
     }
@@ -264,86 +123,131 @@
 </head>
 <body>
 
-<img class="wordmark" src="../wordmark.png" alt="Bakeri" />
+<div id="page-shell">
+  <div id="profile-hero">
+    <div id="storefront-header" class="hidden">
+      <img id="header-img" alt="" />
+      <div id="header-scrim"></div>
+    </div>
+    <a id="profile-link" href="https://bakeriapp.com" target="_blank" rel="noopener">
+      <section id="profile-block">
+        <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
+        <div id="shop-name"></div>
+      </section>
+    </a>
+  </div>
 
-<div class="card" id="card">
-  <div class="invoice-label">Invoice</div>
-  <div class="skeleton" style="width:60%;"></div>
-  <div class="skeleton" style="width:40%;height:14px;"></div>
+  <div id="form-band">
+    <div id="page">
+      <div class="card" id="card">
+        <div class="eyebrow">Loading…</div>
+      </div>
+      <div class="store-row hidden" id="store-row">
+        <a href="https://apps.apple.com/app/bakeri/id6745506861">
+          <img class="store-badge"
+               src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+               alt="Download on the App Store" />
+        </a>
+      </div>
+      <div class="footer-links">
+        <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div class="store-row" id="store-row" style="display:none;">
-  <a href="https://apps.apple.com/app/bakeri/id6745506861">
-    <img class="store-badge"
-         src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
-         alt="Download on the App Store" />
-  </a>
-</div>
-
-<div class="footer">
-  <a href="https://bakeriapp.com">bakeriapp.com</a> &nbsp;·&nbsp;
-  <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
-</div>
-
-<script src="https://js.stripe.com/v3/"></script>
 <script>
 (function () {
   const SUPABASE_URL   = 'https://aqhebjxaynvtvurwedrl.supabase.co';
   const ANON_KEY       = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
   const STRIPE_PK      = 'pk_live_51TdqbXRpI8DhqX3Ful2hqNWdNtdd4Rt0QQC6IZVhxA5Du89YIEo1638vSaJmBmk5XqRbfxcbqiYJCsMJgpRWvzoP00NUFyirgh';
+  const STORAGE_URL    = SUPABASE_URL + '/storage/v1/object/public';
 
   const params = new URLSearchParams(window.location.search);
   const code   = (params.get('code') || '').trim().toUpperCase();
   const card   = document.getElementById('card');
   const storeRow = document.getElementById('store-row');
 
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  function showMessage(title, body) {
+    card.innerHTML =
+      '<div class="not-found">' +
+        '<h2>' + escapeHtml(title) + '</h2>' +
+        '<p>' + escapeHtml(body) + '</p>' +
+      '</div>';
+  }
+
   if (!code) {
-    showMessage('not-found', 'No invoice specified', 'This link appears to be invalid.');
+    showMessage('No invoice specified', 'This link appears to be invalid.');
     return;
   }
 
   const deepLink = 'bakeri://invoice/' + encodeURIComponent(code);
-
-  function attemptDeepLink() {
-    window.location.href = deepLink;
-  }
-
-  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-    attemptDeepLink();
-  }
+  function attemptDeepLink() { window.location.href = deepLink; }
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) attemptDeepLink();
 
   fetch(SUPABASE_URL + '/functions/v1/create-invoice-payment-intent', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': ANON_KEY,
-      'Authorization': 'Bearer ' + ANON_KEY
-    },
+    headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
     body: JSON.stringify({ invoice_code: code })
   })
   .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
   .then(function (res) {
-    if (!res.ok || res.body.error) {
-      handleError(res.body && res.body.error);
-      return;
-    }
+    if (!res.ok || res.body.error) { handleError(res.body && res.body.error); return; }
+    renderHeader(res.body);
     renderInvoice(res.body);
   })
   .catch(function () {
-    showMessage('not-found', 'Something went wrong', 'Could not load this invoice. Try again later.');
+    showMessage('Something went wrong', 'Could not load this invoice. Try again later.');
   });
 
-  function handleError(code) {
-    if (code === 'already_paid') {
-      showMessage('not-found', '✅ Already paid', 'This invoice has already been paid — thank you!');
-    } else if (code === 'already_claimed') {
-      showMessage('not-found', 'Already claimed', 'This invoice is being paid through the Bakeri app.');
+  function handleError(errCode) {
+    if (errCode === 'already_paid') {
+      showMessage('Already paid', 'This invoice has already been paid — thank you!');
+    } else if (errCode === 'already_claimed') {
+      showMessage('Already claimed', 'This invoice is being paid through the Bakeri app.');
     } else {
-      showMessage('not-found', 'Invoice not found', 'Double-check the link your baker sent you.');
+      showMessage('Invoice not found', 'Double-check the link your baker sent you.');
     }
   }
 
   let currentOrderData = null;
+
+  // Same treatment as baker/pay-quote.html's identity block — a buyer
+  // reached this page via an emailed link, not by clicking through the
+  // storefront, so it should still look like (and link back to) the same
+  // store rather than a bare, unbranded payment form.
+  function renderHeader(data) {
+    const bakerId = data.baker_id;
+    const name = data.baker_name || 'Baker';
+    document.getElementById('shop-name').textContent = name;
+
+    const link = document.getElementById('profile-link');
+    link.href = data.profile_slug
+      ? 'https://bakeriapp.com/' + encodeURIComponent(data.profile_slug)
+      : 'https://bakeriapp.com/baker/index.html?id=' + encodeURIComponent(bakerId);
+
+    const letterEl = document.getElementById('pb-avatar-letter');
+    letterEl.textContent = name.charAt(0).toUpperCase();
+    const avatarImg = document.createElement('img');
+    avatarImg.alt = name;
+    avatarImg.onload = function () { avatarImg.style.display = 'block'; letterEl.style.display = 'none'; };
+    avatarImg.src = STORAGE_URL + '/business-logos/' + String(bakerId).toUpperCase() + '/logo.jpg';
+    document.getElementById('pb-avatar').appendChild(avatarImg);
+
+    const hero = document.getElementById('profile-hero');
+    const header = document.getElementById('storefront-header');
+    const headerImg = document.getElementById('header-img');
+    headerImg.alt = name;
+    headerImg.onerror = function () { header.classList.add('hidden'); hero.classList.remove('has-photo'); };
+    headerImg.onload = function () { header.classList.remove('hidden'); headerImg.style.display = 'block'; hero.classList.add('has-photo'); };
+    headerImg.src = STORAGE_URL + '/storefront-headers/' + String(bakerId).toUpperCase() + '/header.jpg';
+  }
 
   function renderInvoice(data) {
     currentOrderData = data;
@@ -355,67 +259,59 @@
       .map(function (i) { return escapeHtml(i.quantity + '× ' + i.name); })
       .join('<br>');
 
-    const invoiceLabel = data.invoice_type === 'deposit' ? 'Deposit invoice from'
-      : data.invoice_type === 'balance' ? 'Balance due, invoice from'
-      : 'Invoice from';
+    const eyebrowLabel = data.invoice_type === 'deposit' ? 'Deposit invoice from '
+      : data.invoice_type === 'balance' ? 'Balance due, invoice from '
+      : 'Invoice from ';
     const payLabel = data.invoice_type === 'deposit' ? 'Pay Deposit $'
       : data.invoice_type === 'balance' ? 'Pay Balance $'
       : 'Pay $';
     // Bakeri's service charge comes out of the baker's side, not added to
-    // what the customer pays (see create-invoice-payment-intent) — so unlike
-    // an older version of this page, it's not shown to the customer here,
-    // matching baker/pay-quote.html.
+    // what the customer pays (see create-invoice-payment-intent) — so it's
+    // never shown here, matching baker/pay-quote.html.
     const noteHtml = data.invoice_type === 'deposit'
-      ? '<div class="due-date">Non-refundable deposit — the remaining balance will be invoiced separately</div>'
+      ? '<div class="note-line">Non-refundable deposit — the remaining balance will be invoiced separately</div>'
       : data.invoice_type === 'balance'
-        ? '<div class="due-date">Remaining balance after your deposit</div>'
+        ? '<div class="note-line">Remaining balance after your deposit</div>'
         : '';
+    const dueHtml = dueStr ? '<div class="note-line">Due ' + escapeHtml(dueStr) + '</div>' : '';
 
     card.innerHTML =
-      '<div class="invoice-label">' + invoiceLabel + '</div>' +
-      '<div class="baker-name">' + escapeHtml(data.baker_name) + '</div>' +
-      '<div class="order-name">' + itemsHtml + '</div>' +
+      '<div class="eyebrow">' + eyebrowLabel + escapeHtml(data.baker_name) + '</div>' +
+      '<div class="item-name">' + (itemsHtml || 'Your order') + '</div>' +
       '<div class="amount">$' + amount + '</div>' +
-      (dueStr ? '<div class="due-date">Due ' + dueStr + '</div>' : '') +
-      (noteHtml || (dueStr ? '' : '<div style="margin-bottom:22px;"></div>')) +
-      '<button class="btn-open" id="open-btn" type="button">Open &amp; pay in Bakeri app</button>' +
-      '<div class="status-msg" id="status-msg"></div>' +
-      '<div class="divider"><span>OR PAY HERE</span></div>' +
-      '<form id="payment-form">' +
-        '<div id="payment-element"></div>' +
-        '<button class="btn-pay" id="submit-btn" type="submit">' + payLabel + amount + '</button>' +
-        '<div class="pay-error" id="pay-error"></div>' +
-      '</form>';
+      dueHtml + noteHtml +
+      '<div id="payment-element"></div>' +
+      '<button class="btn-primary" id="submit-btn" type="button">' + payLabel + amount + '</button>' +
+      '<div class="submit-status" id="submit-status"></div>' +
+      '<button class="app-link" id="open-btn" type="button">Already have the Bakeri app? Open &amp; pay there</button>';
 
     document.getElementById('open-btn').addEventListener('click', function () {
-      document.getElementById('status-msg').textContent = 'Opening Bakeri…';
+      const status = document.getElementById('submit-status');
+      status.style.color = 'var(--muted)';
+      status.textContent = 'Opening Bakeri…';
       attemptDeepLink();
       setTimeout(function () {
-        document.getElementById('status-msg').textContent = 'App not installed? Download below ↓';
-        storeRow.style.display = 'flex';
+        status.textContent = 'App not installed? Download below ↓';
+        storeRow.classList.remove('hidden');
       }, 1800);
     });
 
-    const stripe = Stripe(STRIPE_PK);
+    const stripe = Stripe(STRIPE_PK, { stripeAccount: data.stripe_connect_account_id });
     const elements = stripe.elements({ clientSecret: data.client_secret });
     const paymentElement = elements.create('payment');
     paymentElement.mount('#payment-element');
 
-    const form = document.getElementById('payment-form');
     const submitBtn = document.getElementById('submit-btn');
-    const errorEl = document.getElementById('pay-error');
+    const statusEl = document.getElementById('submit-status');
 
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
+    submitBtn.addEventListener('click', function () {
       submitBtn.disabled = true;
-      errorEl.textContent = '';
+      statusEl.style.color = 'var(--error)';
+      statusEl.textContent = '';
 
-      stripe.confirmPayment({
-        elements: elements,
-        redirect: 'if_required'
-      }).then(function (result) {
+      stripe.confirmPayment({ elements: elements, redirect: 'if_required' }).then(function (result) {
         if (result.error) {
-          errorEl.textContent = result.error.message || 'Payment failed. Please try again.';
+          statusEl.textContent = result.error.message || 'Payment failed. Please try again.';
           submitBtn.disabled = false;
           return;
         }
@@ -423,7 +319,7 @@
         if (intent && intent.status === 'succeeded') {
           return finalizePayment(intent.id);
         }
-        errorEl.textContent = 'Payment did not complete. Please try again.';
+        statusEl.textContent = 'Payment did not complete. Please try again.';
         submitBtn.disabled = false;
       });
     });
@@ -432,19 +328,15 @@
   function finalizePayment(paymentIntentId) {
     return fetch(SUPABASE_URL + '/functions/v1/finalize-invoice-payment', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': ANON_KEY,
-        'Authorization': 'Bearer ' + ANON_KEY
-      },
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({ invoice_code: code, payment_intent_id: paymentIntentId })
     })
     .then(function (r) { return r.json(); })
     .then(function (body) {
       if (body.error) {
-        const errorEl = document.getElementById('pay-error');
+        const statusEl = document.getElementById('submit-status');
         const submitBtn = document.getElementById('submit-btn');
-        if (errorEl) errorEl.textContent = 'Payment failed: ' + body.error;
+        if (statusEl) statusEl.textContent = 'Payment succeeded but we had trouble recording it — contact the baker with this reference: ' + paymentIntentId;
         if (submitBtn) submitBtn.disabled = false;
         return;
       }
@@ -456,9 +348,7 @@
     document.title = 'Receipt from ' + data.baker_name + ' — Bakeri';
 
     const amount = (data.amount_cents / 100).toFixed(2);
-    const shortId = (data.order_id || '').replace(/-/g, '').slice(0, 8).toUpperCase();
     const paidAt = new Date(paidAtIso);
-    const placedAt = data.created_at ? new Date(data.created_at) : paidAt;
     const dateOpts = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' };
 
     const itemRows = (data.items || []).map(function (i) {
@@ -469,57 +359,28 @@
         '</div>';
     }).join('');
 
-    const logoUrl = data.baker_id
-      ? SUPABASE_URL + '/storage/v1/object/public/business-logos/' + data.baker_id + '/logo.jpg'
-      : null;
-
     card.innerHTML =
-      '<div class="receipt-logo-wrap">' +
-        (logoUrl
-          ? '<img class="receipt-logo" src="' + logoUrl + '" alt="' + escapeHtml(data.baker_name) + '" ' +
-            'onerror="this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'receipt-checkmark\', textContent:\'✅\'}))" />'
-          : '<div class="receipt-checkmark">✅</div>') +
+      '<div class="success-state">' +
+        '<div class="icon">✓</div>' +
+        '<h2>Payment confirmed</h2>' +
+        '<p>' + escapeHtml(data.baker_name) + ' has been notified.</p>' +
       '</div>' +
-      '<div class="receipt-baker" style="text-align:center;">' + escapeHtml(data.baker_name) + '</div>' +
-      '<div class="receipt-status-row" style="text-align:center;">' +
-        '<span class="status-paid">Paid</span> · #' + shortId +
-      '</div>' +
-
-      '<div class="receipt-card">' +
-        '<div class="receipt-card-title">In your order</div>' +
-        itemRows +
-        '<div class="receipt-row total"><span class="label">Total (CAD)</span><span class="value">$' + amount + '</span></div>' +
-      '</div>' +
-
+      (itemRows
+        ? '<div class="receipt-card">' +
+            '<div class="receipt-card-title">In your order</div>' +
+            itemRows +
+            '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + amount + '</span></div>' +
+          '</div>'
+        : '') +
       '<div class="receipt-card">' +
         '<div class="receipt-row"><span class="label">Paid with</span><span class="value">Credit Card</span></div>' +
-        '<div class="receipt-row"><span class="label">Amount</span><span class="value">$' + amount + '</span></div>' +
         '<div class="receipt-row"><span class="label">Date</span><span class="value">' + paidAt.toLocaleDateString(undefined, dateOpts) + '</span></div>' +
       '</div>' +
-
-      '<div class="receipt-card">' +
-        '<div class="receipt-row"><span class="label">Placed</span><span class="value">' + placedAt.toLocaleDateString(undefined, dateOpts) + '</span></div>' +
-      '</div>' +
-
-      '<div class="receipt-actions">' +
-        '<button class="btn-print" id="print-btn" type="button">🖨️ Print / Save Receipt</button>' +
-      '</div>';
+      '<button class="btn-print" id="print-btn" type="button">Print / Save Receipt</button>';
 
     document.getElementById('print-btn').addEventListener('click', function () {
       window.print();
     });
-  }
-
-  function showMessage(kind, title, subtitle) {
-    card.innerHTML = '<div class="' + kind + '"><h2>' +
-      (kind === 'success' ? '<div class="checkmark">✅</div>' : '') +
-      escapeHtml(title) + '</h2><p>' + escapeHtml(subtitle) + '</p></div>';
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str == null ? '' : String(str);
-    return div.innerHTML;
   }
 })();
 </script>

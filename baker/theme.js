@@ -1,3 +1,19 @@
+// In-app browsers (Instagram's bio-link browser especially) often keep a
+// WebView "tab" alive across a visible close/reopen of the same link rather
+// than tearing it down — reopening the link then resumes the exact page
+// (e.g. mid-checkout, or a filled-out custom order form) the visitor left,
+// via the browser's normal back/forward cache (bfcache), instead of a fresh
+// load of the storefront. `pageshow` firing with `persisted: true` is the
+// standard signal that a page came from bfcache rather than the network;
+// forcing a reload there gets every visit back to a clean, current page.
+// Registered once per real page load, so it's still armed after a bfcache
+// restore re-shows that same JS/DOM state.
+window.addEventListener('pageshow', function (event) {
+  if (event.persisted) {
+    window.location.reload();
+  }
+});
+
 // Ports AppTheme.swift + BackgroundPattern (BakeriApp.swift) to the public web
 // pages, so a baker's page picks up the same theme they've already chosen
 // in-app (profiles.selected_theme / profiles.background_pattern). No new

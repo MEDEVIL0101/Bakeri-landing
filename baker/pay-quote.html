@@ -8,6 +8,14 @@
   <link rel="icon" type="image/png" href="../assets/favicon.png" />
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
   <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    // See baker/theme.js for why: forces a fresh load instead of an in-app
+    // browser (Instagram especially) silently resuming a stale, previously
+    // visited state of this page from bfcache.
+    window.addEventListener('pageshow', function (event) {
+      if (event.persisted) window.location.reload();
+    });
+  </script>
 
   <style>
     :root {

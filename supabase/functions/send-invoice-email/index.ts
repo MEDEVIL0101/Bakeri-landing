@@ -114,14 +114,26 @@ Deno.serve(async (req: Request) => {
     const payUrl = `https://bakeriapp.com/pay/?code=${encodeURIComponent(order.invoice_code)}`;
     const amount = `$${total.toFixed(2)}`;
     const firstName = (order.customer_name ?? "").trim().split(/\s+/)[0] || "";
-    const customerGreeting = firstName ? `, ${escapeHtml(firstName)}` : "";
+    // Same shape as send-guest-quote-email's `greeting` — a standalone "Hi
+    // X," line, not a headline suffix — so the two emails read as the same
+    // product (see 2026-08-07 balance-invoice styling fix: this email used
+    // to follow a completely different, unrelated template).
+    const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi,";
+    const heading = invoiceType === "deposit" ? "Your deposit is due"
+      : invoiceType === "balance" ? "Your balance is due"
+      : "Your invoice is ready";
+    const invoicePhrase = invoiceType === "deposit" ? "a deposit invoice"
+      : invoiceType === "balance" ? "a balance invoice"
+      : "an invoice";
     const dueDateLine = order.due_date
-      ? `<p>Due ${escapeHtml(new Date(order.due_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }))}</p>`
+      ? `<div style="font-size:11.5px;color:#A89B8C;margin-top:4px;">Due ${escapeHtml(new Date(order.due_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }))}</div>`
       : "";
 
     const html = INVOICE_EMAIL_TEMPLATE
       .replace(/\{\{baker_name\}\}/g, escapeHtml(bakerName))
-      .replace(/\{\{customer_greeting\}\}/g, customerGreeting)
+      .replace(/\{\{greeting\}\}/g, greeting)
+      .replace(/\{\{heading\}\}/g, heading)
+      .replace(/\{\{invoice_phrase\}\}/g, invoicePhrase)
       .replace(/\{\{amount\}\}/g, amount)
       .replace(/\{\{items_list\}\}/g, itemsList || "—")
       .replace(/\{\{due_date_line\}\}/g, dueDateLine)

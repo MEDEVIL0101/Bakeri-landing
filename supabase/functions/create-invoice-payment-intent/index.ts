@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: baker } = await supabase
       .from("profiles")
-      .select("business_name, user_name, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
+      .select("business_name, user_name, profile_slug, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
       .eq("id", order.user_id)
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Baker";
@@ -139,6 +139,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         order_id: order.id,
         baker_id: order.user_id,
+        profile_slug: baker?.profile_slug ?? null,
         client_secret: intent.client_secret,
         amount_cents: amountCents,
         platform_fee_cents: platformFeeCents,
