@@ -76,11 +76,31 @@
 
     #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
     @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
-    .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    /* Bakerï is Bakeri's own brand mark; the baker's name right under it (and
+       already huge in the hero above) is who the guest is actually buying
+       from — same hierarchy as the quote/invoice/receipt emails and
+       baker/pay-quote.html, so the whole flow reads as one product. */
+    .bakeri-mark { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+    .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 14px; }
     .item-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 4px; }
     .amount { font-size: 32px; font-weight: 700; color: var(--ink); margin-top: 18px; font-variant-numeric: tabular-nums; }
     .note-line { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
     #payment-element { margin-top: 20px; }
+
+    /* Item row with photo — same shape as the quote/invoice/receipt emails'
+       item block and baker/pay-quote.html. */
+    .item-row { display: flex; gap: 12px; margin-top: 16px; align-items: flex-start; }
+    .item-photo { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: rgba(148,133,119,0.12); }
+    .item-row-body .item-row-name { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+    .item-row-body .item-row-qty { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+    .item-row-body .item-row-price { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+    .section-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-top: 24px; margin-bottom: 4px; }
+    .receipt-row .value .note { display: block; font-size: 11px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+    /* An .item-row nested inside .receipt-card (the post-payment "In your
+       order" list) needs the card's own row padding/divider — the standalone
+       pre-payment .item-row relies on the page's own padding instead. */
+    .receipt-card .item-row { padding: 11px 16px; margin-top: 0; border-top: 1px solid var(--line); }
+    .receipt-card .item-row:first-child { border-top: none; }
     .btn-primary { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; margin-top: 22px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 700; border-radius: 9999px; border: none; cursor: pointer; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
     .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
@@ -252,9 +272,31 @@
 
     const dueStr = data.due_date ? new Date(data.due_date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
     const amount = (data.amount_cents / 100).toFixed(2);
-    const itemsHtml = (data.items || [])
-      .map(function (i) { return escapeHtml(i.quantity + '× ' + i.name); })
-      .join('<br>');
+    const items = data.items || [];
+    const hasQuote = data.quoted_price != null;
+    const itemsTotalCents = Math.round(items.reduce(function (s, i) { return s + (i.price_per_unit || 0) * i.quantity; }, 0) * 100);
+    const fullTotalCents = hasQuote ? Math.round(Number(data.quoted_price) * 100) : itemsTotalCents;
+    const depositCents = data.deposit_amount_cents || 0;
+
+    // Same item-row shape as the quote/invoice/receipt emails and
+    // baker/pay-quote.html: photo (resolved server-side — the public
+    // menu_items policy alone would miss most custom listings), name,
+    // quantity, and the quoted price — never the listing's raw per-item
+    // price once a quote overrides it.
+    const itemsHtml = items.map(function (i) {
+      const photoHtml = i.image_url
+        ? '<img class="item-photo" src="' + i.image_url + '" alt="" />'
+        : '<div class="item-photo"></div>';
+      const lineCents = hasQuote
+        ? (items.length === 1 ? fullTotalCents : null)
+        : (i.price_per_unit ? Math.round(i.price_per_unit * i.quantity * 100) : null);
+      const priceHtml = lineCents != null ? '<div class="item-row-price">$' + (lineCents / 100).toFixed(2) + '</div>' : '';
+      return '<div class="item-row">' + photoHtml + '<div class="item-row-body">' +
+        '<div class="item-row-name">' + escapeHtml(i.name) + '</div>' +
+        '<div class="item-row-qty">' + i.quantity + '×</div>' +
+        priceHtml +
+      '</div></div>';
+    }).join('');
 
     const eyebrowLabel = data.invoice_type === 'deposit' ? 'Deposit invoice from '
       : data.invoice_type === 'balance' ? 'Balance due, invoice from '
@@ -262,21 +304,35 @@
     const payLabel = data.invoice_type === 'deposit' ? 'Pay Deposit $'
       : data.invoice_type === 'balance' ? 'Pay Balance $'
       : 'Pay $';
-    // Bakeri's service charge comes out of the baker's side, not added to
-    // what the customer pays (see create-invoice-payment-intent) — so it's
-    // never shown here, matching baker/pay-quote.html.
-    const noteHtml = data.invoice_type === 'deposit'
-      ? '<div class="note-line">Non-refundable deposit — the remaining balance will be invoiced separately</div>'
-      : data.invoice_type === 'balance'
-        ? '<div class="note-line">Remaining balance after your deposit</div>'
-        : '';
     const dueHtml = dueStr ? '<div class="note-line">Due ' + escapeHtml(dueStr) + '</div>' : '';
 
+    // Same Deposit/Balance/Order total breakdown as the invoice email — a
+    // balance invoice shows the deposit already paid (with its date)
+    // alongside the balance now due, not just the one amount due today.
+    let breakdownHtml;
+    if (data.invoice_type === 'balance' && depositCents > 0) {
+      const depositDateStr = data.deposit_paid_at
+        ? new Date(data.deposit_paid_at).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+        : null;
+      breakdownHtml =
+        '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + (depositCents / 100).toFixed(2) + '<span class="note">' + (depositDateStr ? 'Paid ' + escapeHtml(depositDateStr) : 'Paid') + '</span></span></div>' +
+        '<div class="receipt-row"><span class="label">Balance</span><span class="value">$' + amount + '<span class="note">Due now</span></span></div>' +
+        '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + (fullTotalCents / 100).toFixed(2) + '</span></div>';
+    } else if (data.invoice_type === 'deposit' && fullTotalCents > depositCents) {
+      breakdownHtml =
+        '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + amount + '<span class="note">Due now</span></span></div>' +
+        '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + (fullTotalCents / 100).toFixed(2) + '</span></div>';
+    } else {
+      breakdownHtml = '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + amount + '</span></div>';
+    }
+
     card.innerHTML =
+      '<div class="bakeri-mark">Bakerï</div>' +
       '<div class="eyebrow">' + eyebrowLabel + escapeHtml(data.baker_name) + '</div>' +
-      '<div class="item-name">' + (itemsHtml || 'Your order') + '</div>' +
-      '<div class="amount">$' + amount + '</div>' +
-      dueHtml + noteHtml +
+      (itemsHtml || '<div class="item-name">Your order</div>') +
+      dueHtml +
+      '<div class="section-title">Billing and Payment</div>' +
+      '<div class="receipt-card">' + breakdownHtml + '</div>' +
       '<div id="payment-element"></div>' +
       '<button class="btn-primary" id="submit-btn" type="button">' + payLabel + amount + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
@@ -342,11 +398,15 @@
     // price_per_unit next to an item (it's not what was actually charged)
     // read as a mismatch against the real total below it.
     const itemRows = (data.items || []).map(function (i) {
+      const photoHtml = i.image_url
+        ? '<img class="item-photo" src="' + i.image_url + '" alt="" />'
+        : '<div class="item-photo"></div>';
       const lineTotal = (!data.quoted_price && i.price_per_unit) ? (i.price_per_unit * i.quantity).toFixed(2) : null;
-      return '<div class="receipt-row">' +
-        '<span class="label"><span class="item-qty">' + i.quantity + '×</span>' + escapeHtml(i.name) + '</span>' +
-        (lineTotal ? '<span class="value">$' + lineTotal + '</span>' : '') +
-        '</div>';
+      return '<div class="item-row">' + photoHtml + '<div class="item-row-body">' +
+        '<div class="item-row-name">' + escapeHtml(i.name) + '</div>' +
+        '<div class="item-row-qty">' + i.quantity + '×</div>' +
+        (lineTotal ? '<div class="item-row-price">$' + lineTotal + '</div>' : '') +
+      '</div></div>';
     }).join('');
 
     // A balance invoice's receipt used to show only the balance amount just

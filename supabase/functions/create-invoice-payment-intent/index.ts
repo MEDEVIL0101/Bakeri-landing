@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE, calcDirectChargeApplicationFee } from "../_shared/fees.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
+import { resolveItemImageUrl } from "../_shared/receiptEmailStyle.ts";
 
 // Guest-payment entry point for the pay-by-invoice-code feature. Callable with
 // only the anon key (no user session) — the static web page at /pay/ has no
@@ -48,7 +49,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: items } = await supabase
       .from("order_items")
-      .select("custom_name, quantity, price_per_unit")
+      .select("custom_name, quantity, price_per_unit, menu_item_id")
       .eq("order_id", order.id)
       .is("deleted_at", null);
 
@@ -135,6 +136,17 @@ Deno.serve(async (req: Request) => {
       payment_model: "direct",
     }).eq("id", order.id);
 
+    // Resolved server-side (bypasses RLS via the service-role client) so the
+    // static page never needs its own menu_items query — the public read
+    // policy there only covers is_listed_in_marketplace rows, which most
+    // custom-order listings aren't. Same helper the quote/invoice/receipt
+    // emails use.
+    const itemImageUrls = await Promise.all(
+      (items ?? []).map((i: { menu_item_id: string | null; custom_name: string; quantity: number; price_per_unit: number }) =>
+        resolveItemImageUrl(supabase, order.user_id, i)
+      )
+    );
+
     return new Response(
       JSON.stringify({
         order_id: order.id,
@@ -159,10 +171,11 @@ Deno.serve(async (req: Request) => {
         deposit_paid_at: order.deposit_paid_at ?? null,
         // Customer-facing item list — deliberately not order_name, which is a
         // baker-internal label that may not be meant for the customer to see.
-        items: (items ?? []).map((i: { custom_name: string; quantity: number; price_per_unit: number }) => ({
+        items: (items ?? []).map((i: { custom_name: string; quantity: number; price_per_unit: number }, idx: number) => ({
           name: i.custom_name,
           quantity: i.quantity,
           price_per_unit: i.price_per_unit,
+          image_url: itemImageUrls[idx],
         })),
         due_date: order.due_date,
         created_at: order.created_at,

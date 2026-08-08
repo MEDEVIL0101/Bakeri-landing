@@ -66,12 +66,44 @@
 
     #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
     @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
-    .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); }
+    /* Bakerï is Bakeri's own brand mark on this page; the baker's name right
+       under it (in the eyebrow below, and already huge in the hero above) is
+       who the guest is actually buying from — same hierarchy as the quote/
+       invoice/receipt emails, so clicking through from one to the other
+       reads as the same product. */
+    .bakeri-mark { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+    .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 14px; }
     .item-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 4px; }
     .quote-note { font-size: 14px; color: var(--muted); margin-top: 10px; line-height: 1.5; font-style: italic; }
     .amount { font-size: 32px; font-weight: 700; color: var(--ink); margin-top: 18px; font-variant-numeric: tabular-nums; }
     .deposit-note { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
     #payment-element { margin-top: 20px; }
+
+    /* Item row with photo — same shape as the quote/invoice/receipt emails'
+       item block, so a guest sees the same picture of what they ordered
+       whether they're reading the email or looking at this page. */
+    .item-row { display: flex; gap: 12px; margin-top: 16px; align-items: flex-start; }
+    .item-photo { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: rgba(148,133,119,0.12); }
+    .item-row-body .item-row-name { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+    .item-row-body .item-row-qty { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+    .item-row-body .item-row-price { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+
+    /* "Billing and Payment" breakdown — matches the emails' Deposit/Balance/
+       Order total table exactly (same labels, same shape). */
+    .receipt-card { background: rgba(148,133,119,0.08); border-radius: 10px; overflow: hidden; margin-top: 18px; }
+    .receipt-card-title { font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: var(--muted); text-transform: uppercase; padding: 14px 16px 10px; }
+    .receipt-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 11px 16px; font-size: 13.5px; border-top: 1px solid var(--line); }
+    .receipt-row:first-child { border-top: none; }
+    .receipt-row .label { color: var(--muted); }
+    .receipt-row .value { color: var(--ink); font-weight: 600; text-align: right; }
+    .receipt-row .value .note { display: block; font-size: 11px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+    /* An .item-row nested inside .receipt-card (the post-payment "In your
+       order" list) needs the card's own row padding/divider — the standalone
+       pre-payment .item-row relies on the page's own padding instead. */
+    .receipt-card .item-row { padding: 11px 16px; margin-top: 0; border-top: 1px solid var(--line); }
+    .receipt-card .item-row:first-child { border-top: none; }
+    .receipt-row.total .label, .receipt-row.total .value { font-weight: 700; color: var(--ink); }
+    .section-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-top: 24px; margin-bottom: 4px; }
     .btn-primary { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; margin-top: 22px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 700; border-radius: 9999px; border: none; cursor: pointer; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
     .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
@@ -87,6 +119,15 @@
     .not-found h2 { font-size: 18px; margin-bottom: 8px; color: var(--ink); }
     .footer-links { margin-top: 30px; text-align: center; font-size: 12px; color: var(--muted); }
     .footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+    .item-qty { color: var(--muted); margin-right: 6px; }
+    .btn-print { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 14px; background: none; color: var(--ink); font-size: 13px; font-weight: 700; padding: 13px 16px; border-radius: 9999px; border: 1.5px solid var(--line); cursor: pointer; }
+
+    @media print {
+      body { background: #fff; }
+      #profile-hero, .footer-links, .btn-print, .submit-status { display: none !important; }
+      .receipt-card { background: #fff; border: 1px solid #ccc; }
+      .receipt-row { border-top-color: #ddd; }
+    }
   </style>
 </head>
 <body>
@@ -236,25 +277,62 @@
       '</div>';
   }
 
+  let currentQuoteData = null;
+
   function renderQuote(data) {
+    currentQuoteData = data;
     // Guest checkout: the buyer pays exactly the quoted price — Bakeri's fee
     // comes out of the baker's side, not added here (see
     // create-guest-quote-payment-intent).
     const amount = Number(data.quoted_price || 0);
+    const amountCents = Math.round(amount * 100);
     const depositAmount = Number(data.deposit_amount_cents || 0) / 100;
+    const depositCents = Math.round(depositAmount * 100);
     const isSplitQuote = depositAmount > 0 && depositAmount < amount;
-    const depositNote = isSplitQuote
-      ? '<div class="deposit-note">$' + depositAmount.toFixed(2) + ' non-refundable deposit due now &middot; $' +
-        (amount - depositAmount).toFixed(2) + ' balance due later</div>'
-      : '';
+    const items = data.items || [];
+
+    // A single item's price IS the quote; a multi-item quote can't be split
+    // back into per-item prices, so those rows show no price at all and the
+    // real total lives in the Billing and Payment table instead — never the
+    // listing's raw per-unit price once a quote overrides it.
+    const itemsHtml = items.map(function (i) {
+      const imageUrl = i.image_menu_item_id
+        ? STORAGE_URL + '/menu-item-images/' + String(data.baker_id).toUpperCase() + '/' + String(i.image_menu_item_id).toUpperCase() + '.jpg'
+        : null;
+      const photoHtml = imageUrl
+        ? '<img class="item-photo" src="' + imageUrl + '" alt="" />'
+        : '<div class="item-photo"></div>';
+      const priceHtml = items.length === 1
+        ? '<div class="item-row-price">$' + amount.toFixed(2) + '</div>'
+        : '';
+      return '<div class="item-row">' + photoHtml +
+        '<div class="item-row-body">' +
+          '<div class="item-row-name">' + escapeHtml(i.custom_name) + '</div>' +
+          '<div class="item-row-qty">' + i.quantity + '×</div>' +
+          priceHtml +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    const breakdownHtml = isSplitQuote
+      ? '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + depositAmount.toFixed(2) + '<span class="note">Due now</span></span></div>' +
+        '<div class="receipt-row"><span class="label">Balance</span><span class="value">$' + (amount - depositAmount).toFixed(2) + '<span class="note">Due later</span></span></div>' +
+        '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + amount.toFixed(2) + '</span></div>'
+      : '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + amount.toFixed(2) + '</span></div>';
+
+    const payNowCents = isSplitQuote ? depositCents : amountCents;
+    const payLabel = isSplitQuote ? 'Accept Quote and Pay Deposit $' : 'Accept Quote and Pay $';
+
     card.innerHTML =
+      '<div class="bakeri-mark">Bakerï</div>' +
       '<div class="eyebrow">Quote from ' + escapeHtml(data.business_name) + '</div>' +
       '<div class="item-name">' + escapeHtml(data.order_name || 'Your order') + '</div>' +
       (data.quote_note ? '<div class="quote-note">"' + escapeHtml(data.quote_note) + '"</div>' : '') +
+      itemsHtml +
       renderRequestBlock(data.form_responses) +
-      '<div class="amount">$' + amount.toFixed(2) + '</div>' +
-      depositNote +
-      '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
+      '<div class="section-title">Billing and Payment</div>' +
+      '<div class="receipt-card">' + breakdownHtml + '</div>' +
+      '<button class="btn-primary" id="continue-btn">' + payLabel + (payNowCents / 100).toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
     document.getElementById('continue-btn').addEventListener('click', function () {
@@ -323,12 +401,12 @@
           btn.disabled = false;
           return;
         }
-        finalize(intent.id);
+        finalize(intent.id, isDeposit, amount);
       });
     });
   }
 
-  function finalize(paymentIntentId) {
+  function finalize(paymentIntentId, isDeposit, amountPaid) {
     fetch(SUPABASE_URL + '/functions/v1/finalize-guest-quote-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
@@ -341,18 +419,73 @@
         if (status) status.textContent = 'Payment succeeded but we had trouble recording it — contact the baker with this reference: ' + paymentIntentId;
         return;
       }
-      renderSuccess();
+      renderSuccess(isDeposit, amountPaid);
     });
   }
 
-  function renderSuccess() {
+  // Same "Billing and Payment" receipt shape as pay/index.html's post-payment
+  // view and the quote/invoice/receipt emails — a deposit here always leaves
+  // a balance still due later, so that's shown as "Not yet paid" rather than
+  // just disappearing after the deposit is confirmed.
+  function renderSuccess(isDeposit, amountPaid) {
+    const data = currentQuoteData || {};
+    const items = data.items || [];
+    const amount = Number(data.quoted_price || 0);
+    const depositCents = Math.round(Number(data.deposit_amount_cents || 0));
+    const amountCents = Math.round(amount * 100);
+    const hasSplit = depositCents > 0 && depositCents < amountCents;
+    const paidAt = new Date();
+    const dateOpts = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' };
+    const shortDateOpts = { month: 'long', day: 'numeric', year: 'numeric' };
+
+    const itemsHtml = items.map(function (i) {
+      const imageUrl = i.image_menu_item_id
+        ? STORAGE_URL + '/menu-item-images/' + String(data.baker_id).toUpperCase() + '/' + String(i.image_menu_item_id).toUpperCase() + '.jpg'
+        : null;
+      const photoHtml = imageUrl
+        ? '<img class="item-photo" src="' + imageUrl + '" alt="" />'
+        : '<div class="item-photo"></div>';
+      return '<div class="item-row">' + photoHtml +
+        '<div class="item-row-body">' +
+          '<div class="item-row-name">' + escapeHtml(i.custom_name) + '</div>' +
+          '<div class="item-row-qty">' + i.quantity + '×</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    let paymentRows;
+    if (hasSplit) {
+      const depositDateStr = isDeposit ? paidAt.toLocaleDateString(undefined, shortDateOpts) : 'Paid';
+      const balanceDateStr = isDeposit ? 'Not yet paid' : paidAt.toLocaleDateString(undefined, shortDateOpts);
+      paymentRows =
+        '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + (depositCents / 100).toFixed(2) + '<span class="note">' + escapeHtml(depositDateStr) + '</span></span></div>' +
+        '<div class="receipt-row"><span class="label">Balance</span><span class="value">$' + ((amountCents - depositCents) / 100).toFixed(2) + '<span class="note">' + escapeHtml(balanceDateStr) + '</span></span></div>' +
+        '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + amount.toFixed(2) + '</span></div>';
+    } else {
+      paymentRows = '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + (amountPaid != null ? amountPaid.toFixed(2) : amount.toFixed(2)) + '</span></div>';
+    }
+
     card.innerHTML =
-      '<div class="success-state">' +
+      '<div class="bakeri-mark">Bakerï</div>' +
+      '<div class="eyebrow">Receipt from ' + escapeHtml(data.business_name || '') + '</div>' +
+      '<div class="success-state" style="padding:16px 0 6px;">' +
         '<div class="icon">✓</div>' +
         '<h2>Payment confirmed</h2>' +
-        '<p>Your baker has been notified. You\'ll get pickup details by email shortly.</p>' +
-      '</div>';
+        '<p>' + escapeHtml(data.business_name || 'Your baker') + ' has been notified. You\'ll get pickup details by email shortly.</p>' +
+      '</div>' +
+      (itemsHtml ? '<div class="receipt-card"><div class="receipt-card-title">In your order</div>' + itemsHtml + '</div>' : '') +
+      '<div class="section-title">Billing and Payment</div>' +
+      '<div class="receipt-card">' + paymentRows + '</div>' +
+      '<div class="receipt-card">' +
+        '<div class="receipt-row"><span class="label">Paid with</span><span class="value">Credit Card</span></div>' +
+        '<div class="receipt-row"><span class="label">Date</span><span class="value">' + paidAt.toLocaleDateString(undefined, dateOpts) + '</span></div>' +
+      '</div>' +
+      '<button class="btn-print" id="print-btn" type="button">Print / Save Receipt</button>';
+
+    const printBtn = document.getElementById('print-btn');
+    if (printBtn) printBtn.addEventListener('click', function () { window.print(); });
   }
+
 })();
 </script>
 </body>
