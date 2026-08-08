@@ -121,6 +121,23 @@
       display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); font-size: 22px;
     }
 
+    .product-list { display: flex; flex-direction: column; gap: 8px; }
+    .product-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px;
+      background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px;
+    }
+    .product-item-name { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+    .product-item-price { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+    .qty-stepper { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .qty-btn {
+      width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line);
+      background: var(--surface, #fff); color: var(--ink); font-size: 16px; line-height: 1;
+      display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .qty-value { font-size: 14.5px; font-weight: 700; color: var(--ink); min-width: 14px; text-align: center; }
+    .product-subtotal { margin-top: 10px; text-align: right; font-size: 13px; font-weight: 700; color: var(--ink); }
+
     .error-text { font-size: 12px; color: var(--error); margin-top: 6px; display: none; }
     .error-text.show { display: block; }
 
@@ -219,7 +236,7 @@
   }).then(function (r) { return r.json(); });
 
   const fieldsFetch = fetch(SUPABASE_URL + '/rest/v1/intake_form_fields?form_id=eq.' + encodeURIComponent(formId) +
-        '&select=id,position,field_type,label,help_text,is_required,options&order=position.asc', {
+        '&select=id,position,field_type,label,help_text,is_required,options,product_options&order=position.asc', {
     headers: { 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }
   }).then(function (r) { return r.json(); });
 
@@ -232,6 +249,7 @@
       showNotFound('Form not found', 'This baker hasn\'t set up a custom order form for this item yet.');
       return;
     }
+    standardContact = detectStandardContactFields(fields);
     renderForm(fields);
   })
   .catch(function () {
@@ -279,7 +297,43 @@
 
   // ── Answer state ──────────────────────────────────────────────────────
   const photoState = {}; // fieldId -> [{filename, contentType, base64, previewUrl}]
+  const productQtyState = {}; // fieldId -> { optionId: quantity }
   const touched = {};
+  let standardContact = null; // see detectStandardContactFields
+
+  // Every form built in the app's builder is seeded with a real "Customer
+  // Details" heading + First Name/Last Name/Email/Phone Number fields
+  // (IntakeFormBuilderView.swift's defaultCustomerDetailsFields) — the exact
+  // same info this page already collects above in its own fixed block. Left
+  // unchecked, a customer sees both: fill in their name/email/phone once,
+  // then get asked again immediately as "the form" begins. This detects that
+  // standard block (by its default labels, right after the heading) and
+  // hides those specific fields from the dynamic render below, feeding their
+  // answers from the fixed block's own inputs at submit time instead. Any
+  // field the baker renamed, removed, or reordered past a gap falls through
+  // and just renders normally — this only ever hides an exact match.
+  function detectStandardContactFields(fields) {
+    if (!fields.length || fields[0].field_type !== 'heading' ||
+        fields[0].label.trim().toLowerCase() !== 'customer details') {
+      return null;
+    }
+    const wanted = { 'first name': 'firstName', 'last name': 'lastName', 'email': 'email', 'phone number': 'phone' };
+    const matched = {};
+    const matchedIds = {};
+    matchedIds[fields[0].id] = true;
+    for (let i = 1; i < fields.length; i++) {
+      const slot = wanted[fields[i].label.trim().toLowerCase()];
+      if (!slot || matched[slot]) break;
+      matched[slot] = fields[i];
+      matchedIds[fields[i].id] = true;
+    }
+    if (!matched.firstName || !matched.lastName || !matched.email || !matched.phone) return null;
+    return { matched: matched, matchedIds: matchedIds };
+  }
+
+  function isHiddenStandardField(field) {
+    return !!(standardContact && standardContact.matchedIds[field.id]);
+  }
 
   function renderForm(fields) {
     let html =
@@ -288,9 +342,14 @@
       '<div class="lede">Tell the baker what you have in mind. They\'ll follow up with a quote directly.</div>' +
 
       '<div class="field-group">' +
-        '<label class="field-label">Your name <span class="field-required">*</span></label>' +
-        '<input type="text" id="f-name" data-touch="name" />' +
-        '<div class="error-text" id="err-name">Please enter your name.</div>' +
+        '<label class="field-label">First name <span class="field-required">*</span></label>' +
+        '<input type="text" id="f-first-name" data-touch="first-name" />' +
+        '<div class="error-text" id="err-first-name">Please enter your first name.</div>' +
+      '</div>' +
+      '<div class="field-group">' +
+        '<label class="field-label">Last name <span class="field-required">*</span></label>' +
+        '<input type="text" id="f-last-name" data-touch="last-name" />' +
+        '<div class="error-text" id="err-last-name">Please enter your last name.</div>' +
       '</div>' +
       '<div class="field-group">' +
         '<label class="field-label">Email <span class="field-required">*</span></label>' +
@@ -309,6 +368,7 @@
       '</div>';
 
     fields.forEach(function (field) {
+      if (isHiddenStandardField(field)) return;
       html += renderField(field);
     });
 
@@ -318,13 +378,14 @@
 
     card.innerHTML = html;
 
-    ['name', 'email', 'email-confirm', 'phone'].forEach(function (key) {
+    ['first-name', 'last-name', 'email', 'email-confirm', 'phone'].forEach(function (key) {
       const input = document.getElementById('f-' + key);
       input.addEventListener('blur', function () { touched[key] = true; validateField(key, fields); });
     });
 
     fields.forEach(function (field) {
       if (field.field_type === 'heading') return;
+      if (isHiddenStandardField(field)) return;
       wireField(field);
     });
 
@@ -364,6 +425,22 @@
       body = '<div class="photo-field" id="' + id + '">' +
         '<label class="photo-add">+<input type="file" accept="image/*" multiple style="display:none;" /></label>' +
       '</div>';
+    } else if (field.field_type === 'product_selector') {
+      productQtyState[field.id] = {};
+      const options = Array.isArray(field.product_options) ? field.product_options : [];
+      body = '<div class="product-list" id="' + id + '">' +
+        options.map(function (opt) {
+          return '<div class="product-item" data-opt="' + escapeHtml(opt.id) + '">' +
+            '<div><div class="product-item-name">' + escapeHtml(opt.name) + '</div>' +
+            '<div class="product-item-price">$' + Number(opt.price || 0).toFixed(2) + '</div></div>' +
+            '<div class="qty-stepper">' +
+              '<button type="button" class="qty-btn" data-action="minus" disabled>−</button>' +
+              '<span class="qty-value">0</span>' +
+              '<button type="button" class="qty-btn" data-action="plus">+</button>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+      '</div><div class="product-subtotal" id="subtotal-' + id + '"></div>';
     }
 
     return '<div class="field-group">' +
@@ -395,6 +472,8 @@
         handlePhotoFiles(field, Array.from(e.target.files || []));
         fileInput.value = '';
       });
+    } else if (field.field_type === 'product_selector') {
+      wireProductSelector(field);
     } else {
       const input = document.getElementById(id);
       input.addEventListener('blur', function () { touched[id] = true; validateCustomField(field); });
@@ -438,6 +517,60 @@
     validateCustomField(field);
   }
 
+  function wireProductSelector(field) {
+    const id = 'field-' + field.id;
+    const container = document.getElementById(id);
+    const options = Array.isArray(field.product_options) ? field.product_options : [];
+    const byId = {};
+    options.forEach(function (opt) { byId[opt.id] = opt; });
+
+    container.querySelectorAll('.product-item').forEach(function (row) {
+      const optId = row.dataset.opt;
+      const opt = byId[optId];
+      const qtyEl = row.querySelector('.qty-value');
+      const minusBtn = row.querySelector('[data-action="minus"]');
+      const plusBtn = row.querySelector('[data-action="plus"]');
+
+      function render() {
+        const qty = productQtyState[field.id][optId] || 0;
+        qtyEl.textContent = String(qty);
+        minusBtn.disabled = qty <= 0;
+        plusBtn.disabled = opt.max_quantity > 0 && qty >= opt.max_quantity;
+      }
+
+      minusBtn.addEventListener('click', function () {
+        const qty = productQtyState[field.id][optId] || 0;
+        if (qty <= 0) return;
+        productQtyState[field.id][optId] = qty - 1;
+        render();
+        touched[id] = true;
+        updateProductSubtotal(field);
+        validateCustomField(field);
+      });
+      plusBtn.addEventListener('click', function () {
+        const qty = productQtyState[field.id][optId] || 0;
+        if (opt.max_quantity > 0 && qty >= opt.max_quantity) return;
+        productQtyState[field.id][optId] = qty + 1;
+        render();
+        touched[id] = true;
+        updateProductSubtotal(field);
+        validateCustomField(field);
+      });
+
+      render();
+    });
+  }
+
+  function updateProductSubtotal(field) {
+    const options = Array.isArray(field.product_options) ? field.product_options : [];
+    const quantities = productQtyState[field.id] || {};
+    let subtotal = 0;
+    options.forEach(function (opt) { subtotal += (Number(opt.price) || 0) * (quantities[opt.id] || 0); });
+    const el = document.getElementById('subtotal-field-' + field.id);
+    if (!el) return;
+    el.textContent = subtotal > 0 ? 'Subtotal: $' + subtotal.toFixed(2) : '';
+  }
+
   function resizeImage(file, cb) {
     const reader = new FileReader();
     reader.onload = function (e) {
@@ -468,7 +601,7 @@
     let ok = true;
     const el = document.getElementById('f-' + key);
     const err = document.getElementById('err-' + key);
-    if (key === 'name') ok = el.value.trim().length > 0;
+    if (key === 'first-name' || key === 'last-name') ok = el.value.trim().length > 0;
     if (key === 'email') ok = EMAIL_RE.test(el.value.trim());
     // A single mistyped character in the domain (e.g. .ckm instead of .com)
     // still passes EMAIL_RE, so the confirmation email silently never
@@ -492,6 +625,10 @@
     if (field.field_type === 'photo') {
       return (photoState[field.id] || []).length === 0;
     }
+    if (field.field_type === 'product_selector') {
+      const quantities = productQtyState[field.id] || {};
+      return !Object.keys(quantities).some(function (k) { return quantities[k] > 0; });
+    }
     const el = document.getElementById(id);
     return !el || el.value.trim() === '';
   }
@@ -506,12 +643,12 @@
   }
 
   function submit(fields) {
-    ['name', 'email', 'email-confirm', 'phone'].forEach(function (k) { touched[k] = true; });
-    fields.forEach(function (f) { if (f.field_type !== 'heading') touched['field-' + f.id] = true; });
+    ['first-name', 'last-name', 'email', 'email-confirm', 'phone'].forEach(function (k) { touched[k] = true; });
+    fields.forEach(function (f) { if (f.field_type !== 'heading' && !isHiddenStandardField(f)) touched['field-' + f.id] = true; });
 
     let valid = true;
-    ['name', 'email', 'email-confirm', 'phone'].forEach(function (k) { if (!validateField(k)) valid = false; });
-    fields.forEach(function (f) { if (f.field_type !== 'heading' && !validateCustomField(f)) valid = false; });
+    ['first-name', 'last-name', 'email', 'email-confirm', 'phone'].forEach(function (k) { if (!validateField(k)) valid = false; });
+    fields.forEach(function (f) { if (f.field_type !== 'heading' && !isHiddenStandardField(f) && !validateCustomField(f)) valid = false; });
 
     if (!valid) return;
 
@@ -523,6 +660,22 @@
 
     const answers = fields.filter(function (f) { return f.field_type !== 'heading'; }).map(function (field) {
       const id = 'field-' + field.id;
+      // Not rendered (see isHiddenStandardField) — its answer comes from the
+      // fixed name/email/phone block above instead of a matching DOM input.
+      if (standardContact) {
+        if (standardContact.matched.firstName.id === field.id) {
+          return { fieldID: field.id, label: field.label, fieldType: field.field_type, textValue: document.getElementById('f-first-name').value.trim() };
+        }
+        if (standardContact.matched.lastName.id === field.id) {
+          return { fieldID: field.id, label: field.label, fieldType: field.field_type, textValue: document.getElementById('f-last-name').value.trim() };
+        }
+        if (standardContact.matched.email.id === field.id) {
+          return { fieldID: field.id, label: field.label, fieldType: field.field_type, textValue: document.getElementById('f-email').value.trim() };
+        }
+        if (standardContact.matched.phone.id === field.id) {
+          return { fieldID: field.id, label: field.label, fieldType: field.field_type, textValue: document.getElementById('f-phone').value.trim() };
+        }
+      }
       if (field.field_type === 'single_choice' || field.field_type === 'multi_choice') {
         const container = document.getElementById(id);
         const values = Array.from(container.querySelectorAll('input:checked')).map(function (i) { return i.value; });
@@ -533,6 +686,15 @@
           return { filename: p.filename, contentType: p.contentType, base64: p.base64 };
         });
         return { fieldID: field.id, label: field.label, fieldType: field.field_type, photos: photos };
+      }
+      if (field.field_type === 'product_selector') {
+        const quantities = productQtyState[field.id] || {};
+        // Server re-derives name/unitPrice from the field's own stored product_options
+        // (see submit-custom-order-inquiry) — quantities are the only thing trusted from here.
+        const selections = Object.keys(quantities)
+          .filter(function (k) { return quantities[k] > 0; })
+          .map(function (k) { return { id: k, quantity: quantities[k] }; });
+        return { fieldID: field.id, label: field.label, fieldType: field.field_type, productSelections: selections };
       }
       return { fieldID: field.id, label: field.label, fieldType: field.field_type, textValue: document.getElementById(id).value.trim() };
     });
@@ -548,7 +710,7 @@
         body: JSON.stringify({
           baker_id: bakerId,
           menu_item_id: itemId,
-          customer_name: document.getElementById('f-name').value.trim(),
+          customer_name: (document.getElementById('f-first-name').value.trim() + ' ' + document.getElementById('f-last-name').value.trim()).trim(),
           customer_email: document.getElementById('f-email').value.trim(),
           customer_phone: document.getElementById('f-phone').value.trim(),
           answers: answers,
