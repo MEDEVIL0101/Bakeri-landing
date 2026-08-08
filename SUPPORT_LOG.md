@@ -21,6 +21,24 @@ Entry format:
 
 ---
 
+## 2026-08-08 — Bakers couldn't find their Stripe balance, looked like payouts were broken
+
+**Reported by:** Harvey, live — a baker (Tilly) made a sale and, checking Stripe, saw $0 pending and $0 available. Read initially as a fundamental payment-architecture problem (funds stuck in Bakeri's own account instead of the baker's).
+
+**Symptom:** No visible balance anywhere the baker looked in Stripe.
+
+**Root cause:** Two separate things, confirmed by querying Stripe directly rather than assuming either side of the disagreement:
+1. The architecture itself is correct and already fixed (2026-07-30 direct-charge migration) — a charge lands on the baker's own connected Stripe Express account instantly, confirmed live (`transfer_data: null`, real pending balance on the account). The actual gap: **Express accounts have a completely separate dashboard from a normal Stripe login**, reachable only via a one-time login link or a specific Express URL — a baker with no way to find that URL saw nothing, anywhere, and reasonably concluded the money had vanished. It hadn't; it was on a screen she couldn't reach.
+2. Separately (found while verifying): Tilly's connected account had its payout schedule stuck on `manual` (would never auto-payout regardless of balance), while the other five bakers' accounts already correctly showed `daily`. Isolated to one account, not systemic.
+
+**Fix:** New `get-baker-payout-summary` and `trigger-baker-payout` edge functions surface the connected account's real balance (available/pending), recent activity, and a **freshly-generated** Stripe login link (a stale bookmarked link after any account reset was part of the original confusion) directly in the app's Banking & Payments screen — no more depending on a baker finding the right Stripe URL on their own. Added a "Request Payout" button for the no-fee standard payout; instant payouts (which carry a Stripe fee needing its own consent UI) stay on Stripe's own hosted dashboard via the same login link. Reset Tilly's account schedule to `daily` to match the other five. Also fixed two spots of stale copy still describing the pre-migration platform-custody model ("transferred...after the 24-hour dispute window...paid out weekly") with accurate, schedule-agnostic wording pointing at the new balance section.
+
+**Affected users:** Every baker, in the sense that none of them had any way to see their own balance in-app before this — Tilly's schedule fix was account-specific.
+
+**Follow-up:** None open.
+
+---
+
 ## 2026-08-07 — Rescheduling a pickup never notified the customer, with no trace anywhere
 
 **Reported by:** Harvey, live — rescheduled a ready order's pickup time (Tilly Sugar Cookies test order) and the customer got no "time changed" email.
