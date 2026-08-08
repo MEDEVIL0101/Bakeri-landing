@@ -21,6 +21,22 @@ Entry format:
 
 ---
 
+## 2026-08-07 — Rescheduling a pickup never notified the customer, with no trace anywhere
+
+**Reported by:** Harvey, live — rescheduled a ready order's pickup time (Tilly Sugar Cookies test order) and the customer got no "time changed" email.
+
+**Symptom:** No email sent, no error shown to the baker, and nothing in `notification_log` to explain why.
+
+**Root cause:** Two gaps compounding into a fully silent failure. `send-guest-order-ready-email` had no top-level try/catch (unlike every other guest email function in this codebase), so an unexpected error inside it produced an unhandled 500 with no `notification_log` row written. Meanwhile `mark-order-ready-for-pickup`'s `fetch(...).catch(...)` only catches network-level failures — `fetch` never rejects on a non-2xx response — so that 500 looked identical to success from the caller's side. The failure vanished on both ends at once, leaving zero trace.
+
+**Fix:** [send-guest-order-ready-email/index.ts](supabase/functions/send-guest-order-ready-email/index.ts) now wraps its whole body in try/catch and logs every failure. [mark-order-ready-for-pickup/index.ts](supabase/functions/mark-order-ready-for-pickup/index.ts) now checks the actual response status, retries once, and returns a `notified` flag; the baker's app now shows a warning when it comes back false ("you may want to reach out directly") — the pickup time itself still saves successfully either way. Also fixed the same missing `timeZone: 'UTC'` date-formatting bug (see the entry below) in the push-notification date string. Verified by re-invoking the email function directly against the real order — sends and logs correctly now.
+
+**Affected users:** Just this one test reschedule (Harvey's own testing) — no real customer affected, but the underlying gap was live for every baker's reschedule since the pickup-window feature shipped hours earlier the same day.
+
+**Follow-up:** None open.
+
+---
+
 ## 2026-08-07 — Paying a balance invoice marked the order completed/fulfilled
 
 **Reported by:** Harvey, live — paid the balance on a custom-quote order and it disappeared off the active Orders list, treated as if it had been picked up. No "Mark Ready" or "Mark Completed" step ever happened.
