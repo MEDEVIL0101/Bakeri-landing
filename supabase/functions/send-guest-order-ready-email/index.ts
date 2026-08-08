@@ -58,115 +58,126 @@ Deno.serve(async (req: Request) => {
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  const { data: order, error: orderErr } = await db
-    .from("orders")
-    .select("id, order_name, customer_name, customer_email, user_id, quoted_price, scheduled_pickup_date, pickup_window_start, pickup_window_end, invoice_code")
-    .eq("id", orderId)
-    .single();
+  // Everything below used to run outside any try/catch — every other guest
+  // email function in this codebase wraps its whole body so an unexpected
+  // failure still gets logged and returns a clean 400 instead of an
+  // unhandled 500. Without that, a real failure (confirmed live 2026-08-07:
+  // a baker rescheduled a pickup and the customer never got the "time
+  // changed" email) left literally no trace anywhere — no notification_log
+  // row, no console output the caller could see, nothing — because
+  // mark-order-ready-for-pickup's fetch() doesn't throw on a non-2xx
+  // response either, so the failure vanished on both ends at once.
+  try {
+    const { data: order, error: orderErr } = await db
+      .from("orders")
+      .select("id, order_name, customer_name, customer_email, user_id, quoted_price, scheduled_pickup_date, pickup_window_start, pickup_window_end, invoice_code")
+      .eq("id", orderId)
+      .single();
 
-  if (orderErr || !order || !order.customer_email) {
-    console.error("order lookup failed:", orderErr?.message);
-    await logNotification(db, orderId, "guest_order_ready", "failed", orderErr?.message ?? "order not found or missing customer_email");
-    return json({ error: "Order not found." }, 400);
-  }
-  if (!order.scheduled_pickup_date || !order.pickup_window_start || !order.pickup_window_end) {
-    return json({ error: "Missing pickup window." }, 400);
-  }
+    if (orderErr || !order || !order.customer_email) {
+      throw new Error(orderErr?.message ?? "order not found or missing customer_email");
+    }
+    if (!order.scheduled_pickup_date || !order.pickup_window_start || !order.pickup_window_end) {
+      throw new Error("missing_pickup_window");
+    }
 
-  const { data: items } = await db
-    .from("order_items")
-    .select("custom_name, quantity, price_per_unit, menu_item_id")
-    .eq("order_id", order.id)
-    .is("deleted_at", null);
-  const itemRows = items ?? [];
+    const { data: items } = await db
+      .from("order_items")
+      .select("custom_name, quantity, price_per_unit, menu_item_id")
+      .eq("order_id", order.id)
+      .is("deleted_at", null);
+    const itemRows = items ?? [];
 
-  const { data: baker } = await db
-    .from("profiles")
-    .select("business_name, user_name, profile_slug, email, pickup_address, pickup_city, pickup_province")
-    .eq("id", order.user_id)
-    .single();
-  const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
-  const bakerUrl = baker?.profile_slug
-    ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
-    : "https://bakeriapp.com";
-  const addressLine = [baker?.pickup_address, baker?.pickup_city, baker?.pickup_province].filter(Boolean).join(", ");
+    const { data: baker } = await db
+      .from("profiles")
+      .select("business_name, user_name, profile_slug, email, pickup_address, pickup_city, pickup_province")
+      .eq("id", order.user_id)
+      .single();
+    const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
+    const bakerUrl = baker?.profile_slug
+      ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
+      : "https://bakeriapp.com";
+    const addressLine = [baker?.pickup_address, baker?.pickup_city, baker?.pickup_province].filter(Boolean).join(", ");
 
-  const quotedPrice = Number(order.quoted_price ?? 0);
-  const hasQuote = quotedPrice > 0;
-  const itemsHtml = await renderReceiptItemsHtml(db, order.user_id, itemRows, hasQuote, Math.round(quotedPrice * 100));
+    const quotedPrice = Number(order.quoted_price ?? 0);
+    const hasQuote = quotedPrice > 0;
+    const itemsHtml = await renderReceiptItemsHtml(db, order.user_id, itemRows, hasQuote, Math.round(quotedPrice * 100));
 
-  // scheduled_pickup_date is a timestamptz storing just a calendar day (the
-  // baker picks a date, not a moment in time) — formatting it in whatever
-  // timezone this function happens to run in would risk it landing on the
-  // *previous* day for anyone west of UTC (e.g. a stored midnight-UTC value
-  // reads back as 8pm the day before in US/Canada). Reading it back as UTC
-  // is what makes it round-trip to the same calendar day it was set to.
-  const pickupDateFull = new Date(order.scheduled_pickup_date).toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
-  });
-  const windowStr = `${escapeHtml(order.pickup_window_start)} – ${escapeHtml(order.pickup_window_end)}`;
+    // scheduled_pickup_date is a timestamptz storing just a calendar day (the
+    // baker picks a date, not a moment in time) — formatting it in whatever
+    // timezone this function happens to run in would risk it landing on the
+    // *previous* day for anyone west of UTC (e.g. a stored midnight-UTC value
+    // reads back as 8pm the day before in US/Canada). Reading it back as UTC
+    // is what makes it round-trip to the same calendar day it was set to.
+    const pickupDateFull = new Date(order.scheduled_pickup_date).toLocaleDateString("en-US", {
+      weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
+    });
+    const windowStr = `${escapeHtml(order.pickup_window_start)} – ${escapeHtml(order.pickup_window_end)}`;
 
-  // The whole point of this email — shown big, not buried in a table row.
-  const prominentDateTimeHtml = `
-    <div style="margin:18px 0;padding:18px 16px;background:#F7F2E9;border-radius:10px;text-align:center;">
-      <div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:#A89B8C;text-transform:uppercase;">${isReschedule ? "New pickup time" : "Pickup window"}</div>
-      <div style="font-size:22px;font-weight:700;color:#241712;margin-top:6px;">${escapeHtml(pickupDateFull)}</div>
-      <div style="font-size:17px;color:#4A3E33;margin-top:2px;">${windowStr}</div>
-    </div>
-  `;
+    // The whole point of this email — shown big, not buried in a table row.
+    const prominentDateTimeHtml = `
+      <div style="margin:18px 0;padding:18px 16px;background:#F7F2E9;border-radius:10px;text-align:center;">
+        <div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:#A89B8C;text-transform:uppercase;">${isReschedule ? "New pickup time" : "Pickup window"}</div>
+        <div style="font-size:22px;font-weight:700;color:#241712;margin-top:6px;">${escapeHtml(pickupDateFull)}</div>
+        <div style="font-size:17px;color:#4A3E33;margin-top:2px;">${windowStr}</div>
+      </div>
+    `;
 
-  const detailRows = [
-    addressLine ? `<tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Address</td><td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${escapeHtml(addressLine)}</td></tr>` : "",
-    `<tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Contact</td><td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${escapeHtml(bakerName)}${baker?.email ? `<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">${escapeHtml(baker.email)}</span>` : ""}</td></tr>`,
-  ].filter(Boolean).join("");
+    const detailRows = [
+      addressLine ? `<tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Address</td><td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${escapeHtml(addressLine)}</td></tr>` : "",
+      `<tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Contact</td><td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${escapeHtml(bakerName)}${baker?.email ? `<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">${escapeHtml(baker.email)}</span>` : ""}</td></tr>`,
+    ].filter(Boolean).join("");
 
-  const heading = isReschedule ? "Your pickup time has changed" : "Your order is ready for pickup!";
-  const legalHtml = `
-    <p style="color:#A89B8C;font-size:11.5px;line-height:1.5;margin-top:20px;">
-      Can't make this time, or something's come up? Reach out to ${escapeHtml(bakerName)} directly using the contact info above.
-    </p>
-  `;
+    const heading = isReschedule ? "Your pickup time has changed" : "Your order is ready for pickup!";
+    const legalHtml = `
+      <p style="color:#A89B8C;font-size:11.5px;line-height:1.5;margin-top:20px;">
+        Can't make this time, or something's come up? Reach out to ${escapeHtml(bakerName)} directly using the contact info above.
+      </p>
+    `;
 
-  const html = renderReceiptShell({
-    docType: isReschedule ? "Pickup Rescheduled" : "Pickup Ready",
-    bakerName,
-    bakerUrl,
-    metaRowsHtml: [
-      metaRow("", escapeHtml(formatDate(new Date().toISOString()))),
-      metaRow("Order ID", escapeHtml(order.invoice_code || order.id.slice(0, 8).toUpperCase())),
-      metaRow("Email", escapeHtml(order.customer_email)),
-    ].join(""),
-    heading,
-    itemsHtml,
-    afterItemsHtml: prominentDateTimeHtml,
-    sectionTitle: "Pickup Details",
-    sectionSubRowHtml: metaRow("", escapeHtml((order.customer_name ?? "").trim() || "Guest")),
-    breakdownRowsHtml: detailRows,
-    footerHtml: "",
-    legalHtml,
-  });
+    const html = renderReceiptShell({
+      docType: isReschedule ? "Pickup Rescheduled" : "Pickup Ready",
+      bakerName,
+      bakerUrl,
+      metaRowsHtml: [
+        metaRow("", escapeHtml(formatDate(new Date().toISOString()))),
+        metaRow("Order ID", escapeHtml(order.invoice_code || order.id.slice(0, 8).toUpperCase())),
+        metaRow("Email", escapeHtml(order.customer_email)),
+      ].join(""),
+      heading,
+      itemsHtml,
+      afterItemsHtml: prominentDateTimeHtml,
+      sectionTitle: "Pickup Details",
+      sectionSubRowHtml: metaRow("", escapeHtml((order.customer_name ?? "").trim() || "Guest")),
+      breakdownRowsHtml: detailRows,
+      footerHtml: "",
+      legalHtml,
+    });
 
-  const resendRes = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-    },
-    body: JSON.stringify({
-      from: "Bakerï <hello@bakeriapp.com>",
-      to: order.customer_email,
-      subject: (isReschedule ? "Pickup time updated — " : "Ready for pickup — ") + (order.order_name || "your order"),
-      html,
-    }),
-  });
+    const resendRes = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: "Bakerï <hello@bakeriapp.com>",
+        to: order.customer_email,
+        subject: (isReschedule ? "Pickup time updated — " : "Ready for pickup — ") + (order.order_name || "your order"),
+        html,
+      }),
+    });
 
-  if (!resendRes.ok) {
-    const errText = await resendRes.text();
-    console.error("Resend send failed:", errText);
-    await logNotification(db, orderId, "guest_order_ready", "failed", errText.slice(0, 500));
-  } else {
+    if (!resendRes.ok) {
+      throw new Error(`resend_failed: ${(await resendRes.text()).slice(0, 500)}`);
+    }
+
     await logNotification(db, orderId, "guest_order_ready", "sent");
+    return json({ ok: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`send-guest-order-ready-email failed for order ${orderId}:`, message);
+    await logNotification(db, orderId, "guest_order_ready", "failed", message.slice(0, 500));
+    return json({ error: message }, 400);
   }
-
-  return json({ ok: true });
 });

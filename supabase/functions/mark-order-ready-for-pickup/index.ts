@@ -28,6 +28,31 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// A plain `fetch(...).catch(...)` here doesn't actually catch anything
+// useful: fetch only rejects on a network-level failure, never on a non-2xx
+// response — so a downstream function returning a 400/500 (confirmed live
+// 2026-08-07: an unhandled error inside send-guest-order-ready-email) looked
+// identical to success from here, and the customer's "pickup time changed"
+// email silently never sent. One retry for genuinely transient failures;
+// checks the actual response status either way.
+async function postWithRetry(url: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
+  let lastError = "unknown error";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-webhook-secret": WEBHOOK_SECRET },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) return { ok: true };
+      lastError = (await res.text()).slice(0, 500);
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+  }
+  return { ok: false, error: lastError };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -93,41 +118,46 @@ Deno.serve(async (req: Request) => {
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || order.baker_display_name || "Your baker";
 
-    const dateStr = new Date(pickup_date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    // Same "read a stored calendar-day timestamptz back as UTC" rule as
+    // send-guest-order-ready-email — without it this string (and the push
+    // notification body built from it) can land on the wrong day for
+    // anyone west of UTC.
+    const dateStr = new Date(pickup_date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
     const windowStr = `${window_start}–${window_end}`;
+
+    let notified = true;
 
     // Push (in-app buyer)
     if (order.buyer_profile_id) {
-      try {
-        await fetch(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-webhook-secret": WEBHOOK_SECRET },
-          body: JSON.stringify({
-            recipient_user_id: order.buyer_profile_id,
-            title: isReschedule ? "Pickup time updated" : "🛍️ Ready for Pickup!",
-            body: `${order.order_name || "Your order"} from ${bakerName} — ${dateStr}, ${windowStr}`,
-            data: { type: isReschedule ? "pickup_rescheduled" : "ready_for_pickup", order_id },
-          }),
-        });
-      } catch (err) {
-        console.error("notify-marketplace push failed:", err);
+      const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
+        recipient_user_id: order.buyer_profile_id,
+        title: isReschedule ? "Pickup time updated" : "🛍️ Ready for Pickup!",
+        body: `${order.order_name || "Your order"} from ${bakerName} — ${dateStr}, ${windowStr}`,
+        data: { type: isReschedule ? "pickup_rescheduled" : "ready_for_pickup", order_id },
+      });
+      if (!result.ok) {
+        console.error(`notify-marketplace push failed for order ${order_id}:`, result.error);
+        notified = false;
       }
     }
 
     // Email (guest)
     if (!order.buyer_profile_id && order.lead_channel === "website") {
-      try {
-        await fetch(`${SUPABASE_URL}/functions/v1/send-guest-order-ready-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-webhook-secret": WEBHOOK_SECRET },
-          body: JSON.stringify({ order_id, is_reschedule: isReschedule }),
-        });
-      } catch (err) {
-        console.error("send-guest-order-ready-email failed:", err);
+      const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/send-guest-order-ready-email`, {
+        order_id,
+        is_reschedule: isReschedule,
+      });
+      if (!result.ok) {
+        console.error(`send-guest-order-ready-email failed for order ${order_id}:`, result.error);
+        notified = false;
       }
     }
 
-    return json({ ok: true, is_reschedule: isReschedule });
+    // The date/window update above already succeeded and stands regardless
+    // — `notified: false` just tells the baker the customer may not know
+    // yet, so they can follow up directly (their contact info is already on
+    // the order) rather than assuming the notification landed.
+    return json({ ok: true, is_reschedule: isReschedule, notified });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return json({ error: message }, 400);
