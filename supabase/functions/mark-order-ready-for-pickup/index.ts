@@ -33,11 +33,16 @@ function json(body: unknown, status = 200) {
 // response — so a downstream function returning a 400/500 (confirmed live
 // 2026-08-07: an unhandled error inside send-guest-order-ready-email) looked
 // identical to success from here, and the customer's "pickup time changed"
-// email silently never sent. One retry for genuinely transient failures;
-// checks the actual response status either way.
+// email silently never sent. Three attempts with a short delay between them
+// for genuinely transient failures (confirmed live 2026-08-08: a baker's
+// attempt failed twice back-to-back with zero delay, immediately after this
+// function's own redeploy — most likely both landed inside the same brief
+// deploy-propagation window; a manual re-test moments later succeeded on the
+// first try with no code changes) — checks the actual response status either way.
 async function postWithRetry(url: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
   let lastError = "unknown error";
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 800));
     try {
       const res = await fetch(url, {
         method: "POST",
