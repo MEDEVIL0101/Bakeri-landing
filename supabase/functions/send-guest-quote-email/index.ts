@@ -166,7 +166,7 @@ Deno.serve(async (req: Request) => {
   const depositCents = Math.round(Number(order.deposit_amount_cents ?? 0));
   const isSplitQuote = depositCents > 0 && depositCents < totalCents;
   const payNowCents = isSplitQuote ? depositCents : totalCents;
-  const payLabel = isSplitQuote ? "Pay Deposit " : "Pay ";
+  const payLabel = isSplitQuote ? "Accept Quote and Pay Deposit " : "Accept Quote and Pay ";
   const breakdownHtml = isSplitQuote
     ? `<div style="color:#A89B8C;font-size:12.5px;margin-top:4px;">${fmt(depositCents)} non-refundable deposit due now &middot; ${fmt(totalCents - depositCents)} balance due later</div>`
     : "";
