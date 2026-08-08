@@ -1,24 +1,28 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { INVOICE_EMAIL_TEMPLATE } from "./template.ts";
+import {
+  escapeHtml,
+  formatCents,
+  formatDate,
+  metaRow,
+  renderReceiptItemsHtml,
+  renderReceiptShell,
+} from "../_shared/receiptEmailStyle.ts";
 
 // Baker-triggered: "Email Invoice" button on OrderDetailView. Requires the
 // caller's own session and confirms they own the order before sending —
 // unlike the web guest-payment functions, this one always has a real baker
 // JWT behind it.
+//
+// Built on receiptEmailStyle.ts's shared shell (2026-08-07) — same
+// wordmark/doc-type/meta block/item-row/"Billing and Payment" shape as
+// send-guest-quote-email and the payment receipt, so the whole quote →
+// invoice → receipt sequence a guest receives reads as one product. Replaces
+// the old standalone template.ts placeholder file.
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -56,7 +60,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, customer_name, customer_email, invoice_code, due_date, invoice_type, deposit_amount_cents, quoted_price")
+      .select("id, user_id, customer_name, customer_email, invoice_code, due_date, invoice_type, deposit_amount_cents, deposit_paid_at, quoted_price")
       .eq("id", order_id)
       .single();
 
@@ -68,13 +72,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: items } = await supabase
       .from("order_items")
-      .select("custom_name, quantity, price_per_unit, variant_breakdown")
+      .select("custom_name, quantity, price_per_unit, variant_breakdown, menu_item_id")
       .eq("order_id", order.id)
       .is("deleted_at", null);
-    const itemsTotal = (items ?? []).reduce(
-      (sum: number, i: { quantity: number; price_per_unit: number }) => sum + i.quantity * i.price_per_unit,
-      0
-    );
+    const itemRows = items ?? [];
+    const itemsTotal = itemRows.reduce((sum: number, i: { quantity: number; price_per_unit: number }) => sum + i.quantity * i.price_per_unit, 0);
 
     // The amount stated in the email must match what this specific invoice
     // actually charges — a deposit or balance invoice covers only part of
@@ -85,59 +87,101 @@ Deno.serve(async (req: Request) => {
     const invoiceType = order.invoice_type ?? "full";
     const depositAmount = (order.deposit_amount_cents ?? 0) / 100;
     const quotedPrice = Number(order.quoted_price ?? 0);
-    const effectiveTotal = quotedPrice > 0 ? quotedPrice : itemsTotal;
+    const hasQuote = quotedPrice > 0;
+    const effectiveTotal = hasQuote ? quotedPrice : itemsTotal;
     if (effectiveTotal <= 0) throw new Error("no_amount_due");
     const total = invoiceType === "deposit" ? depositAmount
       : invoiceType === "balance" ? Math.max(effectiveTotal - depositAmount, 0)
       : effectiveTotal;
     if (total <= 0) throw new Error("no_amount_due");
 
-    // Customer-facing item list — deliberately not order_name, which is a
-    // baker-internal label that may not be meant for the customer to see.
-    const itemsList = (items ?? [])
-      .map((i: { custom_name: string; quantity: number; variant_breakdown: unknown }) => {
-        const breakdown = Array.isArray(i.variant_breakdown)
-          ? (i.variant_breakdown as { name: string; quantity: number }[])
-              .map((v) => `${v.quantity}× ${escapeHtml(v.name)}`).join(", ")
-          : "";
-        return `${i.quantity}× ${escapeHtml(i.custom_name)}` + (breakdown ? ` <span style="color:#A89B8C;font-size:12px;">(${breakdown})</span>` : "");
-      })
-      .join("<br>");
-
     const { data: baker } = await supabase
       .from("profiles")
-      .select("business_name, user_name")
+      .select("business_name, user_name, profile_slug")
       .eq("id", order.user_id)
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
+    const bakerUrl = baker?.profile_slug
+      ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
+      : "https://bakeriapp.com";
 
     const payUrl = `https://bakeriapp.com/pay/?code=${encodeURIComponent(order.invoice_code)}`;
-    const amount = `$${total.toFixed(2)}`;
-    const firstName = (order.customer_name ?? "").trim().split(/\s+/)[0] || "";
-    // Same shape as send-guest-quote-email's `greeting` — a standalone "Hi
-    // X," line, not a headline suffix — so the two emails read as the same
-    // product (see 2026-08-07 balance-invoice styling fix: this email used
-    // to follow a completely different, unrelated template).
-    const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi,";
+    const amountCents = Math.round(total * 100);
+    const effectiveTotalCents = Math.round(effectiveTotal * 100);
     const heading = invoiceType === "deposit" ? "Your deposit is due"
       : invoiceType === "balance" ? "Your balance is due"
       : "Your invoice is ready";
-    const invoicePhrase = invoiceType === "deposit" ? "a deposit invoice"
-      : invoiceType === "balance" ? "a balance invoice"
-      : "an invoice";
-    const dueDateLine = order.due_date
-      ? `<div style="font-size:11.5px;color:#A89B8C;margin-top:4px;">Due ${escapeHtml(new Date(order.due_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }))}</div>`
-      : "";
+    const payLabel = invoiceType === "deposit" ? "Pay Deposit "
+      : invoiceType === "balance" ? "Pay Balance "
+      : "Pay ";
 
-    const html = INVOICE_EMAIL_TEMPLATE
-      .replace(/\{\{baker_name\}\}/g, escapeHtml(bakerName))
-      .replace(/\{\{greeting\}\}/g, greeting)
-      .replace(/\{\{heading\}\}/g, heading)
-      .replace(/\{\{invoice_phrase\}\}/g, invoicePhrase)
-      .replace(/\{\{amount\}\}/g, amount)
-      .replace(/\{\{items_list\}\}/g, itemsList || "—")
-      .replace(/\{\{due_date_line\}\}/g, dueDateLine)
-      .replace(/\{\{pay_url\}\}/g, payUrl);
+    const itemsHtml = await renderReceiptItemsHtml(supabase, order.user_id, itemRows, hasQuote, effectiveTotalCents);
+
+    // Same deposit/balance/order-total shape as the quote email and the
+    // receipt — a balance invoice shows the deposit already paid (with its
+    // date) alongside the balance now due, not just the one amount due today.
+    const depositCents = order.deposit_amount_cents ?? 0;
+    let breakdownRowsHtml: string;
+    if (invoiceType === "balance" && depositCents > 0) {
+      breakdownRowsHtml = `
+        <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Deposit</td>
+          <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(depositCents)}<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">${order.deposit_paid_at ? "Paid " + escapeHtml(formatDate(order.deposit_paid_at)) : "Paid"}</span></td></tr>
+        <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Balance</td>
+          <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(amountCents)}<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">Due now</span></td></tr>
+        <tr><td style="padding:10px 0 0;border-top:1px solid #E4D9C8;font-size:13.5px;color:#6B5F54;">Order total</td>
+          <td style="padding:10px 0 0;border-top:1px solid #E4D9C8;text-align:right;font-size:13.5px;color:#241712;">${formatCents(effectiveTotalCents)}</td></tr>
+      `;
+    } else if (invoiceType === "deposit") {
+      breakdownRowsHtml = `
+        <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Deposit</td>
+          <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(amountCents)}<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">Due now</span></td></tr>
+        <tr><td style="padding:10px 0 0;border-top:1px solid #E4D9C8;font-size:13.5px;color:#6B5F54;">Order total</td>
+          <td style="padding:10px 0 0;border-top:1px solid #E4D9C8;text-align:right;font-size:13.5px;color:#241712;">${formatCents(effectiveTotalCents)}</td></tr>
+      `;
+    } else {
+      breakdownRowsHtml = `
+        <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Order total</td>
+          <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(amountCents)}</td></tr>
+      `;
+    }
+
+    const dueDateHtml = order.due_date
+      ? `<p style="color:#A89B8C;font-size:12px;line-height:1.5;text-align:center;margin-top:-4px;">Due ${escapeHtml(formatDate(order.due_date))}</p>`
+      : "";
+    const footerHtml = `
+      <div style="text-align:center;margin:22px 0 10px;">
+        <a href="${payUrl}" style="display:inline-block;background:#241712;color:#fff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:600;">
+          ${payLabel}${formatCents(amountCents)}
+        </a>
+      </div>
+      ${dueDateHtml}
+      <p style="color:#A89B8C;font-size:12px;line-height:1.5;text-align:center;">
+        Or copy this link into your browser: ${payUrl}
+      </p>
+    `;
+    const legalHtml = `
+      <p style="color:#A89B8C;font-size:11.5px;line-height:1.5;margin-top:20px;">
+        This invoice is provided directly by ${escapeHtml(bakerName)}, who is solely
+        responsible for preparing and fulfilling your order. If you have any
+        questions about it, reach out to ${escapeHtml(bakerName)} directly.
+      </p>
+    `;
+
+    const html = renderReceiptShell({
+      docType: "Invoice",
+      metaRowsHtml: [
+        metaRow("", escapeHtml(formatDate(new Date().toISOString()))),
+        metaRow("Order ID", escapeHtml(order.invoice_code)),
+        metaRow("Baker", `<a href="${bakerUrl}" style="color:#6B5F54;">${escapeHtml(bakerName)}</a>`),
+        metaRow("Email", escapeHtml(customerEmail)),
+      ].join(""),
+      heading,
+      itemsHtml,
+      sectionSubRowHtml: metaRow("", escapeHtml((order.customer_name ?? "").trim() || "Guest")),
+      breakdownRowsHtml,
+      footerHtml,
+      legalHtml,
+    });
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -148,7 +192,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: "Bakerï <hello@bakeriapp.com>",
         to: customerEmail,
-        subject: `Invoice from ${bakerName} — ${amount}`,
+        subject: `Invoice from ${bakerName} — ${formatCents(amountCents)}`,
         html,
       }),
     });

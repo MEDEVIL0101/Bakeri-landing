@@ -1,6 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logNotification } from "../_shared/notificationLog.ts";
+import {
+  escapeHtml,
+  formatCents,
+  formatDate,
+  metaRow,
+  renderReceiptItemsHtml,
+  renderReceiptShell,
+} from "../_shared/receiptEmailStyle.ts";
 
 // Sends the "here's your quote, pay here" email for a guest (web, no
 // account) custom-order request. Two callers, one function:
@@ -10,6 +18,11 @@ import { logNotification } from "../_shared/notificationLog.ts";
 //   2. Manual — MarketplaceOrderSheet's "Resend Quote Email" button, via the
 //      baker's own JWT, for when the guest lost the original email or the
 //      baker wants to resend after editing the quote.
+//
+// Built on receiptEmailStyle.ts's shared shell (2026-08-07) — same
+// wordmark/doc-type/meta block/item-row/"Billing and Payment" shape as
+// send-invoice-email and the payment receipt, so the whole quote → invoice →
+// receipt sequence a guest receives reads as one product.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -28,13 +41,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
-}
-
-function escapeHtml(str: unknown): string {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }
 
 type FormAnswer = {
@@ -120,7 +126,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: order, error: orderErr } = await db
     .from("orders")
-    .select("id, order_name, customer_name, customer_email, user_id, quoted_price, deposit_amount_cents, quote_note, buyer_profile_id, lead_channel, form_responses")
+    .select("id, order_name, customer_name, customer_email, user_id, quoted_price, deposit_amount_cents, quote_note, buyer_profile_id, lead_channel, form_responses, invoice_code")
     .eq("id", orderId)
     .single();
 
@@ -137,76 +143,95 @@ Deno.serve(async (req: Request) => {
   const quotedPrice = Number(order.quoted_price ?? 0);
   if (!(quotedPrice > 0)) return json({ error: "no_amount_due" }, 400);
 
+  const { data: items } = await db
+    .from("order_items")
+    .select("custom_name, quantity, price_per_unit, menu_item_id")
+    .eq("order_id", order.id)
+    .is("deleted_at", null);
+  const itemRows = items ?? [];
+
   const { data: baker } = await db
     .from("profiles")
-    .select("business_name, user_name")
+    .select("business_name, user_name, profile_slug")
     .eq("id", order.user_id)
     .single();
   const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
+  const bakerUrl = baker?.profile_slug
+    ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
+    : "https://bakeriapp.com";
 
   const payUrl = `https://bakeriapp.com/baker/pay-quote.html?order=${encodeURIComponent(order.id)}`;
-  const firstName = (order.customer_name ?? "").trim().split(/\s+/)[0] || "";
-  const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi,";
   const noteBlock = order.quote_note
-    ? `<p style="line-height:1.5;color:#6B5F54;"><em>"${escapeHtml(order.quote_note)}"</em></p>`
+    ? `<p style="line-height:1.5;color:#6B5F54;font-style:italic;">"${escapeHtml(order.quote_note)}"</p>`
     : "";
 
   // Guest checkout: the customer pays exactly the quoted price — Bakeri's
   // service charge comes out of the baker's side instead (see
   // create-guest-quote-payment-intent), so it's never shown or added here.
-  const baseCents = Math.round(quotedPrice * 100);
-  const totalCents = baseCents;
-  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const totalCents = Math.round(quotedPrice * 100);
 
   // When the baker split the quote into a deposit + balance, this email must
   // ask for (and the button must state) the deposit only — the click-through
-  // page (baker/pay-quote.html) already only ever charges the deposit here,
-  // but the email previously stated and linked "Pay {full total}" with no
-  // breakdown, which read as a bill for the whole amount up front.
+  // page (baker/pay-quote.html) already only ever charges the deposit here.
   const depositCents = Math.round(Number(order.deposit_amount_cents ?? 0));
   const isSplitQuote = depositCents > 0 && depositCents < totalCents;
   const payNowCents = isSplitQuote ? depositCents : totalCents;
   const payLabel = isSplitQuote ? "Accept Quote and Pay Deposit " : "Accept Quote and Pay ";
-  const breakdownHtml = isSplitQuote
-    ? `<div style="color:#A89B8C;font-size:12.5px;margin-top:4px;">${fmt(depositCents)} non-refundable deposit due now &middot; ${fmt(totalCents - depositCents)} balance due later</div>`
-    : "";
 
-  const answers = Array.isArray(order.form_responses) ? order.form_responses : [];
+  const answers: FormAnswer[] = Array.isArray(order.form_responses) ? order.form_responses : [];
   const requestBlock = renderRequestBlock(answers);
 
-  const html = `
-    <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#241712;">
-      <h2 style="margin:0 0 8px;">Your quote is ready</h2>
-      <p style="line-height:1.5;">${greeting}</p>
-      <p style="line-height:1.5;color:#6B5F54;">
-        ${escapeHtml(bakerName)} has quoted your request for
-        <strong>${escapeHtml(order.order_name || "your order")}</strong>.
-      </p>
-      ${noteBlock}
-      ${requestBlock}
-      <table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-top:16px;">
-        <tr>
-          <td style="padding:10px 0 0;font-weight:700;">Total</td>
-          <td style="padding:10px 0 0;text-align:right;font-weight:700;">${fmt(totalCents)}</td>
-        </tr>
-      </table>
-      ${breakdownHtml}
-      <div style="text-align:center;margin:28px 0;">
-        <a href="${payUrl}" style="display:inline-block;background:#241712;color:#fff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:600;">
-          ${payLabel}${fmt(payNowCents)}
-        </a>
-      </div>
-      <p style="color:#A89B8C;font-size:12px;line-height:1.5;">
-        Or copy this link into your browser: ${payUrl}
-      </p>
-      <p style="color:#A89B8C;font-size:11.5px;line-height:1.5;margin-top:20px;border-top:1px solid #E4D9C8;padding-top:16px;">
-        This quote is provided directly by ${escapeHtml(bakerName)}, who is solely
-        responsible for preparing and fulfilling your order. Once your payment is
-        confirmed, pickup details will be provided by email — you're responsible
-        for coordinating pickup with the baker.
-      </p>
+  const itemsHtml = await renderReceiptItemsHtml(db, order.user_id, itemRows, true, totalCents);
+
+  const breakdownRowsHtml = isSplitQuote
+    ? `
+      <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Deposit</td>
+        <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(depositCents)}<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">Due now</span></td></tr>
+      <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Balance</td>
+        <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(totalCents - depositCents)}<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">Due later</span></td></tr>
+      <tr><td style="padding:10px 0 0;border-top:1px solid #E4D9C8;font-size:13.5px;color:#6B5F54;">Order total</td>
+        <td style="padding:10px 0 0;border-top:1px solid #E4D9C8;text-align:right;font-size:13.5px;color:#241712;">${formatCents(totalCents)}</td></tr>
+    `
+    : `
+      <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Order total</td>
+        <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(totalCents)}</td></tr>
+    `;
+
+  const footerHtml = `
+    <div style="text-align:center;margin:22px 0 10px;">
+      <a href="${payUrl}" style="display:inline-block;background:#241712;color:#fff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:600;">
+        ${payLabel}${formatCents(payNowCents)}
+      </a>
     </div>
+    <p style="color:#A89B8C;font-size:12px;line-height:1.5;text-align:center;">
+      Or copy this link into your browser: ${payUrl}
+    </p>
   `;
+  const legalHtml = `
+    <p style="color:#A89B8C;font-size:11.5px;line-height:1.5;margin-top:20px;">
+      This quote is provided directly by ${escapeHtml(bakerName)}, who is solely
+      responsible for preparing and fulfilling your order. Once your payment is
+      confirmed, pickup details will be provided by email — you're responsible
+      for coordinating pickup with the baker.
+    </p>
+  `;
+
+  const html = renderReceiptShell({
+    docType: "Quote",
+    metaRowsHtml: [
+      metaRow("", escapeHtml(formatDate(new Date().toISOString()))),
+      metaRow("Order ID", escapeHtml(order.invoice_code || order.id.slice(0, 8).toUpperCase())),
+      metaRow("Baker", `<a href="${bakerUrl}" style="color:#6B5F54;">${escapeHtml(bakerName)}</a>`),
+      metaRow("Email", escapeHtml(customerEmail)),
+    ].join(""),
+    heading: "Your quote is ready",
+    itemsHtml,
+    afterItemsHtml: noteBlock + requestBlock,
+    sectionSubRowHtml: metaRow("", escapeHtml((order.customer_name ?? "").trim() || "Guest")),
+    breakdownRowsHtml,
+    footerHtml,
+    legalHtml,
+  });
 
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -217,7 +242,7 @@ Deno.serve(async (req: Request) => {
     body: JSON.stringify({
       from: "Bakerï <hello@bakeriapp.com>",
       to: customerEmail,
-      subject: `Your quote from ${bakerName} — ${fmt(totalCents)}`,
+      subject: `Your quote from ${bakerName} — ${formatCents(totalCents)}`,
       html,
     }),
   });
