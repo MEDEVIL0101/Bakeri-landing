@@ -106,26 +106,35 @@ export async function renderReceiptItemsHtml(
 
 export interface ReceiptShellParams {
   docType: string;          // top label: "Quote" / "Invoice" / "Receipt"
-  metaRowsHtml: string;     // pre-built <tr> rows: date / order id / baker / email
+  bakerName: string;        // shown big, right under the doc-type label — this is a
+  bakerUrl: string;         // transaction with the BAKER, not with Bakeri; burying that
+                             // in a meta line risks the guest thinking Bakeri is the seller.
+  metaRowsHtml: string;     // pre-built <tr> rows: date / order id / email
   heading: string;          // sentence-style heading right above the items ("Your quote is ready", "Balance received"...)
   itemsHtml: string;
-  afterItemsHtml?: string;  // optional extra content between the items and "Billing and Payment" (e.g. the quote email's baker note / "what you requested" block)
-  sectionSubRowHtml: string; // customer name row under "Billing and Payment"
+  afterItemsHtml?: string;  // optional extra content between the items and the second section (e.g. the quote email's baker note / "what you requested" block)
+  sectionTitle?: string;    // second section's title — "Billing and Payment" everywhere except the pickup-ready email ("Pickup Details")
+  sectionSubRowHtml: string; // customer name row (or pickup-window row) under the second section
   breakdownRowsHtml: string;
   footerHtml: string;       // CTA button block OR a "Paid by..." bar
   legalHtml: string;
 }
 
-// Same shell for all three email types: Bakerï wordmark, doc-type label,
-// meta block, a divider, the event heading + item rows, another divider,
-// "Billing and Payment" (identical title everywhere — that's the anchor
-// that makes the three read as one sequence), the breakdown, and a
+// Same shell for every email in the order lifecycle: Bakerï wordmark (small
+// — this is Bakeri's own branding on the email, not the seller), doc-type
+// label, the baker's name prominent right under it (this is who the guest
+// is actually buying from), meta block, a divider, the event heading + item
+// rows, another divider, a second section (title defaults to "Billing and
+// Payment" — the anchor that makes the quote/invoice/receipt trio read as
+// one sequence; overridden to "Pickup Details" for the ready-for-pickup
+// email, which isn't about money at all), the breakdown, and a
 // type-specific footer/legal note.
 export function renderReceiptShell(p: ReceiptShellParams): string {
   return `
     <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:28px 24px;color:#241712;background:#fff;">
       <div style="font-size:13px;font-weight:700;letter-spacing:.04em;color:#A89B8C;text-transform:uppercase;">Bakerï</div>
-      <h1 style="margin:14px 0 18px;font-size:26px;">${escapeHtml(p.docType)}</h1>
+      <h1 style="margin:14px 0 2px;font-size:26px;">${escapeHtml(p.docType)}</h1>
+      <div style="font-size:15px;margin-bottom:14px;"><a href="${p.bakerUrl}" style="color:#6B5F54;text-decoration:none;">from <strong style="color:#241712;">${escapeHtml(p.bakerName)}</strong></a></div>
       <table style="width:100%;border-collapse:collapse;font-size:13px;color:#6B5F54;">
         ${p.metaRowsHtml}
       </table>
@@ -140,7 +149,7 @@ export function renderReceiptShell(p: ReceiptShellParams): string {
 
       <div style="height:1px;background:#E4D9C8;margin:20px 0;"></div>
 
-      <div style="font-size:15px;font-weight:700;margin-bottom:10px;">Billing and Payment</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:10px;">${escapeHtml(p.sectionTitle ?? "Billing and Payment")}</div>
       <table style="width:100%;border-collapse:collapse;font-size:13.5px;color:#241712;margin-bottom:14px;">
         ${p.sectionSubRowHtml}
       </table>
