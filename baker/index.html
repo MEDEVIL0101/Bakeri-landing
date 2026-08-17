@@ -423,7 +423,7 @@
     #item-sheet-body { padding: 18px 20px 22px; overflow-y: auto; flex: 1; min-height: 0; overscroll-behavior: contain; }
     #item-sheet-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 10px; }
     #item-sheet-price { font-size: 17px; font-weight: 700; color: var(--accent); margin-top: 4px; }
-    #item-sheet-desc { font-size: 14px; line-height: 1.7; color: var(--bio); margin-top: 12px; }
+    #item-sheet-desc { font-size: 14px; line-height: 1.7; color: var(--bio); margin-top: 16px; }
     .spec-list { margin-top: 14px; }
     .spec-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 7px 0; border-top: 1px solid var(--line); color: var(--muted); }
     .spec-row b { color: var(--ink); font-weight: 600; }
@@ -645,10 +645,10 @@
       <div id="item-sheet-body">
         <div id="item-sheet-name"></div>
         <div id="item-sheet-price" class="tabular"></div>
-        <div id="item-sheet-desc"></div>
-        <div class="spec-list" id="item-sheet-specs"></div>
         <div id="item-sheet-box" style="display:none;"></div>
         <button class="btn btn-primary" id="item-sheet-cta"></button>
+        <div id="item-sheet-desc"></div>
+        <div class="spec-list" id="item-sheet-specs"></div>
       </div>
     </div>
   </div>
@@ -1603,6 +1603,15 @@
     }
 
     document.getElementById('item-scrim').classList.add('open');
+
+    // CSS aspect-ratio on a flex item has inconsistent cross-browser
+    // support for constraining height (notably iOS Safari) — set the
+    // photo's height explicitly from its own resolved width instead of
+    // relying on the browser to reconcile aspect-ratio with flex sizing.
+    // clientWidth forces a synchronous layout, so this reads correctly
+    // right after the sheet becomes visible.
+    const photoEl = document.getElementById('item-sheet-photo');
+    photoEl.style.height = photoEl.clientWidth + 'px';
   }
   function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); }
 
