@@ -435,6 +435,14 @@
     #item-sheet-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 10px; }
     #item-sheet-price { font-size: 17px; font-weight: 700; color: var(--accent); margin-top: 4px; }
     #item-sheet-desc { font-size: 14px; line-height: 1.7; color: var(--bio); margin-top: 16px; }
+    /* Clamped by default so a short description never scrolls at all and a
+       long one doesn't dominate the sheet on open — "Read more" only shows
+       up when the text actually overflows the clamp (see openItemSheet). */
+    #item-sheet-desc.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    #item-sheet-desc-toggle {
+      display: none; background: none; border: none; padding: 0; margin-top: 8px;
+      font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; font-family: inherit;
+    }
     .spec-list { margin-top: 14px; }
     .spec-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 7px 0; border-top: 1px solid var(--line); color: var(--muted); }
     .spec-row b { color: var(--ink); font-weight: 600; }
@@ -662,6 +670,7 @@
         </div>
         <div id="item-sheet-scroll">
           <div id="item-sheet-desc"></div>
+          <button type="button" id="item-sheet-desc-toggle">Read more</button>
           <div class="spec-list" id="item-sheet-specs"></div>
         </div>
       </div>
@@ -1579,7 +1588,15 @@
   function openItemSheet(item) {
     document.getElementById('item-sheet-name').textContent = item.name;
     document.getElementById('item-sheet-price').innerHTML = (priceIsFrom(item) ? 'from ' : '') + '$' + formatPrice(item.price);
-    document.getElementById('item-sheet-desc').textContent = item.item_description || '';
+    const descEl = document.getElementById('item-sheet-desc');
+    const descToggle = document.getElementById('item-sheet-desc-toggle');
+    descEl.textContent = item.item_description || '';
+    descEl.classList.add('clamped');
+    descToggle.textContent = 'Read more';
+    descToggle.onclick = function () {
+      descEl.classList.toggle('clamped');
+      descToggle.textContent = descEl.classList.contains('clamped') ? 'Read more' : 'Read less';
+    };
 
     // Sold-out-aware badge — the one place a "Sold Out" label appears,
     // matching the app's dedicated item-detail treatment rather than
@@ -1658,6 +1675,11 @@
     // right after the sheet becomes visible.
     const photoEl = document.getElementById('item-sheet-photo');
     photoEl.style.height = photoEl.clientWidth + 'px';
+
+    // Only now (sheet visible, clamp applied) do scrollHeight/clientHeight
+    // reflect real layout — measuring this before .open is added would
+    // read 0/0 off a display:none subtree and never show the toggle.
+    descToggle.style.display = descEl.scrollHeight > descEl.clientHeight + 1 ? 'block' : 'none';
   }
   function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); unlockBodyScroll(); }
 
