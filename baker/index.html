@@ -489,6 +489,11 @@
          a dead gap where a phantom next card should be. auto-fit collapses
          those, letting the real cards stretch to actually fill the row. */
       #product-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+      /* A lone card has no neighbors to share the row with, so auto-fit's
+         one remaining track stretches to the full container width instead
+         of staying card-sized — cap it explicitly for the single-item case
+         without touching the intentional stretch behavior for 2+ cards. */
+      #product-grid:has(> .p-card:only-child) { grid-template-columns: minmax(180px, 320px); }
       .p-card:hover .p-photo { opacity: .92; }
 
       /* Roughly a quarter of the (up to 1200px) content column, not the 42%
