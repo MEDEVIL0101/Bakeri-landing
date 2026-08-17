@@ -411,7 +411,13 @@
        long description used to drag the photo along with it inside one
        shared scroll area, which also let the sheet rubber-band past its own
        edges on touch and expose blank space behind the rounded corners. */
-    #item-sheet { display: flex; flex-direction: column; overflow: hidden; }
+    /* Overrides .sheet's shared max-height: 90% — with real content (photo +
+       fixed header + a long description) the sheet already reached that cap
+       naturally, so raising it (not just replacing max-height with an equal
+       height) is what actually reclaims the dimmed gap above it for the
+       description to use. Cart sheet keeps the shared 90%; this is scoped
+       to the item detail sheet specifically. */
+    #item-sheet { display: flex; flex-direction: column; overflow: hidden; height: 96%; max-height: 96%; }
     #item-sheet-inner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
     /* min-height: 0 overrides the flex-item default of min-height: auto —
        without it, a tall portrait source photo whose height:100% can't
@@ -530,7 +536,7 @@
          via aspect-ratio: auto; height: 100% to match whatever height the
          details column happened to be, visibly rescaling as more content —
          a chosen size, then flavors — appeared). */
-      #item-sheet { max-width: 560px; width: 90%; border-radius: 24px; max-height: 88vh; }
+      #item-sheet { max-width: 560px; width: 90%; border-radius: 24px; max-height: 92vh; height: 92vh; }
 
       #cart-sheet { max-width: 440px; margin-left: auto; margin-right: 0; height: 100%; max-height: 100%; border-radius: 0; box-shadow: -20px 0 50px -20px rgba(0,0,0,.4); }
       .scrim:has(#cart-sheet) { justify-content: flex-end; }
