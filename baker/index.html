@@ -424,7 +424,13 @@
        resolve against an aspect-ratio-only parent falls back to its natural
        aspect ratio and forces this box taller than its intended 1/1 square,
        eating into the space the scrollable body needs below it. */
-    #item-sheet-photo { position: relative; aspect-ratio: 1/1; background: var(--line-soft); flex: none; min-height: 0; overflow: hidden; }
+    /* touch-action: none — the photo has no scrollable content of its own,
+       so a touch/scroll gesture starting on it could otherwise fall through
+       and pan the page behind the sheet on iOS Safari. This stops the
+       gesture at its source instead of locking/restoring body scroll (which
+       caused its own bug: the page jumping back to the tapped card's
+       position when the sheet closed). */
+    #item-sheet-photo { position: relative; aspect-ratio: 1/1; background: var(--line-soft); flex: none; min-height: 0; overflow: hidden; touch-action: none; }
     #item-sheet-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
     /* Name/price/box-selector/cta stay put; only the description+specs
        scroll. Two flex children instead of one shared scroll area, same
@@ -1553,36 +1559,6 @@
   }
   function cartTotal() { return cartSubtotal() + cartTaxCents() / 100; }
 
-  // ══════════════════════ Scrim body-scroll lock ══════════════════════
-  //
-  // A touch/scroll gesture that starts over a non-scrolling area inside an
-  // open sheet (e.g. the now-fixed item photo) can still fall through and
-  // scroll the page behind the scrim on iOS Safari — a fixed-position
-  // overlay alone doesn't stop that. Locking the body's own scroll while
-  // any scrim is open closes that gap regardless of which sheet or which
-  // part of it the touch started on. Tracks a count rather than a single
-  // flag since item-sheet and cart-sheet could in principle both be open.
-  let openScrimCount = 0;
-  let lockedScrollY = 0;
-  function lockBodyScroll() {
-    if (openScrimCount === 0) {
-      lockedScrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = -lockedScrollY + 'px';
-      document.body.style.width = '100%';
-    }
-    openScrimCount++;
-  }
-  function unlockBodyScroll() {
-    openScrimCount = Math.max(0, openScrimCount - 1);
-    if (openScrimCount === 0) {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      window.scrollTo(0, lockedScrollY);
-    }
-  }
-
   // ══════════════════════ Item Sheet ══════════════════════
 
   function openItemSheet(item) {
@@ -1665,7 +1641,6 @@
     }
 
     document.getElementById('item-scrim').classList.add('open');
-    lockBodyScroll();
 
     // CSS aspect-ratio on a flex item has inconsistent cross-browser
     // support for constraining height (notably iOS Safari) — set the
@@ -1681,7 +1656,7 @@
     // read 0/0 off a display:none subtree and never show the toggle.
     descToggle.style.display = descEl.scrollHeight > descEl.clientHeight + 1 ? 'block' : 'none';
   }
-  function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); unlockBodyScroll(); }
+  function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); }
 
   // ══════════════════════ Assorted Box picker ══════════════════════
 
@@ -2000,9 +1975,8 @@
     cartStep = 0;
     renderCartSheet();
     document.getElementById('cart-scrim').classList.add('open');
-    lockBodyScroll();
   }
-  function closeCartSheet() { document.getElementById('cart-scrim').classList.remove('open'); unlockBodyScroll(); }
+  function closeCartSheet() { document.getElementById('cart-scrim').classList.remove('open'); }
 
   function renderCartSheet() {
     const body = document.getElementById('cart-sheet-body');
