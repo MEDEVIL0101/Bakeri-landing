@@ -445,6 +445,7 @@
        long one doesn't dominate the sheet on open — "Read more" only shows
        up when the text actually overflows the clamp (see openItemSheet). */
     #item-sheet-desc.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    #item-sheet-desc.tappable { cursor: pointer; }
     #item-sheet-desc-toggle {
       display: none; background: none; border: none; padding: 0; margin-top: 8px;
       font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; font-family: inherit;
@@ -477,6 +478,9 @@
     .box-flavor-row .stepper .qty { font-size: 13px; min-width: 16px; text-align: center; }
 
     #cart-sheet-body { padding: 18px 20px 24px; }
+    #desc-sheet-body { padding: 4px 20px 28px; }
+    #desc-sheet-title { font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+    #desc-sheet-text { font-size: 15px; line-height: 1.75; color: var(--bio); white-space: pre-wrap; }
     #cart-step-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin-bottom: 8px; }
     .cart-line { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
     .cart-line .thumb { width: 48px; height: 48px; border-radius: 12px; background: var(--line-soft); flex-shrink: 0; overflow: hidden; }
@@ -694,6 +698,18 @@
   </div>
 </div>
 
+<!-- Full-description popup — tapping a clamped description opens this
+     instead of expanding inline, so reading it never means scrolling the
+     item sheet itself. -->
+<div class="scrim" id="desc-scrim">
+  <div class="sheet" id="desc-sheet">
+    <div style="position:relative;">
+      <button class="sheet-close" id="desc-sheet-close">✕</button>
+    </div>
+    <div id="desc-sheet-body"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -864,8 +880,10 @@
     document.getElementById('action-bar-cart').addEventListener('click', openCartSheet);
     document.getElementById('item-sheet-close').addEventListener('click', closeItemSheet);
     document.getElementById('cart-sheet-close').addEventListener('click', closeCartSheet);
+    document.getElementById('desc-sheet-close').addEventListener('click', closeDescSheet);
     document.getElementById('item-scrim').addEventListener('click', function (e) { if (e.target === this) closeItemSheet(); });
     document.getElementById('cart-scrim').addEventListener('click', function (e) { if (e.target === this) closeCartSheet(); });
+    document.getElementById('desc-scrim').addEventListener('click', function (e) { if (e.target === this) closeDescSheet(); });
   }
 
   function renderAvatar(name) {
@@ -1568,11 +1586,12 @@
     const descToggle = document.getElementById('item-sheet-desc-toggle');
     descEl.textContent = item.item_description || '';
     descEl.classList.add('clamped');
-    descToggle.textContent = 'Read more';
-    descToggle.onclick = function () {
-      descEl.classList.toggle('clamped');
-      descToggle.textContent = descEl.classList.contains('clamped') ? 'Read more' : 'Read less';
-    };
+    // Tapping the (clamped) text itself or "Read more" both open the full
+    // description in its own popup rather than expanding inline — reading
+    // a long one then never means scrolling the item sheet at all.
+    const openFullDesc = function () { openDescSheet(item.name, item.item_description || ''); };
+    descEl.onclick = openFullDesc;
+    descToggle.onclick = openFullDesc;
 
     // Sold-out-aware badge — the one place a "Sold Out" label appears,
     // matching the app's dedicated item-detail treatment rather than
@@ -1653,10 +1672,130 @@
 
     // Only now (sheet visible, clamp applied) do scrollHeight/clientHeight
     // reflect real layout — measuring this before .open is added would
-    // read 0/0 off a display:none subtree and never show the toggle.
-    descToggle.style.display = descEl.scrollHeight > descEl.clientHeight + 1 ? 'block' : 'none';
+    // read 0/0 off a display:none subtree and never show the toggle. A
+    // short description that doesn't overflow isn't clickable at all —
+    // opening a popup to show the exact same text it's already showing
+    // would just be a dead tap.
+    const descOverflows = descEl.scrollHeight > descEl.clientHeight + 1;
+    descToggle.style.display = descOverflows ? 'block' : 'none';
+    descEl.classList.toggle('tappable', descOverflows);
+    if (!descOverflows) descEl.onclick = null;
   }
   function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); }
+
+  // ══════════════════════ Swipe down to dismiss ══════════════════════
+  //
+  // Mobile users expect a bottom sheet to close on a downward swipe, not
+  // just the ✕ button. A touch starting inside the scrollable description
+  // only arms the dismiss-drag once that area is already scrolled to its
+  // top (scrollTop <= 0) — otherwise this would fight normal scrolling of
+  // long descriptions. A touch starting on the photo or the fixed
+  // name/price/button block arms immediately since neither scrolls.
+  (function setupItemSheetSwipeDismiss() {
+    const sheet = document.getElementById('item-sheet');
+    const scrollArea = document.getElementById('item-sheet-scroll');
+    let startY = 0;
+    let currentY = 0;
+    let dragging = false;
+    let armed = false;
+
+    sheet.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      startY = currentY = e.touches[0].clientY;
+      dragging = true;
+      armed = false;
+      sheet.style.transition = 'none';
+    }, { passive: true });
+
+    sheet.addEventListener('touchmove', function (e) {
+      if (!dragging || e.touches.length !== 1) return;
+      currentY = e.touches[0].clientY;
+      const deltaY = currentY - startY;
+      if (deltaY <= 0) { armed = false; sheet.style.transform = ''; return; }
+
+      if (!armed) {
+        const inScrollArea = scrollArea.contains(e.target);
+        if (inScrollArea && scrollArea.scrollTop > 0) return;
+        armed = true;
+      }
+
+      e.preventDefault();
+      sheet.style.transform = 'translateY(' + deltaY + 'px)';
+    }, { passive: false });
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      const deltaY = currentY - startY;
+      if (armed && deltaY > 120) {
+        closeItemSheet();
+        sheet.style.transform = '';
+      } else {
+        sheet.style.transition = 'transform 0.25s ease-out';
+        sheet.style.transform = '';
+      }
+      armed = false;
+    }
+    sheet.addEventListener('touchend', endDrag);
+    sheet.addEventListener('touchcancel', endDrag);
+  })();
+
+  // ══════════════════════ Full-description popup ══════════════════════
+
+  function openDescSheet(name, text) {
+    document.getElementById('desc-sheet-body').innerHTML =
+      '<div id="desc-sheet-title">' + escapeHtml(name) + '</div>' +
+      '<div id="desc-sheet-text"></div>';
+    document.getElementById('desc-sheet-text').textContent = text;
+    document.getElementById('desc-scrim').classList.add('open');
+  }
+  function closeDescSheet() { document.getElementById('desc-scrim').classList.remove('open'); }
+
+  // Same swipe-down-to-dismiss as the item sheet, simplified — desc-sheet
+  // has no separate fixed/scroll split, it's just one scrollable block via
+  // the shared .sheet overflow: auto, so the sheet itself is both the drag
+  // target and the thing whose scrollTop needs checking.
+  (function setupDescSheetSwipeDismiss() {
+    const sheet = document.getElementById('desc-sheet');
+    let startY = 0, currentY = 0, dragging = false, armed = false;
+
+    sheet.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      startY = currentY = e.touches[0].clientY;
+      dragging = true;
+      armed = false;
+      sheet.style.transition = 'none';
+    }, { passive: true });
+
+    sheet.addEventListener('touchmove', function (e) {
+      if (!dragging || e.touches.length !== 1) return;
+      currentY = e.touches[0].clientY;
+      const deltaY = currentY - startY;
+      if (deltaY <= 0) { armed = false; sheet.style.transform = ''; return; }
+      if (!armed) {
+        if (sheet.scrollTop > 0) return;
+        armed = true;
+      }
+      e.preventDefault();
+      sheet.style.transform = 'translateY(' + deltaY + 'px)';
+    }, { passive: false });
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      const deltaY = currentY - startY;
+      if (armed && deltaY > 120) {
+        closeDescSheet();
+        sheet.style.transform = '';
+      } else {
+        sheet.style.transition = 'transform 0.25s ease-out';
+        sheet.style.transform = '';
+      }
+      armed = false;
+    }
+    sheet.addEventListener('touchend', endDrag);
+    sheet.addEventListener('touchcancel', endDrag);
+  })();
 
   // ══════════════════════ Assorted Box picker ══════════════════════
 
