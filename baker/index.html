@@ -420,7 +420,12 @@
        eating into the space the scrollable body needs below it. */
     #item-sheet-photo { position: relative; aspect-ratio: 1/1; background: var(--line-soft); flex: none; min-height: 0; overflow: hidden; }
     #item-sheet-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
-    #item-sheet-body { padding: 18px 20px 22px; overflow-y: auto; flex: 1; min-height: 0; overscroll-behavior: contain; }
+    /* Name/price/box-selector/cta stay put; only the description+specs
+       scroll. Two flex children instead of one shared scroll area, same
+       reasoning as the photo/body split above. */
+    #item-sheet-body { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 18px 20px 22px; }
+    #item-sheet-fixed { flex: none; }
+    #item-sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
     #item-sheet-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 10px; }
     #item-sheet-price { font-size: 17px; font-weight: 700; color: var(--accent); margin-top: 4px; }
     #item-sheet-desc { font-size: 14px; line-height: 1.7; color: var(--bio); margin-top: 16px; }
@@ -643,12 +648,16 @@
         <button class="sheet-close" id="item-sheet-close">✕</button>
       </div>
       <div id="item-sheet-body">
-        <div id="item-sheet-name"></div>
-        <div id="item-sheet-price" class="tabular"></div>
-        <div id="item-sheet-box" style="display:none;"></div>
-        <button class="btn btn-primary" id="item-sheet-cta"></button>
-        <div id="item-sheet-desc"></div>
-        <div class="spec-list" id="item-sheet-specs"></div>
+        <div id="item-sheet-fixed">
+          <div id="item-sheet-name"></div>
+          <div id="item-sheet-price" class="tabular"></div>
+          <div id="item-sheet-box" style="display:none;"></div>
+          <button class="btn btn-primary" id="item-sheet-cta"></button>
+        </div>
+        <div id="item-sheet-scroll">
+          <div id="item-sheet-desc"></div>
+          <div class="spec-list" id="item-sheet-specs"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1529,6 +1538,36 @@
   }
   function cartTotal() { return cartSubtotal() + cartTaxCents() / 100; }
 
+  // ══════════════════════ Scrim body-scroll lock ══════════════════════
+  //
+  // A touch/scroll gesture that starts over a non-scrolling area inside an
+  // open sheet (e.g. the now-fixed item photo) can still fall through and
+  // scroll the page behind the scrim on iOS Safari — a fixed-position
+  // overlay alone doesn't stop that. Locking the body's own scroll while
+  // any scrim is open closes that gap regardless of which sheet or which
+  // part of it the touch started on. Tracks a count rather than a single
+  // flag since item-sheet and cart-sheet could in principle both be open.
+  let openScrimCount = 0;
+  let lockedScrollY = 0;
+  function lockBodyScroll() {
+    if (openScrimCount === 0) {
+      lockedScrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = -lockedScrollY + 'px';
+      document.body.style.width = '100%';
+    }
+    openScrimCount++;
+  }
+  function unlockBodyScroll() {
+    openScrimCount = Math.max(0, openScrimCount - 1);
+    if (openScrimCount === 0) {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, lockedScrollY);
+    }
+  }
+
   // ══════════════════════ Item Sheet ══════════════════════
 
   function openItemSheet(item) {
@@ -1603,6 +1642,7 @@
     }
 
     document.getElementById('item-scrim').classList.add('open');
+    lockBodyScroll();
 
     // CSS aspect-ratio on a flex item has inconsistent cross-browser
     // support for constraining height (notably iOS Safari) — set the
@@ -1613,7 +1653,7 @@
     const photoEl = document.getElementById('item-sheet-photo');
     photoEl.style.height = photoEl.clientWidth + 'px';
   }
-  function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); }
+  function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); unlockBodyScroll(); }
 
   // ══════════════════════ Assorted Box picker ══════════════════════
 
@@ -1932,8 +1972,9 @@
     cartStep = 0;
     renderCartSheet();
     document.getElementById('cart-scrim').classList.add('open');
+    lockBodyScroll();
   }
-  function closeCartSheet() { document.getElementById('cart-scrim').classList.remove('open'); }
+  function closeCartSheet() { document.getElementById('cart-scrim').classList.remove('open'); unlockBodyScroll(); }
 
   function renderCartSheet() {
     const body = document.getElementById('cart-sheet-body');
