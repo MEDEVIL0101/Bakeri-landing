@@ -667,6 +667,18 @@
 
   const WEEKDAY_LABELS = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
   const WEEKDAY_ORDER  = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+  // pickup_hours_json stores open/close as 24h "HH:mm" (see PickupHours.swift)
+  // — convert to standard 12h "h:mm AM/PM" for display.
+  function formatTime12h(hhmm) {
+    const parts = (hhmm || '').split(':');
+    const h24 = parseInt(parts[0], 10);
+    const min = parts[1] || '00';
+    if (isNaN(h24)) return hhmm;
+    const period = h24 >= 12 ? 'PM' : 'AM';
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    return h12 + ':' + min + ' ' + period;
+  }
   const FILTERS = [
     { key: 'all',     label: 'All' },
     { key: 'now',     label: 'Ready Now' },
@@ -865,7 +877,7 @@
     const rowsHTML = WEEKDAY_ORDER.map(function (key) {
       const day = hoursJSON[key];
       const label = WEEKDAY_LABELS[key];
-      const time = (!day || day.closed) ? 'Closed' : (day.open + '–' + day.close);
+      const time = (!day || day.closed) ? 'Closed' : (formatTime12h(day.open) + '–' + formatTime12h(day.close));
       return '<div class="row"><span class="day">' + label + '</span><span class="time">' + time + '</span></div>';
     }).join('');
     document.getElementById('hours-rows').innerHTML = rowsHTML;
