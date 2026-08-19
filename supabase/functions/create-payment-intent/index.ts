@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
+import { currencyForCountry } from "../_shared/currency.ts";
 
 const stripe = getStripeClient();
 
@@ -52,6 +53,7 @@ interface BakerConnectRow {
   id: string;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: boolean;
+  country: string | null;
 }
 
 // A storefront can't take a real checkout until its baker has finished
@@ -63,7 +65,7 @@ async function fetchBakerConnectRows(bakerIds: string[]): Promise<BakerConnectRo
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, stripe_connect_account_id, stripe_connect_onboarding_complete")
+    .select("id, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
     .in("id", bakerIds);
   if (error || !data || data.length !== bakerIds.length) return null;
   return data;
@@ -109,7 +111,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const isApp = await isAuthenticatedBuyer(req.headers.get("Authorization"));
-    const { items, currency = "cad", tax_amount_cents = 0 }: RequestBody = await req.json();
+    const { items, currency: requestedCurrency = "cad", tax_amount_cents = 0 }: RequestBody = await req.json();
 
     if (!items || items.length === 0) {
       return new Response(JSON.stringify({ error: "No items" }), {
@@ -160,11 +162,50 @@ Deno.serve(async (req: Request) => {
     // authorization is simply cancelled — no charge, no non-refundable Stripe
     // fee. Digital goods capture immediately — there's no physical handoff to
     // wait for, so the sale (and the buyer's download) is done the moment
-    // payment succeeds. Digital purchases are always solo (never mixed into a
-    // cart with physical items — see finalize-guest-digital-order), so
-    // checking the first item is sufficient.
+    // payment succeeds. A digital cart is always single-baker (one storefront
+    // page, see digital-checkout.html) but can hold multiple items — see
+    // finalize-guest-digital-order.
     const isDigital = items.every((i) => i.listing_kind === "digital");
     const captureMethod = (paymentFlow === "deposit_and_save" || isDigital) ? "automatic" : "manual";
+
+    // Everything below trusts client-supplied fields (name, price) with no
+    // server-side check against the live menu_items row — for digital items
+    // that's the only gate before Stripe actually captures money, so
+    // re-fetch every item here and reject anything finalize-guest-digital-
+    // order would also reject, before the charge happens instead of after.
+    // Without this, a listing that's been unpublished, deleted, or had its
+    // file removed since the buyer loaded the page still charges them in
+    // full, and they only find out once finalize rejects it.
+    if (isDigital) {
+      const supabase = getSupabaseClient();
+      const { data: digitalItems, error: digitalItemsErr } = await supabase
+        .from("menu_items")
+        .select("id, name, listing_kind, is_listed_in_marketplace, digital_file_path")
+        .in("id", items.map((i) => i.listing_id));
+
+      const itemsById = new Map((digitalItems ?? []).map((d) => [d.id, d]));
+      for (const cartItem of items) {
+        const digitalItem = itemsById.get(cartItem.listing_id);
+        if (digitalItemsErr || !digitalItem || digitalItem.listing_kind !== "digital") {
+          return new Response(JSON.stringify({ error: "This item is no longer available." }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+        if (!digitalItem.is_listed_in_marketplace) {
+          return new Response(JSON.stringify({ error: `"${digitalItem.name}" is no longer available.` }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+        if (!digitalItem.digital_file_path) {
+          return new Response(JSON.stringify({ error: `"${digitalItem.name}" has no file attached yet — contact the baker.` }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+      }
+    }
 
     const bakerIDs = [...new Set(items.map((i) => i.baker_id))];
 
@@ -185,6 +226,12 @@ Deno.serve(async (req: Request) => {
 
     const isSingleBaker = bakerIDs.length === 1;
     const paymentModel: "direct" | "platform_custody" = isSingleBaker ? "direct" : "platform_custody";
+    // Direct charges must be in a currency the connected account's own
+    // country supports — derive from the baker's real country rather than
+    // trusting a client-supplied value. The multi-baker (dormant) platform-
+    // custody path has no single connected account to match, so it keeps
+    // the client-requested/default currency.
+    const currency = isSingleBaker ? currencyForCountry(bakerRows[0].country) : requestedCurrency;
 
     const createParams: Record<string, unknown> = {
       amount: chargeCents,

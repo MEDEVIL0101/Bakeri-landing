@@ -313,6 +313,7 @@
       width: 32px; border-radius: 50%; border: none; background: var(--accent); color: var(--accent-fg);
       font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
     }
+    .add-btn.added { background: var(--digital); font-size: 14px; }
     .qty-stepper {
       display: flex; align-items: center; border: 1.5px solid var(--ink); border-radius: 9999px; overflow: hidden;
       animation: popIn .16s ease-out;
@@ -373,6 +374,23 @@
     #action-bar-cart .l .t { font-size: 14.5px; font-weight: 700; }
     #action-bar-cart .l .s { font-size: 11px; color: var(--accent-fg); opacity: .75; margin-top: 2px; }
     #action-bar-cart .r {
+      font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink);
+      border-radius: 9999px; padding: 10px 16px;
+    }
+    /* Digital downloads have their own bar (see digitalCart) — same shape
+       as the pickup cart's, distinguished with --digital instead of the
+       theme accent so it's clearly a separate mini-cart at a glance. Sits
+       above the pickup bar when both are visible (a mixed cart). */
+    #action-bar-digital-cart {
+      display: none; align-items: center; justify-content: space-between; height: 56px;
+      background: var(--digital); color: #fff; border-radius: 9999px; padding: 0 8px 0 20px; cursor: pointer;
+      border: none; width: 100%; box-shadow: 0 10px 30px -8px rgba(0,0,0,.35);
+      animation: popIn .18s ease-out; margin-bottom: 8px;
+    }
+    #action-bar-digital-cart .l { text-align: left; }
+    #action-bar-digital-cart .l .t { font-size: 14.5px; font-weight: 700; }
+    #action-bar-digital-cart .l .s { font-size: 11px; color: #fff; opacity: .75; margin-top: 2px; }
+    #action-bar-digital-cart .r {
       font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink);
       border-radius: 9999px; padding: 10px 16px;
     }
@@ -492,6 +510,8 @@
     .cart-line .stepper button { width: 28px; height: 100%; border: none; background: none; font-size: 15px; cursor: pointer; color: var(--ink); }
     .cart-line .stepper .qty { font-size: 12px; min-width: 16px; text-align: center; }
     .cart-line .total { font-size: 13px; color: var(--ink); width: 56px; text-align: right; }
+    .cart-line .remove-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 13px; cursor: pointer; flex-shrink: 0; }
+    #cart-digital-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin: 16px 0 8px; }
 
     .cart-financial-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); }
     .cart-financial-row.total { font-weight: 700; color: var(--ink); font-size: 16px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
@@ -652,6 +672,13 @@
 </div><!-- /page-shell -->
 
 <div id="action-bar">
+  <button id="action-bar-digital-cart">
+    <div class="l">
+      <div class="t">Download Cart</div>
+      <div class="s" id="digital-cart-bar-sub"></div>
+    </div>
+    <div class="r tabular" id="digital-cart-bar-total"></div>
+  </button>
   <button id="action-bar-cart">
     <div class="l">
       <div class="t">Checkout</div>
@@ -763,6 +790,12 @@
   let preorderState = null; // in-progress preorder date picker: { item, chosenISO }
   let cartStep = 0; // 0 order, 1 customer info, 2 confirmed
   let toastTimer = null;
+  // Digital downloads have their own tiny cart — just a set of item ids
+  // (qty is always 1, no dates/tiers/variants to track) — kept separate
+  // from the pickup cart above since it can check out on its own straight
+  // to digital-checkout.html, or combine with the pickup cart into one
+  // mixed checkout.html flow when both have items (see goToCheckout).
+  let digitalCart = [];
   // Direct checkout (ready_now / preorder) needs the baker's Stripe Connect
   // payout wired up; custom-quote inquiries don't touch payment at intake
   // time (submit-custom-order-inquiry lands a pending_quote lead), so those
@@ -785,16 +818,18 @@
         cart = raw.cart || {};
         boxCartLines = raw.boxLines || [];
         preorderCartLines = raw.preorderLines || [];
+        digitalCart = raw.digitalCart || [];
       } else {
         cart = raw || {};
         boxCartLines = [];
         preorderCartLines = [];
+        digitalCart = [];
       }
-    } catch (e) { cart = {}; boxCartLines = []; preorderCartLines = []; }
+    } catch (e) { cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = []; }
   }
   function saveCart() {
     try {
-      sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines }));
+      sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines, digitalCart: digitalCart }));
     } catch (e) {}
   }
 
@@ -874,10 +909,12 @@
     renderSectionNav();
     applySectionTab();
     updateCartUI();
+    updateDigitalCartUI();
 
     document.getElementById('cart-btn').addEventListener('click', openCartSheet);
     document.getElementById('desktop-cart-btn').addEventListener('click', openCartSheet);
     document.getElementById('action-bar-cart').addEventListener('click', openCartSheet);
+    document.getElementById('action-bar-digital-cart').addEventListener('click', goToDigitalCheckout);
     document.getElementById('item-sheet-close').addEventListener('click', closeItemSheet);
     document.getElementById('cart-sheet-close').addEventListener('click', closeCartSheet);
     document.getElementById('desc-sheet-close').addEventListener('click', closeDescSheet);
@@ -1399,15 +1436,17 @@
       return;
     }
     if (item.listing_kind === 'digital') {
-      // Digital purchases skip the pickup cart entirely — a solo Buy &
-      // Download flow, not qty+cart.
+      // Digital purchases skip the pickup cart (no qty/dates/tiers to
+      // track) but do get their own small cart — see digitalCart — so
+      // multiple downloads can check out together instead of one at a time.
+      const inCart = digitalCart.indexOf(item.id) !== -1;
       const btn = document.createElement('button');
-      btn.className = 'add-btn';
-      btn.textContent = '→';
-      btn.setAttribute('aria-label', 'Buy & download');
+      btn.className = 'add-btn' + (inCart ? ' added' : '');
+      btn.textContent = inCart ? '✓' : '+';
+      btn.setAttribute('aria-label', inCart ? 'Remove from download cart' : 'Add to download cart');
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
-        window.location.href = digitalCheckoutURL(item);
+        toggleDigitalCartItem(item);
       });
       wrap.appendChild(btn);
       return;
@@ -1506,6 +1545,49 @@
     } else {
       document.getElementById('action-bar-cart').style.display = 'none';
     }
+  }
+
+  function digitalCartItems() {
+    return digitalCart
+      .map(function (id) { return allListings.find(function (l) { return l.id === id; }); })
+      .filter(Boolean);
+  }
+  function digitalCartTotal() {
+    return digitalCartItems().reduce(function (s, i) { return s + i.price; }, 0);
+  }
+  function toggleDigitalCartItem(item) {
+    const idx = digitalCart.indexOf(item.id);
+    if (idx === -1) digitalCart.push(item.id); else digitalCart.splice(idx, 1);
+    saveCart();
+    renderDigitalFeed();
+    updateDigitalCartUI();
+  }
+  function updateDigitalCartUI() {
+    const bar = document.getElementById('action-bar-digital-cart');
+    const count = digitalCart.length;
+    if (count > 0) {
+      bar.style.display = 'flex';
+      document.getElementById('digital-cart-bar-sub').textContent = count + (count === 1 ? ' download' : ' downloads');
+      document.getElementById('digital-cart-bar-total').textContent = '$' + formatPrice(digitalCartTotal());
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+  function digitalCartCheckoutURL() {
+    return '/baker/digital-checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
+      '&items=' + encodeURIComponent(digitalCart.join(',')) +
+      '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
+      '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
+  }
+  // A non-empty pickup cart alongside digital items makes this a mixed
+  // order — routed through the same pickup cart sheet as a plain pickup
+  // checkout (see renderCartStepOrder, which folds digital lines into that
+  // summary once digitalCart is non-empty) rather than digital-checkout.html,
+  // so there's one connected flow regardless of which cart the buyer opens
+  // checkout from.
+  function goToDigitalCheckout() {
+    if (cartLines().length > 0) { openCartSheet(); return; }
+    window.location.href = digitalCartCheckoutURL();
   }
 
   function cartLines() {
@@ -1635,10 +1717,15 @@
         cta.style.opacity = '1';
         cta.onclick = function () { window.location.href = customOrderURL(item); };
       } else if (item.listing_kind === 'digital') {
-        cta.textContent = 'Buy & Download — $' + formatPrice(item.price);
+        const inCart = digitalCart.indexOf(item.id) !== -1;
+        cta.textContent = (inCart ? 'Remove from Cart ✓ — $' : 'Add to Cart — $') + formatPrice(item.price);
         cta.disabled = !stripeReady;
         cta.style.opacity = stripeReady ? '1' : '.5';
-        cta.onclick = stripeReady ? function () { window.location.href = digitalCheckoutURL(item); } : null;
+        cta.onclick = stripeReady ? function () {
+          toggleDigitalCartItem(item);
+          closeItemSheet();
+          showToast(inCart ? 'Removed from your download cart' : 'Added to your download cart');
+        } : null;
       } else if (isSoldOut(item)) {
         cta.textContent = 'Sold Out';
         cta.disabled = true;
@@ -2111,6 +2198,12 @@
   // ══════════════════════ Cart / Checkout Sheet ══════════════════════
 
   function openCartSheet() {
+    // The header cart icon is always visible regardless of what's in either
+    // cart — a digital-only cart opened from there should still go straight
+    // to the digital checkout page (see goToDigitalCheckout) rather than
+    // this sheet, which asks for a phone number that a pure digital order
+    // has no use for.
+    if (cartLines().length === 0 && digitalCart.length > 0) { goToDigitalCheckout(); return; }
     cartStep = 0;
     renderCartSheet();
     document.getElementById('cart-scrim').classList.add('open');
@@ -2127,7 +2220,8 @@
 
   function renderCartStepOrder() {
     const lines = cartLines();
-    if (lines.length === 0) {
+    const digitalItems = digitalCartItems();
+    if (lines.length === 0 && digitalItems.length === 0) {
       return '<div id="cart-step-label">Your order</div>' +
         '<div class="empty-state">Your order is empty.</div>' +
         '<button class="btn btn-outline" id="cart-see-ready" style="width:100%;margin-top:12px;">Browse the menu</button>';
@@ -2161,13 +2255,38 @@
     }).join('');
     const subtotal = cartSubtotal();
     const taxCents = cartTaxCents();
+
+    // A mixed cart (pickup items + digital downloads) checks out as two
+    // separate Stripe charges under the hood — see checkout.html — since a
+    // pickup item's authorize-then-capture-on-accept can't share a
+    // PaymentIntent with a digital item's instant capture. Folding the
+    // digital lines into this same summary/total keeps it feeling like one
+    // order to the buyer even though it settles as two charges.
+    const digitalRows = digitalItems.map(function (item) {
+      return '<div class="cart-line" data-line-kind="digital" data-line-id="' + item.id + '">' +
+        '<div class="thumb"><img src="' + itemImgURL(item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
+        '<div class="info"><div class="n">' + escapeHtml(item.name) + '</div><div class="m">Instant digital download</div></div>' +
+        '<button class="remove-btn" aria-label="Remove">✕</button>' +
+        '<div class="total tabular">$' + formatPrice(item.price) + '</div>' +
+        '</div>';
+    }).join('');
+    const grandTotal = cartTotal() + digitalCartTotal();
+
     return '<div id="cart-step-label">Your order</div>' +
       rows +
-      '<div class="cart-financial-row"><span>Subtotal</span><span class="tabular">$' + formatPrice(subtotal) + '</span></div>' +
-      (taxCents > 0 ? '<div class="cart-financial-row"><span>Tax</span><span class="tabular">$' + formatPrice(taxCents / 100) + '</span></div>' : '') +
-      '<div class="cart-financial-row total"><span>Total</span><span class="tabular">$' + formatPrice(cartTotal()) + '</span></div>' +
-      '<button class="btn btn-primary" id="cart-continue" style="width:100%;">Continue to pickup details</button>' +
-      '<div class="cart-note">Upon confirmation of your order, pickup details will be provided by email. Customers are responsible for coordinating pickup of their order with the Seller.</div>';
+      (lines.length > 0 ? (
+        '<div class="cart-financial-row"><span>Subtotal</span><span class="tabular">$' + formatPrice(subtotal) + '</span></div>' +
+        (taxCents > 0 ? '<div class="cart-financial-row"><span>Tax</span><span class="tabular">$' + formatPrice(taxCents / 100) + '</span></div>' : '')
+      ) : '') +
+      (digitalItems.length > 0 ? (
+        '<div id="cart-digital-label">Digital Downloads</div>' +
+        digitalRows +
+        '<div class="cart-financial-row"><span>Downloads subtotal</span><span class="tabular">$' + formatPrice(digitalCartTotal()) + '</span></div>'
+      ) : '') +
+      '<div class="cart-financial-row total"><span>Total</span><span class="tabular">$' + formatPrice(grandTotal) + '</span></div>' +
+      '<button class="btn btn-primary" id="cart-continue" style="width:100%;">Continue to ' + (digitalItems.length > 0 ? 'pickup & download details' : 'pickup details') + '</button>' +
+      '<div class="cart-note">Upon confirmation of your order, pickup details will be provided by email. Customers are responsible for coordinating pickup of their order with the Seller.' +
+        (digitalItems.length > 0 ? ' Digital downloads are delivered instantly, separately from pickup items.' : '') + '</div>';
   }
 
   function renderCartStepPickup() {
@@ -2217,6 +2336,16 @@
         renderCartSheet();
       });
     });
+    document.querySelectorAll('.cart-line[data-line-kind="digital"] .remove-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const id = btn.closest('.cart-line').dataset.lineId;
+        const idx = digitalCart.indexOf(id);
+        if (idx !== -1) digitalCart.splice(idx, 1);
+        saveCart();
+        updateDigitalCartUI();
+        renderCartSheet();
+      });
+    });
     const cont = document.getElementById('cart-continue');
     if (cont) cont.addEventListener('click', function () { cartStep = 1; renderCartSheet(); });
     const back = document.getElementById('cart-back');
@@ -2225,7 +2354,8 @@
     if (pay) pay.addEventListener('click', goToCheckout);
     const keep = document.getElementById('cart-keep-shopping');
     if (keep) keep.addEventListener('click', function () {
-      cart = {}; boxCartLines = []; preorderCartLines = []; saveCart(); updateCartUI(); closeCartSheet();
+      cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = [];
+      saveCart(); updateCartUI(); updateDigitalCartUI(); closeCartSheet();
     });
   }
 
@@ -2287,6 +2417,13 @@
           taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
           listingKind: l.item.listing_kind, dropDate: '', maxQty: 0, availQty: l.item.available_qty_today || 0
         };
+      }),
+      // Present only for a mixed cart — checkout.html runs this as a second,
+      // separate charge after the pickup one (see comment on renderCartStepOrder
+      // for why they can't share a PaymentIntent), then shows one combined
+      // confirmation screen.
+      digitalItems: digitalCartItems().map(function (item) {
+        return { id: item.id, name: item.name, price: item.price };
       })
     };
     sessionStorage.setItem('bakeri_checkout_cart', JSON.stringify(payload));
@@ -2444,13 +2581,6 @@
       '&item=' + encodeURIComponent(item.id) +
       '&form=' + encodeURIComponent(item.intake_form_id || '') +
       '&name=' + encodeURIComponent(item.name) +
-      '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
-      '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
-  }
-
-  function digitalCheckoutURL(item) {
-    return '/baker/digital-checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
-      '&item=' + encodeURIComponent(item.id) +
       '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
       '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
   }

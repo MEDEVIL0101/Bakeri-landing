@@ -1,16 +1,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-// Called directly by baker/index.html's digital-purchase sheet right after
-// finalize-guest-digital-order succeeds. The signed download URL is already
-// shown inline in the success state — this email is a backup so the buyer
-// can find their download later even if they close the tab, mirroring
-// send-guest-order-received-email's role for physical orders.
+// Called directly by baker/digital-checkout.html right after
+// finalize-guest-digital-order succeeds. The signed download URL(s) are
+// already shown inline in the success state — this email is a backup so the
+// buyer can find their download(s) later even if they close the tab,
+// mirroring send-guest-order-received-email's role for physical orders.
 //
-// The download_url passed in is the exact same signed URL the purchase flow
-// already got back from finalize-guest-digital-order (created once, reused
-// here) — this function does not mint its own, so both the on-page link and
-// the emailed one expire at the same time.
+// The download_url(s) passed in are the exact same signed URLs the purchase
+// flow already got back from finalize-guest-digital-order (created once,
+// reused here) — this function does not mint its own, so both the on-page
+// link(s) and the emailed one(s) expire at the same time.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -40,8 +40,14 @@ Deno.serve(async (req: Request) => {
   }
 
   const orderId = String(body.order_id ?? "").trim();
-  const downloadUrl = String(body.download_url ?? "").trim();
-  if (!orderId || !downloadUrl) return json({ error: "Invalid request." }, 400);
+  // download_url (singular) kept for back-compat with any cached copy of the
+  // storefront page still sending the old single-item shape.
+  const downloads: { item_name?: string; download_url: string }[] = Array.isArray(body.downloads)
+    ? body.downloads
+    : body.download_url
+    ? [{ download_url: String(body.download_url) }]
+    : [];
+  if (!orderId || downloads.length === 0) return json({ error: "Invalid request." }, 400);
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -56,17 +62,24 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Order not found." }, 400);
   }
 
+  const linksHtml = downloads
+    .map(
+      (d) => `
+      <a href="${d.download_url}" style="display:block;margin-top:12px;padding:12px 22px;background:#241712;color:#fff;border-radius:9999px;text-decoration:none;font-weight:700;text-align:center;">
+        ${downloads.length > 1 ? "Download " + escapeHtml(d.item_name || "") : "Download now"}
+      </a>`
+    )
+    .join("");
+
   const html = `
     <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#241712;">
-      <h2 style="margin:0 0 8px;">Your download is ready</h2>
+      <h2 style="margin:0 0 8px;">Your download${downloads.length > 1 ? "s are" : " is"} ready</h2>
       <p style="color:#6B5F54;line-height:1.5;">
         Thanks for your purchase from ${escapeHtml(order.baker_display_name || "the baker")} —
-        ${escapeHtml(order.order_name || "your item")} is ready to download.
+        ${escapeHtml(order.order_name || "your item")} ${downloads.length > 1 ? "are" : "is"} ready to download.
       </p>
-      <a href="${downloadUrl}" style="display:inline-block;margin-top:16px;padding:12px 22px;background:#241712;color:#fff;border-radius:9999px;text-decoration:none;font-weight:700;">
-        Download now
-      </a>
-      <p style="color:#A89B8C;font-size:12px;margin-top:24px;">This link expires in 7 days. Order reference: ${orderId.replace(/-/g, "").slice(0, 8).toUpperCase()}</p>
+      ${linksHtml}
+      <p style="color:#A89B8C;font-size:12px;margin-top:24px;">${downloads.length > 1 ? "These links" : "This link"} expire${downloads.length > 1 ? "" : "s"} in 7 days. Order reference: ${orderId.replace(/-/g, "").slice(0, 8).toUpperCase()}</p>
     </div>
   `;
 
