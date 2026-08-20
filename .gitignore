@@ -34,3 +34,6 @@ node_modules/
 
 # Claude Code local state — not project source
 .claude/
+
+# Supabase CLI local cache — machine-specific, regenerated on every command
+supabase/.temp/
