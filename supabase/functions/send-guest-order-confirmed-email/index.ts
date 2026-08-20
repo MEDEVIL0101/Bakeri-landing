@@ -8,14 +8,23 @@ import { logNotification } from "../_shared/notificationLog.ts";
 // trg_fn_marketplace_order_notify (20260714000009_web_checkout.sql) —
 // never called directly by the client. The baker has now accepted a real
 // paid order, so this is the one place allowed to read pickup_address for
-// a guest order. Encodes the raw order UUID as a QR — same payload
-// OrderQRCodeView.swift shows in-app, so the baker's existing scanner
-// (MarketplaceOrderSheet.handleQRScan → authorize_pickup) works unmodified.
+// a guest order. When QR_PICKUP_VERIFICATION_ENABLED is on, encodes the raw
+// order UUID as a QR — same payload OrderQRCodeView.swift shows in-app, so
+// the baker's existing scanner (MarketplaceOrderSheet.handleQRScan ->
+// authorize_pickup) works unmodified. Currently off — see that constant.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
+
+// Mirrors MarketplaceAvailability.qrPickupVerificationEnabled (Deno can't
+// import that Swift file directly, so kept in sync by name/value here).
+// Paused 2026-08-04 — a real guest order's QR image never rendered in this
+// email, and the baker had no way to complete the handoff at all. Flip
+// back on together with the Swift flag once QR verification returns for
+// the marketplace relaunch.
+const QR_PICKUP_VERIFICATION_ENABLED = false;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -101,8 +110,9 @@ Deno.serve(async (req: Request) => {
     })
     .join("");
 
-  const qrDataUri = await QRCode.toDataURL(orderId, { width: 240, margin: 1 });
-  const shortCode = orderId.replace(/-/g, "").slice(0, 8).toUpperCase();
+  const qrDataUri = QR_PICKUP_VERIFICATION_ENABLED
+    ? await QRCode.toDataURL(orderId, { width: 240, margin: 1 })
+    : null;
 
   const addressLine = [bakerProfile?.pickup_address, bakerProfile?.pickup_city, bakerProfile?.pickup_province]
     .filter(Boolean)
@@ -118,12 +128,9 @@ Deno.serve(async (req: Request) => {
         ${escapeHtml(order.baker_display_name || "The baker")} accepted your order for
         ${escapeHtml(order.order_name || "your order")}.
       </p>
-      <div style="text-align:center;margin:24px 0;">
+      ${qrDataUri ? `<div style="text-align:center;margin:24px 0;">
         <img src="${qrDataUri}" alt="Pickup QR code" width="200" height="200" />
-        <p style="color:#A89B8C;font-size:12px;margin-top:8px;">
-          Show this at pickup. If it doesn't display, give the baker this code: <strong>${shortCode}</strong>
-        </p>
-      </div>
+      </div>` : ""}
       <p style="line-height:1.5;"><strong>${escapeHtml(pickupLine)}</strong></p>
       ${addressLine ? `<p style="line-height:1.5;">📍 ${escapeHtml(addressLine)}</p>` : ""}
       <table style="width:100%;border-collapse:collapse;margin-top:16px;border-top:1px solid #E8E4DC;padding-top:12px;">

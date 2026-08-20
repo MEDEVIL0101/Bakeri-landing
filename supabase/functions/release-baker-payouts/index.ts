@@ -3,9 +3,19 @@
 // finds captured orders whose 24h dispute window has passed and transfers
 // each baker's cut from Bakeri's own Stripe balance into their Connect
 // account. This is the delayed half of the "separate charge, then transfer"
-// model — no charge-creating function attaches transfer_data to any order
-// any more (including deposits, as of 2026-07-28), so every charge sits in
-// the platform balance until this sweep releases it.
+// (platform-custody) model.
+//
+// As of 2026-07-30, this is only one of two payment models — see
+// orders.payment_model. Single-baker orders (everything reachable today,
+// since the cross-baker marketplace is paused) are now charged as Stripe
+// Connect *direct* charges instead: created on the baker's own connected
+// account, so funds settle instantly and there's no Transfer for this sweep
+// to make — the charge-creating/finalize functions record the settlement
+// (baker_transfer_id/stripe_fee_cents/baker_payout_cents) themselves, right
+// away. This sweep now only ever processes payment_model = 'platform_custody'
+// orders: multi-baker carts (dormant until the marketplace reopens, at which
+// point Bakeri needs custody of those funds to manage cross-baker disputes)
+// and any legacy order that predates the direct-charge migration.
 //
 // The baker's cut = amount_received, minus the platform fee, minus Stripe's
 // *actual* processing fee on that charge (read from the charge's own
@@ -44,13 +54,11 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (auto-injected)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@13.11.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getStripeClient } from "../_shared/stripe.ts";
+import { PLATFORM_FEE_RATE } from "../_shared/fees.ts"; // fallback only, for orders predating stored platform_fee_cents
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
-  apiVersion: "2023-10-16",
-  httpClient: Stripe.createFetchHttpClient(),
-});
+const stripe = getStripeClient();
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
@@ -58,7 +66,6 @@ const supabase = createClient(
 );
 
 const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET") ?? "";
-const PLATFORM_FEE_RATE = 0.05; // fallback only, for orders predating stored platform_fee_cents
 const DISPUTE_WINDOW_HOURS = 24;
 
 interface MainLegOrder {
@@ -171,6 +178,7 @@ serve(async (req) => {
     .select("id, user_id, payment_intent_id, platform_fee_cents")
     .eq("payment_status", "captured")
     .eq("marketplace_status", "completed")
+    .eq("payment_model", "platform_custody")
     .is("baker_transfer_id", null)
     .not("payment_intent_id", "is", null)
     .or("payment_flow.neq.deposit_and_save,is_paid.eq.true")
@@ -210,6 +218,7 @@ serve(async (req) => {
     .from("orders")
     .select("id, user_id, deposit_payment_intent_id, deposit_platform_fee_cents")
     .eq("payment_flow", "deposit_and_save")
+    .eq("payment_model", "platform_custody")
     .is("deposit_transfer_id", null)
     .not("deposit_payment_intent_id", "is", null)
     .lte("deposit_charged_at", cutoff) as { data: DepositLegOrder[] | null; error: unknown };

@@ -218,10 +218,11 @@ Deno.serve(async (req: Request) => {
 
   const html = renderReceiptShell({
     docType: "Quote",
+    bakerName,
+    bakerUrl,
     metaRowsHtml: [
       metaRow("", escapeHtml(formatDate(new Date().toISOString()))),
       metaRow("Order ID", escapeHtml(order.invoice_code || order.id.slice(0, 8).toUpperCase())),
-      metaRow("Baker", `<a href="${bakerUrl}" style="color:#6B5F54;">${escapeHtml(bakerName)}</a>`),
       metaRow("Email", escapeHtml(customerEmail)),
     ].join(""),
     heading: "Your quote is ready",

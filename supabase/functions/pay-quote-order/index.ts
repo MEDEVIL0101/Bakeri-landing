@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { currencyForCountry } from "../_shared/currency.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -56,7 +57,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: baker } = await supabase
       .from("profiles")
-      .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
+      .select("stripe_connect_account_id, stripe_connect_onboarding_complete, country")
       .eq("id", order.user_id)
       .single();
     if (!baker?.stripe_connect_onboarding_complete || !baker?.stripe_connect_account_id) {
@@ -86,7 +87,7 @@ Deno.serve(async (req: Request) => {
     // automatically.
     const createParams: Record<string, unknown> = {
       amount: amountCents,
-      currency: "cad",
+      currency: currencyForCountry(baker.country),
       capture_method: "automatic",
       application_fee_amount: platformFeeCents * 2,
       metadata: { order_id, charge_type: isPartialDeposit ? "quote_deposit" : "quote_full" },

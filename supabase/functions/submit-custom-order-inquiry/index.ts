@@ -39,8 +39,10 @@ const MAX_LONG_TEXT_LENGTH = 2000;
 const MAX_NAME_LENGTH = 200;
 
 const ANSWER_FIELD_TYPES = new Set([
-  "short_text", "long_text", "number", "single_choice", "multi_choice", "date", "photo",
+  "short_text", "long_text", "number", "single_choice", "multi_choice", "date", "photo", "product_selector",
 ]);
+// Baker-configured cap when a field doesn't set its own per-option max_quantity.
+const DEFAULT_MAX_PRODUCT_QUANTITY = 999;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -102,6 +104,18 @@ interface IncomingAnswer {
   // Client sends raw photo data to be uploaded server-side, not paths —
   // a guest has no auth.uid() to upload under directly.
   photos?: { filename: string; contentType: string; base64: string }[];
+  // Client only sends which options + quantities were picked — name/price are
+  // re-derived server-side from the field's own stored product_options below,
+  // never trusted from the client.
+  productSelections?: { id: string; quantity: number }[] | null;
+}
+
+interface ProductOption {
+  id: string;
+  name: string;
+  price: number;
+  maxQuantity?: number;
+  max_quantity?: number;
 }
 
 function isBlank(a: IncomingAnswer): boolean {
@@ -110,6 +124,9 @@ function isBlank(a: IncomingAnswer): boolean {
   }
   if (a.fieldType === "photo") {
     return !a.photos || a.photos.length === 0;
+  }
+  if (a.fieldType === "product_selector") {
+    return !a.productSelections || !a.productSelections.some((s) => s.quantity > 0);
   }
   return !a.textValue || a.textValue.trim() === "";
 }
@@ -174,7 +191,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: fields, error: fieldsErr } = await db
     .from("intake_form_fields")
-    .select("id, field_type, label, is_required")
+    .select("id, field_type, label, is_required, product_options")
     .eq("form_id", menuItem.intake_form_id);
 
   if (fieldsErr || !fields) return json({ error: "Something went wrong. Please try again." }, 400);
@@ -225,6 +242,29 @@ Deno.serve(async (req: Request) => {
       finalAnswers.push({
         fieldID: field.id, label: field.label, fieldType: field.field_type,
         textValue: null, choiceValues: answer.choiceValues ?? [], photoPaths: null,
+      });
+    } else if (field.field_type === "product_selector") {
+      // Recompute name/unitPrice from the field's own stored product_options and
+      // clamp quantity to its max_quantity — never trust the client's numbers,
+      // even though this figure is only ever informational (the baker still
+      // manually quotes the order after reviewing it).
+      const catalog = new Map(
+        ((field.product_options ?? []) as ProductOption[]).map((o) => [o.id, o]),
+      );
+      const selections = (answer.productSelections ?? [])
+        .map((s) => {
+          const option = catalog.get(s.id);
+          if (!option) return null;
+          const max = option.maxQuantity ?? option.max_quantity ?? 0;
+          const cap = max > 0 ? max : DEFAULT_MAX_PRODUCT_QUANTITY;
+          const quantity = Math.max(0, Math.min(Math.floor(Number(s.quantity) || 0), cap));
+          if (quantity <= 0) return null;
+          return { id: option.id, name: option.name, unitPrice: option.price, quantity };
+        })
+        .filter((s) => s !== null);
+      finalAnswers.push({
+        fieldID: field.id, label: field.label, fieldType: field.field_type,
+        textValue: null, choiceValues: null, photoPaths: null, productSelections: selections,
       });
     } else {
       const maxLen = field.field_type === "long_text" ? MAX_LONG_TEXT_LENGTH : MAX_SHORT_TEXT_LENGTH;

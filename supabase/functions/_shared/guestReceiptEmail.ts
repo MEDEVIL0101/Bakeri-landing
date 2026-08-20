@@ -116,10 +116,11 @@ export async function sendGuestPaymentReceiptEmail(db: any, params: ReceiptParam
 
     const html = renderReceiptShell({
       docType: "Receipt",
+      bakerName,
+      bakerUrl,
       metaRowsHtml: [
         metaRow("", escapeHtml(paidDateStr)),
         metaRow("Order ID", escapeHtml(orderIdLabel)),
-        metaRow("Baker", `<a href="${bakerUrl}" style="color:#6B5F54;">${escapeHtml(bakerName)}</a>`),
         metaRow("Email", escapeHtml(customerEmail)),
       ].join(""),
       heading,

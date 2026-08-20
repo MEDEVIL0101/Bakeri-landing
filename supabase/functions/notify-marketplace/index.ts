@@ -31,11 +31,20 @@ Deno.serve(async (req: Request) => {
   // OneSignal external_id is registered via OneSignal.login(uuid.uuidString) in Swift,
   // which produces uppercase UUIDs. Postgres serialises UUIDs as lowercase in JSON,
   // so we must uppercase here to match the registered subscriber.
-  const targets = [recipient_user_id, recipient_user_id_2]
-    .filter(Boolean)
-    .map((uid) => (uid as string).toUpperCase());
+  //
+  // recipient_user_id_2 is only ever the baker (see trg_fn_marketplace_order_notify's
+  // "completed" branch — "both parties on completion"). Its copy of the push is tagged
+  // audience: "baker" so NotificationClickRouter (BakeriApp.swift) can tell it apart
+  // from the buyer's copy and route within Baker Tools instead of switching the whole
+  // app over to the buyer/social side — a real bug where a baker who'd just tapped
+  // "Mark Order as Completed" themselves got bounced into the (paused) Shop tab by
+  // their own confirmation push (confirmed live, Diana's iPhone, 2026-08-04).
+  const targets = [
+    recipient_user_id ? { uid: recipient_user_id.toUpperCase(), data: data ?? {} } : null,
+    recipient_user_id_2 ? { uid: recipient_user_id_2.toUpperCase(), data: { ...(data ?? {}), audience: "baker" } } : null,
+  ].filter((t): t is { uid: string; data: Record<string, unknown> } => t !== null);
 
-  const results = await Promise.all(targets.map(async (uid) => {
+  const results = await Promise.all(targets.map(async ({ uid, data: targetData }) => {
     const res = await fetch("https://onesignal.com/api/v1/notifications", {
       method: "POST",
       headers: {
@@ -48,7 +57,7 @@ Deno.serve(async (req: Request) => {
         target_channel: "push",
         headings: { en: title },
         contents: { en: body },
-        data: data ?? {},
+        data: targetData,
       }),
     });
     return res.ok;

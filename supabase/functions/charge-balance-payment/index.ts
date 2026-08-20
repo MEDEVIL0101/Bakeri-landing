@@ -26,6 +26,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { readDirectChargeSettlement } from "../_shared/settlement.ts";
+import { currencyForCountry } from "../_shared/currency.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -74,16 +75,18 @@ Deno.serve(async (req: Request) => {
 
     const isDirect = order.payment_model === "direct";
     let connectedAccountId: string | null = null;
+    let currency = "cad";
     if (isDirect) {
       const { data: baker } = await admin
         .from("profiles")
-        .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
+        .select("stripe_connect_account_id, stripe_connect_onboarding_complete, country")
         .eq("id", order.user_id)
         .single();
       if (!baker?.stripe_connect_onboarding_complete || !baker?.stripe_connect_account_id) {
         throw new Error("This baker's Stripe account is no longer connected — cannot charge the balance.");
       }
       connectedAccountId = baker.stripe_connect_account_id;
+      currency = currencyForCountry(baker.country);
     }
     const stripeOpts = connectedAccountId ? { stripeAccount: connectedAccountId } : undefined;
 
@@ -122,7 +125,7 @@ Deno.serve(async (req: Request) => {
     // Off-session charge for the balance, confirmed immediately.
     const createParams: Record<string, unknown> = {
       amount: balanceCents,
-      currency: "cad",
+      currency,
       payment_method: paymentMethodId,
       confirm: true,
       off_session: true,

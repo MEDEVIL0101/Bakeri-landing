@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
+import { currencyForCountry } from "../_shared/currency.ts";
 
 // Public, unauthenticated endpoint for baker/pay-quote.html — lets a guest
 // (no Bakeri account) pay the price a baker quoted them for a custom order
@@ -70,7 +71,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
+    .select("stripe_connect_account_id, stripe_connect_onboarding_complete, country")
     .eq("id", order.user_id)
     .single();
   if (!bakerProfile?.stripe_connect_onboarding_complete || !bakerProfile?.stripe_connect_account_id) {
@@ -99,7 +100,7 @@ Deno.serve(async (req: Request) => {
     intent = await stripe.paymentIntents.create(
       {
         amount: chargeCents,
-        currency: "cad",
+        currency: currencyForCountry(bakerProfile.country),
         capture_method: "automatic",
         automatic_payment_methods: { enabled: true },
         application_fee_amount: platformFeeCents,

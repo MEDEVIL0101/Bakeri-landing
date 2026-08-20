@@ -35,6 +35,11 @@ Deno.serve(async (req: Request) => {
       throw new Error("STRIPE_SECRET_KEY is not configured");
     }
 
+    // NOTE: this only ends up in Stripe metadata — SetupIntents have no real
+    // currency field. Whoever builds the cron that places the actual
+    // authorization hold off this saved card should derive currency from the
+    // baker's profiles.country (see _shared/currency.ts), not trust this
+    // client-supplied default blindly.
     const { items, currency = "cad" }: RequestBody = await req.json();
 
     if (!items || items.length === 0) {

@@ -17,6 +17,7 @@ import { sendGuestPaymentReceiptEmail } from "../_shared/guestReceiptEmail.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
 
 const stripe = getStripeClient();
 
@@ -40,7 +41,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, is_paid, payment_intent_id, payment_model, order_source, invoice_type, deposit_amount_cents, deposit_paid_at, quoted_price, marketplace_status")
+      .select("id, user_id, is_paid, payment_intent_id, payment_model, order_source, invoice_type, deposit_amount_cents, deposit_paid_at, quoted_price, marketplace_status, order_name, buyer_display_name, customer_name")
       .eq("invoice_code", code)
       .single();
 
@@ -191,6 +192,44 @@ Deno.serve(async (req: Request) => {
       amountCents: baseAmountCents,
       paidAtIso: paidAt,
     });
+
+    // Best-effort push to the baker. Unlike the in-app quote flow
+    // (finalize-guest-quote-payment), this endpoint doesn't reliably move
+    // marketplace_status — the deposit leg above never touches it at all,
+    // and the balance/full leg only does when the order was still
+    // pre-payment — so trg_fn_marketplace_order_notify's generic
+    // status-change trigger has nothing to key off and silently never
+    // fires. Confirmed live 2026-08-08: baker got a push for the deposit
+    // (via the in-app quote-acceptance flow) but nothing when the balance
+    // was paid through an invoice link. Notifying directly here, the same
+    // pattern mark-order-ready-for-pickup already uses, so it doesn't
+    // depend on a status transition that may or may not happen.
+    try {
+      const buyerName = (order.buyer_display_name || order.customer_name || "A customer").trim();
+      const orderName = order.order_name || "your order";
+      const leg = order.invoice_type ?? "full";
+      const title = leg === "deposit" ? "💳 Deposit Received"
+        : leg === "balance" ? "💳 Balance Paid"
+        : "💳 Payment Received";
+      const body = leg === "deposit"
+        ? `${buyerName} paid the deposit for ${orderName}`
+        : leg === "balance"
+        ? `${buyerName} paid the remaining balance for ${orderName}`
+        : `${buyerName} paid for ${orderName}`;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-webhook-secret": WEBHOOK_SECRET },
+        body: JSON.stringify({
+          recipient_user_id: order.user_id,
+          title,
+          body,
+          data: { type: "quote_paid", order_id: order.id },
+        }),
+      });
+      if (!res.ok) console.error(`notify-marketplace failed for invoice payment on order ${order.id}:`, await res.text());
+    } catch (err) {
+      console.error(`notify-marketplace threw for invoice payment on order ${order.id}:`, err);
+    }
 
     return new Response(JSON.stringify({ ok: true, paid_at: paidAt }), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },

@@ -7,6 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@13.11.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizeConnectCountry } from "../_shared/currency.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2023-10-16",
@@ -61,6 +62,18 @@ serve(async (req) => {
       });
     }
 
+    // Parsed once up front — country is needed before account creation (new
+    // accounts only; an existing account's country can't be changed after
+    // the fact), returnUrl/refreshUrl are needed for the link regardless.
+    // req.json() IS the body — no `.data` wrapper. (A prior version of this
+    // line destructured `{ data: body }` off it, which always produced
+    // `undefined` since the client never sent a `data` key; it went
+    // unnoticed for returnUrl/refreshUrl because their fallback defaults
+    // happen to match what the client actually sends, but it silently
+    // discarded `country` on every single request.)
+    const body = await req.json().catch(() => ({}));
+    const country = normalizeConnectCountry((body as Record<string, string>)?.country);
+
     // Reuse existing account if already created and still actually reachable
     // under this platform's Stripe key — a stale account (e.g. it predates a
     // platform Stripe key change, or the baker disconnected it from their own
@@ -80,7 +93,7 @@ serve(async (req) => {
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: "express",
-        country: "CA",
+        country,
         email: user.email,
         capabilities: {
           card_payments: { requested: true },
@@ -108,7 +121,7 @@ serve(async (req) => {
       );
       await serviceClient
         .from("profiles")
-        .update({ stripe_connect_account_id: accountId })
+        .update({ stripe_connect_account_id: accountId, country })
         .eq("id", user.id);
     }
 
@@ -118,7 +131,6 @@ serve(async (req) => {
     // outright ("Not a valid URL"). bakeriapp.com/connect-return and
     // /connect-refresh are tiny bridge pages that immediately hand off to the
     // bakeri:// deep link once Stripe lands the browser there.
-    const { data: body } = await req.json().catch(() => ({ data: {} }));
     const returnUrl  = (body as Record<string, string>)?.returnUrl
       ?? "https://bakeriapp.com/connect-return/";
     const refreshUrl = (body as Record<string, string>)?.refreshUrl

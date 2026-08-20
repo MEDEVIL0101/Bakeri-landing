@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { logNotification } from "../_shared/notificationLog.ts";
 
 // Trigger-invoked (x-webhook-secret, not a JWT) by call_guest_order_webhook()
 // in the →cancelled branch of trg_fn_marketplace_order_notify — covers every
@@ -61,6 +62,7 @@ Deno.serve(async (req: Request) => {
 
   if (orderErr || !order || !order.customer_email) {
     console.error("order lookup failed:", orderErr?.message);
+    await logNotification(db, orderId, "guest_order_cancelled", "failed", orderErr?.message ?? "order not found or missing customer_email");
     return json({ error: "Order not found." }, 400);
   }
 
@@ -91,7 +93,11 @@ Deno.serve(async (req: Request) => {
   });
 
   if (!resendRes.ok) {
-    console.error("Resend send failed:", await resendRes.text());
+    const errText = await resendRes.text();
+    console.error("Resend send failed:", errText);
+    await logNotification(db, orderId, "guest_order_cancelled", "failed", errText.slice(0, 500));
+  } else {
+    await logNotification(db, orderId, "guest_order_cancelled", "sent");
   }
 
   return json({ ok: true });

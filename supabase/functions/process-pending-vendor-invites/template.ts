@@ -1,0 +1,216 @@
+// Mirrors beta_invite_email.html (repo root) — kept in sync manually, same
+// as send-vendor-ack-email/template.ts does for its own email. {{name}} is
+// the only placeholder, substituted with the applicant's first name.
+export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>You're in — Bakerï Access, By Application Only</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: #f3ecdd;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: #2c2530;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrapper { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      padding: 36px 40px 32px;
+      background-color: #fffeec;
+      border-radius: 8px 8px 0 0;
+      border-bottom: 1px solid #ece3d5;
+    }
+    .wordmark { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; color: #14110e; text-transform: uppercase; }
+    .wordmark span { color: #14110e; }
+    .tagline {
+      font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+      color: #c9466c; margin-top: 10px; font-weight: 700;
+    }
+
+    /* ── Hero band ── */
+    .hero { background-color: #e15b81; padding: 44px 48px; text-align: left; }
+    .hero-badge {
+      display: inline-block; background-color: rgba(255,255,255,0.2); color: #ffffff;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+      padding: 5px 14px; border-radius: 999px; margin-bottom: 18px;
+    }
+    .hero h1 { font-size: 32px; font-weight: 800; line-height: 1.3; letter-spacing: -0.01em; color: #ffffff; margin-bottom: 0; }
+
+    /* ── Body ── */
+    .body { background-color: #ffffff; padding: 48px 48px 40px; }
+    p { font-size: 16px; line-height: 1.8; color: #5e5560; margin-bottom: 20px; }
+
+    /* ── Steps ── */
+    .steps { margin: 36px 0; background-color: #fbf7ef; border-radius: 16px; padding: 28px 28px 8px; border: 1px solid #ece3d5; }
+    .step-table { width: 100%; margin-bottom: 24px; border-collapse: collapse; }
+    .step-number-cell { width: 42px; vertical-align: top; padding-top: 1px; padding-right: 14px; }
+    .step-number {
+      display: inline-block; width: 30px; height: 30px; background-color: #e15b81; color: #ffffff;
+      border-radius: 50%; font-size: 13px; font-weight: 700; text-align: center; line-height: 30px;
+    }
+    .step-title { font-size: 15px; font-weight: 700; color: #2c2530; margin-bottom: 4px; }
+    .step-desc { font-size: 14px; line-height: 1.65; color: #5e5560; margin: 0 0 6px; }
+    .step-link { display: inline-block; margin-top: 4px; font-size: 13px; font-weight: 700; color: #c9466c; text-decoration: none; }
+
+    /* ── CTA ── */
+    .cta-section { text-align: center; margin: 36px 0; padding: 36px 32px; background-color: #c9466c; border-radius: 16px; }
+    .cta-section h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; color: #ffffff; margin-bottom: 8px; }
+    .cta-section p { font-size: 15px; color: rgba(255,255,255,0.8); margin-bottom: 24px; }
+    .cta-button {
+      display: inline-block; background-color: #5ce1e6; color: #14110e !important; text-decoration: none;
+      font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 15px 34px; border-radius: 999px;
+    }
+    .cta-note { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 14px; margin-bottom: 0; line-height: 1.6; }
+
+    /* ── Highlight box ── */
+    .highlight-box { background-color: #ffe2e9; border-left: 3px solid #e15b81; border-radius: 0 10px 10px 0; padding: 16px 20px; margin: 28px 0; }
+    .highlight-box p { margin: 0; font-size: 14px; color: #2c2530; font-weight: 500; line-height: 1.65; }
+
+    /* ── Divider ── */
+    .divider { border: none; border-top: 1px solid #ece3d5; margin: 32px 0; }
+
+    /* ── Sign-off ── */
+    .signoff-name { font-size: 15px; font-weight: 700; color: #2c2530; margin: 0 0 2px; }
+    .signoff-title { font-size: 13px; color: #9a8c98; font-weight: 500; margin: 0; }
+
+    /* ── Footer ── */
+    .footer { background-color: #14110e; border-radius: 0 0 8px 8px; padding: 28px 48px; text-align: center; }
+    .footer p { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 6px; line-height: 1.6; }
+    .footer p:last-child { margin-bottom: 0; }
+    .footer a { color: #e79bb0; text-decoration: none; }
+
+    @media (max-width: 480px) {
+      .hero { padding: 36px 28px; }
+      .body { padding: 36px 28px 32px; }
+      .hero h1 { font-size: 26px; }
+      .cta-section { padding: 28px 20px; }
+      .footer { padding: 24px 28px; }
+      .steps { padding: 24px 20px 4px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="wordmark">Baker<span>ï</span></div>
+      <div class="tagline">The Sweetest Way to Sell Local</div>
+    </div>
+
+    <!-- Hero band -->
+    <div class="hero">
+      <div class="hero-badge">By Application Only</div>
+      <h1>{{name}}, your vendor application has been approved, and your Bakerï access is ready.</h1>
+    </div>
+
+    <!-- Body -->
+    <div class="body">
+
+      <p>
+        We are pleased to inform you that your Bakerï Vendor Application has been accepted.
+        This email will provide you instant access to the application for all users on iOS
+        — iPhone and iPad. For all Android users, the Bakerï Android app is expected to be
+        released in the coming weeks. You will receive an email notification when that occurs.
+      </p>
+
+      <p>
+        Getting set up takes about 60 seconds — just follow the three steps below.
+      </p>
+
+      <!-- Steps -->
+      <div class="steps">
+
+        <table class="step-table">
+          <tr>
+            <td class="step-number-cell"><span class="step-number">1</span></td>
+            <td>
+              <div class="step-title">Download TestFlight</div>
+              <p class="step-desc">TestFlight is Apple's free app used to install Bakerï before it's on the App Store. You'll need it installed before you can access Bakerï.</p>
+              <a class="step-link" href="https://apps.apple.com/app/testflight/id899247664">Download TestFlight from the App Store →</a>
+            </td>
+          </tr>
+        </table>
+
+        <table class="step-table">
+          <tr>
+            <td class="step-number-cell"><span class="step-number">2</span></td>
+            <td>
+              <div class="step-title">Unlock Your Bakerï Access</div>
+              <p class="step-desc">Once TestFlight is installed, tap the link below. Bakerï will install just like a regular app.</p>
+              <a class="step-link" href="https://testflight.apple.com/join/Vbvma852">Get Bakerï →</a>
+            </td>
+          </tr>
+        </table>
+
+        <table class="step-table">
+          <tr>
+            <td class="step-number-cell"><span class="step-number">3</span></td>
+            <td>
+              <div class="step-title">Sign up and start using Bakerï</div>
+              <p class="step-desc">Manage your schedule and your orders, set up your personal Bakerï storefront website, and start making Bakerï work for you.</p>
+              <p class="step-desc">If you run into a problem or issue, find an existing feature confusing, or want to recommend a feature you'd like to see in the app, reply to this email or find us at @joinbakeri on Instagram.</p>
+            </td>
+          </tr>
+        </table>
+
+      </div>
+
+      <!-- CTA -->
+      <div class="cta-section">
+        <h2>Ready to start using Bakerï?</h2>
+        <p>Tap below once TestFlight is installed — you'll have full access immediately.</p>
+        <a class="cta-button" href="https://testflight.apple.com/join/Vbvma852">
+          Get Bakerï →
+        </a>
+        <p class="cta-note">Requires iPhone · iOS 16 or later · Free via TestFlight · Full access today</p>
+      </div>
+
+      <!-- Note -->
+      <div class="highlight-box">
+        <p>
+          Please note — once Bakerï launches on the App Store, your TestFlight app
+          will automatically switch over.
+        </p>
+      </div>
+
+      <hr class="divider"/>
+
+      <p>
+        We are always striving to improve the Bakerï experience. If anything catches
+        your eye or you have thoughts along the way, we're always happy to hear from you.
+        Just hit reply.
+      </p>
+
+      <p>We are thrilled to have you as part of this rapidly growing community of talented bakers.</p>
+
+      <!-- Sign-off -->
+      <p class="signoff-name">Sincerely,</p>
+      <p class="signoff-title">The Bakerï Team</p>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>
+        You're receiving this because you applied to become a vendor at
+        <a href="https://bakeriapp.com">bakeriapp.com</a>.
+      </p>
+      <p>
+        Questions? Reply to this email or find us at
+        <a href="https://instagram.com/joinbakeri">@joinbakeri</a> on Instagram
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>
+`;

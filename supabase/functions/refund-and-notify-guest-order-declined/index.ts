@@ -142,12 +142,33 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  await db
-    .from("orders")
-    .update({ payment_status: "refunded", updated_at: new Date().toISOString() })
-    .eq("id", orderId);
-
   const hadPayment = Boolean(order.payment_intent_id);
+
+  // Only record "refunded" once we've actually confirmed there's nothing
+  // outstanding — either there was never a payment to begin with, or the
+  // refund/cancel above genuinely ran. If a payment_intent_id existed but
+  // the Stripe lookup itself failed (wrong mode, deleted intent, network
+  // error), `intent` above was never fetched and nothing was ever
+  // refunded/canceled — writing "refunded" here anyway would silently
+  // claim money was handled when it was never even checked. Leave
+  // payment_status untouched and log it for manual review instead.
+  if (!hadPayment || refunded) {
+    await db
+      .from("orders")
+      .update({ payment_status: "refunded", updated_at: new Date().toISOString() })
+      .eq("id", orderId);
+  } else {
+    console.error(
+      `Could not verify refund/cancel for order ${orderId} (payment_intent_id=${order.payment_intent_id}) — leaving payment_status untouched for manual review.`
+    );
+    await logNotification(
+      db,
+      orderId,
+      "guest_order_declined_refund_check",
+      "failed",
+      `Could not fetch PaymentIntent ${order.payment_intent_id} to refund/cancel it.`
+    );
+  }
   const paymentLine = !hadPayment
     ? "No payment was ever taken for this request, so there's nothing to refund."
     : refunded

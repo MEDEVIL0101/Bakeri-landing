@@ -1,10 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { getStripeClient } from "../_shared/stripe.ts";
+import { readDirectChargeSettlement } from "../_shared/settlement.ts";
 
-const STRIPE_SECRET_KEY       = Deno.env.get("STRIPE_SECRET_KEY");
 const SUPABASE_URL            = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WEBHOOK_SECRET          = Deno.env.get("BAKERI_WEBHOOK_SECRET");
+
+const stripe = getStripeClient();
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -63,7 +66,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: fetchErr } = await supabase
       .from("orders")
-      .select("id, payment_intent_id, payment_status")
+      .select("id, user_id, payment_intent_id, payment_status, payment_model, platform_fee_cents")
       .eq("id", order_id)
       .single();
 
@@ -76,33 +79,55 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Capture the Stripe PaymentIntent
-    if (STRIPE_SECRET_KEY) {
-      const captureRes = await fetch(
-        `https://api.stripe.com/v1/payment_intents/${order.payment_intent_id}/capture`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
-        }
-      );
+    const isDirect = order.payment_model === "direct";
+    let connectedAccountId: string | null = null;
+    if (isDirect) {
+      const { data: baker } = await supabase
+        .from("profiles")
+        .select("stripe_connect_account_id")
+        .eq("id", order.user_id)
+        .single();
+      connectedAccountId = baker?.stripe_connect_account_id ?? null;
+    }
+    const stripeOpts = connectedAccountId ? { stripeAccount: connectedAccountId } : undefined;
 
-      if (!captureRes.ok) {
-        const stripeErr = await captureRes.json();
-        // "unexpected_state" means already captured — treat as success
-        if (stripeErr.error?.code !== "payment_intent_unexpected_state") {
-          throw new Error(stripeErr.error?.message ?? "Stripe capture failed");
-        }
+    // Capture the Stripe PaymentIntent
+    try {
+      await stripe.paymentIntents.capture(order.payment_intent_id, {}, stripeOpts);
+    } catch (err: unknown) {
+      // "unexpected_state" means already captured — treat as success
+      // deno-lint-ignore no-explicit-any
+      const code = (err as any)?.code ?? (err as any)?.raw?.code;
+      if (code !== "payment_intent_unexpected_state") {
+        throw new Error(err instanceof Error ? err.message : "Stripe capture failed");
       }
     }
 
-    // Only update payment_status — never touch marketplace_status or order status,
-    // those are set by confirm_pickup RPC and must not be overwritten here.
+    const updateFields: Record<string, unknown> = {
+      payment_status: "captured",
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isDirect && connectedAccountId) {
+      // Direct charge just settled — record the real Stripe fee now so this
+      // closes the payout loop immediately instead of waiting on
+      // release-baker-payouts (whose sweep only runs for platform_custody
+      // orders, and this order will never match it anyway).
+      const settlement = await readDirectChargeSettlement(
+        stripe,
+        order.payment_intent_id,
+        connectedAccountId,
+        order.platform_fee_cents ?? 0
+      );
+      if (settlement) Object.assign(updateFields, settlement);
+    }
+
+    // Only update payment_status (and, for direct orders, the settlement
+    // fields above) — never touch marketplace_status or order status, those
+    // are set by confirm_pickup RPC and must not be overwritten here.
     const { error: updateErr } = await supabase
       .from("orders")
-      .update({
-        payment_status: "captured",
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateFields)
       .eq("id", order_id);
 
     if (updateErr) throw new Error(`DB update failed: ${updateErr.message}`);
