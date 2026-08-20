@@ -76,6 +76,9 @@ Never commit this file. A `.swift.template` equivalent should exist for new dev 
 - Duplicate `Views/Auth` and `Views/Auth 2` folders exist — likely a Xcode copy artifact; check before editing auth views
 - Supabase migrations live as `.sql` files in the root bakerly folder (not in a `supabase/` subdirectory)
 
+## Support Log
+`SUPPORT_LOG.md` (repo root) — a running log of customer-reported system problems and their fixes, kept separate from git history so it's scannable without digging through commits or chat transcripts. When you root-cause and fix a customer-reported bug, add an entry (format documented at the top of the file). Check it when a bug report sounds like something that may have come up before.
+
 ## Critical Patterns
 - **Do not add raw hex colors to views** — always use a named constant from `BakeriTheme.swift`
 - **SwiftData schema changes** wipe the local store on next launch (see `BakeriApp.modelContainer` error handling) — be careful with model migrations
