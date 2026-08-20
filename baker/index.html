@@ -39,6 +39,7 @@
       --preorder:   #C79A3D;
       --custom:     #A66A5B;
       --digital:    #5F92E6;
+      --physical:   #7A8C5C;
       --error:      #C0392B;
 
       --sans: -apple-system, "SF Pro Text", system-ui, sans-serif;
@@ -394,6 +395,22 @@
       font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink);
       border-radius: 9999px; padding: 10px 16px;
     }
+    /* Ships (physical) items get their own bar too, same shape again —
+       distinguished with --physical. Sits above both the digital and
+       pickup bars when all three are visible at once. */
+    #action-bar-ship-cart {
+      display: none; align-items: center; justify-content: space-between; height: 56px;
+      background: var(--physical); color: #fff; border-radius: 9999px; padding: 0 8px 0 20px; cursor: pointer;
+      border: none; width: 100%; box-shadow: 0 10px 30px -8px rgba(0,0,0,.35);
+      animation: popIn .18s ease-out; margin-bottom: 8px;
+    }
+    #action-bar-ship-cart .l { text-align: left; }
+    #action-bar-ship-cart .l .t { font-size: 14.5px; font-weight: 700; }
+    #action-bar-ship-cart .l .s { font-size: 11px; color: #fff; opacity: .75; margin-top: 2px; }
+    #action-bar-ship-cart .r {
+      font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink);
+      border-radius: 9999px; padding: 10px 16px;
+    }
 
     /* ══════════════════════ Sheets / Modal / Toast ══════════════════════ */
     .scrim {
@@ -511,7 +528,7 @@
     .cart-line .stepper .qty { font-size: 12px; min-width: 16px; text-align: center; }
     .cart-line .total { font-size: 13px; color: var(--ink); width: 56px; text-align: right; }
     .cart-line .remove-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 13px; cursor: pointer; flex-shrink: 0; }
-    #cart-digital-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin: 16px 0 8px; }
+    .cart-section-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin: 16px 0 8px; }
 
     .cart-financial-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); }
     .cart-financial-row.total { font-weight: 700; color: var(--ink); font-size: 16px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
@@ -631,11 +648,16 @@
   <div id="digital-grid"></div>
 </section>
 
-<!-- Links sits ahead of About, right after Menu/Digital Downloads — a baker
-     selling nothing yet (no menu, no digital items) is very often running
-     this page as a linktree, so whichever of Menu/Digital Downloads/Links
-     the baker actually has becomes the first thing shown (each one already
-     self-hides when empty — see updateFeedVisibility/renderDigitalFeed/
+<section id="physical-feed" class="section-band hidden">
+  <h2 id="physical-feed-heading">Ships to You</h2>
+  <div id="physical-grid"></div>
+</section>
+
+<!-- Links sits ahead of About, right after Menu/Digital Downloads/Ships to
+     You — a baker selling nothing yet is very often running this page as a
+     linktree, so whichever of those sections the baker actually has becomes
+     the first thing shown (each one already self-hides when empty — see
+     updateFeedVisibility/renderDigitalFeed/renderPhysicalFeed/
      renderLinkSections), with About always coming after. -->
 <section id="links-feed" class="section-band hidden"></section>
 
@@ -678,6 +700,13 @@
       <div class="s" id="digital-cart-bar-sub"></div>
     </div>
     <div class="r tabular" id="digital-cart-bar-total"></div>
+  </button>
+  <button id="action-bar-ship-cart">
+    <div class="l">
+      <div class="t">Ship Cart</div>
+      <div class="s" id="ship-cart-bar-sub"></div>
+    </div>
+    <div class="r tabular" id="ship-cart-bar-total"></div>
   </button>
   <button id="action-bar-cart">
     <div class="l">
@@ -796,6 +825,11 @@
   // to digital-checkout.html, or combine with the pickup cart into one
   // mixed checkout.html flow when both have items (see goToCheckout).
   let digitalCart = [];
+  // Ships (physical) items also get their own small cart, same reasoning as
+  // digitalCart above (checks out independently, or chains into the pickup
+  // checkout when mixed — see goToCheckout) — but unlike digital these are
+  // stock-bound, so it's a { itemId: qty } map rather than a bare id list.
+  let shipCart = {};
   // Direct checkout (ready_now / preorder) needs the baker's Stripe Connect
   // payout wired up; custom-quote inquiries don't touch payment at intake
   // time (submit-custom-order-inquiry lands a pending_quote lead), so those
@@ -819,17 +853,19 @@
         boxCartLines = raw.boxLines || [];
         preorderCartLines = raw.preorderLines || [];
         digitalCart = raw.digitalCart || [];
+        shipCart = raw.shipCart || {};
       } else {
         cart = raw || {};
         boxCartLines = [];
         preorderCartLines = [];
         digitalCart = [];
+        shipCart = {};
       }
-    } catch (e) { cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = []; }
+    } catch (e) { cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = []; shipCart = {}; }
   }
   function saveCart() {
     try {
-      sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines, digitalCart: digitalCart }));
+      sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines, digitalCart: digitalCart, shipCart: shipCart }));
     } catch (e) {}
   }
 
@@ -901,6 +937,7 @@
     renderAboutAndPolicies(profile, name);
     renderFAQ(faqs);
     renderDigitalFeed();
+    renderPhysicalFeed();
     renderLinkSections();
     renderFooter(profile, name);
 
@@ -910,11 +947,13 @@
     applySectionTab();
     updateCartUI();
     updateDigitalCartUI();
+    updateShipCartUI();
 
     document.getElementById('cart-btn').addEventListener('click', openCartSheet);
     document.getElementById('desktop-cart-btn').addEventListener('click', openCartSheet);
     document.getElementById('action-bar-cart').addEventListener('click', openCartSheet);
-    document.getElementById('action-bar-digital-cart').addEventListener('click', goToDigitalCheckout);
+    document.getElementById('action-bar-digital-cart').addEventListener('click', openCartSheet);
+    document.getElementById('action-bar-ship-cart').addEventListener('click', openCartSheet);
     document.getElementById('item-sheet-close').addEventListener('click', closeItemSheet);
     document.getElementById('cart-sheet-close').addEventListener('click', closeCartSheet);
     document.getElementById('desc-sheet-close').addEventListener('click', closeDescSheet);
@@ -1046,8 +1085,9 @@
   // scrollTabs()): a visitor should never have to guess that a nav item
   // leads to content that isn't otherwise reachable by scrolling.
 
-  function menuListings() { return allListings.filter(function (l) { return l.listing_kind !== 'digital'; }); }
+  function menuListings() { return allListings.filter(function (l) { return l.listing_kind !== 'digital' && l.listing_kind !== 'physical'; }); }
   function digitalListings() { return allListings.filter(function (l) { return l.listing_kind === 'digital'; }); }
+  function physicalListings() { return allListings.filter(function (l) { return l.listing_kind === 'physical'; }); }
 
   function linkSections() {
     const seen = [];
@@ -1094,11 +1134,15 @@
   // instead of a tab that swaps out the feed.
   function scrollTabs() {
     const tabs = [];
-    // Digital Downloads, then Links, then About — nav order and DOM order
-    // must stay in lockstep for every entry in this list (see the markup
-    // comment above #links-feed for why Links sits ahead of About).
+    // Digital Downloads, then Ships to You, then Links, then About — nav
+    // order and DOM order must stay in lockstep for every entry in this
+    // list (see the markup comment above #links-feed for why Links sits
+    // ahead of About).
     if (digitalListings().length > 0) {
       tabs.push({ key: 'scroll:digital-feed', label: 'Digital Downloads' });
+    }
+    if (physicalListings().length > 0) {
+      tabs.push({ key: 'scroll:physical-feed', label: 'Ships to You' });
     }
     // Social isn't in this list — it's not a scroll-to destination further
     // down the page anymore, it's the icon row already visible in the hero.
@@ -1324,6 +1368,26 @@
     });
   }
 
+  // Same always-visible treatment as Digital Downloads above — a separate
+  // section, not a swappable tab. buildDigitalRow is a plain row builder
+  // (thumb/name/subtitle/price/add-control) with nothing digital-specific
+  // in it, so it's reused as-is rather than duplicated.
+  function renderPhysicalFeed() {
+    const section = document.getElementById('physical-feed');
+    const grid = document.getElementById('physical-grid');
+    const items = physicalListings();
+    if (items.length === 0) {
+      section.classList.add('hidden');
+      grid.innerHTML = '';
+      return;
+    }
+    section.classList.remove('hidden');
+    grid.innerHTML = '';
+    items.forEach(function (item) {
+      grid.appendChild(buildDigitalRow(item));
+    });
+  }
+
   function buildDigitalRow(item) {
     const row = document.createElement('div');
     row.className = 'digital-row';
@@ -1449,6 +1513,50 @@
         toggleDigitalCartItem(item);
       });
       wrap.appendChild(btn);
+      return;
+    }
+    if (item.listing_kind === 'physical') {
+      // Ships items skip the pickup cart too, same reasoning as digital —
+      // but unlike digital they're stock-bound, so this is a qty stepper
+      // (see shipCart) clamped at available_qty_today rather than a plain
+      // in/out toggle.
+      const qty = shipCart[item.id] || 0;
+      const max = item.available_qty_today || 0;
+      if (max <= 0 || !stripeReady) {
+        const btn = document.createElement('button');
+        btn.className = 'add-btn';
+        btn.style.opacity = '.4'; btn.disabled = true;
+        btn.textContent = '—';
+        btn.title = stripeReady ? 'Sold out' : 'Ordering isn\'t live yet';
+        wrap.appendChild(btn);
+        return;
+      }
+      if (qty === 0) {
+        const btn = document.createElement('button');
+        btn.className = 'add-btn';
+        btn.textContent = '+';
+        btn.setAttribute('aria-label', 'Add to ship cart');
+        btn.addEventListener('click', function (e) { e.stopPropagation(); changeShipQty(item, 1); });
+        wrap.appendChild(btn);
+      } else {
+        const stepper = document.createElement('div');
+        stepper.className = 'qty-stepper';
+        const minus = document.createElement('button');
+        minus.textContent = '−';
+        minus.addEventListener('click', function (e) { e.stopPropagation(); changeShipQty(item, -1); });
+        const qtyEl = document.createElement('span');
+        qtyEl.className = 'qty';
+        qtyEl.textContent = qty;
+        const plus = document.createElement('button');
+        plus.textContent = '+';
+        // Clamped at stock on hand — the real, atomic check happens
+        // server-side at charge time (decrement_menu_item_stock_batch);
+        // this is just so a buyer never sees a total they can't pay for.
+        if (qty >= max) { plus.disabled = true; plus.style.opacity = '.35'; }
+        plus.addEventListener('click', function (e) { e.stopPropagation(); changeShipQty(item, 1); });
+        stepper.appendChild(minus); stepper.appendChild(qtyEl); stepper.appendChild(plus);
+        wrap.appendChild(stepper);
+      }
       return;
     }
     if (item.is_assorted_box) {
@@ -1579,15 +1687,48 @@
       '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
       '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
   }
-  // A non-empty pickup cart alongside digital items makes this a mixed
-  // order — routed through the same pickup cart sheet as a plain pickup
-  // checkout (see renderCartStepOrder, which folds digital lines into that
-  // summary once digitalCart is non-empty) rather than digital-checkout.html,
-  // so there's one connected flow regardless of which cart the buyer opens
-  // checkout from.
-  function goToDigitalCheckout() {
-    if (cartLines().length > 0) { openCartSheet(); return; }
-    window.location.href = digitalCartCheckoutURL();
+
+  // Ships (physical) cart — a { itemId: qty } map, so lines carry a real
+  // stepper (see refreshAddControl's 'physical' branch and the cart sheet's
+  // 'ship' line kind) instead of digitalCart's plain in/out toggle.
+  function shipCartItems() {
+    return Object.keys(shipCart).map(function (id) {
+      const item = allListings.find(function (l) { return l.id === id; });
+      return item ? { item: item, qty: shipCart[id] } : null;
+    }).filter(Boolean);
+  }
+  function shipCartTotal() {
+    return shipCartItems().reduce(function (s, l) { return s + l.item.price * l.qty; }, 0);
+  }
+  function changeShipQty(item, delta) {
+    const current = shipCart[item.id] || 0;
+    const max = item.available_qty_today || 0;
+    const next = Math.max(0, Math.min(max, current + delta));
+    if (next === 0) { delete shipCart[item.id]; } else { shipCart[item.id] = next; }
+    saveCart();
+    document.querySelectorAll('[data-item-id="' + item.id + '"]').forEach(function (wrap) {
+      refreshAddControl(wrap, item);
+    });
+    updateShipCartUI();
+  }
+  function updateShipCartUI() {
+    const bar = document.getElementById('action-bar-ship-cart');
+    const items = shipCartItems();
+    const count = items.reduce(function (s, l) { return s + l.qty; }, 0);
+    if (count > 0) {
+      bar.style.display = 'flex';
+      document.getElementById('ship-cart-bar-sub').textContent = count + (count === 1 ? ' item' : ' items');
+      document.getElementById('ship-cart-bar-total').textContent = '$' + formatPrice(shipCartTotal());
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+  function shipCartCheckoutURL() {
+    const pairs = shipCartItems().map(function (l) { return l.item.id + ':' + l.qty; });
+    return '/baker/physical-checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
+      '&items=' + encodeURIComponent(pairs.join(',')) +
+      '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
+      '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
   }
 
   function cartLines() {
@@ -1726,6 +1867,21 @@
           closeItemSheet();
           showToast(inCart ? 'Removed from your download cart' : 'Added to your download cart');
         } : null;
+      } else if (item.listing_kind === 'physical') {
+        if (isSoldOut(item) || !stripeReady) {
+          cta.textContent = isSoldOut(item) ? 'Sold Out' : 'Ordering Opens Soon';
+          cta.disabled = true;
+          cta.style.opacity = '.5';
+        } else {
+          cta.textContent = 'Add to Cart — $' + formatPrice(item.price);
+          cta.disabled = false;
+          cta.style.opacity = '1';
+          cta.onclick = function () {
+            changeShipQty(item, 1);
+            closeItemSheet();
+            showToast('Added to your ship cart');
+          };
+        }
       } else if (isSoldOut(item)) {
         cta.textContent = 'Sold Out';
         cta.disabled = true;
@@ -2198,12 +2354,15 @@
   // ══════════════════════ Cart / Checkout Sheet ══════════════════════
 
   function openCartSheet() {
-    // The header cart icon is always visible regardless of what's in either
-    // cart — a digital-only cart opened from there should still go straight
-    // to the digital checkout page (see goToDigitalCheckout) rather than
-    // this sheet, which asks for a phone number that a pure digital order
-    // has no use for.
-    if (cartLines().length === 0 && digitalCart.length > 0) { goToDigitalCheckout(); return; }
+    // Always opens this sheet first, regardless of which cart(s) have items
+    // — a digital- or ship-only cart used to jump straight to its own
+    // lightweight checkout page from here, which had no way to remove an
+    // item (a baker reported this: the only fix was going back to the
+    // listing and deselecting it). The sheet's own Continue button (see
+    // wireCartStepEvents) is what actually decides whether to go to the
+    // full pickup-info step or straight to a lighter digital/ship checkout
+    // page — this function just makes sure that decision is always made
+    // from a screen where every line item is removable.
     cartStep = 0;
     renderCartSheet();
     document.getElementById('cart-scrim').classList.add('open');
@@ -2221,7 +2380,8 @@
   function renderCartStepOrder() {
     const lines = cartLines();
     const digitalItems = digitalCartItems();
-    if (lines.length === 0 && digitalItems.length === 0) {
+    const shipLinesData = shipCartItems();
+    if (lines.length === 0 && digitalItems.length === 0 && shipLinesData.length === 0) {
       return '<div id="cart-step-label">Your order</div>' +
         '<div class="empty-state">Your order is empty.</div>' +
         '<button class="btn btn-outline" id="cart-see-ready" style="width:100%;margin-top:12px;">Browse the menu</button>';
@@ -2270,7 +2430,19 @@
         '<div class="total tabular">$' + formatPrice(item.price) + '</div>' +
         '</div>';
     }).join('');
-    const grandTotal = cartTotal() + digitalCartTotal();
+    // Ship lines get the same qty-stepper look as a plain pickup line (not
+    // digital's flat remove-✕ row) — a ships item is stock-bound and a
+    // buyer can reasonably want more than one, unlike a digital download.
+    const shipRows = shipLinesData.map(function (l) {
+      return '<div class="cart-line" data-line-kind="ship" data-line-id="' + l.item.id + '">' +
+        '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
+        '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">Ships in ' + (l.item.lead_days || 3) + ' day' + (l.item.lead_days === 1 ? '' : 's') + '</div></div>' +
+        '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
+        '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
+        '</div>';
+    }).join('');
+    const grandTotal = cartTotal() + digitalCartTotal() + shipCartTotal();
+    const nonPickupVerticals = (digitalItems.length > 0 ? 1 : 0) + (shipLinesData.length > 0 ? 1 : 0);
 
     return '<div id="cart-step-label">Your order</div>' +
       rows +
@@ -2279,14 +2451,22 @@
         (taxCents > 0 ? '<div class="cart-financial-row"><span>Tax</span><span class="tabular">$' + formatPrice(taxCents / 100) + '</span></div>' : '')
       ) : '') +
       (digitalItems.length > 0 ? (
-        '<div id="cart-digital-label">Digital Downloads</div>' +
+        '<div class="cart-section-label">Digital Downloads</div>' +
         digitalRows +
         '<div class="cart-financial-row"><span>Downloads subtotal</span><span class="tabular">$' + formatPrice(digitalCartTotal()) + '</span></div>'
       ) : '') +
+      (shipLinesData.length > 0 ? (
+        '<div class="cart-section-label">Ships to You</div>' +
+        shipRows +
+        '<div class="cart-financial-row"><span>Shipping items subtotal</span><span class="tabular">$' + formatPrice(shipCartTotal()) + '</span></div>'
+      ) : '') +
       '<div class="cart-financial-row total"><span>Total</span><span class="tabular">$' + formatPrice(grandTotal) + '</span></div>' +
-      '<button class="btn btn-primary" id="cart-continue" style="width:100%;">Continue to ' + (digitalItems.length > 0 ? 'pickup & download details' : 'pickup details') + '</button>' +
-      '<div class="cart-note">Upon confirmation of your order, pickup details will be provided by email. Customers are responsible for coordinating pickup of their order with the Seller.' +
-        (digitalItems.length > 0 ? ' Digital downloads are delivered instantly, separately from pickup items.' : '') + '</div>';
+      '<button class="btn btn-primary" id="cart-continue" style="width:100%;">Continue to ' + (lines.length > 0 || nonPickupVerticals > 1 ? 'checkout' : (digitalItems.length > 0 ? 'download details' : (shipLinesData.length > 0 ? 'shipping details' : 'pickup details'))) + '</button>' +
+      '<div class="cart-note">' +
+        (lines.length > 0 ? 'Upon confirmation of your order, pickup details will be provided by email. Customers are responsible for coordinating pickup of their order with the Seller.' : '') +
+        (digitalItems.length > 0 ? ' Digital downloads are delivered instantly, separately from pickup items.' : '') +
+        (shipLinesData.length > 0 ? ' Shipping items are a separate charge, and you\'ll be asked for a shipping address.' : '') +
+      '</div>';
   }
 
   function renderCartStepPickup() {
@@ -2329,6 +2509,9 @@
           changeBoxLineQty(id, delta);
         } else if (row.dataset.lineKind === 'preorder') {
           changePreorderLineQty(id, delta);
+        } else if (row.dataset.lineKind === 'ship') {
+          const item = allListings.find(function (l) { return l.id === id; });
+          changeShipQty(item, delta);
         } else {
           const item = allListings.find(function (l) { return l.id === id; });
           changeQty(item, delta);
@@ -2343,19 +2526,42 @@
         if (idx !== -1) digitalCart.splice(idx, 1);
         saveCart();
         updateDigitalCartUI();
+        // Keeps the underlying Digital Downloads row's own add-control (the
+        // ✓/+ toggle) in sync — without this it kept showing "added" after
+        // a removal here until the next full page load.
+        renderDigitalFeed();
         renderCartSheet();
       });
     });
     const cont = document.getElementById('cart-continue');
-    if (cont) cont.addEventListener('click', function () { cartStep = 1; renderCartSheet(); });
+    if (cont) cont.addEventListener('click', function () {
+      // A pickup line (or 2+ non-pickup verticals at once — e.g. digital +
+      // ship with no pickup items) goes through the full name/email step
+      // and checkout.html, which chains whichever legs are actually
+      // present. A single non-pickup vertical alone skips straight to its
+      // own lighter single-purpose checkout page (no phone number, since
+      // neither digital nor ship needs one for pickup coordination).
+      const hasPickup = cartLines().length > 0;
+      const hasDigital = digitalCartItems().length > 0;
+      const hasShip = shipCartItems().length > 0;
+      const verticalCount = (hasPickup ? 1 : 0) + (hasDigital ? 1 : 0) + (hasShip ? 1 : 0);
+      if (hasPickup || verticalCount > 1) {
+        cartStep = 1;
+        renderCartSheet();
+      } else if (hasDigital) {
+        window.location.href = digitalCartCheckoutURL();
+      } else if (hasShip) {
+        window.location.href = shipCartCheckoutURL();
+      }
+    });
     const back = document.getElementById('cart-back');
     if (back) back.addEventListener('click', function () { cartStep = 0; renderCartSheet(); });
     const pay = document.getElementById('cart-pay');
     if (pay) pay.addEventListener('click', goToCheckout);
     const keep = document.getElementById('cart-keep-shopping');
     if (keep) keep.addEventListener('click', function () {
-      cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = [];
-      saveCart(); updateCartUI(); updateDigitalCartUI(); closeCartSheet();
+      cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = []; shipCart = {};
+      saveCart(); updateCartUI(); updateDigitalCartUI(); updateShipCartUI(); closeCartSheet();
     });
   }
 
@@ -2424,6 +2630,12 @@
       // confirmation screen.
       digitalItems: digitalCartItems().map(function (item) {
         return { id: item.id, name: item.name, price: item.price };
+      }),
+      // A third, independent leg — same reasoning as digitalItems above,
+      // but stock-bound (qty can be >1) and needs a shipping address,
+      // which checkout.html collects just before charging this leg.
+      shipItems: shipCartItems().map(function (l) {
+        return { id: l.item.id, name: l.item.name, price: l.item.price, qty: l.qty, leadDays: l.item.lead_days || 3 };
       })
     };
     sessionStorage.setItem('bakeri_checkout_cart', JSON.stringify(payload));
@@ -2451,7 +2663,7 @@
   function isSoldOut(item) {
     if (item.is_assorted_box) return false; // no plain daily quantity tracked
     if (item.listing_kind === 'preorder') return isPreorderClosed(item);
-    return item.listing_kind === 'ready_now' && (item.available_qty_today || 0) <= 0;
+    return (item.listing_kind === 'ready_now' || item.listing_kind === 'physical') && (item.available_qty_today || 0) <= 0;
   }
 
   // ══════════════════════ Pre-order scheduling ══════════════════════
@@ -2526,6 +2738,7 @@
     if (item.listing_kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
     if (item.listing_kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
     if (item.listing_kind === 'digital')   return { bg: 'var(--digital)', label: 'Digital' };
+    if (item.listing_kind === 'physical')  return { bg: 'var(--physical)', label: 'Ships' };
     return { bg: 'var(--custom)', label: 'Custom' };
   }
 
@@ -2539,6 +2752,11 @@
     if (item.is_assorted_box) return 'Pick your own flavors';
     if (item.listing_kind === 'custom') return item.lead_time_note || 'Request a custom quote';
     if (item.listing_kind === 'digital') return 'Instant digital download';
+    if (item.listing_kind === 'physical') {
+      if (isSoldOut(item)) return 'Sold out';
+      const n = item.lead_days || 3;
+      return (item.available_qty_today || 0) + ' in stock · ships in ' + n + ' day' + (n === 1 ? '' : 's');
+    }
     if (item.listing_kind === 'preorder') {
       if (item.lead_time_note) return item.lead_time_note;
       if (isPreorderClosed(item)) return 'Ordering closed';

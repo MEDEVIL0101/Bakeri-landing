@@ -21,6 +21,121 @@ Entry format:
 
 ---
 
+## 2026-08-20 — Digital cart items couldn't be removed without leaving the page
+
+**Reported by:** Diana, directly ("I noticed that a user can't remove digital products from the cart- they have to go back to the users page and deselect them there").
+
+**Root cause:** `baker/index.html`'s cart sheet already had a working remove (✕) button for digital lines, but it was unreachable in the one case that actually mattered: when the cart held *only* digital items (no pickup lines), both `openCartSheet()` (tapping the header cart icon) and the floating digital-cart bar's click handler (`goToDigitalCheckout()`) skipped the sheet entirely and jumped straight to `digital-checkout.html` — a page with no line items or remove control at all, just a name/email form. The only way out was navigating back to the listing itself and deselecting it there.
+
+**Fix:** [baker/index.html](baker/index.html) — `openCartSheet()` no longer bypasses to a checkout page; it always opens the cart sheet first, where every line (pickup, digital, and the new "ships" line kind — see below) is removable. The sheet's own Continue button now decides where to go next (full pickup-info step vs. straight to a lighter single-purpose checkout page) based on what's actually in the cart. Also fixed a related staleness bug found while verifying this live: removing a digital item via the sheet updated the cart total but left the underlying Digital Downloads row still showing "✓ added" until the page reloaded — `renderDigitalFeed()` is now re-run on removal too.
+
+**Affected users:** Any buyer whose cart was digital-only, across any baker's storefront — not isolated to one report.
+
+**Follow-up:** None open — verified live against a real storefront (Sweet Southern Bakery): add → cart bar → sheet opens → ✕ removes → underlying row updates immediately, all without a page reload.
+
+---
+
+## 2026-08-19 — "Payment succeeded but we were unable to process your download"
+
+**Reported by:** Diana, relaying a screenshot from a buyer (courtneymeyer12@gmail.com) — Stripe's Payment Link confirmation page showed "Payment succeeded but we had trouble preparing your download — contact the baker with this reference: pi_3U6FLuRpvLcm5nZI0HBkulFF." Diana confirmed in the Stripe dashboard that the payment intent had genuinely succeeded. Buyer also mentioned having to check out 7 separate times to buy 7 digital items from the same baker (Cookiesbysteph).
+
+**Root cause:** Two separate bugs, both in the digital-download guest checkout (`baker/digital-checkout.html` → `create-payment-intent` → `finalize-guest-digital-order`):
+1. `create-payment-intent` created and captured the Stripe charge from client-supplied item data alone, with **no server-side check** that the digital listing still existed, was still listed, or still had a file attached. `finalize-guest-digital-order` (called after payment) *did* validate all of that — but by then the money had already moved, so any listing edited/unlisted/deleted between page load and checkout charged the buyer and then failed to deliver, with no automatic recovery. Confirmed against the reported payment intent: it shows `succeeded` in Stripe, but no matching `orders` row was ever created.
+2. There was no multi-item digital cart — every digital item was its own solo checkout page (`?item=<id>`), forcing a buyer with several items to run the whole payment flow once per item. Each repeat run was another chance to hit bug #1.
+
+**Fix:** [create-payment-intent/index.ts](supabase/functions/create-payment-intent/index.ts), [finalize-guest-digital-order/index.ts](supabase/functions/finalize-guest-digital-order/index.ts), [send-guest-digital-delivery-email/index.ts](supabase/functions/send-guest-digital-delivery-email/index.ts), [baker/digital-checkout.html](baker/digital-checkout.html), [baker/checkout.html](baker/checkout.html), [baker/index.html](baker/index.html) — deployed 2026-08-19:
+1. `create-payment-intent` now re-fetches every digital item server-side and rejects unlisted/deleted/fileless items *before* charging.
+2. `finalize-guest-digital-order` now auto-refunds via Stripe if it still can't deliver after a confirmed payment (closes the remaining race window instead of leaving a "contact the baker" dead end), and no longer blocks delivery on `is_listed_in_marketplace` once payment is confirmed — the buyer already paid, so it still delivers if the file exists.
+3. Digital checkout now supports a real multi-item cart (`digitalCart` in `baker/index.html`, `finalize-guest-digital-order` accepts `menu_item_ids`), and a cart mixing pickup items + digital downloads checks out as one guided flow (two Stripe charges under the hood — a pickup item's authorize-then-capture can't share a PaymentIntent with a digital item's instant capture).
+
+**Affected users:** The reporting buyer's order for "Girl Dumpling face" ($1) was manually completed after the fix — order created, download link generated and emailed — rather than refunded, since the charge had genuinely succeeded. No other confirmed reports at time of fix; the underlying charge-before-validate gap could have affected any digital-listing buyer across any baker.
+
+**Follow-up:** None open — root cause fixed at the source (charge-time validation) with an auto-refund safety net for any remaining edge case, and multi-item digital carts should reduce how often buyers repeat checkout at all.
+
+---
+
+## 2026-08-16 — Storefront screen "zoomed in hardcore" after setting a header photo
+
+**Reported by:** A baker, via Diana — screenshot showed "Your Storefront" with text clipped at the edges across multiple sections, unable to see the whole screen. Baker clarified the screen was normal until she set her header picture, and it's "been stuck like that ever since."
+
+**Root cause:** `UIImage.downsampledForStorage(maxDimension:quality:)` in [Extensions.swift](Extensions.swift) resized images with `UIGraphicsImageRenderer(size:)` and no explicit format, which defaults to the device's native screen scale (2x/3x on Retina devices). The JPEG encode bakes in the actual rendered pixel buffer, so a "1600pt" header photo was physically stored as ~4800×2700+ pixels on a 3x device. On reload, `UIImage(data:)` defaults to scale 1.0, so it reports that inflated pixel count back as points — the image renders several times larger than intended, every single time that data loads. Deterministic and tied exactly to the reported trigger: broken the moment the header photo was picked, persists because the oversized file is what's actually stored. The sibling `preparedForAI(maxSide:)` (feeds the Claude vision API) had the identical bug.
+
+**Fix:** Two parts, in [Extensions.swift](Extensions.swift), [BakeryProfileEditorSection.swift](Bakerly/Bakerly/Bakeri/Views/Settings/BakeryProfileEditorSection.swift), and [BakeryAboutEditorSection.swift](Bakerly/Bakerly/Bakeri/Views/Settings/BakeryAboutEditorSection.swift):
+1. Pinned `UIGraphicsImageRendererFormat().scale = 1` on the renderer in both `downsampledForStorage` and `preparedForAI` in Extensions.swift, so new stored images are 1:1 points-to-pixels going forward.
+2. Self-heal for already-broken data: added `UIImage.isPlausiblyIntact` (rejects a decoded image whose longest edge is absurdly large — well beyond anything the fixed encoder would produce). The header-image and about-portrait render paths now only display data that passes this check, and each section runs a `.task` on appear that auto-clears (`= nil`) any stored image that fails it. This matters because `storefrontHeaderData` is a **local file only** (Application Support, not a synced table/column) — investigated whether a server-side clear could self-heal her device and confirmed it can't: `SyncService.syncAll()` only pulls from Supabase Storage (`storefront-headers/{userID}/header.jpg`) when no local file exists, so with her broken file already present locally it would just keep re-pushing the bad file, undoing any server-side fix. The affected baker (or anyone hit by this) needed a way to recover that didn't depend on successfully navigating the broken screen — this makes recovery automatic on next app open instead.
+
+Logo turned out unaffected — `LogoEditorSheet.cropToCircle()` already pinned `format.scale = 1` independently, so it was never part of this bug.
+
+Verified with a clean `xcodebuild` simulator build (`BUILD SUCCEEDED`). Not yet deployed — needs a build + release.
+
+**Affected users:** Any baker on a 2x/3x device who set a storefront header image or about-portrait, storing a physically oversized image. One confirmed report so far. Once this ships, affected bakers self-heal automatically on next app open (falls back to the normal empty "Add Image" state) — no manual remove/re-add needed. If the reporting baker had already published, her live public storefront (reads straight from Supabase Storage) may still show the bad header until she re-adds and republishes — that part isn't automatic.
+
+**Follow-up:** Ship the build. Check in with the reporting baker after release to confirm the screen self-heals and, if she'd published, that her public storefront looks right after re-adding a header photo.
+
+---
+
+## 2026-08-13 — Inspiration-photo picker kept resetting to the top while scrolling
+
+**Reported by:** Customer "sugardnotescookieco", via Diana — said they'd tried across multiple days; every time they scrolled down in the photo picker to attach inspiration images to a custom order, it snapped back to the top before they could tap a photo, making it impossible to select anything below the first screen.
+
+**Root cause:** Two `PhotosPicker` usages — the "inspiration photos" picker on the customer-facing custom-order-request screen (`CustomRequestDetailView` in [ItemDetailView.swift](Bakerly/Bakerly/Bakeri/Views/Marketplace/ItemDetailView.swift)) and the photo-answer field in baker-built intake forms (`PhotoFieldView` in [DynamicIntakeFormView.swift](Bakerly/Bakerly/Bakeri/Views/Marketplace/Forms/DynamicIntakeFormView.swift)) — reset their `selectedPickerItems` binding to `[]` at the end of the `onChange` handler. `PhotosPicker` fires `onChange` live on every tap while its sheet is still open, not just once at the end, so clearing the binding mid-session fought the picker's own selection/scroll state and snapped it back to the top. The identical bug had already been found and fixed in the baker-facing order pickers (`AddEditOrderView.swift`, `MarketplaceOrderSheet.swift`) but two customer-facing pickers still had the old pattern.
+
+**Fix:** Applied the same fix already proven elsewhere in the codebase — track processed items by `itemIdentifier` in a `Set<String>` and dedupe instead of clearing the binding, so already-loaded photos aren't reprocessed but the picker's own state is never touched. Changed in both files above. Shipped to TestFlight/App Store.
+
+**Affected users:** Any customer attaching inspiration photos to a custom order request, or answering a photo field in a baker's custom intake form, whenever their photo library had more images than fit on one picker screen. sugardnotescookieco is the confirmed report; likely affected others silently since this shipped.
+
+**Follow-up:** Consider a lint/pattern check to catch `selectedPickerItems = []`-after-`onChange` recurring a third time.
+
+---
+
+## 2026-08-08 — Baker never notified when a customer paid an invoice balance (or deposit) via a payment link
+
+**Reported by:** Harvey, live — got a push when a deposit was paid, but nothing when the remaining balance on that same order was paid moments later via an invoice link.
+
+**Symptom:** No push notification to the baker after a buyer pays a `/pay/` invoice link — neither the deposit nor the balance leg.
+
+**Root cause:** `finalize-invoice-payment` (the buyer-facing endpoint the static `/pay/` page calls after Stripe confirms the charge) had zero notification code of its own — it relied entirely on `trg_fn_marketplace_order_notify`, the generic DB trigger that fires on a `marketplace_status` *transition*. But this function's deposit branch never touches `marketplace_status` at all, and its balance/full branch only sets it when the order was still pre-payment (`pending`/`pending_quote`/`quote_provided`/`null`) — by the time a *balance* gets paid, the order is already `confirmed` from the deposit leg, so no transition ever happens and the trigger has nothing to fire on. The deposit push Harvey did see came from a different path (`finalize-guest-quote-payment`, the in-app quote-acceptance flow, which does flip `marketplace_status` and correctly rides the generic trigger) — not from an invoice link at all.
+
+**Fix:** [finalize-invoice-payment/index.ts](supabase/functions/finalize-invoice-payment/index.ts) now sends a best-effort push directly to the baker after any successful invoice payment (deposit/balance/full), via `notify-marketplace` — the same direct-call pattern `mark-order-ready-for-pickup` already established, chosen specifically because it doesn't depend on a status transition that may or may not occur. Tagged `type: "quote_paid"` so tapping it routes to Baker Orders like every other payment-received push. Deployed 2026-08-08.
+
+**Affected users:** Every baker using invoice-link payments (manual orders and guest-quote balances) — this path never notified on payment, silently, since the feature shipped.
+
+**Follow-up:** None open.
+
+---
+
+## 2026-08-08 — Order status didn't update in the app until closing and reopening it
+
+**Reported by:** Harvey, live — baker in the app when a customer's payment went through: got the push notification, but the order's on-screen status stayed stale until force-closing and reopening the app.
+
+**Symptom:** A push notification arrives while the app is already open; the order list/detail view doesn't reflect the change it describes.
+
+**Root cause:** The app only re-syncs from Supabase on two triggers: `scenePhase` becoming `.active` (backgrounding/reopening), or a 5-minute foreground timer ([BakeriApp.swift:149-167](Bakerly/Bakerly/Bakeri/BakeriApp.swift), [ContentBootstrapper](Bakerly/Bakerly/Bakeri/BakeriApp.swift) `syncTimer`). A push that arrives while the app is already open doesn't change `scenePhase` (it's already `.active`), so neither trigger fires — the baker was stuck seeing stale SwiftData-backed UI for up to 5 minutes, or until they backgrounded/reopened the app (which re-triggers `.active`).
+
+**Fix:** Added `NotificationForegroundSyncListener`, a OneSignal `OSNotificationLifecycleListener` registered via `addForegroundLifecycleListener` ([BakeriApp.swift](Bakerly/Bakerly/Bakeri/BakeriApp.swift)), which fires `SyncService.shared.syncAll()` the moment a push is about to display — the same sync the scenePhase/timer triggers already run, just immediately instead of waiting. Doesn't call `event.preventDefault()`, so the notification banner itself still displays exactly as before; this only adds a sync as a side effect. Verified builds clean against the real OneSignal 5.5.1 SDK (confirmed exact protocol/method names from the installed framework headers rather than guessing).
+
+**Affected users:** Every baker with the app open when any push-worthy event happens — not specific to payments, applies to every notification type.
+
+**Follow-up:** None open — not yet verified against a real device/simulator run (only build-verified); flag if a foreground push still doesn't refresh the UI.
+
+---
+
+## 2026-08-08 — Undo Mark as Completed silently reverted a real balance payment
+
+**Reported by:** Harvey, live — used the new "Undo Mark as Completed" button (OrderDetailView), and the order came back saying the balance needed to be paid again, even though it had genuinely already been paid online via an invoice link minutes earlier.
+
+**Symptom:** After undoing a completed order, `is_paid`/`paid_at` reverted to their pre-payment values — a real payment record silently disappeared, no error shown anywhere.
+
+**Root cause:** A real asymmetry in the sync layer, not something specific to the undo feature — undo just happened to be the thing that finally triggered it. `pullOrders` (SyncService.swift) is timestamp-guarded: it only applies a server row to the local SwiftData copy `if row.updatedAt > local.updatedAt`, so a pull can never overwrite a locally-fresher edit. But `pushOrderNow`/`schedulePush` have no equivalent protection at all — they unconditionally upsert the *entire* local row over whatever the server has, regardless of which side is actually fresher. The undo code called `order.touch()` (bumping the local row's `updatedAt` to "now") and then pushed — but the local copy's `is_paid`/`paid_at` were stale: the balance had been paid through `finalize-invoice-payment`, a path that runs entirely server-side when a guest pays a `/pay/` link, which never syncs down to the baker's device on its own. `touch()` made the stale local row *look* newest without actually refreshing its stale fields, and the unconditional push then clobbered the server's correct payment data with it. Silent, because the push itself succeeded — there was nothing to surface as an error.
+
+**Fix:** [OrderDetailView.swift](Bakerly/Bakerly/Bakeri/Views/Orders/OrderDetailView.swift)'s `undoMarkAsCompleted()`: for a marketplace order, the `undo_order_completion` RPC is already the sole server-side write needed — removed the push entirely and pull (`SyncService.syncAll`) instead, so this device's copy of everything else (payment fields especially) gets reconciled from the server without ever risking writing stale local data back. For a plain manual order (no RPC covers that case, so *some* push is still necessary to persist the status change), pull first to narrow the same staleness window before editing and pushing. Manually repaired the one order this hit live (`is_paid`/`paid_at` restored from context, `updated_at` bumped so the fix is guaranteed to sync back down to the device rather than getting skipped by the very same freshness guard).
+
+**Affected users:** One test order today. The underlying push-side gap is broader, though — anywhere else in the app that edits a locally-cached order and then pushes it (schedulePush/pushOrderNow) carries the same theoretical risk if that order was also recently touched by a path that doesn't sync to this device (guest invoice payments, another baker device, etc.). `markUnpaidButton` (same file) already had this exact edit-then-push shape before today and wasn't touched by this fix — flagged, not fixed, since it's pre-existing and out of scope for this pass.
+
+**Follow-up:** Consider a real fix at the sync layer itself (e.g. a pull-before-push helper, or per-field/partial updates instead of whole-row upserts) rather than patching each call site piecemeal — `markUnpaidButton` and potentially others still carry the same risk.
+
+---
+
 ## 2026-08-08 — Custom order form showed customer details twice on the web
 
 **Reported by:** Harvey, relaying a baker report (Sugarland/Harriet Sterling) — a customer filling out the "Sugar Cookies Order Form" custom-order link had to enter their name/email/phone, then immediately enter it again as "the proper form" began. The baker's own in-app preview looked correct.
@@ -52,6 +167,10 @@ Entry format:
 **Affected users:** Any baker resending a ready-for-pickup notification (no dedicated action existed before), and any baker reopening a completed order from their orders list (would always re-show the completion screen).
 
 **Follow-up — root cause of the original `notified: false`, added after further investigation:** Queried `notification_log` directly for the order in question (`ca04d25b-a5d6-4790-8c2f-501e4ccfcac5`) and found **zero rows** for `guest_order_ready` — not even a `failed` one, even though the pickup-window DB write itself had clearly succeeded (the time was saved and displayed correctly). Since `send-guest-order-ready-email` logs both outcomes from inside its own try/catch, a missing row means the request never reached that point at all — ruling out a bug *in* that function. Also ruled out a `BAKERI_WEBHOOK_SECRET` mismatch between the two functions (confirmed via `supabase secrets list`: it's a single project-wide value, not per-function, so it can't drift out of sync). Other `guest_order_ready` sends from the same day succeeded cleanly, so this wasn't systemic — pointing at a transient failure in the edge-function-to-edge-function `fetch()` call itself (cold start / timeout), the same category of issue called out in the entry below this one. [mark-order-ready-for-pickup/index.ts](supabase/functions/mark-order-ready-for-pickup/index.ts): `postWithRetry` now backs off with increasing delay (0/600/1400/2600ms instead of a flat 800ms×3) to give a slow cold start more room, and — closing the actual "zero trace" gap — now writes its own `notification_log` row on final failure for *both* the push and guest-email paths, so a future occurrence is visible without cross-referencing the order and the log by hand. `logNotification` ([_shared/notificationLog.ts](supabase/functions/_shared/notificationLog.ts)) gained an optional `channel` param (defaults to `"email"`, backward-compatible with every other caller) to support logging the push path too. Deployed 2026-08-08.
+
+**Follow-up 2 — the retry-backoff theory above was wrong; real cause found, and the resend button had a second, more serious bug:** After deploying the retry/logging fix, the baker retried and got the *same* "Something went wrong" alert on 100% of attempts (not intermittent, contradicting the cold-start theory). The new durable logging paid off immediately: `notification_log` showed `{"code":"UNAUTHORIZED_NO_AUTH_HEADER","message":"Missing authorization header"}` on every attempt. `send-guest-order-ready-email` keeps Supabase's platform-level JWT verification ON (`verify_jwt: true`, confirmed via `supabase functions list`) by deliberate design — the same pattern already documented for three sibling guest-webhook functions in [20260714000012_guest_webhook_calls_add_apikey.sql](supabase/migrations/20260714000012_guest_webhook_calls_add_apikey.sql), which requires every caller to add the public anon key as `apikey`/`Authorization` headers on top of the function's own `x-webhook-secret` check. `mark-order-ready-for-pickup` (written 2026-08-07/08) never did this — `postWithRetry`'s fetch only ever sent `x-webhook-secret`. It had likely been broken from day one; a project-wide Supabase key/JWKS rotation that day (visible via `supabase secrets list` timestamps) appears to be what made the platform gate start strictly enforcing it on every call instead of occasionally. Fixed by adding the anon key as `apikey`/`Authorization` headers to `postWithRetry`. Deployed 2026-08-08.
+
+Separately, once headers were fixed and the baker could actually resend, a second bug surfaced: the resend sent (and *saved*) a pickup time from a different, earlier test order — not this order's real one, and worded as "pickup time updated" instead of a plain resend. Root cause: "Resend Notification" reused `confirmReadyForPickup`, which is a save-*and*-notify call built for "Change Pickup Time" — it always writes whatever pickup date/window the Swift sheet's `@State` currently holds. If that cached state is ever stale (exact mechanism unconfirmed — possibly SwiftUI view/state reuse across a previously-viewed order's sheet), a "resend" doesn't just send a wrong notification, it **overwrites the order's actual saved pickup time** with the stale one. Fixed properly rather than patched: `mark-order-ready-for-pickup` gained a `resend_only` mode that takes no pickup date/window from the client at all, reads `scheduled_pickup_date`/`pickup_window_start`/`pickup_window_end` straight from the order row, never writes to `orders`, and always frames the email as the original "ready for pickup" (never "time updated"). [PaymentService.swift](Bakerly/Bakerly/Bakeri/Services/PaymentService.swift) gained a dedicated `resendReadyForPickupNotification(orderID:)` calling this mode; [MarketplaceOrderSheet.swift](Bakerly/Bakerly/Bakeri/Views/Orders/MarketplaceOrderSheet.swift)'s resend button now calls that instead of `confirmReadyForPickup`. Deployed 2026-08-08. Not yet re-verified live by the baker.
 
 ---
 

@@ -16,7 +16,7 @@ interface CartItemPayload {
   name: string;
   quantity: number;
   price_from: number;
-  listing_kind: "ready_now" | "preorder" | "custom" | "digital";
+  listing_kind: "ready_now" | "preorder" | "custom" | "digital" | "physical";
   pickup_date?: string | null;
 }
 
@@ -160,22 +160,26 @@ Deno.serve(async (req: Request) => {
     // called from MarketplaceOrderSheet's accept actions). If the baker never
     // accepts (declines, or the guest-order expiry cron times it out), the
     // authorization is simply cancelled — no charge, no non-refundable Stripe
-    // fee. Digital goods capture immediately — there's no physical handoff to
-    // wait for, so the sale (and the buyer's download) is done the moment
-    // payment succeeds. A digital cart is always single-baker (one storefront
-    // page, see digital-checkout.html) but can hold multiple items — see
-    // finalize-guest-digital-order.
+    // fee. Digital and physical goods both capture immediately instead —
+    // digital because there's no physical handoff to wait for, physical
+    // because it's sold outright on purchase (decrements stock rather than
+    // needing a baker accept step). Each cart is always single-kind and
+    // single-baker (its own storefront mini-cart, see digital-checkout.html/
+    // physical-checkout.html) but can hold multiple items — see
+    // finalize-guest-digital-order / finalize-guest-physical-order.
     const isDigital = items.every((i) => i.listing_kind === "digital");
-    const captureMethod = (paymentFlow === "deposit_and_save" || isDigital) ? "automatic" : "manual";
+    const isPhysical = items.every((i) => i.listing_kind === "physical");
+    const captureMethod = (paymentFlow === "deposit_and_save" || isDigital || isPhysical) ? "automatic" : "manual";
 
     // Everything below trusts client-supplied fields (name, price) with no
-    // server-side check against the live menu_items row — for digital items
-    // that's the only gate before Stripe actually captures money, so
-    // re-fetch every item here and reject anything finalize-guest-digital-
-    // order would also reject, before the charge happens instead of after.
-    // Without this, a listing that's been unpublished, deleted, or had its
-    // file removed since the buyer loaded the page still charges them in
-    // full, and they only find out once finalize rejects it.
+    // server-side check against the live menu_items row — for digital/
+    // physical items that's the only gate before Stripe actually captures
+    // money, so re-fetch every item here and reject anything the matching
+    // finalize function would also reject, before the charge happens
+    // instead of after. Without this, a listing that's been unpublished,
+    // deleted, sold out, or had its file removed since the buyer loaded the
+    // page still charges them in full, and they only find out once finalize
+    // rejects it.
     if (isDigital) {
       const supabase = getSupabaseClient();
       const { data: digitalItems, error: digitalItemsErr } = await supabase
@@ -200,6 +204,37 @@ Deno.serve(async (req: Request) => {
         }
         if (!digitalItem.digital_file_path) {
           return new Response(JSON.stringify({ error: `"${digitalItem.name}" has no file attached yet — contact the baker.` }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+      }
+    }
+
+    if (isPhysical) {
+      const supabase = getSupabaseClient();
+      const { data: physicalItems, error: physicalItemsErr } = await supabase
+        .from("menu_items")
+        .select("id, name, listing_kind, is_listed_in_marketplace, available_qty_today")
+        .in("id", items.map((i) => i.listing_id));
+
+      const itemsById = new Map((physicalItems ?? []).map((d) => [d.id, d]));
+      for (const cartItem of items) {
+        const physicalItem = itemsById.get(cartItem.listing_id);
+        if (physicalItemsErr || !physicalItem || physicalItem.listing_kind !== "physical") {
+          return new Response(JSON.stringify({ error: "This item is no longer available." }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+        if (!physicalItem.is_listed_in_marketplace) {
+          return new Response(JSON.stringify({ error: `"${physicalItem.name}" is no longer available.` }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+        if ((physicalItem.available_qty_today ?? 0) < cartItem.quantity) {
+          return new Response(JSON.stringify({ error: `"${physicalItem.name}" doesn't have enough stock left.` }), {
             status: 400,
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
           });

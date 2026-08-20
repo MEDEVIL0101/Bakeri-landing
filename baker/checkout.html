@@ -112,10 +112,22 @@
   let cart = null;
   try { cart = JSON.parse(sessionStorage.getItem('bakeri_checkout_cart') || 'null'); } catch (e) { cart = null; }
 
-  if (!cart || !cart.baker || !Array.isArray(cart.items) || cart.items.length === 0) {
+  // Any of the three verticals (pickup, digital, ship) is enough to land
+  // here — a digital+ship-only cart (no pickup lines) reaches checkout.html
+  // whenever more than one non-pickup vertical is present at once (see
+  // baker/index.html's goToCheckout dispatch), same as a pickup-only cart.
+  // cart itself may be null (missing/corrupt sessionStorage) — checked first
+  // so the vertical checks below never dereference a null cart.
+  const hasAnyItems = Boolean(cart) && (
+    (Array.isArray(cart.items) && cart.items.length > 0) ||
+    (Array.isArray(cart.digitalItems) && cart.digitalItems.length > 0) ||
+    (Array.isArray(cart.shipItems) && cart.shipItems.length > 0)
+  );
+  if (!cart || !cart.baker || !hasAnyItems) {
     showNotFound();
     return;
   }
+  if (!Array.isArray(cart.items)) cart.items = [];
 
   if (window.BakeriTheme) {
     window.BakeriTheme.apply({ selected_theme: cart.theme || params.get('theme') || 'Classic', background_pattern: cart.pattern || params.get('pattern') || 'Standard' });
@@ -169,10 +181,22 @@
   // one connected flow even though it's two charges on their statement.
   const digitalItems = Array.isArray(cart.digitalItems) ? cart.digitalItems : [];
   const digitalSubtotal = digitalItems.reduce(function (s, i) { return s + i.price; }, 0);
-  const grandTotal = total + digitalSubtotal;
+
+  // Ship (physical) leg — a third independent charge, same reasoning as
+  // digital above: instant capture, no baker accept step, so it can't share
+  // a PaymentIntent with the pickup leg's authorize-then-capture-on-accept
+  // hold. Needs a shipping address, which nothing before this page collects
+  // (renderShipAddressForm gathers it right before its PaymentIntent).
+  const shipItems = Array.isArray(cart.shipItems) ? cart.shipItems : [];
+  const shipSubtotal = shipItems.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
+
+  const grandTotal = total + digitalSubtotal + shipSubtotal;
   let physicalResult = null;
   let digitalResult = null;
   let digitalError = null;
+  let shipResult = null;
+  let shipError = null;
+  let shipAddress = null;
 
   renderSummary();
 
@@ -190,6 +214,10 @@
       return '<div class="order-line"><div><div class="n">' + escapeHtml(i.name) + '</div><div class="m">Instant digital download</div></div>' +
         '<div class="p">$' + i.price.toFixed(2) + '</div></div>';
     }).join('');
+    const shipLines = shipItems.map(function (i) {
+      return '<div class="order-line"><div><div class="n">' + escapeHtml(i.name) + '</div><div class="m">' + i.qty + ' × $' + i.price.toFixed(2) + ' · ships in ' + (i.leadDays || 3) + ' day' + (i.leadDays === 1 ? '' : 's') + '</div></div>' +
+        '<div class="p">$' + (i.price * i.qty).toFixed(2) + '</div></div>';
+    }).join('');
 
     content.innerHTML =
       '<div class="eyebrow">Your Order</div>' +
@@ -204,13 +232,43 @@
         digitalLines +
         '<div class="totals-row"><span>Downloads subtotal</span><span>$' + digitalSubtotal.toFixed(2) + '</span></div>'
       ) : '') +
+      (shipItems.length > 0 ? (
+        '<div class="eyebrow" style="margin-top:14px;">Ships to You</div>' +
+        shipLines +
+        '<div class="totals-row"><span>Shipping items subtotal</span><span>$' + shipSubtotal.toFixed(2) + '</span></div>'
+      ) : '') +
       '<div class="totals-row grand"><span>Total</span><span>$' + grandTotal.toFixed(2) + '</span></div>' +
       '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
-      '<div class="pickup-note">📍 Exact pickup address is provided by email once your order is confirmed.' +
-        (digitalItems.length > 0 ? ' Digital downloads are delivered instantly, as a separate charge from pickup items.' : '') + '</div>';
+      '<div class="pickup-note">' +
+        (cart.items.length > 0 ? '📍 Exact pickup address is provided by email once your order is confirmed.' : '') +
+        (digitalItems.length > 0 ? ' Digital downloads are delivered instantly, as a separate charge from pickup items.' : '') +
+        (shipItems.length > 0 ? ' Shipping items are a separate charge — you\'ll enter a shipping address next.' : '') +
+      '</div>';
 
-    document.getElementById('continue-btn').addEventListener('click', goToPayment);
+    document.getElementById('continue-btn').addEventListener('click', startCheckout);
+  }
+
+  // Dispatches to whichever leg actually has items — a cart can reach this
+  // page with the pickup leg empty (e.g. digital + ship only, no pickup
+  // lines; see baker/index.html's goToCheckout), so this can't just always
+  // start with goToPayment.
+  function startCheckout() {
+    if (cart.items.length > 0) { goToPayment(); }
+    else if (digitalItems.length > 0) { goToDigitalPayment(); }
+    else if (shipItems.length > 0) { goToShipPayment(); }
+  }
+
+  // Each leg's finalize call ends by handing off to the next non-empty leg
+  // (pickup → digital → ship), or the combined success screen once none remain.
+  function afterPickupLeg() {
+    if (digitalItems.length > 0) { goToDigitalPayment(); }
+    else if (shipItems.length > 0) { goToShipPayment(); }
+    else { renderSuccess(); }
+  }
+  function afterDigitalLeg() {
+    if (shipItems.length > 0) { goToShipPayment(); }
+    else { renderSuccess(); }
   }
 
   function goToPayment() {
@@ -329,10 +387,10 @@
       // this script finishes, which a fire-and-forget fetch() did not.
       sessionStorage.removeItem('bakeri_checkout_cart');
       // A mixed cart's pickup order is safely recorded at this point no
-      // matter what happens next — the digital leg is a second, independent
-      // charge (see comment above renderSummary), so its own failure path
-      // (finalize-guest-digital-order auto-refunds) never touches this.
-      if (digitalItems.length > 0) { goToDigitalPayment(); } else { renderSuccess(); }
+      // matter what happens next — the digital/ship legs are independent
+      // charges (see comment above renderSummary), so their own failure
+      // paths (auto-refund) never touch this.
+      afterPickupLeg();
     });
   }
 
@@ -429,6 +487,156 @@
         headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
         body: JSON.stringify({ order_id: data.order_id, downloads: data.downloads })
       }).catch(function () {});
+      afterDigitalLeg();
+    });
+  }
+
+  // ── Ship leg of a mixed cart — a third independent charge. Needs a
+  // shipping address first, which nothing collected so far in this flow
+  // gathers (the pickup step above only asks for name/phone/email). ──
+  function goToShipPayment() {
+    renderShipAddressForm();
+  }
+
+  function renderShipAddressForm() {
+    content.innerHTML =
+      '<div class="eyebrow">Ships to You</div>' +
+      '<div class="heading">Shipping address</div>' +
+      '<p style="color:var(--muted);font-size:13px;margin-top:6px;">' +
+        (physicalResult || digitalResult ? 'The rest of your order is confirmed — j' : 'J') +
+        'ust need an address for the item' + (shipItems.length > 1 ? 's' : '') + ' that ship.</p>' +
+      '<div class="field" style="margin-top:16px;"><label style="font-size:12px;color:var(--muted);">Name</label>' +
+        '<input id="ship-name" type="text" autocomplete="name" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
+      '<div class="field" style="margin-top:10px;"><label style="font-size:12px;color:var(--muted);">Address line 1</label>' +
+        '<input id="ship-line1" type="text" autocomplete="address-line1" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
+      '<div class="field" style="margin-top:10px;"><label style="font-size:12px;color:var(--muted);">Address line 2 (optional)</label>' +
+        '<input id="ship-line2" type="text" autocomplete="address-line2" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
+      '<div style="display:flex;gap:10px;margin-top:10px;">' +
+        '<div class="field" style="flex:2;"><label style="font-size:12px;color:var(--muted);">City</label>' +
+          '<input id="ship-city" type="text" autocomplete="address-level2" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
+        '<div class="field" style="flex:1;"><label style="font-size:12px;color:var(--muted);">Province</label>' +
+          '<input id="ship-province" type="text" autocomplete="address-level1" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:10px;margin-top:10px;">' +
+        '<div class="field" style="flex:1;"><label style="font-size:12px;color:var(--muted);">Postal code</label>' +
+          '<input id="ship-postal" type="text" autocomplete="postal-code" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
+        '<div class="field" style="flex:1;"><label style="font-size:12px;color:var(--muted);">Country</label>' +
+          '<input id="ship-country" type="text" autocomplete="country-name" value="Canada" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
+      '</div>' +
+      '<button class="btn-primary" id="ship-address-continue">Continue to Payment</button>' +
+      '<div class="submit-status" id="submit-status"></div>';
+
+    document.getElementById('ship-address-continue').addEventListener('click', function () {
+      const status = document.getElementById('submit-status');
+      const name = document.getElementById('ship-name').value.trim();
+      const line1 = document.getElementById('ship-line1').value.trim();
+      const city = document.getElementById('ship-city').value.trim();
+      const province = document.getElementById('ship-province').value.trim();
+      const postal = document.getElementById('ship-postal').value.trim();
+      const country = document.getElementById('ship-country').value.trim();
+      if (!name || !line1 || !city || !province || !postal || !country) {
+        status.textContent = 'Please fill in the full shipping address.';
+        return;
+      }
+      shipAddress = {
+        name: name, line1: line1,
+        line2: document.getElementById('ship-line2').value.trim(),
+        city: city, province: province, postal_code: postal, country: country
+      };
+      createShipPaymentIntent();
+    });
+  }
+
+  function createShipPaymentIntent() {
+    const btn = document.getElementById('ship-address-continue');
+    const status = document.getElementById('submit-status');
+    if (btn) btn.disabled = true;
+    status.textContent = '';
+
+    fetch(SUPABASE_URL + '/functions/v1/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({
+        items: shipItems.map(function (i) {
+          return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical' };
+        }),
+        currency: 'cad'
+      })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error || !data.client_secret) {
+        shipError = data.error || 'Something went wrong charging for your shipping items. Please contact the baker.';
+        renderSuccess();
+        return;
+      }
+      renderShipPayment(data.client_secret, data.stripe_connect_account_id);
+    })
+    .catch(function () {
+      shipError = 'Something went wrong charging for your shipping items. Please contact the baker.';
+      renderSuccess();
+    });
+  }
+
+  function renderShipPayment(clientSecret, connectedAccountId) {
+    content.innerHTML =
+      '<div class="eyebrow">Pay · Ships to You</div>' +
+      '<div class="heading">$' + shipSubtotal.toFixed(2) + '</div>' +
+      '<div id="payment-element"></div>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + shipSubtotal.toFixed(2) + '</button>' +
+      '<div class="submit-status" id="submit-status"></div>';
+
+    const stripe = connectedAccountId ? Stripe(STRIPE_PK, { stripeAccount: connectedAccountId }) : Stripe(STRIPE_PK);
+    const elements = stripe.elements({ clientSecret: clientSecret });
+    const paymentElement = elements.create('payment');
+    paymentElement.mount('#payment-element');
+
+    document.getElementById('pay-btn').addEventListener('click', function () {
+      const btn = document.getElementById('pay-btn');
+      const status = document.getElementById('submit-status');
+      btn.disabled = true;
+      status.textContent = '';
+
+      stripe.confirmPayment({ elements: elements, redirect: 'if_required' }).then(function (result) {
+        if (result.error) {
+          status.textContent = result.error.message || 'Payment failed. Please try again.';
+          btn.disabled = false;
+          return;
+        }
+        const intent = result.paymentIntent;
+        if (!intent || intent.status !== 'succeeded') {
+          status.textContent = 'Payment did not complete. Please try again.';
+          btn.disabled = false;
+          return;
+        }
+        finalizeShipOrder(intent.id);
+      });
+    });
+  }
+
+  function finalizeShipOrder(paymentIntentId) {
+    fetch(SUPABASE_URL + '/functions/v1/finalize-guest-physical-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({
+        payment_intent_id: paymentIntentId,
+        items: shipItems.map(function (i) { return { menu_item_id: i.id, quantity: i.qty }; }),
+        customer_name: cart.customer.name,
+        customer_email: cart.customer.email,
+        shipping_address: shipAddress
+      })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) {
+        // finalize-guest-physical-order already auto-refunded this charge if
+        // it could, and released any stock it had reserved — its message
+        // says so. Earlier legs are unaffected either way.
+        shipError = data.error;
+        renderSuccess();
+        return;
+      }
+      shipResult = data;
       renderSuccess();
     });
   }
@@ -462,7 +670,22 @@
       '<p>' + escapeHtml(digitalError) + '</p>'
     ) : '');
 
-    content.innerHTML = '<div class="success-state"><div class="icon">✓</div>' + pickupBlock + digitalBlock + '</div>';
+    const shipBlock = shipResult ? (
+      '<h2 style="margin-top:' + (physicalResult || digitalResult ? '26px' : '0') + ';">Your order will ship soon</h2>' +
+      '<p>A confirmation with your shipping address was emailed to you.</p>' +
+      '<div class="receipt">' +
+        shipItems.map(function (i) {
+          return '<div class="order-line"><div><div class="n">' + i.qty + '× ' + escapeHtml(i.name) + '</div></div>' +
+            '<span class="p">$' + (i.price * i.qty).toFixed(2) + '</span></div>';
+        }).join('') +
+        '<div class="totals-row grand"><span>Total</span><span>$' + shipSubtotal.toFixed(2) + '</span></div>' +
+      '</div>'
+    ) : (shipError ? (
+      '<h2 style="margin-top:' + (physicalResult || digitalResult ? '26px' : '0') + ';color:var(--error);">Shipping items charge failed</h2>' +
+      '<p>' + escapeHtml(shipError) + '</p>'
+    ) : '');
+
+    content.innerHTML = '<div class="success-state"><div class="icon">✓</div>' + pickupBlock + digitalBlock + shipBlock + '</div>';
   }
 
   function showNotFound() {

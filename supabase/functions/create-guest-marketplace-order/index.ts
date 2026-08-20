@@ -431,6 +431,9 @@ Deno.serve(async (req: Request) => {
     if (item.listing_kind === "digital") {
       return await failAndRelease(`"${item.name}" is a digital download — buy it directly from its own page, not the cart.`);
     }
+    if (item.listing_kind === "physical") {
+      return await failAndRelease(`"${item.name}" ships to you — buy it from the Ships to You cart, not the pickup cart.`);
+    }
     if (item.is_assorted_box) {
       const tier = (tiersByItemId.get(item.id) ?? []).find((t) => t.id === line.tier_id);
       if (!tier) return await failAndRelease(`Please choose a size for "${item.name}".`);
