@@ -122,6 +122,17 @@
     #section-nav-wrap { display: none; }
     .nav-bar-icons { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
+    /* Share/Cart on desktop — floats over the hero photo, same spot as the
+       original overlay, rather than living in the nav row below the hero.
+       Mobile uses the icons already in #site-header-bar's .nav-bar-icons
+       instead (kept as a separate element, not moved via JS, so nothing
+       here ever needs reparenting between breakpoints). */
+    #site-header-desktop {
+      display: none;
+      position: absolute; top: 0; right: 0; z-index: 2;
+      align-items: center; gap: 10px; padding: 14px 16px;
+    }
+
     /* ══════════════════════ Mobile nav drawer ══════════════════════
        Opens directly below the hamburger bar — same tabs as the desktop
        inline nav, rendered as a simple stacked list instead of a wrapping
@@ -276,7 +287,7 @@
        (see the media query below) and as a stacked list in
        #mobile-nav-drawer on mobile — #section-nav itself only wraps
        instead of scrolling for the rare desktop case where it's forced to. */
-    #section-nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+    #section-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; }
     .section-tab {
       flex-shrink: 0; background: none; border: none; cursor: pointer; font-family: var(--sans);
       font-size: 15px; font-weight: 600; color: var(--muted); padding: 0 0 4px;
@@ -614,14 +625,19 @@
 
       /* Swaps the hero above the header bar instead of below it — the only
          change needed to move #site-header-bar from "above the photo"
-         (mobile) to "below the photo" (desktop); nothing in the bar itself
-         is duplicated or repositioned separately. */
+         (mobile) to "below the photo" (desktop). */
       #profile-hero { order: -1; }
 
       #mobile-menu-btn { display: none; }
       #mobile-nav-drawer { display: none !important; }
-      #nav-bar-brand { flex: 0 0 auto; text-align: left; font-size: 17px; margin-right: 6px; }
-      #site-header-bar { padding: 14px 20px; }
+      /* Bakery name already reads prominently in the hero itself — the bar
+         below it is nav-only on desktop, no repeated brand text. Share/Cart
+         move to #site-header-desktop (floating over the hero) instead of
+         living in this bar, restoring their original top-of-page spot. */
+      #nav-bar-brand { display: none; }
+      .nav-bar-icons { display: none; }
+      #site-header-desktop { display: flex; }
+      #site-header-bar { padding: 14px 20px; justify-content: center; }
       #section-nav-wrap { display: block; flex: 1; }
 
       /* auto-fit (not auto-fill) — with only a few cards, auto-fill still
@@ -669,11 +685,11 @@
      (see #announcement-banner's order:-2). -->
 <div id="announcement-banner" class="hidden"></div>
 
-<!-- One shared bar: hamburger + centered brand + icons on mobile (renders
-     above the hero photo, its natural DOM position here), brand + full
-     nav row + icons on desktop (moved below the hero via #profile-hero's
-     order:-1 in the desktop media query) — see the CSS above for why this
-     is a single element rather than two. -->
+<!-- Mobile-only bar: hamburger + centered brand + icons, above the hero
+     photo. On desktop this bar holds just the nav row (below the hero,
+     via #profile-hero's order:-1) — brand text and icons move out to
+     #site-header-desktop instead (floating over the hero, its original
+     position), see the desktop media query above. -->
 <header id="site-header-bar">
   <button class="icon-btn" id="mobile-menu-btn" aria-label="Menu">
     <svg width="20" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -683,15 +699,12 @@
   <div id="nav-bar-brand"></div>
   <nav id="section-nav-wrap"><div id="section-nav"></div></nav>
   <div class="nav-bar-icons">
-    <button class="circle-btn" id="share-btn" aria-label="Share">
+    <button class="circle-btn" id="share-btn-mobile" aria-label="Share">
       <svg width="16" height="19" viewBox="0 0 17 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M8.5 1V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
         <path d="M4.5 5L8.5 1L12.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M1.5 9V17.5C1.5 18.3284 2.17157 19 3 19H14C14.8284 19 15.5 18.3284 15.5 17.5V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-    </button>
-    <button class="circle-btn" id="desktop-cart-btn" style="display:none; width:auto; padding:0 16px; border-radius:9999px;">
-      <span id="desktop-cart-label">Cart</span>
     </button>
     <button class="circle-btn" id="cart-btn" aria-label="Cart">🛒<span id="cart-btn-count"></span></button>
   </div>
@@ -707,6 +720,21 @@
     <img id="header-img" alt="" />
     <div id="header-scrim"></div>
   </div>
+
+  <!-- Desktop-only — floats over the hero, its original position. Mobile
+       uses the icons already in #site-header-bar above instead. -->
+  <header id="site-header-desktop">
+    <button class="circle-btn" id="share-btn" aria-label="Share">
+      <svg width="16" height="19" viewBox="0 0 17 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8.5 1V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M4.5 5L8.5 1L12.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M1.5 9V17.5C1.5 18.3284 2.17157 19 3 19H14C14.8284 19 15.5 18.3284 15.5 17.5V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="circle-btn" id="desktop-cart-btn" style="width:auto; padding:0 16px; border-radius:9999px;">
+      <span id="desktop-cart-label">Cart</span>
+    </button>
+  </header>
 
   <section id="profile-block">
     <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
@@ -1028,6 +1056,7 @@
     renderFooter(profile, name);
 
     document.getElementById('share-btn').addEventListener('click', shareLink);
+    document.getElementById('share-btn-mobile').addEventListener('click', shareLink);
     document.getElementById('nav-bar-brand').addEventListener('click', function () {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
