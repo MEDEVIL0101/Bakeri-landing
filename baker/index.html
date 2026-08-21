@@ -86,16 +86,57 @@
        width and others not. The fixed pattern layer (theme.js) sits behind
        this whole shell, so on desktop it only shows in the side margins;
        on mobile the shell fills the viewport, so no margin — no pattern. */
-    #page-shell { max-width: 1200px; margin: 0 auto; background: var(--bg); position: relative; }
+    /* Flex column (not just block) so #site-header-bar and #profile-hero
+       can swap places between mobile and desktop via `order` below,
+       instead of existing as two separately-positioned/duplicated
+       elements — the hamburger bar, the brand text, and both cart buttons
+       are each a single DOM node shared across breakpoints. */
+    #page-shell { max-width: 1200px; margin: 0 auto; background: var(--bg); position: relative; display: flex; flex-direction: column; }
 
-    /* Floats over the hero (photo or plain background) instead of a
-       separate fixed/sticky bar — scrolls away with the hero, doesn't
-       persist over the rest of the page. */
-    #site-header {
-      position: absolute; top: 0; left: 0; right: 0; z-index: 2;
-      display: flex; align-items: center; justify-content: flex-end; gap: 10px;
-      padding: 14px 16px;
+    /* Reserved for a future promo/announcement strip. Empty and hidden
+       until a baker sets one — always first in the shell regardless of
+       breakpoint, so it reads above both the mobile hamburger bar and the
+       desktop nav bar/hero. */
+    #announcement-banner { order: -2; }
+
+    /* ══════════════════════ Site header bar ══════════════════════
+       One shared bar: hamburger + centered brand + icons on mobile
+       (renders above the hero photo, its default DOM position), brand +
+       full nav row + icons on desktop (moved below the hero instead, via
+       #profile-hero's order:-1 in the desktop media query — see below). */
+    #site-header-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
+      position: relative; z-index: 3;
     }
+    .icon-btn {
+      width: 36px; height: 36px; flex-shrink: 0; border: none; background: none; color: var(--ink);
+      display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+    }
+    #nav-bar-brand {
+      flex: 1; text-align: center; font-size: 15px; font-weight: 600; color: var(--ink);
+      cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* The nav itself only renders inline on desktop (see media query below) —
+       on mobile the same tabs render into #mobile-nav-drawer instead. */
+    #section-nav-wrap { display: none; }
+    .nav-bar-icons { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    /* ══════════════════════ Mobile nav drawer ══════════════════════
+       Opens directly below the hamburger bar — same tabs as the desktop
+       inline nav, rendered as a simple stacked list instead of a wrapping
+       pill row, since a vertical list reads better at hamburger-menu width. */
+    #mobile-nav-drawer {
+      background: var(--surface); border-bottom: 1px solid var(--line);
+      padding: 4px 16px 10px; display: flex; flex-direction: column;
+    }
+    .mobile-nav-item {
+      background: none; border: none; border-bottom: 1px solid var(--line-soft);
+      text-align: left; cursor: pointer; font-family: var(--sans);
+      font-size: 15px; font-weight: 600; color: var(--ink); padding: 13px 4px;
+    }
+    .mobile-nav-item:last-child { border-bottom: none; }
+
     .circle-btn {
       width: 40px; height: 40px; border-radius: 50%; border: none;
       background: var(--surface); color: var(--ink); display: flex; align-items: center; justify-content: center;
@@ -227,47 +268,21 @@
     .filter-chip.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 
     /* ══════════════════════ Section nav ══════════════════════
-       The section names themselves ARE the navigation — Menu (the only
-       swappable tab) + a scroll-to shortcut for every other always-visible
-       section (Digital Downloads, About, Store Policies, Store Hours, one
-       per distinct baker_links section) — no separate heading text
-       anywhere else, no redundant second label. Always visible, even
-       with only "Menu" — a lone heading is still the section's title. */
-    #section-nav-wrap { background: var(--surface); border-bottom: 1px solid var(--line); }
-    /* Wraps instead of horizontally scrolling — every section name needs to
-       be visible up front, not hidden behind a swipe. */
-    #section-nav {
-      display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 14px 20px;
-      /* On a full-viewport-width bar, keep the tab row itself aligned with
-         the same centered column as the rest of the content below it. */
-      max-width: 1200px; margin: 0 auto;
-    }
+       The section names themselves ARE the navigation — Menu, then each
+       general-goods category, then Digital Downloads, then My Links/About/
+       Store Hours/Store Policies — one flat scroll-to item per always-
+       visible section, no separate heading text anywhere else, no
+       redundant second label. Lives inline in #site-header-bar on desktop
+       (see the media query below) and as a stacked list in
+       #mobile-nav-drawer on mobile — #section-nav itself only wraps
+       instead of scrolling for the rare desktop case where it's forced to. */
+    #section-nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
     .section-tab {
       flex-shrink: 0; background: none; border: none; cursor: pointer; font-family: var(--sans);
-      font-size: 16px; font-weight: 700; color: var(--muted); padding: 0 0 4px;
+      font-size: 15px; font-weight: 600; color: var(--muted); padding: 0 0 4px;
       border-bottom: 2px solid transparent; white-space: nowrap;
     }
     .section-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
-
-    /* Shop collapses every product section (Baked Goods, Digital Downloads,
-       each physical category) into one nav entry with a dropdown — without
-       this, a baker with several physical categories would blow the nav bar
-       out to one pill per category. */
-    .shop-tab-wrap { position: relative; }
-    .shop-tab-btn { display: flex; align-items: center; gap: 4px; }
-    .shop-tab-btn .chev { font-size: 11px; }
-    .shop-dropdown {
-      position: absolute; top: calc(100% + 10px); left: 0; z-index: 40;
-      background: var(--surface); border-radius: 14px; padding: 6px;
-      box-shadow: 0 12px 30px -8px rgba(0,0,0,.25); min-width: 200px;
-    }
-    .shop-dropdown.hidden { display: none; }
-    .shop-dropdown-item {
-      display: block; width: 100%; text-align: left; background: none; border: none;
-      font-family: var(--sans); font-size: 14.5px; font-weight: 600; color: var(--ink);
-      padding: 10px 12px; border-radius: 9px; cursor: pointer; white-space: nowrap;
-    }
-    .shop-dropdown-item:hover { background: var(--line-soft); }
 
     /* ══════════════════════ Link sections ══════════════════════
        Always visible, every configured section stacked at once — not one
@@ -597,6 +612,18 @@
          there's no backdrop to separate from and no shadow needed there. */
       #page-shell { box-shadow: 0 8px 40px rgba(20,15,10,.14); }
 
+      /* Swaps the hero above the header bar instead of below it — the only
+         change needed to move #site-header-bar from "above the photo"
+         (mobile) to "below the photo" (desktop); nothing in the bar itself
+         is duplicated or repositioned separately. */
+      #profile-hero { order: -1; }
+
+      #mobile-menu-btn { display: none; }
+      #mobile-nav-drawer { display: none !important; }
+      #nav-bar-brand { flex: 0 0 auto; text-align: left; font-size: 17px; margin-right: 6px; }
+      #site-header-bar { padding: 14px 20px; }
+      #section-nav-wrap { display: block; flex: 1; }
+
       /* auto-fit (not auto-fill) — with only a few cards, auto-fill still
          reserves the grid columns unfilled cards WOULD have used, leaving
          a dead gap where a phantom next card should be. auto-fit collapses
@@ -637,13 +664,25 @@
 
 <div id="page-shell">
 
-<div id="profile-hero">
-  <div id="storefront-header" class="hidden">
-    <img id="header-img" alt="" />
-    <div id="header-scrim"></div>
-  </div>
+<!-- Reserved for a future promo/announcement strip — empty and hidden
+     until a baker sets one. Always first, both mobile and desktop
+     (see #announcement-banner's order:-2). -->
+<div id="announcement-banner" class="hidden"></div>
 
-  <header id="site-header">
+<!-- One shared bar: hamburger + centered brand + icons on mobile (renders
+     above the hero photo, its natural DOM position here), brand + full
+     nav row + icons on desktop (moved below the hero via #profile-hero's
+     order:-1 in the desktop media query) — see the CSS above for why this
+     is a single element rather than two. -->
+<header id="site-header-bar">
+  <button class="icon-btn" id="mobile-menu-btn" aria-label="Menu">
+    <svg width="20" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 1H19M1 7H19M1 13H19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+  </button>
+  <div id="nav-bar-brand"></div>
+  <nav id="section-nav-wrap"><div id="section-nav"></div></nav>
+  <div class="nav-bar-icons">
     <button class="circle-btn" id="share-btn" aria-label="Share">
       <svg width="16" height="19" viewBox="0 0 17 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M8.5 1V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -655,7 +694,19 @@
       <span id="desktop-cart-label">Cart</span>
     </button>
     <button class="circle-btn" id="cart-btn" aria-label="Cart">🛒<span id="cart-btn-count"></span></button>
-  </header>
+  </div>
+</header>
+
+<!-- Mobile-only — same tabs as #section-nav, rendered as a stacked list.
+     Hidden entirely on desktop, where the nav already renders inline
+     above (see #mobile-nav-drawer's display:none!important there). -->
+<div id="mobile-nav-drawer" class="hidden"></div>
+
+<div id="profile-hero">
+  <div id="storefront-header" class="hidden">
+    <img id="header-img" alt="" />
+    <div id="header-scrim"></div>
+  </div>
 
   <section id="profile-block">
     <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
@@ -666,11 +717,7 @@
   </section>
 </div>
 
-<div id="section-nav-wrap">
-  <div id="section-nav"></div>
-</div>
-
-<h2 id="feed-heading" class="section-band-heading hidden">Baked Goods</h2>
+<h2 id="feed-heading" class="section-band-heading hidden">Menu</h2>
 
 <div id="filter-strip">
   <div id="filter-bar" class="hidden"></div>
@@ -960,6 +1007,7 @@
     renderHeaderImage(name);
 
     document.getElementById('shop-name').textContent = name;
+    document.getElementById('nav-bar-brand').textContent = name;
     if (location) {
       document.getElementById('shop-meta-text').textContent = location;
       document.getElementById('shop-meta').classList.remove('hidden');
@@ -980,6 +1028,23 @@
     renderFooter(profile, name);
 
     document.getElementById('share-btn').addEventListener('click', shareLink);
+    document.getElementById('nav-bar-brand').addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    document.getElementById('mobile-menu-btn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      document.getElementById('mobile-nav-drawer').classList.toggle('hidden');
+    });
+    // Closes the mobile nav drawer on any click outside it — wired once
+    // here rather than inside renderSectionNav, since the drawer's
+    // contents get rebuilt on every render but this document-level
+    // listener only ever needs to exist a single time.
+    document.addEventListener('click', function (e) {
+      const drawer = document.getElementById('mobile-nav-drawer');
+      if (!drawer.classList.contains('hidden') && !drawer.contains(e.target)) {
+        closeMobileNav();
+      }
+    });
 
     updateFeedVisibility();
     renderFilterBar();
@@ -1180,25 +1245,25 @@
     return 'link-section-' + (section || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   }
 
-  // Every "shoppable" section — Baked Goods, Digital Downloads, and one
-  // entry per physical category — collapses into a single "Shop" nav item
-  // with a dropdown (see renderSectionNav), rather than one nav pill each.
-  // With physical items split into per-category sections, a pill-per-section
-  // approach would make the nav bar grow without bound as a baker adds
-  // categories; this keeps it at a fixed handful of entries no matter how
-  // many categories exist.
-  function shopSections() {
-    const sections = [];
-    if (menuListings().length > 0) sections.push({ id: 'feed-heading', label: 'Baked Goods' });
-    if (digitalListings().length > 0) sections.push({ id: 'digital-feed', label: 'Digital Downloads' });
+  // Every "shoppable" section is now its own flat nav pill, in a fixed
+  // order: Menu (baked goods) first, then each general-goods (physical)
+  // category — same grid display as Menu — then Digital Downloads last,
+  // still its linear row list. Previously these collapsed into one "Shop"
+  // dropdown to keep the bar short; unpacked back into individual pills
+  // per the baker's request, since a wrapping nav (see #section-nav's
+  // flex-wrap) handles any number of categories fine without a dropdown.
+  function shopNavTabs() {
+    const tabs = [];
+    if (menuListings().length > 0) tabs.push({ id: 'feed-heading', label: 'Menu' });
     groupByCategory(physicalListings(), 'Ships to You').forEach(function (g) {
-      sections.push({ id: 'physical-cat-' + g.slug, label: titleCase(g.category) });
+      tabs.push({ id: 'physical-cat-' + g.slug, label: titleCase(g.category) });
     });
-    return sections;
+    if (digitalListings().length > 0) tabs.push({ id: 'digital-feed', label: 'Digital Downloads' });
+    return tabs;
   }
 
-  // Hours/FAQ/About/Policies/Links aren't shoppable — they stay as their own
-  // individual scroll-to nav pills, same as before Shop existed.
+  // Non-shoppable sections, in the requested order: My Links, then About,
+  // Hours, Policies — each only if the baker actually filled it in.
   function otherNavTabs() {
     const tabs = [];
     bodyLinkSections().forEach(function (s) {
@@ -1210,11 +1275,11 @@
     if (profile && profile.about_story) {
       tabs.push({ id: 'pb-about', label: 'About' });
     }
-    if (profile && profile.store_policies) {
-      tabs.push({ id: 'pb-policies', label: 'Store Policies' });
-    }
     if (hasConfiguredHours(profile && profile.pickup_hours_json)) {
       tabs.push({ id: 'hours-card', label: 'Store Hours' });
+    }
+    if (profile && profile.store_policies) {
+      tabs.push({ id: 'pb-policies', label: 'Store Policies' });
     }
     return tabs;
   }
@@ -1224,60 +1289,40 @@
     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  function closeMobileNav() {
+    document.getElementById('mobile-nav-drawer').classList.add('hidden');
+  }
+
   // The section/category names are the nav — no separate icon per entry, no
-  // duplicate heading text anywhere else.
+  // duplicate heading text anywhere else. Renders the same tab list twice:
+  // inline pills for the desktop bar (#section-nav) and a stacked list for
+  // the mobile drawer (#mobile-nav-drawer) — one click handler per tab,
+  // shared between both.
   function renderSectionNav() {
-    const shop = shopSections();
-    const others = otherNavTabs();
+    const tabs = shopNavTabs().concat(otherNavTabs());
     const nav = document.getElementById('section-nav');
+    const drawer = document.getElementById('mobile-nav-drawer');
     // Nothing to navigate to at all — a brand-new baker with no listings and
-    // no other section filled out yet. Hide the strip rather than show an
-    // empty bar with a stray border line.
-    document.getElementById('section-nav-wrap').classList.toggle('hidden', shop.length === 0 && others.length === 0);
+    // no other section filled out yet. Hide the desktop nav slot and the
+    // mobile hamburger button rather than show either with nothing in it.
+    document.getElementById('section-nav-wrap').classList.toggle('hidden', tabs.length === 0);
+    document.getElementById('mobile-menu-btn').classList.toggle('hidden', tabs.length === 0);
     nav.innerHTML = '';
-
-    if (shop.length > 0) {
-      const wrap = document.createElement('div');
-      wrap.className = 'shop-tab-wrap';
-      const btn = document.createElement('button');
-      btn.className = 'section-tab shop-tab-btn';
-      btn.innerHTML = 'Shop <span class="chev">▾</span>';
-      const dropdown = document.createElement('div');
-      dropdown.className = 'shop-dropdown hidden';
-      shop.forEach(function (s) {
-        const item = document.createElement('button');
-        item.className = 'shop-dropdown-item';
-        item.textContent = s.label;
-        item.addEventListener('click', function () {
-          dropdown.classList.add('hidden');
-          scrollToSection(s.id);
-        });
-        dropdown.appendChild(item);
-      });
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        dropdown.classList.toggle('hidden');
-      });
-      wrap.appendChild(btn);
-      wrap.appendChild(dropdown);
-      nav.appendChild(wrap);
-    }
-
-    others.forEach(function (t) {
+    drawer.innerHTML = '';
+    tabs.forEach(function (t) {
       const btn = document.createElement('button');
       btn.className = 'section-tab';
       btn.textContent = t.label;
       btn.addEventListener('click', function () { scrollToSection(t.id); });
       nav.appendChild(btn);
+
+      const drawerBtn = document.createElement('button');
+      drawerBtn.className = 'mobile-nav-item';
+      drawerBtn.textContent = t.label;
+      drawerBtn.addEventListener('click', function () { closeMobileNav(); scrollToSection(t.id); });
+      drawer.appendChild(drawerBtn);
     });
   }
-
-  // Closes the Shop dropdown on any click outside it — wired once, not
-  // per-render, since renderSectionNav rebuilds the dropdown but this
-  // document-level listener only ever needs to exist a single time.
-  document.addEventListener('click', function () {
-    document.querySelectorAll('.shop-dropdown').forEach(function (d) { d.classList.add('hidden'); });
-  });
 
   // Always-visible — every non-Social link section renders at once, each in
   // its own labeled block, instead of one section swapped in at a time
