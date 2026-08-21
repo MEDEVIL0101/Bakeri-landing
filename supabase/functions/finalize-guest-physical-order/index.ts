@@ -124,11 +124,12 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("business_name, user_name, stripe_connect_account_id")
+    .select("business_name, user_name, stripe_connect_account_id, shipping_free_over_threshold")
     .eq("id", bakerId)
     .single();
   const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || "Baker";
   const connectedAccountId = bakerProfile?.stripe_connect_account_id ?? null;
+  const shippingFreeOverThreshold = bakerProfile?.shipping_free_over_threshold ?? 0;
 
   // A ship cart is always single-baker, so the PaymentIntent
   // create-payment-intent made for this was a direct charge on that baker's
@@ -191,11 +192,16 @@ Deno.serve(async (req: Request) => {
   );
   // Flat manual fee, once per distinct listing (not per unit) — same
   // reasoning as the storefront cart total. Re-derived here from the
-  // baker's own listing rather than trusted from the client.
-  const shippingFeeCents = items.reduce(
-    (sum, i) => sum + Math.round((i.shipping_fee ?? 0) * 100),
-    0
-  );
+  // baker's own listing rather than trusted from the client. Waived
+  // entirely once the item subtotal alone clears the baker's storefront-
+  // wide free-shipping threshold (0 = no such rule) — same rule the
+  // storefront cart applies before charging, re-applied here so this
+  // recomputed total always matches what create-payment-intent actually
+  // charged.
+  const shippingFreeOverThresholdCents = Math.round(shippingFreeOverThreshold * 100);
+  const shippingFeeCents = (shippingFreeOverThresholdCents > 0 && subtotalCents >= shippingFreeOverThresholdCents)
+    ? 0
+    : items.reduce((sum, i) => sum + Math.round((i.shipping_fee ?? 0) * 100), 0);
   // Guest checkout: buyer pays exactly the item price(s) plus shipping —
   // Bakeri's service charge comes out of the baker's cut instead (see
   // create-payment-intent), computed off the item subtotal only, same as

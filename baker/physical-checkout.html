@@ -158,9 +158,15 @@
     if (items.length === 0) { showMessage('Sold out', 'These items are no longer available.'); return; }
     // Guest checkout: buyer pays the listed price(s) plus each item's flat
     // shipping fee (once per distinct item, not multiplied by qty) — Bakeri's
-    // service charge still only comes out of the baker's side.
-    shippingFeeTotal = items.reduce(function (s, i) { return s + (i.shipping_fee || 0); }, 0);
-    total = items.reduce(function (s, i) { return s + i.price * i.qty; }, 0) + shippingFeeTotal;
+    // service charge still only comes out of the baker's side. Waived
+    // entirely once the item subtotal alone clears the baker's storefront-
+    // wide free-shipping threshold (0 = no such rule, see WebShopShippingSheet).
+    const itemsSubtotal = items.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
+    const freeOverThreshold = (data.profile && data.profile.shipping_free_over_threshold) || 0;
+    shippingFeeTotal = (freeOverThreshold > 0 && itemsSubtotal >= freeOverThreshold)
+      ? 0
+      : items.reduce(function (s, i) { return s + (i.shipping_fee || 0); }, 0);
+    total = itemsSubtotal + shippingFeeTotal;
     renderForm();
   })
   .catch(function () { showMessage('Something went wrong', 'Could not load this item. Please try again later.'); });

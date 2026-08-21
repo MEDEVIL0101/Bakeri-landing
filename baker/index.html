@@ -1791,16 +1791,24 @@
       return item ? { item: item, qty: shipCart[id] } : null;
     }).filter(Boolean);
   }
+  function shipCartItemsSubtotal() {
+    return shipCartItems().reduce(function (s, l) { return s + l.item.price * l.qty; }, 0);
+  }
   // Shipping fee is a flat per-listing amount (set by the baker, see
   // AddEditMenuItemView) charged once per distinct item in the cart, not
   // once per unit — ordering 3 of the same cookie cutter shouldn't triple
   // it. Real carrier-computed rates are a later integration; this is just
-  // the manual placeholder for it.
+  // the manual placeholder for it. A baker can also set a storefront-wide
+  // "free shipping over $X" (profile.shipping_free_over_threshold, see
+  // WebShopShippingSheet) that waives every item's fee once the ship-cart's
+  // item subtotal alone clears it.
   function shipCartShippingFees() {
+    const threshold = (profile && profile.shipping_free_over_threshold) || 0;
+    if (threshold > 0 && shipCartItemsSubtotal() >= threshold) return 0;
     return shipCartItems().reduce(function (s, l) { return s + (l.item.shipping_fee || 0); }, 0);
   }
   function shipCartTotal() {
-    return shipCartItems().reduce(function (s, l) { return s + l.item.price * l.qty; }, 0) + shipCartShippingFees();
+    return shipCartItemsSubtotal() + shipCartShippingFees();
   }
   function changeShipQty(item, delta) {
     const current = shipCart[item.id] || 0;
@@ -2560,7 +2568,7 @@
       (shipLinesData.length > 0 ? (
         '<div class="cart-section-label">Ships to You</div>' +
         shipRows +
-        '<div class="cart-financial-row"><span>Items subtotal</span><span class="tabular">$' + formatPrice(shipCartTotal() - shipCartShippingFees()) + '</span></div>' +
+        '<div class="cart-financial-row"><span>Items subtotal</span><span class="tabular">$' + formatPrice(shipCartItemsSubtotal()) + '</span></div>' +
         (shipCartShippingFees() > 0 ? '<div class="cart-financial-row"><span>Shipping fee</span><span class="tabular">$' + formatPrice(shipCartShippingFees()) + '</span></div>' : '')
       ) : '') +
       '<div class="cart-financial-row total"><span>Total</span><span class="tabular">$' + formatPrice(grandTotal) + '</span></div>' +
@@ -2737,9 +2745,16 @@
       // A third, independent leg — same reasoning as digitalItems above,
       // but stock-bound (qty can be >1) and needs a shipping address,
       // which checkout.html collects just before charging this leg.
-      shipItems: shipCartItems().map(function (l) {
-        return { id: l.item.id, name: l.item.name, price: l.item.price, qty: l.qty, leadDays: l.item.lead_days || 3, shippingFee: l.item.shipping_fee || 0 };
-      })
+      // Per-item fees are zeroed here (rather than passed raw) whenever
+      // shipCartShippingFees() came back waived by the baker's free-
+      // shipping threshold, so checkout.html — which just sums whatever
+      // shippingFee arrives per item — naturally charges $0 shipping too.
+      shipItems: (function () {
+        const waived = shipCartItemsSubtotal() > 0 && shipCartShippingFees() === 0;
+        return shipCartItems().map(function (l) {
+          return { id: l.item.id, name: l.item.name, price: l.item.price, qty: l.qty, leadDays: l.item.lead_days || 3, shippingFee: waived ? 0 : (l.item.shipping_fee || 0) };
+        });
+      })()
     };
     sessionStorage.setItem('bakeri_checkout_cart', JSON.stringify(payload));
     window.location.href = '/baker/checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
