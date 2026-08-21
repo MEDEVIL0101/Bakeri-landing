@@ -205,6 +205,12 @@
     .section-band { background: var(--surface); padding: 20px 20px 24px; }
     .section-band + .section-band { border-top: 1px solid var(--line); }
     .section-band h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+    /* Sits outside #feed (the filter chips/grid are their own elements, not
+       nested under one wrapper) so the heading can lead them both. */
+    .section-band-heading {
+      font-size: 16px; font-weight: 700; color: var(--ink);
+      background: var(--surface); padding: 20px 20px 0;
+    }
 
     /* ══════════════════════ Filter strip — white band ══════════════════ */
     #filter-strip { background: var(--surface); border-bottom: 1px solid var(--line); }
@@ -243,6 +249,26 @@
     }
     .section-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
 
+    /* Shop collapses every product section (Baked Goods, Digital Downloads,
+       each physical category) into one nav entry with a dropdown — without
+       this, a baker with several physical categories would blow the nav bar
+       out to one pill per category. */
+    .shop-tab-wrap { position: relative; }
+    .shop-tab-btn { display: flex; align-items: center; gap: 4px; }
+    .shop-tab-btn .chev { font-size: 11px; }
+    .shop-dropdown {
+      position: absolute; top: calc(100% + 10px); left: 0; z-index: 40;
+      background: var(--surface); border-radius: 14px; padding: 6px;
+      box-shadow: 0 12px 30px -8px rgba(0,0,0,.25); min-width: 200px;
+    }
+    .shop-dropdown.hidden { display: none; }
+    .shop-dropdown-item {
+      display: block; width: 100%; text-align: left; background: none; border: none;
+      font-family: var(--sans); font-size: 14.5px; font-weight: 600; color: var(--ink);
+      padding: 10px 12px; border-radius: 9px; cursor: pointer; white-space: nowrap;
+    }
+    .shop-dropdown-item:hover { background: var(--line-soft); }
+
     /* ══════════════════════ Link sections ══════════════════════
        Always visible, every configured section stacked at once — not one
        swapped in behind a nav click, which made Social links effectively
@@ -268,7 +294,16 @@
        chosen background pattern shows behind these cards (theme.js's
        #theme-pattern-layer). */
     #feed { padding: 18px 20px 28px; }
-    #product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    #product-grid, .product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+    /* ══════════════════════ Shop sections (categories) ══════════════════
+       Physical items group into one headed block per category (Cookie
+       Cutters, Cookie Stamps, ...) instead of one flat list — each block
+       reuses .product-grid, the same photo-card grid the Menu section uses. */
+    .category-block { padding: 18px 20px 8px; background: var(--surface); }
+    .category-block h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+    .category-block:first-child { border-top: 1px solid var(--line); }
+    .category-block:last-child { padding-bottom: 28px; }
 
     /* Digital Downloads render as plain rows, not photo-grid cards — a file
        isn't a physical product you're judging by its thumbnail the way a
@@ -566,12 +601,12 @@
          reserves the grid columns unfilled cards WOULD have used, leaving
          a dead gap where a phantom next card should be. auto-fit collapses
          those, letting the real cards stretch to actually fill the row. */
-      #product-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+      #product-grid, .product-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
       /* A lone card has no neighbors to share the row with, so auto-fit's
          one remaining track stretches to the full container width instead
          of staying card-sized — cap it explicitly for the single-item case
          without touching the intentional stretch behavior for 2+ cards. */
-      #product-grid:has(> .p-card:only-child) { grid-template-columns: minmax(180px, 320px); }
+      #product-grid:has(> .p-card:only-child), .product-grid:has(> .p-card:only-child) { grid-template-columns: minmax(180px, 320px); }
       .p-card:hover .p-photo { opacity: .92; }
 
       /* Roughly a quarter of the (up to 1200px) content column, not the 42%
@@ -635,12 +670,14 @@
   <div id="section-nav"></div>
 </div>
 
+<h2 id="feed-heading" class="section-band-heading hidden">Baked Goods</h2>
+
 <div id="filter-strip">
   <div id="filter-bar" class="hidden"></div>
 </div>
 
 <section id="feed" class="section-band">
-  <div id="product-grid"></div>
+  <div id="product-grid" class="product-grid"></div>
 </section>
 
 <section id="digital-feed" class="section-band hidden">
@@ -648,10 +685,12 @@
   <div id="digital-grid"></div>
 </section>
 
-<section id="physical-feed" class="section-band hidden">
-  <h2 id="physical-feed-heading">Ships to You</h2>
-  <div id="physical-grid"></div>
-</section>
+<!-- Fully JS-populated (see renderPhysicalFeed) — one .category-block
+     (heading + .product-grid) per distinct category among physical
+     listings, rather than one flat list, since "ships to you" spans
+     genuinely different product types (cookie cutters vs. printable
+     labels vs. kits). -->
+<section id="physical-feed" class="hidden"></section>
 
 <!-- Links sits ahead of About, right after Menu/Digital Downloads/Ships to
      You — a baker selling nothing yet is very often running this page as a
@@ -805,7 +844,6 @@
   let allLinks = [];
   let resolvedBakerId = bakerID;
   let tab = 'all';
-  let sectionTab = 'menu'; // 'menu' is the only real tab now — see sectionTabs()
   let cart = {}; // { itemId: qty } — ready_now items only; preorder always uses preorderCartLines below
   let boxCartLines = []; // Assorted Box lines: { lineId, menuItemId, tierId, tierLabel, unitCount, price, qty, variants: [{variantId, name, qty}] }
   let boxState = null; // in-progress box picker: { item, tierId, chosen: {variantId: qty} }
@@ -943,8 +981,10 @@
 
     document.getElementById('share-btn').addEventListener('click', shareLink);
 
+    updateFeedVisibility();
+    renderFilterBar();
+    renderGrid();
     renderSectionNav();
-    applySectionTab();
     updateCartUI();
     updateDigitalCartUI();
     updateShipCartUI();
@@ -1089,6 +1129,30 @@
   function digitalListings() { return allListings.filter(function (l) { return l.listing_kind === 'digital'; }); }
   function physicalListings() { return allListings.filter(function (l) { return l.listing_kind === 'physical'; }); }
 
+  // ── Category grouping (physical items only, for now) ──────────────────
+  // category is free text a baker types/picks in the app — never trusted to
+  // already be display-ready casing, and never assumed to be one of a fixed
+  // set, so this groups on the raw string but only ever *displays* the
+  // title-cased version.
+  function slugify(str) {
+    return (str || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'other';
+  }
+  function titleCase(str) {
+    return (str || '').toLowerCase().replace(/\b([a-z])/g, function (m, c) { return c.toUpperCase(); });
+  }
+  // Returns [{ category, slug, items }], sorted alphabetically by category —
+  // same convention the app's own MenuView already groups listings by.
+  function groupByCategory(items, fallbackName) {
+    const map = {};
+    items.forEach(function (item) {
+      const cat = (item.category || '').trim() || fallbackName;
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(item);
+    });
+    return Object.keys(map).sort(function (a, b) { return a.localeCompare(b); })
+      .map(function (cat) { return { category: cat, slug: slugify(cat), items: map[cat] }; });
+  }
+
   function linkSections() {
     const seen = [];
     allLinks.forEach(function (l) {
@@ -1112,98 +1176,108 @@
   // immediately, not just links saved going forward.
   function bodyLinkSections() { return linkSections().some(function (s) { return !isSocialSection(s); }) ? ['My Links'] : []; }
 
-  function sectionTabs() {
-    // "Menu" is the only real swappable tab — only shown once the baker has
-    // at least one ready_now/preorder/custom listing (see updateFeedVisibility;
-    // the section itself is absent otherwise, so a nav entry pointing at
-    // nothing would be misleading).
-    return menuListings().length > 0 ? [{ key: 'menu', label: 'Menu' }] : [];
-  }
-
   function linkSectionId(section) {
     return 'link-section-' + (section || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   }
 
-  // Digital Downloads/Hours/FAQ/About/Policies/Links aren't switchable
-  // content panels like Menu — they're supplementary content that stays in
-  // place, always visible, further down the page (link sections and
-  // digital listings used to be swappable tabs, hidden until clicked —
-  // bakers reported that made that content effectively invisible, since
-  // nothing hinted a visitor needed to tap the nav to find it). Each
-  // configured one gets a scroll-to shortcut (scroll:<id>) in the nav
-  // instead of a tab that swaps out the feed.
-  function scrollTabs() {
+  // Every "shoppable" section — Baked Goods, Digital Downloads, and one
+  // entry per physical category — collapses into a single "Shop" nav item
+  // with a dropdown (see renderSectionNav), rather than one nav pill each.
+  // With physical items split into per-category sections, a pill-per-section
+  // approach would make the nav bar grow without bound as a baker adds
+  // categories; this keeps it at a fixed handful of entries no matter how
+  // many categories exist.
+  function shopSections() {
+    const sections = [];
+    if (menuListings().length > 0) sections.push({ id: 'feed-heading', label: 'Baked Goods' });
+    if (digitalListings().length > 0) sections.push({ id: 'digital-feed', label: 'Digital Downloads' });
+    groupByCategory(physicalListings(), 'Ships to You').forEach(function (g) {
+      sections.push({ id: 'physical-cat-' + g.slug, label: titleCase(g.category) });
+    });
+    return sections;
+  }
+
+  // Hours/FAQ/About/Policies/Links aren't shoppable — they stay as their own
+  // individual scroll-to nav pills, same as before Shop existed.
+  function otherNavTabs() {
     const tabs = [];
-    // Digital Downloads, then Ships to You, then Links, then About — nav
-    // order and DOM order must stay in lockstep for every entry in this
-    // list (see the markup comment above #links-feed for why Links sits
-    // ahead of About).
-    if (digitalListings().length > 0) {
-      tabs.push({ key: 'scroll:digital-feed', label: 'Digital Downloads' });
-    }
-    if (physicalListings().length > 0) {
-      tabs.push({ key: 'scroll:physical-feed', label: 'Ships to You' });
-    }
-    // Social isn't in this list — it's not a scroll-to destination further
-    // down the page anymore, it's the icon row already visible in the hero.
     bodyLinkSections().forEach(function (s) {
-      tabs.push({ key: 'scroll:' + linkSectionId(s), label: s });
+      tabs.push({ id: linkSectionId(s), label: s });
     });
     // Label is always the plain section name, never the baker-editable
     // about_heading — the nav is a fixed set of destinations, not a place
     // for a custom, possibly-long "Meet Juliana"-style heading to show up.
     if (profile && profile.about_story) {
-      tabs.push({ key: 'scroll:pb-about', label: 'About' });
+      tabs.push({ id: 'pb-about', label: 'About' });
     }
     if (profile && profile.store_policies) {
-      tabs.push({ key: 'scroll:pb-policies', label: 'Store Policies' });
+      tabs.push({ id: 'pb-policies', label: 'Store Policies' });
     }
     if (hasConfiguredHours(profile && profile.pickup_hours_json)) {
-      tabs.push({ key: 'scroll:hours-card', label: 'Store Hours' });
+      tabs.push({ id: 'hours-card', label: 'Store Hours' });
     }
     return tabs;
   }
 
-  // The section names are the nav — no separate thumbnail/icon per tab,
-  // no separate heading text anywhere else. Always rendered, even with
-  // just "Menu" alone, since it's also that content's only heading.
+  function scrollToSection(id) {
+    const target = document.getElementById(id);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // The section/category names are the nav — no separate icon per entry, no
+  // duplicate heading text anywhere else.
   function renderSectionNav() {
-    const tabs = sectionTabs().concat(scrollTabs());
+    const shop = shopSections();
+    const others = otherNavTabs();
     const nav = document.getElementById('section-nav');
     // Nothing to navigate to at all — a brand-new baker with no listings and
     // no other section filled out yet. Hide the strip rather than show an
     // empty bar with a stray border line.
-    document.getElementById('section-nav-wrap').classList.toggle('hidden', tabs.length === 0);
+    document.getElementById('section-nav-wrap').classList.toggle('hidden', shop.length === 0 && others.length === 0);
     nav.innerHTML = '';
-    tabs.forEach(function (t) {
-      const isScroll = t.key.indexOf('scroll:') === 0;
+
+    if (shop.length > 0) {
+      const wrap = document.createElement('div');
+      wrap.className = 'shop-tab-wrap';
       const btn = document.createElement('button');
-      btn.className = 'section-tab' + (!isScroll && t.key === sectionTab ? ' active' : '');
-      btn.dataset.key = t.key;
-      btn.textContent = t.label;
-      btn.addEventListener('click', function () {
-        if (isScroll) {
-          const target = document.getElementById(t.key.slice('scroll:'.length));
-          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-          setSectionTab(t.key);
-        }
+      btn.className = 'section-tab shop-tab-btn';
+      btn.innerHTML = 'Shop <span class="chev">▾</span>';
+      const dropdown = document.createElement('div');
+      dropdown.className = 'shop-dropdown hidden';
+      shop.forEach(function (s) {
+        const item = document.createElement('button');
+        item.className = 'shop-dropdown-item';
+        item.textContent = s.label;
+        item.addEventListener('click', function () {
+          dropdown.classList.add('hidden');
+          scrollToSection(s.id);
+        });
+        dropdown.appendChild(item);
       });
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        dropdown.classList.toggle('hidden');
+      });
+      wrap.appendChild(btn);
+      wrap.appendChild(dropdown);
+      nav.appendChild(wrap);
+    }
+
+    others.forEach(function (t) {
+      const btn = document.createElement('button');
+      btn.className = 'section-tab';
+      btn.textContent = t.label;
+      btn.addEventListener('click', function () { scrollToSection(t.id); });
       nav.appendChild(btn);
     });
   }
 
-  function setSectionTab(key) {
-    sectionTab = key;
-    document.querySelectorAll('.section-tab').forEach(function (b) { b.classList.toggle('active', b.dataset.key === key); });
-    applySectionTab();
-  }
-
-  function applySectionTab() {
-    updateFeedVisibility();
-    renderFilterBar();
-    renderGrid();
-  }
+  // Closes the Shop dropdown on any click outside it — wired once, not
+  // per-render, since renderSectionNav rebuilds the dropdown but this
+  // document-level listener only ever needs to exist a single time.
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.shop-dropdown').forEach(function (d) { d.classList.add('hidden'); });
+  });
 
   // Always-visible — every non-Social link section renders at once, each in
   // its own labeled block, instead of one section swapped in at a time
@@ -1302,7 +1376,7 @@
   function renderFilterBar() {
     const strip = document.getElementById('filter-strip');
     const bar = document.getElementById('filter-bar');
-    if (sectionTab !== 'menu' || menuListings().length === 0) {
+    if (menuListings().length === 0) {
       strip.classList.add('hidden');
       bar.classList.add('hidden');
       return;
@@ -1346,7 +1420,9 @@
   // what the baker has actually made available." Digital Downloads is a
   // fully separate section (see renderDigitalFeed) so it's unaffected.
   function updateFeedVisibility() {
-    document.getElementById('feed').classList.toggle('hidden', menuListings().length === 0);
+    const noMenu = menuListings().length === 0;
+    document.getElementById('feed').classList.toggle('hidden', noMenu);
+    document.getElementById('feed-heading').classList.toggle('hidden', noMenu);
   }
 
   // Always-visible, directly under the Menu grid — matches how Links/About/
@@ -1368,23 +1444,35 @@
     });
   }
 
-  // Same always-visible treatment as Digital Downloads above — a separate
-  // section, not a swappable tab. buildDigitalRow is a plain row builder
-  // (thumb/name/subtitle/price/add-control) with nothing digital-specific
-  // in it, so it's reused as-is rather than duplicated.
+  // Always-visible, like Digital Downloads above, but split into one
+  // headed .category-block per distinct category ("Cookie Cutters",
+  // "Cookie Stamps", "Cookie Kits", ...) rather than one flat list —
+  // physical spans genuinely different product types in a way a single
+  // "Ships to You" grid couldn't tell apart. Cards use buildCard (the same
+  // full-photo badged grid card Ready Now/Pre-order/Custom use), not
+  // buildDigitalRow — a physical good is worth judging by its photo the way
+  // a digital file isn't.
   function renderPhysicalFeed() {
     const section = document.getElementById('physical-feed');
-    const grid = document.getElementById('physical-grid');
     const items = physicalListings();
+    section.innerHTML = '';
     if (items.length === 0) {
       section.classList.add('hidden');
-      grid.innerHTML = '';
       return;
     }
     section.classList.remove('hidden');
-    grid.innerHTML = '';
-    items.forEach(function (item) {
-      grid.appendChild(buildDigitalRow(item));
+    groupByCategory(items, 'Ships to You').forEach(function (g) {
+      const block = document.createElement('div');
+      block.className = 'category-block';
+      block.id = 'physical-cat-' + g.slug;
+      const heading = document.createElement('h2');
+      heading.textContent = titleCase(g.category);
+      const grid = document.createElement('div');
+      grid.className = 'product-grid';
+      g.items.forEach(function (item) { grid.appendChild(buildCard(item)); });
+      block.appendChild(heading);
+      block.appendChild(grid);
+      section.appendChild(block);
     });
   }
 
@@ -1825,7 +1913,7 @@
     badgeEl.innerHTML = '<span class="dot"></span>' + badge.label;
 
     const ph = document.getElementById('item-sheet-ph');
-    ph.textContent = categoryEmoji(item.category);
+    ph.textContent = categoryEmoji(item);
     ph.style.display = 'flex';
     const img = document.getElementById('item-sheet-img');
     img.style.display = 'none';
@@ -2786,7 +2874,7 @@
     const ph = document.createElement('div');
     ph.className = 'ph-fallback';
     ph.style.position = 'absolute'; ph.style.inset = '0';
-    ph.textContent = categoryEmoji(item.category);
+    ph.textContent = categoryEmoji(item);
     return ph;
   }
 
@@ -2803,13 +2891,20 @@
       '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
   }
 
-  function categoryEmoji(cat) {
+  // Falls back by listing_kind rather than always defaulting to 🍰 — a cake
+  // slice is a nonsensical placeholder for an unrecognized physical or
+  // digital category (a baker's own free-text "Cookie Cutters"/"Printable
+  // Labels"/etc. will never all be enumerable here).
+  function categoryEmoji(item) {
     const map = {
       'Cakes': '🎂', 'Cookies': '🍪', 'Bread': '🍞', 'Pastries': '🥐',
       'Cupcakes': '🧁', 'Pies': '🥧', 'Donuts': '🍩', 'Macarons': '🫶',
       'Muffins': '🧁', 'Bars': '🍫'
     };
-    return map[cat] || '🍰';
+    if (map[item.category]) return map[item.category];
+    if (item.listing_kind === 'physical') return '📦';
+    if (item.listing_kind === 'digital') return '📄';
+    return '🍰';
   }
 
   function escapeHtml(str) {
