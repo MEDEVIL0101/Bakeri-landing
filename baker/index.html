@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bakeri</title>
   <meta name="description" content="View this baker's storefront on Bakeri." />
+  <!-- Without an explicit theme-color, iOS Safari/SFSafariViewController
+       guesses the status-bar/toolbar tint itself — and evidently guesses
+       the theme-tinted page background (a baker's pink/lavender/etc, from
+       --bg) rather than the actual header bar color, showing as a stray
+       color strip above #site-header-bar. --surface (unlike --bg) never
+       varies per baker, so this can be a plain static value matching it
+       exactly, with a dark-mode variant for the dark --surface. -->
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#241A14" media="(prefers-color-scheme: dark)" />
   <link rel="icon" type="image/png" href="../assets/favicon.png" />
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
   <script src="theme.js"></script>
