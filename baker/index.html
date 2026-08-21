@@ -59,7 +59,13 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    /* iOS WKWebView paints the rubber-band overscroll area (pulling past the
+       very top or bottom) using <html>'s background, not <body>'s — left
+       unset, that region showed body's theme-tinted --bg (e.g. this baker's
+       pale pink) instead of the header bar's actual white. Matches
+       #site-header-bar's own --surface so the bounce reads as an extension
+       of the bar, not a mismatched color peeking out above it. */
+    html { scroll-behavior: smooth; background: var(--surface); }
     body {
       font-family: var(--sans);
       background: var(--bg);
