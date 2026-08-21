@@ -24,6 +24,11 @@ interface RequestBody {
   items: CartItemPayload[];
   currency?: string;
   tax_amount_cents?: number;
+  // Flat manual shipping fee(s), summed client-side (once per distinct
+  // physical listing, not per unit) and re-validated below before it's
+  // trusted for the actual charge. Only ever present for a physical-only
+  // cart. Real carrier-computed rates are a later integration.
+  shipping_fee_cents?: number;
 }
 
 type PaymentFlow = "immediate" | "setup_intent" | "deposit_and_save";
@@ -111,7 +116,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const isApp = await isAuthenticatedBuyer(req.headers.get("Authorization"));
-    const { items, currency: requestedCurrency = "cad", tax_amount_cents = 0 }: RequestBody = await req.json();
+    const { items, currency: requestedCurrency = "cad", tax_amount_cents = 0, shipping_fee_cents = 0 }: RequestBody = await req.json();
 
     if (!items || items.length === 0) {
       return new Response(JSON.stringify({ error: "No items" }), {
@@ -132,7 +137,11 @@ Deno.serve(async (req: Request) => {
     const itemsTotalCents = Math.round(
       items.reduce((sum, item) => sum + item.price_from * item.quantity, 0) * 100
     );
-    const fullTotalCents = itemsTotalCents + (tax_amount_cents ?? 0);
+    // shipping_fee_cents is a flat manual fee (see MenuItem.shippingFee),
+    // trusted the same way tax_amount_cents already is — a pass-through
+    // the platform doesn't take a cut of, not part of the service-charge
+    // base below. Only ever non-zero for a physical-only cart.
+    const fullTotalCents = itemsTotalCents + (tax_amount_cents ?? 0) + (shipping_fee_cents ?? 0);
 
     // For deposit flow: deposit is 50% of items total only (tax due at final payment)
     const depositAmountCents = paymentFlow === "deposit_and_save"

@@ -188,7 +188,9 @@
   // hold. Needs a shipping address, which nothing before this page collects
   // (renderShipAddressForm gathers it right before its PaymentIntent).
   const shipItems = Array.isArray(cart.shipItems) ? cart.shipItems : [];
-  const shipSubtotal = shipItems.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
+  const shipItemsSubtotal = shipItems.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
+  const shipShippingFeeTotal = shipItems.reduce(function (s, i) { return s + (i.shippingFee || 0); }, 0);
+  const shipSubtotal = shipItemsSubtotal + shipShippingFeeTotal;
 
   const grandTotal = total + digitalSubtotal + shipSubtotal;
   let physicalResult = null;
@@ -235,7 +237,8 @@
       (shipItems.length > 0 ? (
         '<div class="eyebrow" style="margin-top:14px;">Ships to You</div>' +
         shipLines +
-        '<div class="totals-row"><span>Shipping items subtotal</span><span>$' + shipSubtotal.toFixed(2) + '</span></div>'
+        '<div class="totals-row"><span>Items subtotal</span><span>$' + shipItemsSubtotal.toFixed(2) + '</span></div>' +
+        (shipShippingFeeTotal > 0 ? '<div class="totals-row"><span>Shipping fee</span><span>$' + shipShippingFeeTotal.toFixed(2) + '</span></div>' : '')
       ) : '') +
       '<div class="totals-row grand"><span>Total</span><span>$' + grandTotal.toFixed(2) + '</span></div>' +
       '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
@@ -560,7 +563,8 @@
         items: shipItems.map(function (i) {
           return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical' };
         }),
-        currency: 'cad'
+        currency: 'cad',
+        shipping_fee_cents: Math.round(shipShippingFeeTotal * 100)
       })
     })
     .then(function (r) { return r.json(); })
@@ -678,6 +682,7 @@
           return '<div class="order-line"><div><div class="n">' + i.qty + '× ' + escapeHtml(i.name) + '</div></div>' +
             '<span class="p">$' + (i.price * i.qty).toFixed(2) + '</span></div>';
         }).join('') +
+        (shipShippingFeeTotal > 0 ? '<div class="totals-row"><span>Shipping fee</span><span>$' + shipShippingFeeTotal.toFixed(2) + '</span></div>' : '') +
         '<div class="totals-row grand"><span>Total</span><span>$' + shipSubtotal.toFixed(2) + '</span></div>' +
       '</div>'
     ) : (shipError ? (

@@ -132,6 +132,7 @@
 
   let items = [];
   let total = 0;
+  let shippingFeeTotal = 0;
   let shipAddress = null;
 
   fetch(SUPABASE_URL + '/rest/v1/rpc/get_baker_web_profile_by_id', {
@@ -155,9 +156,11 @@
         return Object.assign({}, l, { qty: Math.min(requestedQty[l.id] || 1, l.available_qty_today) });
       });
     if (items.length === 0) { showMessage('Sold out', 'These items are no longer available.'); return; }
-    // Guest checkout: buyer pays exactly the listed price(s) — no fee added
-    // on top (Bakeri's service charge comes out of the baker's side).
-    total = items.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
+    // Guest checkout: buyer pays the listed price(s) plus each item's flat
+    // shipping fee (once per distinct item, not multiplied by qty) — Bakeri's
+    // service charge still only comes out of the baker's side.
+    shippingFeeTotal = items.reduce(function (s, i) { return s + (i.shipping_fee || 0); }, 0);
+    total = items.reduce(function (s, i) { return s + i.price * i.qty; }, 0) + shippingFeeTotal;
     renderForm();
   })
   .catch(function () { showMessage('Something went wrong', 'Could not load this item. Please try again later.'); });
@@ -172,6 +175,7 @@
       '<div class="eyebrow">Buy</div>' +
       '<div class="heading">' + (items.length === 1 ? escapeHtml(items[0].name) : items.length + ' Items') + '</div>' +
       lines +
+      (shippingFeeTotal > 0 ? '<div class="totals-row"><span>Shipping</span><span>$' + shippingFeeTotal.toFixed(2) + '</span></div>' : '') +
       '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
       '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
       '<div class="field"><label>Email</label><input id="f-email" type="email" autocomplete="email" /></div>' +
@@ -234,7 +238,8 @@
         items: items.map(function (i) {
           return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical' };
         }),
-        currency: 'cad'
+        currency: 'cad',
+        shipping_fee_cents: Math.round(shippingFeeTotal * 100)
       })
     })
     .then(function (r) { return r.json(); })

@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
   // Re-fetch every listing server-side — never trust client-supplied price/name.
   const { data: items, error: itemsErr } = await db
     .from("menu_items")
-    .select("id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, available_qty_today, unit")
+    .select("id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, available_qty_today, unit, shipping_fee")
     .in("id", menuItemIds);
 
   if (itemsErr || !items || items.length !== menuItemIds.length) {
@@ -189,10 +189,19 @@ Deno.serve(async (req: Request) => {
     (sum, i) => sum + (priceCentsById.get(i.id) ?? 0) * (qtyById.get(i.id as string) ?? 0),
     0
   );
-  // Guest checkout: buyer pays exactly the item price(s) — Bakeri's service
-  // charge comes out of the baker's cut instead (see create-payment-intent).
+  // Flat manual fee, once per distinct listing (not per unit) — same
+  // reasoning as the storefront cart total. Re-derived here from the
+  // baker's own listing rather than trusted from the client.
+  const shippingFeeCents = items.reduce(
+    (sum, i) => sum + Math.round((i.shipping_fee ?? 0) * 100),
+    0
+  );
+  // Guest checkout: buyer pays exactly the item price(s) plus shipping —
+  // Bakeri's service charge comes out of the baker's cut instead (see
+  // create-payment-intent), computed off the item subtotal only, same as
+  // tax/shipping never being part of that base elsewhere in the app.
   const platformFeeCents = Math.round(subtotalCents * PLATFORM_FEE_RATE);
-  const totalCents = subtotalCents;
+  const totalCents = subtotalCents + shippingFeeCents;
 
   const settlement = connectedAccountId
     ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, platformFeeCents)
@@ -293,6 +302,10 @@ Deno.serve(async (req: Request) => {
     const itemRows = orderItemsPayload
       .map((i) => `<tr><td style="padding:6px 0;">${i.quantity}× ${escapeHtml(i.custom_name)}</td><td style="padding:6px 0;text-align:right;">$${(i.price_per_unit * i.quantity).toFixed(2)}</td></tr>`)
       .join("");
+    const shippingRow = shippingFeeCents > 0
+      ? `<tr><td style="padding:6px 0;color:#6B5F54;">Shipping</td><td style="padding:6px 0;text-align:right;color:#6B5F54;">$${(shippingFeeCents / 100).toFixed(2)}</td></tr>`
+      : "";
+    const totalRow = `<tr><td style="padding:6px 0;font-weight:700;">Total</td><td style="padding:6px 0;text-align:right;font-weight:700;">$${(totalCents / 100).toFixed(2)}</td></tr>`;
     const addressHtml = addressLines.map((l) => escapeHtml(l)).join("<br/>");
     const html = `
       <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#241712;">
@@ -302,7 +315,7 @@ Deno.serve(async (req: Request) => {
         </p>
         <p style="line-height:1.6;margin-top:16px;">📦 ${addressHtml}</p>
         <table style="width:100%;border-collapse:collapse;margin-top:16px;border-top:1px solid #E8E4DC;padding-top:12px;">
-          ${itemRows}
+          ${itemRows}${shippingRow}${totalRow}
         </table>
         <p style="color:#A89B8C;font-size:12px;margin-top:24px;">Order reference: ${orderId.replace(/-/g, "").slice(0, 8).toUpperCase()}</p>
       </div>
@@ -329,6 +342,7 @@ Deno.serve(async (req: Request) => {
     baker_name: bakerDisplayName,
     items: orderItemsPayload.map((i) => ({ item_name: i.custom_name, quantity: i.quantity, price_per_unit: i.price_per_unit })),
     subtotal_cents: subtotalCents,
+    shipping_fee_cents: shippingFeeCents,
     platform_fee_cents: platformFeeCents,
     total_cents: totalCents,
   });
