@@ -24,6 +24,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { readDirectChargeSettlement } from "../_shared/settlement.ts";
+import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
+import { logNotification } from "../_shared/notificationLog.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -110,7 +112,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("business_name, user_name, stripe_connect_account_id")
+    .select("business_name, user_name, email, stripe_connect_account_id")
     .eq("id", bakerId)
     .single();
   const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || "Baker";
@@ -265,6 +267,28 @@ Deno.serve(async (req: Request) => {
   if (itemInsertErr) {
     console.error("order_items insert failed:", itemInsertErr.message);
     // Order already recorded and paid — don't fail the purchase over this.
+  }
+
+  // Best-effort, never blocks the response — this is a completed, already-
+  // paid sale with no baker-accept step, so it's the baker's only
+  // notification of the sale (same reasoning as finalize-guest-physical-order).
+  if (bakerProfile?.email) {
+    const result = await sendBakerOrderEmail({
+      db,
+      bakerId,
+      bakerEmail: bakerProfile.email,
+      items: items.map((item) => ({
+        custom_name: item.name,
+        quantity: 1,
+        price_per_unit: (priceCentsById.get(item.id) ?? 0) / 100,
+        menu_item_id: item.id as string,
+      })),
+      customerName: customer_name,
+      customerEmail: customer_email,
+      totalCents,
+      kind: "sale",
+    });
+    await logNotification(db, orderId, "baker_sale_email", result.ok ? "sent" : "failed", result.error);
   }
 
   return json({

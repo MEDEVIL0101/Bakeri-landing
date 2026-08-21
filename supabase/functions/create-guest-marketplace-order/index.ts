@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
+import { logNotification } from "../_shared/notificationLog.ts";
 
 // Public, unauthenticated endpoint for baker/checkout.html — records a
 // guest's already-paid marketplace purchase (one or more ready_now/preorder
@@ -492,7 +494,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("business_name, user_name, is_gst_registered, pickup_province")
+    .select("business_name, user_name, email, is_gst_registered, pickup_province")
     .eq("id", baker_id)
     .single();
   const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || "Baker";
@@ -630,6 +632,32 @@ Deno.serve(async (req: Request) => {
     // only trace left, matching every other failure path here.
     await db.from("orders").delete().eq("id", orderId);
     return await failAndRelease("Something went wrong. Please try again.");
+  }
+
+  // Best-effort, never blocks the response — the order is already recorded
+  // and paid (authorized) either way. Fires for every kind sold through this
+  // endpoint (ready_now and preorder) at the same moment the baker already
+  // gets a push notification for it (see trg_fn_marketplace_order_notify) —
+  // this is just the email counterpart of that same "new order" signal.
+  if (bakerProfile?.email) {
+    const result = await sendBakerOrderEmail({
+      db,
+      bakerId: baker_id,
+      bakerEmail: bakerProfile.email,
+      items: lines.map((l) => ({
+        custom_name: l.tierLabel ? `${l.item.name} — ${l.tierLabel}` : l.item.name,
+        quantity: l.quantity,
+        price_per_unit: l.pricePerUnit,
+        menu_item_id: l.item.id,
+        variant_breakdown: l.variantBreakdown,
+      })),
+      customerName: customer_name,
+      customerEmail: customer_email,
+      customerPhone: customer_phone,
+      totalCents,
+      kind: "sale",
+    });
+    await logNotification(db, orderId, "baker_sale_email", result.ok ? "sent" : "failed", result.error);
   }
 
   return json({

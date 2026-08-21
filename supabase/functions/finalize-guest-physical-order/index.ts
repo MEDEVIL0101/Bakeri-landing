@@ -21,6 +21,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { readDirectChargeSettlement } from "../_shared/settlement.ts";
+import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
+import { logNotification } from "../_shared/notificationLog.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -124,7 +126,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("business_name, user_name, stripe_connect_account_id, shipping_free_over_threshold")
+    .select("business_name, user_name, email, stripe_connect_account_id, shipping_free_over_threshold")
     .eq("id", bakerId)
     .single();
   const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || "Baker";
@@ -341,6 +343,30 @@ Deno.serve(async (req: Request) => {
     } catch (err) {
       console.error("Resend send threw:", err instanceof Error ? err.message : err);
     }
+  }
+
+  // Best-effort, never blocks the response — this is a completed, already-
+  // paid sale with no baker-accept step, so unlike create-guest-marketplace-
+  // order there's no existing "new order" push for this to sit alongside;
+  // it's the baker's only notification of the sale.
+  if (bakerProfile?.email) {
+    const result = await sendBakerOrderEmail({
+      db,
+      bakerId,
+      bakerEmail: bakerProfile.email,
+      items: orderItemsPayload.map((i, idx) => ({
+        custom_name: i.custom_name,
+        quantity: i.quantity,
+        price_per_unit: i.price_per_unit,
+        menu_item_id: items[idx].id as string,
+      })),
+      customerName: customer_name,
+      customerEmail: customer_email,
+      addressLines,
+      totalCents,
+      kind: "sale",
+    });
+    await logNotification(db, orderId, "baker_sale_email", result.ok ? "sent" : "failed", result.error);
   }
 
   return json({

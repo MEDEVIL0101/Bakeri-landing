@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
+import { logNotification } from "../_shared/notificationLog.ts";
 
 // Public, unauthenticated endpoint for baker/custom-order.html — lets a
 // stranger with no Bakeri account submit a baker's intake form for a
@@ -180,7 +182,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile, error: bakerProfileErr } = await db
     .from("profiles")
-    .select("business_name, user_name, stripe_connect_onboarding_complete")
+    .select("business_name, user_name, email, stripe_connect_onboarding_complete")
     .eq("id", baker_id)
     .single();
 
@@ -349,6 +351,24 @@ Deno.serve(async (req: Request) => {
   if (itemErr) {
     console.error("order_items insert failed:", itemErr.message);
     return json({ error: "Something went wrong. Please try again." }, 400);
+  }
+
+  // Best-effort, never blocks the response. Reaching this point already
+  // means the orders INSERT above passed trg_web_inquiry_limits (5 per IP
+  // per rolling 24h) — a spam burst is capped there, not here, so this can
+  // never fire more than that trigger already allows per IP per day.
+  if (bakerProfile.email) {
+    const result = await sendBakerOrderEmail({
+      db,
+      bakerId: baker_id,
+      bakerEmail: bakerProfile.email,
+      items: [{ custom_name: menuItem.name, quantity: 1, price_per_unit: 0, menu_item_id: menuItem.id }],
+      customerName: customer_name,
+      customerEmail: customer_email,
+      customerPhone: customer_phone,
+      kind: "quote_request",
+    });
+    await logNotification(db, orderId, "baker_quote_request_email", result.ok ? "sent" : "failed", result.error);
   }
 
   return json({ ok: true });
