@@ -1373,12 +1373,18 @@
     return FILTERS.filter(function (f) { return f.key === 'all' || listingsForTab(f.key).length > 0; });
   }
 
+  // The filter bar only earns its place once it can actually split
+  // something — a single-category menu (e.g. one custom-order item) would
+  // otherwise show "All / Custom" chips that filter to the exact same
+  // grid either way. Hide the whole bar and just list the grid in that case.
   function renderFilterBar() {
     const strip = document.getElementById('filter-strip');
     const bar = document.getElementById('filter-bar');
-    if (menuListings().length === 0) {
+    const distinctKinds = new Set(menuListings().map(function (l) { return l.listing_kind; }));
+    if (menuListings().length === 0 || distinctKinds.size <= 1) {
       strip.classList.add('hidden');
       bar.classList.add('hidden');
+      tab = 'all';
       return;
     }
     strip.classList.remove('hidden');
