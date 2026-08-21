@@ -105,17 +105,13 @@
        full nav row + icons on desktop (moved below the hero instead, via
        #profile-hero's order:-1 in the desktop media query — see below). */
     #site-header-bar {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
       padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
       position: relative; z-index: 3;
     }
     .icon-btn {
       width: 36px; height: 36px; flex-shrink: 0; border: none; background: none; color: var(--ink);
       display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
-    }
-    #nav-bar-brand {
-      flex: 1; text-align: center; font-size: 15px; font-weight: 600; color: var(--ink);
-      cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     /* The nav itself only renders inline on desktop (see media query below) —
        on mobile the same tabs render into #mobile-nav-drawer instead. */
@@ -144,7 +140,7 @@
     .mobile-nav-item {
       background: none; border: none; border-bottom: 1px solid var(--line-soft);
       text-align: left; cursor: pointer; font-family: var(--sans);
-      font-size: 15px; font-weight: 600; color: var(--ink); padding: 13px 4px;
+      font-size: 15px; font-weight: 400; color: var(--ink); padding: 13px 4px;
     }
     .mobile-nav-item:last-child { border-bottom: none; }
 
@@ -290,7 +286,7 @@
     #section-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; }
     .section-tab {
       flex-shrink: 0; background: none; border: none; cursor: pointer; font-family: var(--sans);
-      font-size: 15px; font-weight: 600; color: var(--muted); padding: 0 0 4px;
+      font-size: 15px; font-weight: 400; color: var(--muted); padding: 0 0 4px;
       border-bottom: 2px solid transparent; white-space: nowrap;
     }
     .section-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
@@ -630,11 +626,11 @@
 
       #mobile-menu-btn { display: none; }
       #mobile-nav-drawer { display: none !important; }
-      /* Bakery name already reads prominently in the hero itself — the bar
-         below it is nav-only on desktop, no repeated brand text. Share/Cart
-         move to #site-header-desktop (floating over the hero) instead of
-         living in this bar, restoring their original top-of-page spot. */
-      #nav-bar-brand { display: none; }
+      /* The bar below the hero is nav-only on desktop — no brand text on
+         either breakpoint (the name already reads prominently in the hero
+         itself). Share/Cart move to #site-header-desktop (floating over
+         the hero) instead of living in this bar, restoring their original
+         top-of-page spot. */
       .nav-bar-icons { display: none; }
       #site-header-desktop { display: flex; }
       #site-header-bar { padding: 14px 20px; justify-content: center; }
@@ -685,10 +681,11 @@
      (see #announcement-banner's order:-2). -->
 <div id="announcement-banner" class="hidden"></div>
 
-<!-- Mobile-only bar: hamburger + centered brand + icons, above the hero
-     photo. On desktop this bar holds just the nav row (below the hero,
-     via #profile-hero's order:-1) — brand text and icons move out to
-     #site-header-desktop instead (floating over the hero, its original
+<!-- Mobile-only bar: hamburger + icons, above the hero photo — no brand
+     text, the baker's name already reads prominently in the hero right
+     below. On desktop this bar holds just the nav row instead (below the
+     hero, via #profile-hero's order:-1) — icons move out to
+     #site-header-desktop (floating over the hero, its original
      position), see the desktop media query above. -->
 <header id="site-header-bar">
   <button class="icon-btn" id="mobile-menu-btn" aria-label="Menu">
@@ -696,7 +693,6 @@
       <path d="M1 1H19M1 7H19M1 13H19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
     </svg>
   </button>
-  <div id="nav-bar-brand"></div>
   <nav id="section-nav-wrap"><div id="section-nav"></div></nav>
   <div class="nav-bar-icons">
     <button class="circle-btn" id="share-btn-mobile" aria-label="Share">
@@ -1035,7 +1031,6 @@
     renderHeaderImage(name);
 
     document.getElementById('shop-name').textContent = name;
-    document.getElementById('nav-bar-brand').textContent = name;
     if (location) {
       document.getElementById('shop-meta-text').textContent = location;
       document.getElementById('shop-meta').classList.remove('hidden');
@@ -1057,9 +1052,6 @@
 
     document.getElementById('share-btn').addEventListener('click', shareLink);
     document.getElementById('share-btn-mobile').addEventListener('click', shareLink);
-    document.getElementById('nav-bar-brand').addEventListener('click', function () {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
     document.getElementById('mobile-menu-btn').addEventListener('click', function (e) {
       e.stopPropagation();
       document.getElementById('mobile-nav-drawer').classList.toggle('hidden');
