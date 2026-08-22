@@ -9,11 +9,17 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //
 // Unlike create-guest-marketplace-order (ready_now/preorder, pending-until-
 // baker-accepts), a physical (ships) sale is sold outright the moment
-// payment succeeds — same reasoning as finalize-guest-digital-order, except
-// stock-bound instead of unlimited-copy: decrement_menu_item_stock_batch
+// payment succeeds, same as finalize-guest-digital-order — no baker-accept
+// step, stock-bound instead of unlimited-copy: decrement_menu_item_stock_batch
 // (20260820000001_physical_products.sql) does the real, atomic "enough
 // left?" check that create-payment-intent's pre-charge validation can only
 // approximate.
+//
+// Where it diverges from digital: "sold" isn't "done" for something that
+// still has to ship. This inserts marketplace_status='awaiting_shipment',
+// not 'completed' — the baker still owes a shipment, and mark-order-shipped
+// (20260822000005_shipping_tracking.sql) is what actually moves it to
+// 'completed' once tracking is recorded.
 //
 // A ship cart can hold multiple items but is always single-baker (its own
 // storefront mini-cart) — see create-payment-intent's isPhysical handling.
@@ -316,8 +322,14 @@ Deno.serve(async (req: Request) => {
     updated_at: now,
     color_name: "green",
     order_source: "marketplace",
-    marketplace_status: "completed",
-    completed_at: now,
+    // Unlike digital (finalize-guest-digital-order), a physical sale isn't
+    // actually done the moment payment succeeds — the baker still owes the
+    // customer a shipment. 'awaiting_shipment' keeps this out of the
+    // Completed tab (OrdersView.activeOrders excludes only 'completed') and
+    // flags it under Needs Action until mark-order-shipped moves it to
+    // 'completed' with tracking info attached.
+    marketplace_status: "awaiting_shipment",
+    completed_at: null,
     buyer_profile_id: null,
     buyer_display_name: customer_name,
     scheduled_pickup_date: null,

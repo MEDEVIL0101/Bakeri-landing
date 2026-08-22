@@ -117,6 +117,24 @@
   const ANON_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
   const STRIPE_PK  = 'pk_live_51TdqbXRpI8DhqX3Ful2hqNWdNtdd4Rt0QQC6IZVhxA5Du89YIEo1638vSaJmBmk5XqRbfxcbqiYJCsMJgpRWvzoP00NUFyirgh';
 
+  // Common shipping destinations for a small home bakery, US/Canada first
+  // since that's the overwhelming majority, rest alphabetical. No pre-selected
+  // value — the baker's own country was previously (wrongly) hardcoded here,
+  // see the "Don't pre-fill guest checkout's shipping country as Canada" fix.
+  const COUNTRIES = [
+    'United States', 'Canada',
+    'Australia', 'Austria', 'Belgium', 'Brazil', 'Denmark', 'Finland', 'France',
+    'Germany', 'Ireland', 'Italy', 'Japan', 'Mexico', 'Netherlands', 'New Zealand',
+    'Norway', 'Poland', 'Portugal', 'Singapore', 'South Korea', 'Spain', 'Sweden',
+    'Switzerland', 'United Arab Emirates', 'United Kingdom'
+  ];
+  function countrySelectHtml(id, style) {
+    return '<select id="' + id + '" autocomplete="country" style="' + style + '">' +
+      '<option value="" disabled selected>Select country</option>' +
+      COUNTRIES.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('') +
+      '</select>';
+  }
+
   const params = new URLSearchParams(window.location.search);
   const content = document.getElementById('content');
 
@@ -535,7 +553,7 @@
         '<div class="field" style="flex:1;"><label style="font-size:12px;color:var(--muted);">Postal code</label>' +
           '<input id="ship-postal" type="text" autocomplete="postal-code" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
         '<div class="field" style="flex:1;"><label style="font-size:12px;color:var(--muted);">Country</label>' +
-          '<input id="ship-country" type="text" autocomplete="country-name" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
+          countrySelectHtml('ship-country', 'width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;') + '</div>' +
       '</div>' +
       '<button class="btn-primary" id="ship-address-continue">Continue to Payment</button>' +
       '<div class="submit-status" id="submit-status"></div>';

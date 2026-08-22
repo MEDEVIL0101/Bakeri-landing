@@ -71,10 +71,11 @@
     .field.half { display: inline-block; width: calc(50% - 5px); }
     .field.half + .field.half { margin-left: 10px; }
     .field label { font-size: 12.5px; font-weight: 600; color: var(--ink); display: block; margin-bottom: 6px; }
-    .field input {
+    .field input, .field select {
       width: 100%; height: 46px; border-radius: 12px; border: 1.5px solid var(--line);
       background: #fff; color: var(--ink); padding: 0 14px; font-size: 14px;
     }
+    .field select { appearance: auto; }
 
     #payment-element { margin-top: 20px; }
 
@@ -119,6 +120,24 @@
   const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
   const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
   const STRIPE_PK    = 'pk_live_51TdqbXRpI8DhqX3Ful2hqNWdNtdd4Rt0QQC6IZVhxA5Du89YIEo1638vSaJmBmk5XqRbfxcbqiYJCsMJgpRWvzoP00NUFyirgh';
+
+  // Common shipping destinations for a small home bakery, US/Canada first
+  // since that's the overwhelming majority, rest alphabetical. No pre-selected
+  // value — the baker's own country was previously (wrongly) hardcoded here,
+  // see the "Don't pre-fill guest checkout's shipping country as Canada" fix.
+  const COUNTRIES = [
+    'United States', 'Canada',
+    'Australia', 'Austria', 'Belgium', 'Brazil', 'Denmark', 'Finland', 'France',
+    'Germany', 'Ireland', 'Italy', 'Japan', 'Mexico', 'Netherlands', 'New Zealand',
+    'Norway', 'Poland', 'Portugal', 'Singapore', 'South Korea', 'Spain', 'Sweden',
+    'Switzerland', 'United Arab Emirates', 'United Kingdom'
+  ];
+  function countrySelectHtml(id) {
+    return '<select id="' + id + '" autocomplete="country">' +
+      '<option value="" disabled selected>Select country</option>' +
+      COUNTRIES.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('') +
+      '</select>';
+  }
 
   const params  = new URLSearchParams(window.location.search);
   const bakerID = (params.get('baker') || '').trim();
@@ -262,7 +281,7 @@
       '<div class="field half"><label>City</label><input id="s-city" type="text" autocomplete="address-level2" /></div>' +
       '<div class="field half"><label>Province</label><input id="s-province" type="text" autocomplete="address-level1" /></div>' +
       '<div class="field half"><label>Postal code</label><input id="s-postal" type="text" autocomplete="postal-code" /></div>' +
-      '<div class="field half"><label>Country</label><input id="s-country" type="text" autocomplete="country-name" /></div>' +
+      '<div class="field half"><label>Country</label>' + countrySelectHtml('s-country') + '</div>' +
       '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
