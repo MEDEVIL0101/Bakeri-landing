@@ -559,12 +559,16 @@
     /* Name/price/box-selector/cta stay put; only the description+specs
        scroll. Two flex children instead of one shared scroll area, same
        reasoning as the photo/body split above. */
-    #item-sheet-body { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 18px 20px 22px; }
+    #item-sheet-body { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 14px 20px 14px; }
     #item-sheet-fixed { flex: none; }
     #item-sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-    #item-sheet-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 10px; }
-    #item-sheet-price { font-size: 17px; font-weight: 700; color: var(--accent); margin-top: 4px; }
-    #item-sheet-desc { font-size: 14px; line-height: 1.7; color: var(--bio); margin-top: 16px; }
+    #item-sheet-name { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+    #item-sheet-price { font-size: 16px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+    /* Kept tight (10px, not 16) — on a has_variants listing especially, the
+       photo (fixed 1:1) plus name/price/option-picker/CTA above already
+       claim most of a typical viewport's height, and every px trimmed here
+       is a px the description preview actually gets to use. */
+    #item-sheet-desc { font-size: 14px; line-height: 1.6; color: var(--bio); margin-top: 10px; }
     /* Clamped by default so a short description never scrolls at all and a
        long one doesn't dominate the sheet on open — "Read more" only shows
        up when the text actually overflows the clamp (see openItemSheet).
@@ -580,17 +584,17 @@
       display: none; background: none; border: none; padding: 0; margin-top: 8px;
       font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; font-family: inherit;
     }
-    .spec-list { margin-top: 14px; }
-    .spec-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 7px 0; border-top: 1px solid var(--line); color: var(--muted); }
+    .spec-list { margin-top: 8px; }
+    .spec-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 6px 0; border-top: 1px solid var(--line); color: var(--muted); }
     .spec-row b { color: var(--ink); font-weight: 600; }
-    #item-sheet-body .btn { width: 100%; height: 50px; margin-top: 18px; }
+    #item-sheet-body .btn { width: 100%; height: 46px; margin-top: 12px; }
 
-    #item-sheet-box { margin-top: 16px; }
-    .box-step-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin-bottom: 8px; }
-    .box-tiers { display: flex; gap: 8px; margin-bottom: 18px; }
+    #item-sheet-box { margin-top: 12px; }
+    .box-step-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin-bottom: 6px; }
+    .box-tiers { display: flex; gap: 8px; margin-bottom: 10px; }
     .box-tier {
       flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 14px; background: transparent;
-      padding: 10px 6px; text-align: center; cursor: pointer;
+      padding: 8px 6px; text-align: center; cursor: pointer;
     }
     .box-tier.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
     .box-tier.disabled { opacity: .45; cursor: not-allowed; }
