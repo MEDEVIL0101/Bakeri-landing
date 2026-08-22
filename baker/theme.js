@@ -62,6 +62,40 @@ window.addEventListener('pageshow', function (event) {
       gold:      { light: '#BCACDD', dark: '#8870C0' },
       buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
       swatches: ['#F72967', '#46C6D7', '#BCACDD']
+    },
+    // Experimental palette, added 2026-08-22 — mirrors AppTheme.swift's
+    // ember/sage/blueberry/honey cases exactly (same hex pairs).
+    'Ember': {
+      primary:   { light: '#AE0001', dark: '#E5484D' },
+      secondary: { light: '#D3A625', dark: '#EEBA30' },
+      bg:        { light: '#FBF1E9', dark: '#1F0F0D' },
+      gold:      { light: '#C9A227', dark: '#E0BB55' },
+      buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
+      swatches: ['#740001', '#EEBA30', '#D3A625']
+    },
+    'Sage': {
+      primary:   { light: '#2A623D', dark: '#4F9468' },
+      secondary: { light: '#5D5D5D', dark: '#AAAAAA' },
+      bg:        { light: '#F2F6F1', dark: '#10160F' },
+      gold:      { light: '#A8935C', dark: '#C7B27E' },
+      buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
+      swatches: ['#1A472A', '#2A623D', '#AAAAAA']
+    },
+    'Blueberry': {
+      primary:   { light: '#222F5B', dark: '#5872B8' },
+      secondary: { light: '#BEBEBE', dark: '#D6D6D6' },
+      bg:        { light: '#EEF1F8', dark: '#0B1020' },
+      gold:      { light: '#946B2D', dark: '#C79149' },
+      buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
+      swatches: ['#0E1A40', '#222F5B', '#946B2D']
+    },
+    'Honey': {
+      primary:   { light: '#ECB939', dark: '#F0C75E' },
+      secondary: { light: '#726255', dark: '#90806E' },
+      bg:        { light: '#FBF5E7', dark: '#1D1712' },
+      gold:      { light: '#C99A3D', dark: '#E0B85A' },
+      buttonFg:  { light: '#2A2020', dark: '#2A2020' },
+      swatches: ['#ECB939', '#726255', '#372E29']
     }
   };
 
