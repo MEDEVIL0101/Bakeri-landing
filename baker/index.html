@@ -75,24 +75,26 @@
        #site-header-bar's own --surface so the bounce reads as an extension
        of the bar, not a mismatched color peeking out above it. */
     html { scroll-behavior: smooth; background: var(--surface); }
-    /* iOS Safari extends its own chrome (status-bar area up top, toolbar
-       area at the bottom) with a color it samples directly from the page's
-       own background — proven by swapping --bg for a test color and
-       watching both the top AND bottom strips change to match. It reads
-       straight past #page-shell to body's own background-color, not
-       html's (see the reverted html-background attempt) and not
-       <meta name="theme-color"> (present but evidently not what this
-       samples).
-       --surface here is mobile-only, though (see the desktop override
-       below) — on mobile #page-shell is full viewport width, so body's
-       color is otherwise invisible there and this only affects Safari's
-       chrome-sampling. On desktop #page-shell caps at max-width:1200px
-       and body's own --bg legitimately shows as the theme backdrop in the
-       side margins — overriding it to --surface there erased that for
-       every baker's theme, confirmed live 2026-08-21. */
+    /* iOS Safari's chrome-color sampling (see html, above) reads body's
+       background specifically — proven by swapping --bg for a test color
+       and watching the strip follow it. Giving body its OWN opaque color
+       (tried twice: --bg unconditionally, then --surface mobile-only)
+       backfired both times: #theme-pattern-layer (theme.js) is a
+       position:fixed, z-index:-1 div inserted as body's first child, and
+       CSS's painting order puts a negative-z-index descendant BEHIND its
+       ancestor's own in-flow box background — so as soon as body had a
+       real painted background instead of being transparent, it covered
+       the pattern everywhere body's box extends (confirmed live
+       2026-08-21: every patterned baker's side-margin/overflow pattern
+       disappeared). Left transparent, body paints nothing of its own —
+       html's white shows through where nothing else does, and the pattern
+       layer/#page-shell stay visible exactly where theme.js and the
+       layout already intend them to be. Chrome-sampling on a patterned
+       baker may pick up a faint tint from the pattern layer instead of
+       pure white — an acceptable tradeoff next to hiding every baker's
+       chosen pattern. */
     body {
       font-family: var(--sans);
-      background: var(--surface);
       color: var(--bio);
       -webkit-font-smoothing: antialiased;
     }
@@ -644,12 +646,6 @@
 
     /* ══════════════════════ Desktop ══════════════════════ */
     @media (min-width: 860px) {
-      /* Restores the theme backdrop in the side margins — body's
-         background is --surface by default now (mobile-only fix for
-         Safari's chrome-color sampling, see body's own rule above), but on
-         desktop #page-shell no longer spans full width, so body's color
-         actually shows again here and needs to be the real theme --bg. */
-      body { background: var(--bg); }
       /* Stands the column off the patterned backdrop showing in the side
          margins — on mobile the shell fills the viewport edge to edge, so
          there's no backdrop to separate from and no shadow needed there. */
