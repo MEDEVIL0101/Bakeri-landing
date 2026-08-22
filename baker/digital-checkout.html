@@ -41,6 +41,17 @@
     #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
     @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
 
+    /* An opaque card, not bare text floating on the page — the storefront's
+       background pattern can be a bold, full-saturation Stripes/Gingham for
+       some themes (not a pale wash), so text with nothing behind it but the
+       pattern read as illegible. */
+    #content {
+      background: var(--bg);
+      border-radius: 20px;
+      padding: 26px 22px;
+      box-shadow: 0 14px 34px -16px rgba(0,0,0,.3);
+    }
+
     .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); }
     .heading { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 4px; }
 
