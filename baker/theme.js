@@ -130,16 +130,31 @@ window.addEventListener('pageshow', function (event) {
       };
     }
     if (pattern === 'Polka Dot') {
+      // Two staggered rows per repeat tile — a real brick/polka-dot grid,
+      // colour cycling through the theme's three swatches per row and
+      // shifting the starting colour on the second row. Mirrors
+      // AppBackgroundPattern's Canvas algorithm (native: staggered grid,
+      // one non-overlapping dot per cell, colour cycles by position). The
+      // previous version stacked one overlapping radial-gradient layer per
+      // colour at nearly the same spot within one small tile — dense,
+      // smeared-together blobs along a diagonal, not separated dots, which
+      // read as "some other pattern" rather than polka dots.
       var swatches = theme.swatches;
-      var spacing = 52, r = 12;
-      var layers = swatches.map(function (hex, i) {
-        var color = hexToRgba(hex, dotOpacity);
-        var offsetX = (i * spacing / swatches.length) + 'px';
-        return 'radial-gradient(circle ' + r + 'px at ' + offsetX + ' ' + offsetX + ', ' + color + ' 99%, transparent 100%)';
+      var spacing = 52, r = 12, half = spacing / 2;
+      var tileW = spacing * 3, tileH = spacing * 2;
+      var row1 = [0, 1, 2].map(function (i) {
+        var x = half + i * spacing;
+        var color = hexToRgba(swatches[i % swatches.length], dotOpacity);
+        return 'radial-gradient(circle ' + r + 'px at ' + x + 'px ' + half + 'px, ' + color + ' 99%, transparent 100%)';
+      });
+      var row2 = [0, 1, 2].map(function (i) {
+        var x = i * spacing;
+        var color = hexToRgba(swatches[(i + 1) % swatches.length], dotOpacity);
+        return 'radial-gradient(circle ' + r + 'px at ' + x + 'px ' + (half + spacing) + 'px, ' + color + ' 99%, transparent 100%)';
       });
       return {
-        backgroundImage: layers.join(', '),
-        backgroundSize: spacing + 'px ' + spacing + 'px'
+        backgroundImage: row1.concat(row2).join(', '),
+        backgroundSize: tileW + 'px ' + tileH + 'px'
       };
     }
     if (pattern === 'Gingham') {
