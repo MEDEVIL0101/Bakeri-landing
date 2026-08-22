@@ -206,8 +206,13 @@
     #storefront-header img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
     /* Flat scrim, not just a bottom gradient — text sits everywhere in the
        block now (avatar ring, name, meta pill, bio), not only at the
-       bottom, so it all needs consistent legibility against the photo. */
-    #header-scrim { position: absolute; inset: 0; background: rgba(20,15,10,.42); }
+       bottom, so it all needs consistent legibility against the photo.
+       Kept light (.42 was reported as visibly flattening/desaturating the
+       baker's actual header photo, reading as dull instead of energetic)
+       — legibility for the two plain-text elements now leans on their own
+       text-shadow (below) instead of a heavy blanket wash, so the photo's
+       real colour still comes through everywhere else. */
+    #header-scrim { position: absolute; inset: 0; background: rgba(20,15,10,.2); }
 
     #profile-block { text-align: center; padding: 64px 20px 22px; position: relative; z-index: 1; }
     #profile-block .avatar {
@@ -253,7 +258,14 @@
        icons themselves don't need a variant — they're already a solid
        black circle, legible against photo or plain background alike. */
     #profile-hero.has-photo #shop-name,
-    #profile-hero.has-photo #shop-bio { color: #fff; }
+    #profile-hero.has-photo #shop-bio {
+      color: #fff;
+      /* Carries legibility for these two now that the scrim itself is
+         lighter — a shadow only darkens right behind the letterforms,
+         leaving the photo around them untouched, unlike raising the
+         blanket scrim back up would. */
+      text-shadow: 0 1px 6px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.4);
+    }
     #profile-hero.has-photo #shop-meta { background: rgba(255,255,255,.22); }
     #profile-hero.has-photo #shop-meta span { color: #fff; }
 
