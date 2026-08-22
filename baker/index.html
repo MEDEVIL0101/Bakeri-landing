@@ -79,15 +79,17 @@
        area at the bottom) with a color it samples directly from the page's
        own background — proven by swapping --bg for a test color and
        watching both the top AND bottom strips change to match. It reads
-       past #page-shell (which sits on top of body and always fully covers
-       it in normal layout) straight to body's own background-color, not
+       straight past #page-shell to body's own background-color, not
        html's (see the reverted html-background attempt) and not
        <meta name="theme-color"> (present but evidently not what this
-       samples). body's background is otherwise invisible — #page-shell
-       covers it everywhere — so pointing it at --surface instead of the
-       baker's theme-tinted --bg only affects this exact chrome-sampling
-       case, matching the header bar's actual color with zero visual
-       change anywhere in normal layout. */
+       samples).
+       --surface here is mobile-only, though (see the desktop override
+       below) — on mobile #page-shell is full viewport width, so body's
+       color is otherwise invisible there and this only affects Safari's
+       chrome-sampling. On desktop #page-shell caps at max-width:1200px
+       and body's own --bg legitimately shows as the theme backdrop in the
+       side margins — overriding it to --surface there erased that for
+       every baker's theme, confirmed live 2026-08-21. */
     body {
       font-family: var(--sans);
       background: var(--surface);
@@ -642,6 +644,12 @@
 
     /* ══════════════════════ Desktop ══════════════════════ */
     @media (min-width: 860px) {
+      /* Restores the theme backdrop in the side margins — body's
+         background is --surface by default now (mobile-only fix for
+         Safari's chrome-color sampling, see body's own rule above), but on
+         desktop #page-shell no longer spans full width, so body's color
+         actually shows again here and needs to be the real theme --bg. */
+      body { background: var(--bg); }
       /* Stands the column off the patterned backdrop showing in the side
          margins — on mobile the shell fills the viewport edge to edge, so
          there's no backdrop to separate from and no shadow needed there. */
