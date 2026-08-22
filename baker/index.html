@@ -860,7 +860,7 @@
   </button>
   <button id="action-bar-ship-cart">
     <div class="l">
-      <div class="t">Ship Cart</div>
+      <div class="t">Ships to You</div>
       <div class="s" id="ship-cart-bar-sub"></div>
     </div>
     <div class="r tabular" id="ship-cart-bar-total"></div>
@@ -2142,7 +2142,13 @@
     if (count > 0) {
       bar.style.display = 'flex';
       document.getElementById('ship-cart-bar-sub').textContent = count + (count === 1 ? ' item' : ' items');
-      document.getElementById('ship-cart-bar-total').textContent = '$' + formatPrice(shipCartTotal());
+      // Item subtotal only — not shipCartTotal(), which folds in the
+      // shipping fee. A mini-cart banner showing a fees-inclusive total
+      // before the buyer has even reached checkout isn't how these
+      // normally read (the digital/pickup bars right above/below this one
+      // don't do it either), and it doesn't match what the buyer is about
+      // to be charged per item either.
+      document.getElementById('ship-cart-bar-total').textContent = '$' + formatPrice(shipCartItemsSubtotal());
     } else {
       bar.style.display = 'none';
     }
