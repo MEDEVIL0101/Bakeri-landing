@@ -567,8 +567,14 @@
     #item-sheet-desc { font-size: 14px; line-height: 1.7; color: var(--bio); margin-top: 16px; }
     /* Clamped by default so a short description never scrolls at all and a
        long one doesn't dominate the sheet on open — "Read more" only shows
-       up when the text actually overflows the clamp (see openItemSheet). */
-    #item-sheet-desc.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+       up when the text actually overflows the clamp (see openItemSheet).
+       Kept short (2 lines, not 4) — the sheet's photo/price/options/CTA
+       already fill most of the viewport above this, so 4 lines of preview
+       often left barely any of the description actually visible before
+       running into the bottom of the screen. A short, honest preview plus
+       a reliably-reachable "Read more" (openDescSheet) beats a long one
+       that mostly gets cut off anyway. */
+    #item-sheet-desc.clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     #item-sheet-desc.tappable { cursor: pointer; }
     #item-sheet-desc-toggle {
       display: none; background: none; border: none; padding: 0; margin-top: 8px;
@@ -2639,6 +2645,14 @@
     const cta = document.getElementById('item-sheet-cta');
     const item = variantState.item;
     const variant = (item.listing_variants || []).find(function (v) { return v.id === variantState.variantId; });
+    // Header price tracks the picker: "from $lowest" before a choice is
+    // made (if options differ in price), the exact chosen option's price
+    // once one is — otherwise it's stuck showing the lowest option's price
+    // even after picking a pricier one, which reads as a bug/bait-and-switch.
+    const priceEl = document.getElementById('item-sheet-price');
+    priceEl.innerHTML = variant
+      ? '$' + formatPrice(variant.price)
+      : (priceIsFrom(item) ? 'from ' : '') + '$' + formatPrice(item.price);
     if (!variant) {
       cta.textContent = 'Choose an option';
       cta.disabled = true;
@@ -3300,7 +3314,18 @@
     return item.item_description || '';
   }
 
-  function priceIsFrom(item) { return item.listing_kind === 'custom' || item.is_assorted_box === true; }
+  // A has_variants listing's own price field always holds the lowest
+  // option's price (set server-side at save — see AddEditMenuItemView's
+  // performSave), so it needs the same "from $X" treatment as Custom/
+  // Assorted Box whenever its options don't all share one price.
+  function priceIsFrom(item) {
+    if (item.listing_kind === 'custom' || item.is_assorted_box === true) return true;
+    if (item.has_variants) {
+      const prices = (item.listing_variants || []).map(function (v) { return v.price; });
+      return new Set(prices).size > 1;
+    }
+    return false;
+  }
   function formatPrice(v) { return parseFloat(v).toFixed(2); }
 
   function photoFallback(item) {
