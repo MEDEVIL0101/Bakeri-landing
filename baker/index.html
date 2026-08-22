@@ -75,9 +75,22 @@
        #site-header-bar's own --surface so the bounce reads as an extension
        of the bar, not a mismatched color peeking out above it. */
     html { scroll-behavior: smooth; background: var(--surface); }
+    /* iOS Safari extends its own chrome (status-bar area up top, toolbar
+       area at the bottom) with a color it samples directly from the page's
+       own background — proven by swapping --bg for a test color and
+       watching both the top AND bottom strips change to match. It reads
+       past #page-shell (which sits on top of body and always fully covers
+       it in normal layout) straight to body's own background-color, not
+       html's (see the reverted html-background attempt) and not
+       <meta name="theme-color"> (present but evidently not what this
+       samples). body's background is otherwise invisible — #page-shell
+       covers it everywhere — so pointing it at --surface instead of the
+       baker's theme-tinted --bg only affects this exact chrome-sampling
+       case, matching the header bar's actual color with zero visual
+       change anywhere in normal layout. */
     body {
       font-family: var(--sans);
-      background: var(--bg);
+      background: var(--surface);
       color: var(--bio);
       -webkit-font-smoothing: antialiased;
     }
