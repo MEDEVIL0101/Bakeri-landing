@@ -75,9 +75,17 @@ Deno.serve(async (req: Request) => {
   }
 
   const payment_intent_id = String(body.payment_intent_id ?? "").trim();
-  const requestedItems: { menu_item_id: string; quantity: number }[] = Array.isArray(body.items)
+  // One requested line per cart line — NOT deduped by menu_item_id, since a
+  // has_variants listing can appear as more than one line (e.g. Small +
+  // Large of the same cookie-cutter set), each with its own variant_id and
+  // needing its own stock decrement.
+  const requestedItems: { menu_item_id: string; quantity: number; variant_id: string | null }[] = Array.isArray(body.items)
     ? (body.items as Record<string, unknown>[])
-        .map((i) => ({ menu_item_id: String(i.menu_item_id ?? "").trim(), quantity: Math.floor(Number(i.quantity) || 0) }))
+        .map((i) => ({
+          menu_item_id: String(i.menu_item_id ?? "").trim(),
+          quantity: Math.floor(Number(i.quantity) || 0),
+          variant_id: i.variant_id ? String(i.variant_id).trim() : null,
+        }))
         .filter((i) => i.menu_item_id && i.quantity > 0)
     : [];
   const customer_name = String(body.customer_name ?? "").trim();
@@ -102,27 +110,71 @@ Deno.serve(async (req: Request) => {
   }
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const menuItemIds = requestedItems.map((i) => i.menu_item_id);
+  const menuItemIds = [...new Set(requestedItems.map((i) => i.menu_item_id))];
 
   // Re-fetch every listing server-side — never trust client-supplied price/name.
-  const { data: items, error: itemsErr } = await db
+  const { data: menuItemRows, error: itemsErr } = await db
     .from("menu_items")
-    .select("id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, available_qty_today, unit, shipping_fee")
+    .select("id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, available_qty_today, unit, shipping_fee, has_variants")
     .in("id", menuItemIds);
 
-  if (itemsErr || !items || items.length !== menuItemIds.length) {
+  if (itemsErr || !menuItemRows || menuItemRows.length !== menuItemIds.length) {
     return json({ error: "One of these items is no longer available." }, 400);
   }
-  if (items.some((i) => i.listing_kind !== "physical")) {
+  if (menuItemRows.some((i) => i.listing_kind !== "physical")) {
     return json({ error: "One of these items isn't a shippable item." }, 400);
   }
-  const bakerIds = new Set(items.map((i) => i.user_id));
+  const bakerIds = new Set(menuItemRows.map((i) => i.user_id));
   if (bakerIds.size !== 1) {
     return json({ error: "These items are from different bakers and can't be checked out together." }, 400);
   }
 
-  const bakerId = items[0].user_id as string;
-  const qtyById = new Map(requestedItems.map((i) => [i.menu_item_id, i.quantity]));
+  const bakerId = menuItemRows[0].user_id as string;
+  const itemsById = new Map(menuItemRows.map((i) => [i.id as string, i]));
+
+  // Only fetch listing_variants for listings a requested line actually
+  // picked one from — most physical carts have none.
+  const variantMenuItemIds = [...new Set(requestedItems.filter((i) => i.variant_id).map((i) => i.menu_item_id))];
+  const { data: variantRows } = variantMenuItemIds.length
+    ? await db.from("listing_variants").select("id, menu_item_id, label, price, stock_qty").in("menu_item_id", variantMenuItemIds).is("deleted_at", null)
+    : { data: [] as { id: string; menu_item_id: string; label: string; price: number; stock_qty: number }[] };
+  const variantsById = new Map((variantRows ?? []).map((v) => [v.id, v]));
+
+  // Resolve each requested line into its authoritative unit price/name —
+  // never trust client-supplied price for a variant pick, same reasoning
+  // as create-payment-intent's own re-fetch.
+  interface OrderLine {
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    variantId: string | null;
+    variantLabel: string | null;
+    unitPriceCents: number;
+    unit: string;
+  }
+  const lines: OrderLine[] = [];
+  for (const req of requestedItems) {
+    const menuItem = itemsById.get(req.menu_item_id);
+    if (!menuItem) return json({ error: "One of these items is no longer available." }, 400);
+    if (req.variant_id) {
+      const variant = variantsById.get(req.variant_id);
+      if (!variant || variant.menu_item_id !== req.menu_item_id) {
+        return json({ error: `"${menuItem.name}" — that option is no longer available.` }, 400);
+      }
+      lines.push({
+        menuItemId: req.menu_item_id, name: `${menuItem.name} — ${variant.label}`, quantity: req.quantity,
+        variantId: variant.id, variantLabel: variant.label,
+        unitPriceCents: Math.round(variant.price * 100), unit: menuItem.unit || "item",
+      });
+    } else {
+      lines.push({
+        menuItemId: req.menu_item_id, name: menuItem.name, quantity: req.quantity,
+        variantId: null, variantLabel: null,
+        unitPriceCents: Math.round((((menuItem.marketplace_price_from ?? 0) > 0 ? menuItem.marketplace_price_from : menuItem.default_price) ?? 0) * 100),
+        unit: menuItem.unit || "item",
+      });
+    }
+  }
 
   const { data: bakerProfile } = await db
     .from("profiles")
@@ -170,40 +222,50 @@ Deno.serve(async (req: Request) => {
     }, 400);
   }
 
-  // Atomic, all-or-nothing stock decrement — one Postgres transaction, so a
-  // mid-batch shortfall rolls back every decrement already applied in this
-  // call. This is the real "enough left?" check; create-payment-intent's
-  // pre-charge validation can only approximate it against a stale read.
-  const { error: stockErr } = await db.rpc("decrement_menu_item_stock_batch", {
-    p_items: items.map((i) => ({ id: i.id, qty: qtyById.get(i.id as string) ?? 0 })),
-  });
-  if (stockErr) {
-    console.error("decrement_menu_item_stock_batch failed:", stockErr.message);
-    return refundAndFail("One of these items sold out just now.");
+  // Atomic, all-or-nothing stock decrement per source — one Postgres
+  // transaction per RPC call, so a mid-batch shortfall rolls back every
+  // decrement already applied within that call. This is the real "enough
+  // left?" check; create-payment-intent's pre-charge validation can only
+  // approximate it against a stale read. Split by line kind since a plain
+  // line decrements the base listing's available_qty_today while a variant
+  // line decrements that variant's own stock_qty (see
+  // decrement_listing_variant_stock_batch).
+  const plainLines = lines.filter((l) => !l.variantId);
+  const variantLines = lines.filter((l) => l.variantId);
+  if (plainLines.length > 0) {
+    const { error: stockErr } = await db.rpc("decrement_menu_item_stock_batch", {
+      p_items: plainLines.map((l) => ({ id: l.menuItemId, qty: l.quantity })),
+    });
+    if (stockErr) {
+      console.error("decrement_menu_item_stock_batch failed:", stockErr.message);
+      return refundAndFail("One of these items sold out just now.");
+    }
+  }
+  if (variantLines.length > 0) {
+    const { error: variantStockErr } = await db.rpc("decrement_listing_variant_stock_batch", {
+      p_items: variantLines.map((l) => ({ id: l.variantId, qty: l.quantity })),
+    });
+    if (variantStockErr) {
+      console.error("decrement_listing_variant_stock_batch failed:", variantStockErr.message);
+      return refundAndFail("One of these options sold out just now.");
+    }
   }
 
-  const priceCentsById = new Map(
-    items.map((i) => [
-      i.id,
-      Math.round(((i.marketplace_price_from ?? 0) > 0 ? i.marketplace_price_from : i.default_price) * 100),
-    ])
-  );
-  const subtotalCents = items.reduce(
-    (sum, i) => sum + (priceCentsById.get(i.id) ?? 0) * (qtyById.get(i.id as string) ?? 0),
-    0
-  );
-  // Flat manual fee, once per distinct listing (not per unit) — same
-  // reasoning as the storefront cart total. Re-derived here from the
-  // baker's own listing rather than trusted from the client. Waived
-  // entirely once the item subtotal alone clears the baker's storefront-
-  // wide free-shipping threshold (0 = no such rule) — same rule the
-  // storefront cart applies before charging, re-applied here so this
-  // recomputed total always matches what create-payment-intent actually
-  // charged.
+  const subtotalCents = lines.reduce((sum, l) => sum + l.unitPriceCents * l.quantity, 0);
+  // Flat manual fee, once per distinct base listing (not per unit, and not
+  // per variant line — two sizes of the same cookie-cutter set still only
+  // pay the fee once) — same reasoning as the storefront cart total.
+  // Re-derived here from the baker's own listing rather than trusted from
+  // the client. Waived entirely once the item subtotal alone clears the
+  // baker's storefront-wide free-shipping threshold (0 = no such rule) —
+  // same rule the storefront cart applies before charging, re-applied here
+  // so this recomputed total always matches what create-payment-intent
+  // actually charged.
   const shippingFreeOverThresholdCents = Math.round(shippingFreeOverThreshold * 100);
   const shippingFeeCents = (shippingFreeOverThresholdCents > 0 && subtotalCents >= shippingFreeOverThresholdCents)
     ? 0
-    : items.reduce((sum, i) => sum + Math.round((i.shipping_fee ?? 0) * 100), 0);
+    : [...new Set(lines.map((l) => l.menuItemId))]
+        .reduce((sum, id) => sum + Math.round((itemsById.get(id)?.shipping_fee ?? 0) * 100), 0);
   // Guest checkout: buyer pays exactly the item price(s) plus shipping —
   // Bakeri's service charge comes out of the baker's cut instead (see
   // create-payment-intent), computed off the item subtotal only, same as
@@ -215,7 +277,7 @@ Deno.serve(async (req: Request) => {
     ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, platformFeeCents)
     : null;
 
-  const orderName = items.length === 1 ? items[0].name : `${items[0].name} + ${items.length - 1} more`;
+  const orderName = lines.length === 1 ? lines[0].name : `${lines[0].name} + ${lines.length - 1} more`;
 
   const addressLines = [
     shipping_address.name,
@@ -279,15 +341,17 @@ Deno.serve(async (req: Request) => {
     }, 400);
   }
 
-  const orderItemsPayload = items.map((item) => ({
+  const orderItemsPayload = lines.map((line) => ({
     id: crypto.randomUUID(),
     user_id: bakerId,
     order_id: orderId,
     recipe_id: null,
-    custom_name: item.name,
-    quantity: qtyById.get(item.id as string) ?? 1,
-    unit: item.unit || "item",
-    price_per_unit: (priceCentsById.get(item.id) ?? 0) / 100,
+    custom_name: line.name,
+    quantity: line.quantity,
+    unit: line.unit,
+    price_per_unit: line.unitPriceCents / 100,
+    variant_id: line.variantId,
+    variant_label: line.variantLabel,
     notes: "",
     updated_at: now,
   }));
@@ -358,7 +422,7 @@ Deno.serve(async (req: Request) => {
         custom_name: i.custom_name,
         quantity: i.quantity,
         price_per_unit: i.price_per_unit,
-        menu_item_id: items[idx].id as string,
+        menu_item_id: lines[idx].menuItemId,
       })),
       customerName: customer_name,
       customerEmail: customer_email,

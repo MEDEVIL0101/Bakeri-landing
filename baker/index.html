@@ -971,6 +971,14 @@
   // checkout when mixed — see goToCheckout) — but unlike digital these are
   // stock-bound, so it's a { itemId: qty } map rather than a bare id list.
   let shipCart = {};
+  // Digital/physical items with listing_variants (a picked size/option, its
+  // own price and — physical only — its own stock) can't fit shipCart's
+  // flat { itemId: qty } map or digitalCart's bare-id list, since the same
+  // base item can appear more than once with different options chosen.
+  // Kept as their own line arrays, same pattern as boxCartLines above.
+  let shipVariantCartLines = [];    // { lineId, menuItemId, variantId, variantLabel, price, qty }
+  let digitalVariantCartLines = []; // { lineId, menuItemId, variantId, variantLabel, price }
+  let variantState = null; // in-progress listing-variant picker: { item, variantId }
   // Direct checkout (ready_now / preorder) needs the baker's Stripe Connect
   // payout wired up; custom-quote inquiries don't touch payment at intake
   // time (submit-custom-order-inquiry lands a pending_quote lead), so those
@@ -995,18 +1003,29 @@
         preorderCartLines = raw.preorderLines || [];
         digitalCart = raw.digitalCart || [];
         shipCart = raw.shipCart || {};
+        shipVariantCartLines = raw.shipVariantLines || [];
+        digitalVariantCartLines = raw.digitalVariantLines || [];
       } else {
         cart = raw || {};
         boxCartLines = [];
         preorderCartLines = [];
         digitalCart = [];
         shipCart = {};
+        shipVariantCartLines = [];
+        digitalVariantCartLines = [];
       }
-    } catch (e) { cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = []; shipCart = {}; }
+    } catch (e) {
+      cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = []; shipCart = {};
+      shipVariantCartLines = []; digitalVariantCartLines = [];
+    }
   }
   function saveCart() {
     try {
-      sessionStorage.setItem(cartStorageKey(), JSON.stringify({ cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines, digitalCart: digitalCart, shipCart: shipCart }));
+      sessionStorage.setItem(cartStorageKey(), JSON.stringify({
+        cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines,
+        digitalCart: digitalCart, shipCart: shipCart,
+        shipVariantLines: shipVariantCartLines, digitalVariantLines: digitalVariantCartLines
+      }));
     } catch (e) {}
   }
 
@@ -1691,6 +1710,20 @@
       wrap.appendChild(btn);
       return;
     }
+    if (item.listing_kind === 'digital' && item.has_variants) {
+      // A digital listing with variants (e.g. one file, four print sizes)
+      // always routes to the item sheet's picker — same "no direct card
+      // stepper" reasoning as is_assorted_box below, just for a single-select
+      // option list instead of a flavor mix.
+      const picked = digitalVariantCartLines.filter(function (l) { return l.menuItemId === item.id; }).length;
+      const btn = document.createElement('button');
+      btn.className = 'add-btn' + (picked > 0 ? ' added' : '');
+      btn.textContent = picked > 0 ? String(picked) : '+';
+      btn.setAttribute('aria-label', 'Choose an option');
+      btn.addEventListener('click', function (e) { e.stopPropagation(); openItemSheet(item); });
+      wrap.appendChild(btn);
+      return;
+    }
     if (item.listing_kind === 'digital') {
       // Digital purchases skip the pickup cart (no qty/dates/tiers to
       // track) but do get their own small cart — see digitalCart — so
@@ -1704,6 +1737,27 @@
         e.stopPropagation();
         toggleDigitalCartItem(item);
       });
+      wrap.appendChild(btn);
+      return;
+    }
+    if (item.listing_kind === 'physical' && item.has_variants) {
+      // A physical listing with variants (e.g. a cookie-cutter set in
+      // Small/Medium/Large/XL, each with its own stock) always routes to
+      // the item sheet's picker, same reasoning as digital has_variants
+      // above — a card-level stepper can't represent "which size."
+      const qty = shipVariantCartLines.filter(function (l) { return l.menuItemId === item.id; })
+        .reduce(function (s, l) { return s + l.qty; }, 0);
+      const anyStock = (item.listing_variants || []).some(function (v) { return (v.stock_qty || 0) > 0; });
+      const btn = document.createElement('button');
+      btn.className = 'add-btn' + (qty > 0 ? ' added' : '');
+      if (!anyStock || !stripeReady) {
+        btn.style.opacity = '.4'; btn.disabled = true; btn.textContent = '—';
+        btn.title = stripeReady ? 'Sold out' : 'Ordering isn\'t live yet';
+      } else {
+        btn.textContent = qty > 0 ? String(qty) : '+';
+        btn.setAttribute('aria-label', 'Choose an option');
+        btn.addEventListener('click', function (e) { e.stopPropagation(); openItemSheet(item); });
+      }
       wrap.appendChild(btn);
       return;
     }
@@ -1828,14 +1882,33 @@
     updateCartUI();
   }
 
+  // Header cart icon (mobile 🛒 badge + desktop "Cart · N" pill) reflects
+  // EVERY cart at once — pickup, digital, and ship — not just whichever one
+  // was last touched, since a buyer with e.g. a download already picked
+  // should still see the header icon acknowledge it while browsing physical
+  // items. Each cart's own bottom action bar (updateCartUI/
+  // updateDigitalCartUI/updateShipCartUI) still shows its own
+  // count/subtotal for that vertical specifically — this is just the one
+  // shared "does the cart have anything in it at all" indicator, kept in
+  // sync by having all three of those functions call it.
+  function updateHeaderCartBadge() {
+    const plainCount = Object.values(cart).reduce(function (s, q) { return s + q; }, 0);
+    const boxCount = boxCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
+    const preorderCount = preorderCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
+    const digitalCount = digitalCartItems().length;
+    const shipCount = shipCartItems().reduce(function (s, l) { return s + l.qty; }, 0);
+    const count = plainCount + boxCount + preorderCount + digitalCount + shipCount;
+    document.getElementById('cart-btn-count').textContent = count > 0 ? count : '';
+    document.getElementById('desktop-cart-label').textContent = count > 0 ? ('Cart · ' + count) : 'Cart';
+  }
+
   function updateCartUI() {
     const plainCount = Object.values(cart).reduce(function (s, q) { return s + q; }, 0);
     const boxCount = boxCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
     const preorderCount = preorderCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
     const count = plainCount + boxCount + preorderCount;
-    document.getElementById('cart-btn-count').textContent = count > 0 ? count : '';
+    updateHeaderCartBadge();
     const total = cartSubtotal();
-    document.getElementById('desktop-cart-label').textContent = count > 0 ? ('Cart · ' + count) : 'Cart';
 
     if (count > 0) {
       document.getElementById('action-bar-cart').style.display = 'flex';
@@ -1847,10 +1920,29 @@
     }
   }
 
+  // Returns every digital cart entry — both the plain in/out picks
+  // (digitalCart, bare ids) and variant picks (digitalVariantCartLines,
+  // since the same base item can appear more than once with a different
+  // option chosen) — normalized to one shape via Object.assign: every
+  // field the base listing has (id, category, etc., for itemImgURL and
+  // friends) plus lineKey (unique per cart line, used for removal —
+  // equal to the base item id for a plain pick, so existing single-pick
+  // behavior is unchanged) and, for a variant pick, an overridden
+  // price/name and the variantId/variantLabel that picked it.
   function digitalCartItems() {
-    return digitalCart
-      .map(function (id) { return allListings.find(function (l) { return l.id === id; }); })
-      .filter(Boolean);
+    const plain = digitalCart.map(function (id) {
+      const item = allListings.find(function (l) { return l.id === id; });
+      return item ? Object.assign({}, item, { lineKey: item.id, variantId: null, variantLabel: null }) : null;
+    }).filter(Boolean);
+    const variantLines = digitalVariantCartLines.map(function (ln) {
+      const base = allListings.find(function (l) { return l.id === ln.menuItemId; });
+      if (!base) return null;
+      return Object.assign({}, base, {
+        lineKey: ln.lineId, price: ln.price, variantId: ln.variantId, variantLabel: ln.variantLabel,
+        name: base.name + ' — ' + ln.variantLabel
+      });
+    }).filter(Boolean);
+    return plain.concat(variantLines);
   }
   function digitalCartTotal() {
     return digitalCartItems().reduce(function (s, i) { return s + i.price; }, 0);
@@ -1862,9 +1954,36 @@
     renderDigitalFeed();
     updateDigitalCartUI();
   }
+  // A digital item with variants always adds/removes through the item
+  // sheet's picker (see refreshAddControl's has_variants check), toggling
+  // one specific option in or out — same in/out feel as
+  // toggleDigitalCartItem, just keyed by (item, variant) instead of item alone.
+  function toggleDigitalVariantCartLine(item, variant) {
+    const idx = digitalVariantCartLines.findIndex(function (l) { return l.menuItemId === item.id && l.variantId === variant.id; });
+    if (idx !== -1) {
+      digitalVariantCartLines.splice(idx, 1);
+    } else {
+      digitalVariantCartLines.push({
+        lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
+        menuItemId: item.id, variantId: variant.id, variantLabel: variant.label, price: variant.price
+      });
+    }
+    saveCart();
+    updateDigitalCartUI();
+  }
+  // Single removal entry point for the cart sheet's ✕ button — works for
+  // either a plain pick or a variant line without the caller needing to
+  // know which one a given lineKey belongs to.
+  function removeDigitalCartLine(lineKey) {
+    const idx = digitalCart.indexOf(lineKey);
+    if (idx !== -1) { digitalCart.splice(idx, 1); saveCart(); return; }
+    digitalVariantCartLines = digitalVariantCartLines.filter(function (l) { return l.lineId !== lineKey; });
+    saveCart();
+  }
   function updateDigitalCartUI() {
+    updateHeaderCartBadge();
     const bar = document.getElementById('action-bar-digital-cart');
-    const count = digitalCart.length;
+    const count = digitalCartItems().length;
     if (count > 0) {
       bar.style.display = 'flex';
       document.getElementById('digital-cart-bar-sub').textContent = count + (count === 1 ? ' download' : ' downloads');
@@ -1873,41 +1992,80 @@
       bar.style.display = 'none';
     }
   }
+  // itemId, or itemId~variantId for a variant pick — parsed back out by
+  // digital-checkout.html.
+  function digitalCartLineToken(entry) {
+    return entry.variantId ? (entry.id + '~' + entry.variantId) : entry.id;
+  }
   function digitalCartCheckoutURL() {
+    const tokens = digitalCartItems().map(digitalCartLineToken);
     return '/baker/digital-checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
-      '&items=' + encodeURIComponent(digitalCart.join(',')) +
+      '&items=' + encodeURIComponent(tokens.join(',')) +
       '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
       '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
   }
 
-  // Ships (physical) cart — a { itemId: qty } map, so lines carry a real
-  // stepper (see refreshAddControl's 'physical' branch and the cart sheet's
-  // 'ship' line kind) instead of digitalCart's plain in/out toggle.
+  // Ships (physical) cart — a { itemId: qty } map for plain items, so
+  // those lines carry a real stepper (see refreshAddControl's 'physical'
+  // branch and the cart sheet's 'ship' line kind); variant picks live in
+  // shipVariantCartLines instead (same reasoning as digitalVariantCartLines
+  // above — the same base item can appear more than once with a different
+  // option chosen). shipCartItems() normalizes both into one list of
+  // { item, qty } pairs, with the variant line's own price/lineKey/
+  // variantId/variantLabel folded into `item` via Object.assign so every
+  // existing consumer that reads l.item.price/l.item.id etc. picks up the
+  // right value automatically without needing to know which source a
+  // given line came from.
   function shipCartItems() {
-    return Object.keys(shipCart).map(function (id) {
-      const item = allListings.find(function (l) { return l.id === id; });
-      return item ? { item: item, qty: shipCart[id] } : null;
+    const plain = Object.keys(shipCart).map(function (id) {
+      const base = allListings.find(function (l) { return l.id === id; });
+      if (!base) return null;
+      return { item: Object.assign({}, base, { lineKey: base.id, variantId: null, variantLabel: null }), qty: shipCart[id] };
     }).filter(Boolean);
+    const variantLines = shipVariantCartLines.map(function (ln) {
+      const base = allListings.find(function (l) { return l.id === ln.menuItemId; });
+      if (!base) return null;
+      return {
+        item: Object.assign({}, base, {
+          lineKey: ln.lineId, price: ln.price, variantId: ln.variantId, variantLabel: ln.variantLabel,
+          name: base.name + ' — ' + ln.variantLabel
+        }),
+        qty: ln.qty
+      };
+    }).filter(Boolean);
+    return plain.concat(variantLines);
   }
   function shipCartItemsSubtotal() {
     return shipCartItems().reduce(function (s, l) { return s + l.item.price * l.qty; }, 0);
   }
   // Shipping fee is a flat per-listing amount (set by the baker, see
-  // AddEditMenuItemView) charged once per distinct item in the cart, not
-  // once per unit — ordering 3 of the same cookie cutter shouldn't triple
-  // it. Real carrier-computed rates are a later integration; this is just
-  // the manual placeholder for it. A baker can also set a storefront-wide
-  // "free shipping over $X" (profile.shipping_free_over_threshold, see
-  // WebShopShippingSheet) that waives every item's fee once the ship-cart's
-  // item subtotal alone clears it.
+  // AddEditMenuItemView) charged once per distinct BASE item in the cart
+  // (deduped by the item's real id, not lineKey — two different options of
+  // the same cookie-cutter-set listing still only pay the fee once), not
+  // once per unit. Real carrier-computed rates are a later integration;
+  // this is just the manual placeholder for it. A baker can also set a
+  // storefront-wide "free shipping over $X"
+  // (profile.shipping_free_over_threshold, see WebShopShippingSheet) that
+  // waives every item's fee once the ship-cart's item subtotal alone
+  // clears it.
   function shipCartShippingFees() {
     const threshold = (profile && profile.shipping_free_over_threshold) || 0;
     if (threshold > 0 && shipCartItemsSubtotal() >= threshold) return 0;
-    return shipCartItems().reduce(function (s, l) { return s + (l.item.shipping_fee || 0); }, 0);
+    const seen = {};
+    let fee = 0;
+    shipCartItems().forEach(function (l) {
+      if (seen[l.item.id]) return;
+      seen[l.item.id] = true;
+      fee += (l.item.shipping_fee || 0);
+    });
+    return fee;
   }
   function shipCartTotal() {
     return shipCartItemsSubtotal() + shipCartShippingFees();
   }
+  // Plain (non-variant) physical items only — a has_variants item always
+  // goes through the item sheet's picker/stepper instead (see
+  // refreshAddControl and changeShipVariantLineQty below).
   function changeShipQty(item, delta) {
     const current = shipCart[item.id] || 0;
     const max = item.available_qty_today || 0;
@@ -1919,7 +2077,50 @@
     });
     updateShipCartUI();
   }
+  // Adds one unit of a specific variant to the ship cart, merging into an
+  // existing line for the same (item, variant) pair rather than creating a
+  // duplicate — clamped at that variant's own stock, re-resolved live from
+  // allListings rather than trusted from whatever the sheet had open.
+  function addShipVariantToCart(item, variant) {
+    const base = allListings.find(function (l) { return l.id === item.id; }) || item;
+    const liveVariant = (base.listing_variants || []).find(function (v) { return v.id === variant.id; }) || variant;
+    const max = liveVariant.stock_qty || 0;
+    const existing = shipVariantCartLines.find(function (l) { return l.menuItemId === item.id && l.variantId === variant.id; });
+    if (existing) {
+      existing.qty = Math.min(max, existing.qty + 1);
+    } else if (max > 0) {
+      shipVariantCartLines.push({
+        lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
+        menuItemId: item.id, variantId: liveVariant.id, variantLabel: liveVariant.label, price: liveVariant.price, qty: 1
+      });
+    }
+    saveCart();
+    updateShipCartUI();
+  }
+  function changeShipVariantLineQty(lineId, delta) {
+    const line = shipVariantCartLines.find(function (l) { return l.lineId === lineId; });
+    if (!line) return;
+    const base = allListings.find(function (l) { return l.id === line.menuItemId; });
+    const variant = base && (base.listing_variants || []).find(function (v) { return v.id === line.variantId; });
+    const max = variant ? (variant.stock_qty || 0) : line.qty;
+    line.qty = Math.max(0, Math.min(max, line.qty + delta));
+    if (line.qty === 0) { shipVariantCartLines = shipVariantCartLines.filter(function (l) { return l.lineId !== lineId; }); }
+    saveCart();
+    updateShipCartUI();
+  }
+  // Single "change qty by delta" entry point for the cart sheet's
+  // −/+ buttons — routes to the plain or variant path without the caller
+  // needing to know which one a given lineKey belongs to.
+  function changeShipCartLine(lineKey, delta) {
+    if (Object.prototype.hasOwnProperty.call(shipCart, lineKey)) {
+      const item = allListings.find(function (l) { return l.id === lineKey; });
+      if (item) changeShipQty(item, delta);
+    } else {
+      changeShipVariantLineQty(lineKey, delta);
+    }
+  }
   function updateShipCartUI() {
+    updateHeaderCartBadge();
     const bar = document.getElementById('action-bar-ship-cart');
     const items = shipCartItems();
     const count = items.reduce(function (s, l) { return s + l.qty; }, 0);
@@ -1931,8 +2132,13 @@
       bar.style.display = 'none';
     }
   }
+  // itemId:qty, or itemId:qty:variantId for a variant pick — parsed back
+  // out by physical-checkout.html.
+  function shipCartLineToken(l) {
+    return l.item.id + ':' + l.qty + (l.item.variantId ? ':' + l.item.variantId : '');
+  }
   function shipCartCheckoutURL() {
-    const pairs = shipCartItems().map(function (l) { return l.item.id + ':' + l.qty; });
+    const pairs = shipCartItems().map(shipCartLineToken);
     return '/baker/physical-checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
       '&items=' + encodeURIComponent(pairs.join(',')) +
       '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
@@ -2051,12 +2257,16 @@
     const boxEl = document.getElementById('item-sheet-box');
     boxState = null;
     preorderState = null;
+    variantState = null;
 
     if (item.is_assorted_box) {
       boxEl.style.display = 'block';
       openBoxPicker(item);
     } else if (item.listing_kind === 'preorder') {
       openPreorderPicker(item);
+    } else if (item.has_variants) {
+      boxEl.style.display = 'block';
+      openVariantPicker(item);
     } else {
       boxEl.style.display = 'none';
       boxEl.innerHTML = '';
@@ -2380,6 +2590,92 @@
     return STORAGE_URL + '/menu-item-images/' + resolvedBakerId.toUpperCase() + '/' + item.id.toUpperCase() + '/variants/' + variant.id.toUpperCase() + '.jpg';
   }
 
+  // ══════════════════════ Listing variant picker ══════════════════════
+  //
+  // Single-select size/option picker for a plain (non-Assorted-Box)
+  // digital or physical listing — e.g. a cookie-cutter set sold in
+  // Small/Medium/Large/XL, or a printable design offered at a few sizes.
+  // Deliberately simpler than the box picker above (no flavor mix to
+  // build): pick exactly one listing_variants row, then Add to Cart.
+  // Reuses the box picker's .box-tiers/.box-tier CSS since the "one row
+  // of tappable option cards" shape is identical.
+
+  function openVariantPicker(item) {
+    variantState = { item: item, variantId: null };
+    renderVariantPickerBody();
+  }
+
+  function renderVariantPickerBody() {
+    const item = variantState.item;
+    const variants = item.listing_variants || [];
+    const isPhysical = item.listing_kind === 'physical';
+    const tierHtml = '<div class="box-tiers">' + variants.map(function (v) {
+      const soldOut = isPhysical && (v.stock_qty || 0) <= 0;
+      return '<button type="button" class="box-tier' + (v.id === variantState.variantId ? ' active' : '') + '"' +
+        (soldOut ? ' disabled' : '') + ' style="' + (soldOut ? 'opacity:.4;' : '') + '" data-variant-id="' + v.id + '">' +
+        '<div class="box-tier-label">' + escapeHtml(v.label) + (soldOut ? ' (Sold Out)' : '') + '</div>' +
+        '<div class="box-tier-price tabular">$' + formatPrice(v.price) + '</div>' +
+        '</button>';
+    }).join('') + '</div>';
+
+    document.getElementById('item-sheet-box').innerHTML =
+      '<div class="box-step-label">Choose an option</div>' + tierHtml;
+
+    wireVariantPickerEvents();
+    updateVariantCTA();
+  }
+
+  function wireVariantPickerEvents() {
+    document.querySelectorAll('#item-sheet-box .box-tier').forEach(function (btn) {
+      if (btn.disabled) return;
+      btn.addEventListener('click', function () {
+        variantState.variantId = btn.dataset.variantId;
+        renderVariantPickerBody();
+      });
+    });
+  }
+
+  function updateVariantCTA() {
+    const cta = document.getElementById('item-sheet-cta');
+    const item = variantState.item;
+    const variant = (item.listing_variants || []).find(function (v) { return v.id === variantState.variantId; });
+    if (!variant) {
+      cta.textContent = 'Choose an option';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    if (item.listing_kind === 'digital') {
+      const inCart = digitalVariantCartLines.some(function (l) { return l.menuItemId === item.id && l.variantId === variant.id; });
+      cta.textContent = (inCart ? 'Remove from Cart ✓ — $' : 'Add to Cart — $') + formatPrice(variant.price);
+      cta.disabled = !stripeReady;
+      cta.style.opacity = stripeReady ? '1' : '.5';
+      cta.onclick = stripeReady ? function () {
+        toggleDigitalVariantCartLine(item, variant);
+        closeItemSheet();
+        showToast(inCart ? 'Removed from your download cart' : 'Added to your download cart');
+      } : null;
+      return;
+    }
+    const soldOut = (variant.stock_qty || 0) <= 0;
+    if (soldOut || !stripeReady) {
+      cta.textContent = soldOut ? 'Sold Out' : 'Ordering Opens Soon';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    cta.textContent = 'Add to Cart — $' + formatPrice(variant.price);
+    cta.disabled = false;
+    cta.style.opacity = '1';
+    cta.onclick = function () {
+      addShipVariantToCart(item, variant);
+      closeItemSheet();
+      showToast('Added to your ship cart');
+    };
+  }
+
   // ══════════════════════ Pre-order date picker ══════════════════════
 
   // Per-date capacity cache — { menuItemId: { dateTimeMs: committedQty } }.
@@ -2631,7 +2927,7 @@
     // digital lines into this same summary/total keeps it feeling like one
     // order to the buyer even though it settles as two charges.
     const digitalRows = digitalItems.map(function (item) {
-      return '<div class="cart-line" data-line-kind="digital" data-line-id="' + item.id + '">' +
+      return '<div class="cart-line" data-line-kind="digital" data-line-id="' + item.lineKey + '">' +
         '<div class="thumb"><img src="' + itemImgURL(item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
         '<div class="info"><div class="n">' + escapeHtml(item.name) + '</div><div class="m">Instant digital download</div></div>' +
         '<button class="remove-btn" aria-label="Remove">✕</button>' +
@@ -2642,7 +2938,7 @@
     // digital's flat remove-✕ row) — a ships item is stock-bound and a
     // buyer can reasonably want more than one, unlike a digital download.
     const shipRows = shipLinesData.map(function (l) {
-      return '<div class="cart-line" data-line-kind="ship" data-line-id="' + l.item.id + '">' +
+      return '<div class="cart-line" data-line-kind="ship" data-line-id="' + l.item.lineKey + '">' +
         '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
         '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">Ships in ' + (l.item.lead_days || 3) + ' day' + (l.item.lead_days === 1 ? '' : 's') + '</div></div>' +
         '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
@@ -2719,8 +3015,7 @@
         } else if (row.dataset.lineKind === 'preorder') {
           changePreorderLineQty(id, delta);
         } else if (row.dataset.lineKind === 'ship') {
-          const item = allListings.find(function (l) { return l.id === id; });
-          changeShipQty(item, delta);
+          changeShipCartLine(id, delta);
         } else {
           const item = allListings.find(function (l) { return l.id === id; });
           changeQty(item, delta);
@@ -2731,9 +3026,7 @@
     document.querySelectorAll('.cart-line[data-line-kind="digital"] .remove-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         const id = btn.closest('.cart-line').dataset.lineId;
-        const idx = digitalCart.indexOf(id);
-        if (idx !== -1) digitalCart.splice(idx, 1);
-        saveCart();
+        removeDigitalCartLine(id);
         updateDigitalCartUI();
         // Keeps the underlying Digital Downloads row's own add-control (the
         // ✓/+ toggle) in sync — without this it kept showing "added" after
@@ -2770,6 +3063,7 @@
     const keep = document.getElementById('cart-keep-shopping');
     if (keep) keep.addEventListener('click', function () {
       cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = []; shipCart = {};
+      shipVariantCartLines = []; digitalVariantCartLines = [];
       saveCart(); updateCartUI(); updateDigitalCartUI(); updateShipCartUI(); closeCartSheet();
     });
   }
@@ -2838,7 +3132,7 @@
       // for why they can't share a PaymentIntent), then shows one combined
       // confirmation screen.
       digitalItems: digitalCartItems().map(function (item) {
-        return { id: item.id, name: item.name, price: item.price };
+        return { id: item.id, name: item.name, price: item.price, variantId: item.variantId || null, variantLabel: item.variantLabel || null };
       }),
       // A third, independent leg — same reasoning as digitalItems above,
       // but stock-bound (qty can be >1) and needs a shipping address,
@@ -2849,8 +3143,19 @@
       // shippingFee arrives per item — naturally charges $0 shipping too.
       shipItems: (function () {
         const waived = shipCartItemsSubtotal() > 0 && shipCartShippingFees() === 0;
+        const seenForFee = {};
         return shipCartItems().map(function (l) {
-          return { id: l.item.id, name: l.item.name, price: l.item.price, qty: l.qty, leadDays: l.item.lead_days || 3, shippingFee: waived ? 0 : (l.item.shipping_fee || 0) };
+          // Shipping fee is per distinct base item, not per line — a second
+          // variant line of an already-seen base item charges $0 shipping
+          // here so finalize-guest-physical-order's per-line sum matches
+          // shipCartShippingFees()'s own dedup-by-base-id logic above.
+          const chargeFee = !seenForFee[l.item.id];
+          seenForFee[l.item.id] = true;
+          return {
+            id: l.item.id, name: l.item.name, price: l.item.price, qty: l.qty,
+            leadDays: l.item.lead_days || 3, shippingFee: (waived || !chargeFee) ? 0 : (l.item.shipping_fee || 0),
+            variantId: l.item.variantId || null, variantLabel: l.item.variantLabel || null
+          };
         });
       })()
     };

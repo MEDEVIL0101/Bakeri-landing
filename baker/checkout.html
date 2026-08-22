@@ -406,7 +406,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         items: digitalItems.map(function (i) {
-          return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: 1, price_from: i.price, listing_kind: 'digital' };
+          return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: 1, price_from: i.price, listing_kind: 'digital', variant_id: i.variantId || null };
         }),
         currency: 'cad'
       })
@@ -469,7 +469,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         payment_intent_id: paymentIntentId,
-        menu_item_ids: digitalItems.map(function (i) { return i.id; }),
+        items: digitalItems.map(function (i) { return { id: i.id, variant_id: i.variantId || null }; }),
         customer_name: cart.customer.name,
         customer_email: cart.customer.email
       })
@@ -561,7 +561,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         items: shipItems.map(function (i) {
-          return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical' };
+          return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical', variant_id: i.variantId || null };
         }),
         currency: 'cad',
         shipping_fee_cents: Math.round(shipShippingFeeTotal * 100)
@@ -624,7 +624,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         payment_intent_id: paymentIntentId,
-        items: shipItems.map(function (i) { return { menu_item_id: i.id, quantity: i.qty }; }),
+        items: shipItems.map(function (i) { return { menu_item_id: i.id, quantity: i.qty, variant_id: i.variantId || null }; }),
         customer_name: cart.customer.name,
         customer_email: cart.customer.email,
         shipping_address: shipAddress

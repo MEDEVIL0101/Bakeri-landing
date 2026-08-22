@@ -7,6 +7,13 @@ import { currencyForCountry } from "../_shared/currency.ts";
 
 const stripe = getStripeClient();
 
+// Thrown by the isDigital/isPhysical validation blocks below (item gone,
+// unlisted, sold out, or an unrecognized variant) — caught at the bottom
+// and turned into the same 400 + friendly message shape those blocks used
+// to return directly, before validation needed to happen inline inside a
+// forEach rather than a plain for-loop with early returns.
+class ValidationError extends Error {}
+
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const DEPOSIT_FRACTION = 0.5; // 50% deposit for custom orders
 
@@ -18,6 +25,12 @@ interface CartItemPayload {
   price_from: number;
   listing_kind: "ready_now" | "preorder" | "custom" | "digital" | "physical";
   pickup_date?: string | null;
+  // A picked listing_variants row (see AddEditMenuItemView's Variants
+  // toggle) — only ever set for a digital/physical item with has_variants.
+  // price_from is NOT trusted for these; the real charge uses the
+  // variant's own price fetched fresh below, same reasoning as re-fetching
+  // the base listing itself instead of trusting the client's price_from.
+  variant_id?: string | null;
 }
 
 interface RequestBody {
@@ -134,35 +147,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const itemsTotalCents = Math.round(
-      items.reduce((sum, item) => sum + item.price_from * item.quantity, 0) * 100
-    );
-    // shipping_fee_cents is a flat manual fee (see MenuItem.shippingFee),
-    // trusted the same way tax_amount_cents already is — a pass-through
-    // the platform doesn't take a cut of, not part of the service-charge
-    // base below. Only ever non-zero for a physical-only cart.
-    const fullTotalCents = itemsTotalCents + (tax_amount_cents ?? 0) + (shipping_fee_cents ?? 0);
-
-    // For deposit flow: deposit is 50% of items total only (tax due at final payment)
-    const depositAmountCents = paymentFlow === "deposit_and_save"
-      ? Math.round(itemsTotalCents * DEPOSIT_FRACTION)
-      : null;
-
-    // Service charge — computed off the pre-tax item/deposit base (tax is a
-    // pass-through, not something the platform takes a cut of).
-    //
-    // Guest/website checkout: NOT added to the customer's charge — the
-    // customer pays exactly the item/deposit price, and Bakeri's one 5% cut
-    // comes entirely out of the baker's side (applicationFeeCents below).
-    //
-    // App: added to what the customer pays AND taken from the baker's side
-    // — both parties pay their own 5% (2026-08-02 decision), so Bakeri
-    // collects platformFeeCents twice: once already embedded in chargeCents
-    // via the customer's added fee, once more carved out of the baker's own
-    // base price. See _shared/fees.ts.
-    const platformFeeCents = Math.round((depositAmountCents ?? itemsTotalCents) * PLATFORM_FEE_RATE);
-    const chargeCents = (depositAmountCents ?? fullTotalCents) + (isApp ? platformFeeCents : 0);
-    const applicationFeeCents = isApp ? platformFeeCents * 2 : platformFeeCents;
+    // Authoritative per-line price for any variant pick — never trust
+    // price_from for these, filled in by the isDigital/isPhysical
+    // validation blocks below before itemsTotalCents is computed.
+    const authoritativePriceByIndex = new Map<number, number>();
 
     // Regular (non-deposit) orders now hold the funds — authorize at checkout,
     // capture only once the baker actually accepts the order (capture-payment,
@@ -193,63 +181,115 @@ Deno.serve(async (req: Request) => {
       const supabase = getSupabaseClient();
       const { data: digitalItems, error: digitalItemsErr } = await supabase
         .from("menu_items")
-        .select("id, name, listing_kind, is_listed_in_marketplace, digital_file_path")
+        .select("id, name, listing_kind, is_listed_in_marketplace, digital_file_path, has_variants")
         .in("id", items.map((i) => i.listing_id));
 
       const itemsById = new Map((digitalItems ?? []).map((d) => [d.id, d]));
-      for (const cartItem of items) {
+      const variantIds = items.filter((i) => i.variant_id).map((i) => i.listing_id);
+      const { data: variantRows } = variantIds.length
+        ? await supabase.from("listing_variants").select("id, menu_item_id, label, price")
+            .in("menu_item_id", variantIds).is("deleted_at", null)
+        : { data: [] };
+      const variantsByItemId = new Map<string, { id: string; label: string; price: number }[]>();
+      (variantRows ?? []).forEach((v) => {
+        const list = variantsByItemId.get(v.menu_item_id) ?? [];
+        list.push(v);
+        variantsByItemId.set(v.menu_item_id, list);
+      });
+
+      items.forEach((cartItem, idx) => {
         const digitalItem = itemsById.get(cartItem.listing_id);
         if (digitalItemsErr || !digitalItem || digitalItem.listing_kind !== "digital") {
-          return new Response(JSON.stringify({ error: "This item is no longer available." }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-          });
+          throw new ValidationError("This item is no longer available.");
         }
         if (!digitalItem.is_listed_in_marketplace) {
-          return new Response(JSON.stringify({ error: `"${digitalItem.name}" is no longer available.` }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-          });
+          throw new ValidationError(`"${digitalItem.name}" is no longer available.`);
         }
         if (!digitalItem.digital_file_path) {
-          return new Response(JSON.stringify({ error: `"${digitalItem.name}" has no file attached yet — contact the baker.` }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-          });
+          throw new ValidationError(`"${digitalItem.name}" has no file attached yet — contact the baker.`);
         }
-      }
+        if (cartItem.variant_id) {
+          const variant = (variantsByItemId.get(cartItem.listing_id) ?? []).find((v) => v.id === cartItem.variant_id);
+          if (!variant) {
+            throw new ValidationError(`"${digitalItem.name}" — that option is no longer available.`);
+          }
+          authoritativePriceByIndex.set(idx, variant.price);
+        }
+      });
     }
 
     if (isPhysical) {
       const supabase = getSupabaseClient();
       const { data: physicalItems, error: physicalItemsErr } = await supabase
         .from("menu_items")
-        .select("id, name, listing_kind, is_listed_in_marketplace, available_qty_today")
+        .select("id, name, listing_kind, is_listed_in_marketplace, available_qty_today, has_variants")
         .in("id", items.map((i) => i.listing_id));
 
       const itemsById = new Map((physicalItems ?? []).map((d) => [d.id, d]));
-      for (const cartItem of items) {
+      const variantIds = items.filter((i) => i.variant_id).map((i) => i.listing_id);
+      const { data: variantRows } = variantIds.length
+        ? await supabase.from("listing_variants").select("id, menu_item_id, label, price, stock_qty")
+            .in("menu_item_id", variantIds).is("deleted_at", null)
+        : { data: [] };
+      const variantsByItemId = new Map<string, { id: string; label: string; price: number; stock_qty: number }[]>();
+      (variantRows ?? []).forEach((v) => {
+        const list = variantsByItemId.get(v.menu_item_id) ?? [];
+        list.push(v);
+        variantsByItemId.set(v.menu_item_id, list);
+      });
+
+      items.forEach((cartItem, idx) => {
         const physicalItem = itemsById.get(cartItem.listing_id);
         if (physicalItemsErr || !physicalItem || physicalItem.listing_kind !== "physical") {
-          return new Response(JSON.stringify({ error: "This item is no longer available." }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-          });
+          throw new ValidationError("This item is no longer available.");
         }
         if (!physicalItem.is_listed_in_marketplace) {
-          return new Response(JSON.stringify({ error: `"${physicalItem.name}" is no longer available.` }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-          });
+          throw new ValidationError(`"${physicalItem.name}" is no longer available.`);
         }
-        if ((physicalItem.available_qty_today ?? 0) < cartItem.quantity) {
-          return new Response(JSON.stringify({ error: `"${physicalItem.name}" doesn't have enough stock left.` }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-          });
+        if (cartItem.variant_id) {
+          const variant = (variantsByItemId.get(cartItem.listing_id) ?? []).find((v) => v.id === cartItem.variant_id);
+          if (!variant) {
+            throw new ValidationError(`"${physicalItem.name}" — that option is no longer available.`);
+          }
+          if ((variant.stock_qty ?? 0) < cartItem.quantity) {
+            throw new ValidationError(`"${physicalItem.name} — ${variant.label}" doesn't have enough stock left.`);
+          }
+          authoritativePriceByIndex.set(idx, variant.price);
+        } else if ((physicalItem.available_qty_today ?? 0) < cartItem.quantity) {
+          throw new ValidationError(`"${physicalItem.name}" doesn't have enough stock left.`);
         }
-      }
+      });
     }
+
+    const itemsTotalCents = Math.round(
+      items.reduce((sum, item, idx) => sum + (authoritativePriceByIndex.get(idx) ?? item.price_from) * item.quantity, 0) * 100
+    );
+    // shipping_fee_cents is a flat manual fee (see MenuItem.shippingFee),
+    // trusted the same way tax_amount_cents already is — a pass-through
+    // the platform doesn't take a cut of, not part of the service-charge
+    // base below. Only ever non-zero for a physical-only cart.
+    const fullTotalCents = itemsTotalCents + (tax_amount_cents ?? 0) + (shipping_fee_cents ?? 0);
+
+    // For deposit flow: deposit is 50% of items total only (tax due at final payment)
+    const depositAmountCents = paymentFlow === "deposit_and_save"
+      ? Math.round(itemsTotalCents * DEPOSIT_FRACTION)
+      : null;
+
+    // Service charge — computed off the pre-tax item/deposit base (tax is a
+    // pass-through, not something the platform takes a cut of).
+    //
+    // Guest/website checkout: NOT added to the customer's charge — the
+    // customer pays exactly the item/deposit price, and Bakeri's one 5% cut
+    // comes entirely out of the baker's side (applicationFeeCents below).
+    //
+    // App: added to what the customer pays AND taken from the baker's side
+    // — both parties pay their own 5% (2026-08-02 decision), so Bakeri
+    // collects platformFeeCents twice: once already embedded in chargeCents
+    // via the customer's added fee, once more carved out of the baker's own
+    // base price. See _shared/fees.ts.
+    const platformFeeCents = Math.round((depositAmountCents ?? itemsTotalCents) * PLATFORM_FEE_RATE);
+    const chargeCents = (depositAmountCents ?? fullTotalCents) + (isApp ? platformFeeCents : 0);
+    const applicationFeeCents = isApp ? platformFeeCents * 2 : platformFeeCents;
 
     const bakerIDs = [...new Set(items.map((i) => i.baker_id))];
 
@@ -335,6 +375,12 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (err: unknown) {
+    if (err instanceof ValidationError) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
     return new Response(JSON.stringify({ error: friendlyStripeError(err) }), {
       status: 500,
       headers: {

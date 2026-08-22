@@ -107,18 +107,21 @@
 
   const params  = new URLSearchParams(window.location.search);
   const bakerID = (params.get('baker') || '').trim();
-  // items=id1:2,id2:1 — id:qty pairs (a ship cart, unlike the digital cart,
-  // can hold more than one of the same stock-bound item). A bare id with no
-  // ":qty" defaults to 1, so a single "buy now" link (?items=id) still works.
-  const requestedQty = {};
-  const itemIDs = (params.get('items') || params.get('item') || '')
+  // items=id1:2,id2:1:variantId — id:qty pairs (a ship cart, unlike the
+  // digital cart, can hold more than one of the same stock-bound item), with
+  // an optional third :variantId segment for a has_variants listing (see
+  // shipCartLineToken in baker/index.html). A bare id with no ":qty"
+  // defaults to 1, so a single "buy now" link (?items=id) still works. Kept
+  // as a plain array of lines (not deduped/keyed by id) since two different
+  // variants of the same base listing are two separate lines here, same as
+  // everywhere else this feature touches.
+  const requestedLines = (params.get('items') || params.get('item') || '')
     .split(',').map(function (s) { return s.trim(); }).filter(Boolean)
     .map(function (pair) {
       const parts = pair.split(':');
-      const id = parts[0];
-      requestedQty[id] = Math.max(1, parseInt(parts[1], 10) || 1);
-      return id;
+      return { id: parts[0], qty: Math.max(1, parseInt(parts[1], 10) || 1), variantId: parts[2] || null };
     });
+  const itemIDs = [...new Set(requestedLines.map(function (l) { return l.id; }))];
   const content = document.getElementById('content');
 
   if (window.BakeriTheme) {
@@ -143,29 +146,46 @@
   .then(function (r) { return r.json(); })
   .then(function (data) {
     if (!data || !data.profile) { showMessage('Not found', 'This storefront could not be found.'); return; }
-    // Drop any id that's since vanished/been unlisted, and clamp the
-    // requested qty to what's actually in stock right now — the real
-    // atomic check happens server-side at charge time (see
-    // create-payment-intent), this is just so the buyer isn't shown a
-    // total they can't actually pay for.
-    items = itemIDs
-      .map(function (id) { return (data.listings || []).find(function (l) { return l.id === id && l.listing_kind === 'physical'; }); })
-      .filter(Boolean)
-      .filter(function (l) { return (l.available_qty_today || 0) > 0; })
-      .map(function (l) {
-        return Object.assign({}, l, { qty: Math.min(requestedQty[l.id] || 1, l.available_qty_today) });
-      });
+    // Drop any line whose base listing has since vanished/been unlisted, or
+    // (for a variant line) whose picked option is gone — clamp qty to
+    // whatever's actually in stock right now, either the variant's own
+    // stock_qty or the base listing's available_qty_today. The real atomic
+    // check happens server-side at charge time (see create-payment-intent),
+    // this is just so the buyer isn't shown a total they can't actually pay for.
+    items = requestedLines
+      .map(function (line) {
+        const base = (data.listings || []).find(function (l) { return l.id === line.id && l.listing_kind === 'physical'; });
+        if (!base) return null;
+        if (line.variantId) {
+          const variant = (base.listing_variants || []).find(function (v) { return v.id === line.variantId; });
+          if (!variant || (variant.stock_qty || 0) <= 0) return null;
+          return Object.assign({}, base, {
+            qty: Math.min(line.qty, variant.stock_qty), price: variant.price,
+            variantId: variant.id, variantLabel: variant.label, name: base.name + ' — ' + variant.label
+          });
+        }
+        if ((base.available_qty_today || 0) <= 0) return null;
+        return Object.assign({}, base, { qty: Math.min(line.qty, base.available_qty_today), variantId: null, variantLabel: null });
+      })
+      .filter(Boolean);
     if (items.length === 0) { showMessage('Sold out', 'These items are no longer available.'); return; }
-    // Guest checkout: buyer pays the listed price(s) plus each item's flat
-    // shipping fee (once per distinct item, not multiplied by qty) — Bakeri's
-    // service charge still only comes out of the baker's side. Waived
-    // entirely once the item subtotal alone clears the baker's storefront-
-    // wide free-shipping threshold (0 = no such rule, see WebShopShippingSheet).
+    // Guest checkout: buyer pays the listed price(s) plus each distinct BASE
+    // item's flat shipping fee (once per base listing id, not per line or
+    // qty — two variant lines of the same listing still only pay the fee
+    // once) — Bakeri's service charge still only comes out of the baker's
+    // side. Waived entirely once the item subtotal alone clears the baker's
+    // storefront-wide free-shipping threshold (0 = no such rule, see
+    // WebShopShippingSheet).
     const itemsSubtotal = items.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
     const freeOverThreshold = (data.profile && data.profile.shipping_free_over_threshold) || 0;
+    const seenForFee = {};
     shippingFeeTotal = (freeOverThreshold > 0 && itemsSubtotal >= freeOverThreshold)
       ? 0
-      : items.reduce(function (s, i) { return s + (i.shipping_fee || 0); }, 0);
+      : items.reduce(function (s, i) {
+          if (seenForFee[i.id]) return s;
+          seenForFee[i.id] = true;
+          return s + (i.shipping_fee || 0);
+        }, 0);
     total = itemsSubtotal + shippingFeeTotal;
     renderForm();
   })
@@ -242,7 +262,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         items: items.map(function (i) {
-          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical' };
+          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical', variant_id: i.variantId || null };
         }),
         currency: 'cad',
         shipping_fee_cents: Math.round(shippingFeeTotal * 100)
@@ -308,7 +328,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         payment_intent_id: paymentIntentId,
-        items: items.map(function (i) { return { menu_item_id: i.id, quantity: i.qty }; }),
+        items: items.map(function (i) { return { menu_item_id: i.id, quantity: i.qty, variant_id: i.variantId || null }; }),
         customer_name: name,
         customer_email: email,
         shipping_address: shipAddress

@@ -71,21 +71,33 @@ Deno.serve(async (req: Request) => {
 
   const payment_intent_id = String(body.payment_intent_id ?? "").trim();
   // menu_item_id (singular) kept for back-compat with any cached copy of the
-  // storefront page still sending the old single-item shape.
-  const menu_item_ids = Array.isArray(body.menu_item_ids)
-    ? [...new Set(body.menu_item_ids.map((id) => String(id).trim()).filter(Boolean))]
-    : [String(body.menu_item_id ?? "").trim()].filter(Boolean);
+  // storefront page still sending the old single-item shape. The richer
+  // `items` shape (each with its own optional variant_id) is preferred when
+  // present — same reasoning as finalize-guest-physical-order's requestedItems:
+  // one requested line per cart line, NOT deduped by menu_item_id, since a
+  // has_variants listing can appear more than once with a different option
+  // picked (one shared digital file, but each option still needs its own
+  // variant_id/variant_label recorded on its order_items row).
+  const requestedLines: { menu_item_id: string; variant_id: string | null }[] = Array.isArray(body.items)
+    ? (body.items as Record<string, unknown>[])
+        .map((i) => ({ menu_item_id: String(i.id ?? "").trim(), variant_id: i.variant_id ? String(i.variant_id).trim() : null }))
+        .filter((i) => i.menu_item_id)
+    : (Array.isArray(body.menu_item_ids)
+        ? [...new Set(body.menu_item_ids.map((id) => String(id).trim()).filter(Boolean))]
+        : [String(body.menu_item_id ?? "").trim()].filter(Boolean)
+      ).map((id) => ({ menu_item_id: id, variant_id: null }));
   const customer_name = String(body.customer_name ?? "").trim();
   const customer_email = String(body.customer_email ?? "").trim().toLowerCase();
 
-  if (!payment_intent_id || menu_item_ids.length === 0) return json({ error: "Invalid request." }, 400);
+  if (!payment_intent_id || requestedLines.length === 0) return json({ error: "Invalid request." }, 400);
   if (!customer_name) return json({ error: "Please enter your name." }, 400);
   if (!EMAIL_RE.test(customer_email)) return json({ error: "Please enter a valid email address." }, 400);
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const menu_item_ids = [...new Set(requestedLines.map((l) => l.menu_item_id))];
 
   // Re-fetch every listing server-side — never trust client-supplied price/name.
-  const { data: items, error: itemsErr } = await db
+  const { data: menuItemRows, error: itemsErr } = await db
     .from("menu_items")
     .select("id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, digital_file_path")
     .in("id", menu_item_ids);
@@ -97,18 +109,51 @@ Deno.serve(async (req: Request) => {
   // deleted/delisted item before charging); everything below this point does
   // know the account, so it refunds automatically on failure instead of
   // leaving the buyer charged with nothing to show for it.
-  if (itemsErr || !items || items.length !== menu_item_ids.length) {
+  if (itemsErr || !menuItemRows || menuItemRows.length !== menu_item_ids.length) {
     return json({ error: "One of these items is no longer available." }, 400);
   }
-  if (items.some((i) => i.listing_kind !== "digital")) {
+  if (menuItemRows.some((i) => i.listing_kind !== "digital")) {
     return json({ error: "One of these items is not a digital download." }, 400);
   }
-  const bakerIds = new Set(items.map((i) => i.user_id));
+  const bakerIds = new Set(menuItemRows.map((i) => i.user_id));
   if (bakerIds.size !== 1) {
     return json({ error: "These items are from different bakers and can't be checked out together." }, 400);
   }
 
-  const bakerId = items[0].user_id as string;
+  const bakerId = menuItemRows[0].user_id as string;
+  const itemsById = new Map(menuItemRows.map((i) => [i.id as string, i]));
+
+  const variantMenuItemIds = [...new Set(requestedLines.filter((l) => l.variant_id).map((l) => l.menu_item_id))];
+  const { data: variantRows } = variantMenuItemIds.length
+    ? await db.from("listing_variants").select("id, menu_item_id, label, price").in("menu_item_id", variantMenuItemIds).is("deleted_at", null)
+    : { data: [] as { id: string; menu_item_id: string; label: string; price: number }[] };
+  const variantsById = new Map((variantRows ?? []).map((v) => [v.id, v]));
+
+  // One resolved line per requested line — never trust client price for a
+  // variant pick, same reasoning as finalize-guest-physical-order.
+  interface DigitalLine { menuItemId: string; name: string; variantId: string | null; variantLabel: string | null; unitPriceCents: number; digitalFilePath: string | null; }
+  const digitalLines: DigitalLine[] = [];
+  for (const req of requestedLines) {
+    const menuItem = itemsById.get(req.menu_item_id);
+    if (!menuItem) return json({ error: "One of these items is no longer available." }, 400);
+    if (req.variant_id) {
+      const variant = variantsById.get(req.variant_id);
+      if (!variant || variant.menu_item_id !== req.menu_item_id) {
+        return json({ error: `"${menuItem.name}" — that option is no longer available.` }, 400);
+      }
+      digitalLines.push({
+        menuItemId: req.menu_item_id, name: `${menuItem.name} — ${variant.label}`,
+        variantId: variant.id, variantLabel: variant.label,
+        unitPriceCents: Math.round(variant.price * 100), digitalFilePath: menuItem.digital_file_path,
+      });
+    } else {
+      digitalLines.push({
+        menuItemId: req.menu_item_id, name: menuItem.name, variantId: null, variantLabel: null,
+        unitPriceCents: Math.round((((menuItem.marketplace_price_from ?? 0) > 0 ? menuItem.marketplace_price_from : menuItem.default_price) ?? 0) * 100),
+        digitalFilePath: menuItem.digital_file_path,
+      });
+    }
+  }
 
   const { data: bakerProfile } = await db
     .from("profiles")
@@ -160,16 +205,10 @@ Deno.serve(async (req: Request) => {
     }, 400);
   }
 
-  const missingFile = items.find((i) => !i.digital_file_path);
+  const missingFile = digitalLines.find((l) => !l.digitalFilePath);
   if (missingFile) return refundAndFail(`"${missingFile.name}" has no file attached.`);
 
-  const priceCentsById = new Map(
-    items.map((i) => [
-      i.id,
-      Math.round(((i.marketplace_price_from ?? 0) > 0 ? i.marketplace_price_from : i.default_price) * 100),
-    ])
-  );
-  const subtotalCents = [...priceCentsById.values()].reduce((sum, c) => sum + c, 0);
+  const subtotalCents = digitalLines.reduce((sum, l) => sum + l.unitPriceCents, 0);
   // Guest checkout: buyer pays exactly the item price(s) — Bakeri's service
   // charge comes out of the baker's cut instead (see create-payment-intent).
   const platformFeeCents = Math.round(subtotalCents * PLATFORM_FEE_RATE);
@@ -182,25 +221,31 @@ Deno.serve(async (req: Request) => {
     ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, platformFeeCents)
     : null;
 
-  // One signed URL per item. If any fails, refund the whole cart rather than
-  // partially deliver — keeps the refund-or-deliver contract all-or-nothing,
-  // same as every other failure path here.
+  // One signed URL per distinct FILE, not per line — a has_variants digital
+  // listing shares one uploaded file across every size/option (confirmed
+  // scope: "one digital print file makes more sense"), so buying two
+  // different sizes of the same listing should hand back one download link,
+  // not the same file twice under two different labels. If any fails,
+  // refund the whole cart rather than partially deliver — keeps the
+  // refund-or-deliver contract all-or-nothing, same as every other failure
+  // path here.
+  const uniqueFileLines = [...new Map(digitalLines.map((l) => [l.digitalFilePath, l])).values()];
   const downloads: { item_name: string; download_url: string }[] = [];
-  for (const item of items) {
+  for (const line of uniqueFileLines) {
     const { data: signedUrlData, error: signedUrlErr } = await db.storage
       .from("digital-products")
-      .createSignedUrl(item.digital_file_path as string, SIGNED_URL_EXPIRY_SECONDS);
+      .createSignedUrl(line.digitalFilePath as string, SIGNED_URL_EXPIRY_SECONDS);
 
     if (signedUrlErr || !signedUrlData?.signedUrl) {
-      console.error("createSignedUrl failed:", item.id, signedUrlErr?.message);
+      console.error("createSignedUrl failed:", line.menuItemId, signedUrlErr?.message);
       return refundAndFail("We couldn't prepare your download.");
     }
-    downloads.push({ item_name: item.name, download_url: signedUrlData.signedUrl });
+    downloads.push({ item_name: itemsById.get(line.menuItemId)?.name ?? line.name, download_url: signedUrlData.signedUrl });
   }
 
   // Order name: the single item's name, or "First item + N more" for a
   // cart — matches create-guest-marketplace-order's convention.
-  const orderName = items.length === 1 ? items[0].name : `${items[0].name} + ${items.length - 1} more`;
+  const orderName = digitalLines.length === 1 ? digitalLines[0].name : `${digitalLines[0].name} + ${digitalLines.length - 1} more`;
 
   const clientIp = getClientIp(req);
   const orderId = crypto.randomUUID();
@@ -250,15 +295,17 @@ Deno.serve(async (req: Request) => {
   }
 
   const { error: itemInsertErr } = await db.from("order_items").insert(
-    items.map((item) => ({
+    digitalLines.map((line) => ({
       id: crypto.randomUUID(),
       user_id: bakerId,
       order_id: orderId,
       recipe_id: null,
-      custom_name: item.name,
+      custom_name: line.name,
       quantity: 1,
       unit: "download",
-      price_per_unit: (priceCentsById.get(item.id) ?? 0) / 100,
+      price_per_unit: line.unitPriceCents / 100,
+      variant_id: line.variantId,
+      variant_label: line.variantLabel,
       notes: "",
       updated_at: now,
     }))
@@ -277,11 +324,11 @@ Deno.serve(async (req: Request) => {
       db,
       bakerId,
       bakerEmail: bakerProfile.email,
-      items: items.map((item) => ({
-        custom_name: item.name,
+      items: digitalLines.map((line) => ({
+        custom_name: line.name,
         quantity: 1,
-        price_per_unit: (priceCentsById.get(item.id) ?? 0) / 100,
-        menu_item_id: item.id as string,
+        price_per_unit: line.unitPriceCents / 100,
+        menu_item_id: line.menuItemId,
       })),
       customerName: customer_name,
       customerEmail: customer_email,

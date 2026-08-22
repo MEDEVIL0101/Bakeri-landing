@@ -109,11 +109,21 @@
 
   const params  = new URLSearchParams(window.location.search);
   const bakerID = (params.get('baker') || '').trim();
-  // items=id1,id2,id3 is the current shape (a download cart — see
-  // baker/index.html's digitalCart). item=id (singular) is kept working for
-  // any link shared before carts existed, or already saved by a buyer.
-  const itemIDs = (params.get('items') || params.get('item') || '')
-    .split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+  // items=id1,id2,id3~variantId is the current shape (a download cart — see
+  // baker/index.html's digitalCart/digitalCartLineToken) — a bare id for a
+  // plain pick, or id~variantId for a has_variants listing's chosen option.
+  // item=id (singular) is kept working for any link shared before carts
+  // existed, or already saved by a buyer. Kept as a plain array of lines
+  // (not deduped/keyed by id) since two different variants of the same
+  // base listing are two separate lines, same as everywhere else this
+  // feature touches.
+  const requestedLines = (params.get('items') || params.get('item') || '')
+    .split(',').map(function (s) { return s.trim(); }).filter(Boolean)
+    .map(function (token) {
+      const parts = token.split('~');
+      return { id: parts[0], variantId: parts[1] || null };
+    });
+  const itemIDs = [...new Set(requestedLines.map(function (l) { return l.id; }))];
   const content = document.getElementById('content');
 
   if (window.BakeriTheme) {
@@ -136,12 +146,22 @@
   .then(function (r) { return r.json(); })
   .then(function (data) {
     if (!data || !data.profile) { showMessage('Not found', 'This storefront could not be found.'); return; }
-    // Drop any id that's since vanished/been unlisted rather than failing
+    // Drop any line whose base listing has since vanished/been unlisted, or
+    // (for a variant line) whose picked option is gone — rather than failing
     // the whole cart — better to let the buyer still check out with what's
     // still there than block them over one bad item (matches the "still
     // deliver what we can" bias in finalize-guest-digital-order).
-    items = itemIDs
-      .map(function (id) { return (data.listings || []).find(function (l) { return l.id === id && l.listing_kind === 'digital'; }); })
+    items = requestedLines
+      .map(function (line) {
+        const base = (data.listings || []).find(function (l) { return l.id === line.id && l.listing_kind === 'digital'; });
+        if (!base) return null;
+        if (line.variantId) {
+          const variant = (base.listing_variants || []).find(function (v) { return v.id === line.variantId; });
+          if (!variant) return null;
+          return Object.assign({}, base, { price: variant.price, variantId: variant.id, variantLabel: variant.label, name: base.name + ' — ' + variant.label });
+        }
+        return Object.assign({}, base, { variantId: null, variantLabel: null });
+      })
       .filter(Boolean);
     if (items.length === 0) { showMessage('Not found', 'These items are no longer available.'); return; }
     // Guest checkout: buyer pays exactly the listed price(s) — no fee added
@@ -196,7 +216,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         items: items.map(function (i) {
-          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: 1, price_from: i.price, listing_kind: 'digital' };
+          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: 1, price_from: i.price, listing_kind: 'digital', variant_id: i.variantId || null };
         }),
         currency: 'cad'
       })
@@ -261,7 +281,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         payment_intent_id: paymentIntentId,
-        menu_item_ids: items.map(function (i) { return i.id; }),
+        items: items.map(function (i) { return { id: i.id, variant_id: i.variantId || null }; }),
         customer_name: name,
         customer_email: email
       })
