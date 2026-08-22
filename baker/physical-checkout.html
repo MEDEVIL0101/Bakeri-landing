@@ -41,6 +41,17 @@
     #page { width: 100%; max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; box-sizing: border-box; }
     @media (min-width: 640px) { #page { padding: 48px 24px 60px; } }
 
+    /* An opaque card, not bare text floating on the page — the storefront's
+       background pattern can be a bold, full-saturation Stripes/Gingham for
+       some themes (not a pale wash), so text with nothing behind it but the
+       pattern read as illegible. */
+    #content {
+      background: var(--bg);
+      border-radius: 20px;
+      padding: 26px 22px;
+      box-shadow: 0 14px 34px -16px rgba(0,0,0,.3);
+    }
+
     .eyebrow { font-size: 12px; font-weight: 700; color: var(--muted); }
     .heading { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 4px; }
 
@@ -48,6 +59,10 @@
     .order-line .n { font-size: 14.5px; font-weight: 600; color: var(--ink); }
     .order-line .m { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .order-line .p { font-size: 14.5px; font-weight: 600; color: var(--ink); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .sold-out-tag {
+      font-size: 12px; font-weight: 700; color: var(--error); background: rgba(192,57,43,0.1);
+      padding: 4px 10px; border-radius: 9999px; align-self: center;
+    }
 
     .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); font-variant-numeric: tabular-nums; }
     .totals-row.grand { font-weight: 700; color: var(--ink); font-size: 17px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
@@ -134,6 +149,11 @@
   }
 
   let items = [];
+  // Only the actually-purchasable subset of `items` — everything charged,
+  // sent to create-payment-intent, and finalized reads from this instead of
+  // `items` directly, so a sold-out line never silently rides along in a
+  // request it has no business being in.
+  let purchasableItems = [];
   let total = 0;
   let shippingFeeTotal = 0;
   let shipAddress = null;
@@ -146,42 +166,50 @@
   .then(function (r) { return r.json(); })
   .then(function (data) {
     if (!data || !data.profile) { showMessage('Not found', 'This storefront could not be found.'); return; }
-    // Drop any line whose base listing has since vanished/been unlisted, or
-    // (for a variant line) whose picked option is gone — clamp qty to
-    // whatever's actually in stock right now, either the variant's own
-    // stock_qty or the base listing's available_qty_today. The real atomic
-    // check happens server-side at charge time (see create-payment-intent),
-    // this is just so the buyer isn't shown a total they can't actually pay for.
+    // Drop any line whose base listing has since vanished/been unlisted
+    // entirely, or (for a variant line) whose picked option no longer
+    // exists at all — those genuinely have nothing to show. A sold-out
+    // item/option (exists, just no stock) is kept and flagged instead of
+    // dropped, so the buyer sees what they clicked on marked unavailable
+    // rather than the whole page going blank. The real atomic stock check
+    // still happens server-side at charge time (see create-payment-intent)
+    // regardless of what's shown here.
     items = requestedLines
       .map(function (line) {
         const base = (data.listings || []).find(function (l) { return l.id === line.id && l.listing_kind === 'physical'; });
         if (!base) return null;
         if (line.variantId) {
           const variant = (base.listing_variants || []).find(function (v) { return v.id === line.variantId; });
-          if (!variant || (variant.stock_qty || 0) <= 0) return null;
+          if (!variant) return null;
+          const soldOut = (variant.stock_qty || 0) <= 0;
           return Object.assign({}, base, {
-            qty: Math.min(line.qty, variant.stock_qty), price: variant.price,
-            variantId: variant.id, variantLabel: variant.label, name: base.name + ' — ' + variant.label
+            qty: soldOut ? line.qty : Math.min(line.qty, variant.stock_qty), price: variant.price,
+            variantId: variant.id, variantLabel: variant.label, name: base.name + ' — ' + variant.label,
+            soldOut: soldOut
           });
         }
-        if ((base.available_qty_today || 0) <= 0) return null;
-        return Object.assign({}, base, { qty: Math.min(line.qty, base.available_qty_today), variantId: null, variantLabel: null });
+        const soldOut = (base.available_qty_today || 0) <= 0;
+        return Object.assign({}, base, {
+          qty: soldOut ? line.qty : Math.min(line.qty, base.available_qty_today),
+          variantId: null, variantLabel: null, soldOut: soldOut
+        });
       })
       .filter(Boolean);
-    if (items.length === 0) { showMessage('Sold out', 'These items are no longer available.'); return; }
+    if (items.length === 0) { showMessage('Not found', 'This item link looks invalid.'); return; }
+    purchasableItems = items.filter(function (i) { return !i.soldOut; });
     // Guest checkout: buyer pays the listed price(s) plus each distinct BASE
     // item's flat shipping fee (once per base listing id, not per line or
     // qty — two variant lines of the same listing still only pay the fee
     // once) — Bakeri's service charge still only comes out of the baker's
     // side. Waived entirely once the item subtotal alone clears the baker's
     // storefront-wide free-shipping threshold (0 = no such rule, see
-    // WebShopShippingSheet).
-    const itemsSubtotal = items.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
+    // WebShopShippingSheet). Sold-out lines never contribute to any of this.
+    const itemsSubtotal = purchasableItems.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
     const freeOverThreshold = (data.profile && data.profile.shipping_free_over_threshold) || 0;
     const seenForFee = {};
     shippingFeeTotal = (freeOverThreshold > 0 && itemsSubtotal >= freeOverThreshold)
       ? 0
-      : items.reduce(function (s, i) {
+      : purchasableItems.reduce(function (s, i) {
           if (seenForFee[i.id]) return s;
           seenForFee[i.id] = true;
           return s + (i.shipping_fee || 0);
@@ -193,10 +221,30 @@
 
   function renderForm() {
     const lines = items.map(function (i) {
+      if (i.soldOut) {
+        return '<div class="order-line"><div><div class="n">' + escapeHtml(i.name) + '</div>' +
+          '<div class="m">No longer in stock</div></div>' +
+          '<span class="p sold-out-tag">Sold Out</span></div>';
+      }
       return '<div class="order-line"><div><div class="n">' + i.qty + '× ' + escapeHtml(i.name) + '</div>' +
         '<div class="m">Ships in ' + (i.lead_days || 3) + ' day' + (i.lead_days === 1 ? '' : 's') + '</div></div>' +
         '<span class="p">$' + (i.price * i.qty).toFixed(2) + '</span></div>';
     }).join('');
+
+    if (purchasableItems.length === 0) {
+      // Every requested item/option is sold out — show exactly what was
+      // requested, clearly marked, rather than either silently vanishing
+      // (the old behaviour) or offering a payment form for nothing.
+      content.innerHTML =
+        '<div class="eyebrow">Buy</div>' +
+        '<div class="heading">' + (items.length === 1 ? escapeHtml(items[0].name) : items.length + ' Items') + '</div>' +
+        lines +
+        '<p style="margin-top:18px;font-size:13.5px;color:var(--muted);text-align:center;">' +
+          (items.length === 1 ? 'This item is' : 'These items are') + ' sold out — check back later, or ask the baker directly.' +
+        '</p>';
+      return;
+    }
+
     content.innerHTML =
       '<div class="eyebrow">Buy</div>' +
       '<div class="heading">' + (items.length === 1 ? escapeHtml(items[0].name) : items.length + ' Items') + '</div>' +
@@ -261,7 +309,7 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
-        items: items.map(function (i) {
+        items: purchasableItems.map(function (i) {
           return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical', variant_id: i.variantId || null };
         }),
         currency: 'cad',
@@ -328,7 +376,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         payment_intent_id: paymentIntentId,
-        items: items.map(function (i) { return { menu_item_id: i.id, quantity: i.qty, variant_id: i.variantId || null }; }),
+        items: purchasableItems.map(function (i) { return { menu_item_id: i.id, quantity: i.qty, variant_id: i.variantId || null }; }),
         customer_name: name,
         customer_email: email,
         shipping_address: shipAddress
@@ -346,7 +394,7 @@
   }
 
   function renderSuccess(data) {
-    const lines = (data.items || items).map(function (i) {
+    const lines = (data.items || purchasableItems).map(function (i) {
       const qty = i.quantity || i.qty || 1;
       const name = i.item_name || i.name;
       const price = i.price_per_unit != null ? i.price_per_unit : i.price;
