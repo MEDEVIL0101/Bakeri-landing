@@ -64,14 +64,18 @@ window.addEventListener('pageshow', function (event) {
       swatches: ['#F72967', '#46C6D7', '#BCACDD']
     },
     // Experimental palette, added 2026-08-22 — mirrors AppTheme.swift's
-    // ember/sage/blueberry/honey cases exactly (same hex pairs).
+    // ember/sage/blueberry/honey cases exactly (same hex pairs). `bold: true`
+    // opts these four into the bolder Stripes/Gingham treatment in
+    // patternBackground() below (mirrors AppTheme.usesBoldPatterns) — every
+    // other theme's patterns are unchanged.
     'Ember': {
       primary:   { light: '#AE0001', dark: '#E5484D' },
       secondary: { light: '#D3A625', dark: '#EEBA30' },
       bg:        { light: '#FBF1E9', dark: '#1F0F0D' },
       gold:      { light: '#C9A227', dark: '#E0BB55' },
       buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
-      swatches: ['#740001', '#EEBA30', '#D3A625']
+      swatches: ['#740001', '#EEBA30', '#D3A625'],
+      bold: true
     },
     'Sage': {
       primary:   { light: '#2A623D', dark: '#4F9468' },
@@ -79,7 +83,8 @@ window.addEventListener('pageshow', function (event) {
       bg:        { light: '#F2F6F1', dark: '#10160F' },
       gold:      { light: '#A8935C', dark: '#C7B27E' },
       buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
-      swatches: ['#1A472A', '#2A623D', '#AAAAAA']
+      swatches: ['#1A472A', '#2A623D', '#AAAAAA'],
+      bold: true
     },
     'Blueberry': {
       primary:   { light: '#222F5B', dark: '#5872B8' },
@@ -87,7 +92,8 @@ window.addEventListener('pageshow', function (event) {
       bg:        { light: '#EEF1F8', dark: '#0B1020' },
       gold:      { light: '#946B2D', dark: '#C79149' },
       buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
-      swatches: ['#0E1A40', '#222F5B', '#946B2D']
+      swatches: ['#0E1A40', '#222F5B', '#946B2D'],
+      bold: true
     },
     'Honey': {
       primary:   { light: '#ECB939', dark: '#F0C75E' },
@@ -95,7 +101,8 @@ window.addEventListener('pageshow', function (event) {
       bg:        { light: '#FBF5E7', dark: '#1D1712' },
       gold:      { light: '#C99A3D', dark: '#E0B85A' },
       buttonFg:  { light: '#2A2020', dark: '#2A2020' },
-      swatches: ['#ECB939', '#726255', '#372E29']
+      swatches: ['#ECB939', '#726255', '#372E29'],
+      bold: true
     }
   };
 
@@ -122,8 +129,21 @@ window.addEventListener('pageshow', function (event) {
     var stripeOpacity = dark ? 0.025 : 0.035;
     var dotOpacity = dark ? 0.05 : 0.07;
     var stripeColor = theme.primary[dark ? 'dark' : 'light'];
+    // Experimental (2026-08-22): the four bold-header themes (theme.bold)
+    // alternate two full-strength palette colours for Stripes/Gingham
+    // instead of one pale tint against the base background — mirrors
+    // AppTheme.usesBoldPatterns/AppBackgroundPattern on the native side.
+    var boldOpacity = dark ? 0.55 : 0.65;
 
     if (pattern === 'Stripes') {
+      if (theme.bold) {
+        var bw = 24;
+        var bandA = hexToRgba(theme.swatches[0], boldOpacity);
+        var bandB = hexToRgba(theme.swatches[1], boldOpacity);
+        return {
+          backgroundImage: 'repeating-linear-gradient(90deg, ' + bandA + ' 0px, ' + bandA + ' ' + bw + 'px, ' + bandB + ' ' + bw + 'px, ' + bandB + ' ' + (bw * 2) + 'px)'
+        };
+      }
       var band = hexToRgba(stripeColor, stripeOpacity);
       return {
         backgroundImage: 'repeating-linear-gradient(90deg, ' + band + ' 0px, ' + band + ' 24px, transparent 24px, transparent 48px)'
@@ -158,6 +178,21 @@ window.addEventListener('pageshow', function (event) {
       };
     }
     if (pattern === 'Gingham') {
+      if (theme.bold) {
+        // A genuine two-colour woven check — horizontal bands of one
+        // palette colour, vertical bands of another, both translucent so
+        // CSS alpha-composites their overlap into a third, deeper blended
+        // tone (mirrors AppBackgroundPattern's Canvas version). Every other
+        // theme keeps the fixed gingham-background.jpg tile below.
+        var gw = 22;
+        var colorA = hexToRgba(theme.swatches[0], boldOpacity);
+        var colorB = hexToRgba(theme.swatches[1], boldOpacity);
+        return {
+          backgroundImage:
+            'repeating-linear-gradient(to bottom, ' + colorA + ' 0px, ' + colorA + ' ' + gw + 'px, transparent ' + gw + 'px, transparent ' + (gw * 2) + 'px), ' +
+            'repeating-linear-gradient(to right, ' + colorB + ' 0px, ' + colorB + ' ' + gw + 'px, transparent ' + gw + 'px, transparent ' + (gw * 2) + 'px)'
+        };
+      }
       return {
         backgroundImage: 'url(assets/gingham-background.jpg)',
         backgroundRepeat: 'repeat',
