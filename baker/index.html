@@ -598,6 +598,11 @@
     }
     .box-tier.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
     .box-tier.disabled { opacity: .45; cursor: not-allowed; }
+    /* Only the listing-variant picker (not Assorted Box's size tiers) ever
+       renders one of these — an <img> with no matching remote file 404s
+       and hides itself (onerror), so a plain Assorted Box tier with no
+       thumb markup at all still looks identical to before. */
+    .box-tier-thumb { display: block; width: 34px; height: 34px; object-fit: cover; border-radius: 8px; margin: 0 auto 6px; background: var(--line-soft); }
     .box-tier-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
     .box-tier-price { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .box-flavor-header { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
@@ -2621,8 +2626,13 @@
     const isPhysical = item.listing_kind === 'physical';
     const tierHtml = '<div class="box-tiers">' + variants.map(function (v) {
       const soldOut = isPhysical && (v.stock_qty || 0) <= 0;
+      // Always attempts the thumbnail (same as the Assorted Box flavor
+      // row's img) rather than gating on v.has_image — a plain onerror hide
+      // is simpler and self-corrects if that flag and reality ever drift.
+      const thumb = '<img class="box-tier-thumb" src="' + variantImgURL(item, v) + '" alt="" onerror="this.style.display=\'none\'" />';
       return '<button type="button" class="box-tier' + (v.id === variantState.variantId ? ' active' : '') + '"' +
         (soldOut ? ' disabled' : '') + ' style="' + (soldOut ? 'opacity:.4;' : '') + '" data-variant-id="' + v.id + '">' +
+        thumb +
         '<div class="box-tier-label">' + escapeHtml(v.label) + (soldOut ? ' (Sold Out)' : '') + '</div>' +
         '<div class="box-tier-price tabular">$' + formatPrice(v.price) + '</div>' +
         '</button>';
