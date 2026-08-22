@@ -467,39 +467,6 @@
       font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink);
       border-radius: 9999px; padding: 10px 16px;
     }
-    /* Digital downloads have their own bar (see digitalCart) — same shape
-       as the pickup cart's, distinguished with --digital instead of the
-       theme accent so it's clearly a separate mini-cart at a glance. Sits
-       above the pickup bar when both are visible (a mixed cart). */
-    #action-bar-digital-cart {
-      display: none; align-items: center; justify-content: space-between; height: 56px;
-      background: var(--digital); color: #fff; border-radius: 9999px; padding: 0 8px 0 20px; cursor: pointer;
-      border: none; width: 100%; box-shadow: 0 10px 30px -8px rgba(0,0,0,.35);
-      animation: popIn .18s ease-out; margin-bottom: 8px;
-    }
-    #action-bar-digital-cart .l { text-align: left; }
-    #action-bar-digital-cart .l .t { font-size: 14.5px; font-weight: 700; }
-    #action-bar-digital-cart .l .s { font-size: 11px; color: #fff; opacity: .75; margin-top: 2px; }
-    #action-bar-digital-cart .r {
-      font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink);
-      border-radius: 9999px; padding: 10px 16px;
-    }
-    /* Ships (physical) items get their own bar too, same shape again —
-       distinguished with --physical. Sits above both the digital and
-       pickup bars when all three are visible at once. */
-    #action-bar-ship-cart {
-      display: none; align-items: center; justify-content: space-between; height: 56px;
-      background: var(--physical); color: #fff; border-radius: 9999px; padding: 0 8px 0 20px; cursor: pointer;
-      border: none; width: 100%; box-shadow: 0 10px 30px -8px rgba(0,0,0,.35);
-      animation: popIn .18s ease-out; margin-bottom: 8px;
-    }
-    #action-bar-ship-cart .l { text-align: left; }
-    #action-bar-ship-cart .l .t { font-size: 14.5px; font-weight: 700; }
-    #action-bar-ship-cart .l .s { font-size: 11px; color: #fff; opacity: .75; margin-top: 2px; }
-    #action-bar-ship-cart .r {
-      font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink);
-      border-radius: 9999px; padding: 10px 16px;
-    }
 
     /* ══════════════════════ Sheets / Modal / Toast ══════════════════════ */
     .scrim {
@@ -851,24 +818,14 @@
 </div><!-- /page-shell -->
 
 <div id="action-bar">
-  <button id="action-bar-digital-cart">
-    <div class="l">
-      <div class="t">Download Cart</div>
-      <div class="s" id="digital-cart-bar-sub"></div>
-    </div>
-    <div class="r tabular" id="digital-cart-bar-total"></div>
-  </button>
-  <button id="action-bar-ship-cart">
-    <div class="l">
-      <div class="t">Ships to You</div>
-      <div class="s" id="ship-cart-bar-sub"></div>
-    </div>
-    <div class="r tabular" id="ship-cart-bar-total"></div>
-  </button>
+  <!-- One banner for the whole cart, regardless of how many different
+       fulfillment types (pickup/preorder, digital, ships-to-you) are mixed
+       in it — a buyer shouldn't have to parse three stacked pills just
+       because the storefront's own plumbing tracks those separately. See
+       updateCartActionBar(). -->
   <button id="action-bar-cart">
     <div class="l">
-      <div class="t">Checkout</div>
-      <div class="s" id="cart-bar-sub"></div>
+      <div class="t">View Cart</div>
     </div>
     <div class="r tabular" id="cart-bar-total"></div>
   </button>
@@ -1144,8 +1101,6 @@
     document.getElementById('cart-btn').addEventListener('click', openCartSheet);
     document.getElementById('desktop-cart-btn').addEventListener('click', openCartSheet);
     document.getElementById('action-bar-cart').addEventListener('click', openCartSheet);
-    document.getElementById('action-bar-digital-cart').addEventListener('click', openCartSheet);
-    document.getElementById('action-bar-ship-cart').addEventListener('click', openCartSheet);
     document.getElementById('item-sheet-close').addEventListener('click', closeItemSheet);
     document.getElementById('cart-sheet-close').addEventListener('click', closeCartSheet);
     document.getElementById('desc-sheet-close').addEventListener('click', closeDescSheet);
@@ -1897,42 +1852,61 @@
     updateCartUI();
   }
 
-  // Header cart icon (mobile 🛒 badge + desktop "Cart · N" pill) reflects
-  // EVERY cart at once — pickup, digital, and ship — not just whichever one
-  // was last touched, since a buyer with e.g. a download already picked
-  // should still see the header icon acknowledge it while browsing physical
-  // items. Each cart's own bottom action bar (updateCartUI/
-  // updateDigitalCartUI/updateShipCartUI) still shows its own
-  // count/subtotal for that vertical specifically — this is just the one
-  // shared "does the cart have anything in it at all" indicator, kept in
-  // sync by having all three of those functions call it.
-  function updateHeaderCartBadge() {
+  // Every cart type — pickup/preorder/box, digital downloads, ships-to-you
+  // — counted and totalled together. A buyer shouldn't have to parse
+  // separate mini-carts just because the storefront's own plumbing tracks
+  // pickup/digital/ship as distinct arrays internally; that split is our
+  // problem to manage, not something to surface as three competing
+  // banners. The cart sheet (renderCartStepOrder) is still the one place
+  // per-vertical detail — sections, shipping fee, etc. — belongs.
+  function cartCombinedCount() {
     const plainCount = Object.values(cart).reduce(function (s, q) { return s + q; }, 0);
     const boxCount = boxCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
     const preorderCount = preorderCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
     const digitalCount = digitalCartItems().length;
     const shipCount = shipCartItems().reduce(function (s, l) { return s + l.qty; }, 0);
-    const count = plainCount + boxCount + preorderCount + digitalCount + shipCount;
+    return plainCount + boxCount + preorderCount + digitalCount + shipCount;
+  }
+  // Item subtotal only, across every vertical — no shipping fee, no tax.
+  // Not customary for a mini-cart banner to show a fees-inclusive figure
+  // before the buyer has even reached checkout, and the three separate
+  // subtotal helpers below already exclude each other's fees by construction.
+  function cartCombinedSubtotal() {
+    return cartSubtotal() + digitalCartTotal() + shipCartItemsSubtotal();
+  }
+
+  // Header cart icon (mobile 🛒 badge + desktop "Cart · N" pill) — kept in
+  // sync by having updateCartUI/updateDigitalCartUI/updateShipCartUI all
+  // call this (and updateCartActionBar below) whenever any cart changes.
+  function updateHeaderCartBadge() {
+    const count = cartCombinedCount();
     document.getElementById('cart-btn-count').textContent = count > 0 ? count : '';
     document.getElementById('desktop-cart-label').textContent = count > 0 ? ('Cart · ' + count) : 'Cart';
   }
 
-  function updateCartUI() {
-    const plainCount = Object.values(cart).reduce(function (s, q) { return s + q; }, 0);
-    const boxCount = boxCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
-    const preorderCount = preorderCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
-    const count = plainCount + boxCount + preorderCount;
-    updateHeaderCartBadge();
-    const total = cartSubtotal();
-
+  // The one bottom-of-screen cart banner (#action-bar-cart) — see the HTML
+  // comment above it for why this used to be up to three stacked banners.
+  // Deliberately just "View Cart" + the subtotal, no item count — nothing
+  // else on the page needed a per-vertical breakdown at this level either.
+  function updateCartActionBar() {
+    const bar = document.getElementById('action-bar-cart');
+    const count = cartCombinedCount();
     if (count > 0) {
-      document.getElementById('action-bar-cart').style.display = 'flex';
-      document.getElementById('cart-bar-sub').textContent = count + (count === 1 ? ' item' : ' items') +
-        (profile && profile.pickup_city ? ' · pickup in ' + profile.pickup_city : ' · pickup');
-      document.getElementById('cart-bar-total').textContent = '$' + formatPrice(total);
+      bar.style.display = 'flex';
+      document.getElementById('cart-bar-total').textContent = '$' + formatPrice(cartCombinedSubtotal());
     } else {
-      document.getElementById('action-bar-cart').style.display = 'none';
+      bar.style.display = 'none';
     }
+  }
+
+  // updateCartUI/updateDigitalCartUI/updateShipCartUI are called from
+  // every place that mutates their respective cart (changeQty,
+  // toggleDigitalCartItem, changeShipQty, etc.) — kept as three distinctly-
+  // named entry points (rather than renaming every call site to one shared
+  // function) but all converging on the same header badge + single banner.
+  function updateCartUI() {
+    updateHeaderCartBadge();
+    updateCartActionBar();
   }
 
   // Returns every digital cart entry — both the plain in/out picks
@@ -1997,15 +1971,7 @@
   }
   function updateDigitalCartUI() {
     updateHeaderCartBadge();
-    const bar = document.getElementById('action-bar-digital-cart');
-    const count = digitalCartItems().length;
-    if (count > 0) {
-      bar.style.display = 'flex';
-      document.getElementById('digital-cart-bar-sub').textContent = count + (count === 1 ? ' download' : ' downloads');
-      document.getElementById('digital-cart-bar-total').textContent = '$' + formatPrice(digitalCartTotal());
-    } else {
-      bar.style.display = 'none';
-    }
+    updateCartActionBar();
   }
   // itemId, or itemId~variantId for a variant pick — parsed back out by
   // digital-checkout.html.
@@ -2136,22 +2102,7 @@
   }
   function updateShipCartUI() {
     updateHeaderCartBadge();
-    const bar = document.getElementById('action-bar-ship-cart');
-    const items = shipCartItems();
-    const count = items.reduce(function (s, l) { return s + l.qty; }, 0);
-    if (count > 0) {
-      bar.style.display = 'flex';
-      document.getElementById('ship-cart-bar-sub').textContent = count + (count === 1 ? ' item' : ' items');
-      // Item subtotal only — not shipCartTotal(), which folds in the
-      // shipping fee. A mini-cart banner showing a fees-inclusive total
-      // before the buyer has even reached checkout isn't how these
-      // normally read (the digital/pickup bars right above/below this one
-      // don't do it either), and it doesn't match what the buyer is about
-      // to be charged per item either.
-      document.getElementById('ship-cart-bar-total').textContent = '$' + formatPrice(shipCartItemsSubtotal());
-    } else {
-      bar.style.display = 'none';
-    }
+    updateCartActionBar();
   }
   // itemId:qty, or itemId:qty:variantId for a variant pick — parsed back
   // out by physical-checkout.html.
