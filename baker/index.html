@@ -2626,10 +2626,21 @@
     const isPhysical = item.listing_kind === 'physical';
     const tierHtml = '<div class="box-tiers">' + variants.map(function (v) {
       const soldOut = isPhysical && (v.stock_qty || 0) <= 0;
-      // Always attempts the thumbnail (same as the Assorted Box flavor
-      // row's img) rather than gating on v.has_image — a plain onerror hide
-      // is simpler and self-corrects if that flag and reality ever drift.
-      const thumb = '<img class="box-tier-thumb" src="' + variantImgURL(item, v) + '" alt="" onerror="this.style.display=\'none\'" />';
+      // Gated on v.has_image rather than always attempting the thumbnail and
+      // relying on onerror to hide a 404 — for the (currently overwhelming)
+      // common case of a variant with no photo, that meant every tap
+      // (re-rendering this whole button's innerHTML) started a fresh failed
+      // image load, and iOS Safari's broken-image placeholder briefly
+      // ignored the CSS width/height and rendered at its own intrinsic
+      // size — the button visibly stretching wider with a broken-image
+      // glyph before onerror caught up and hid it. Explicit width/height
+      // attributes (not just the CSS class) plus removing the element
+      // outright on error guard the has_image:true path too, in case that
+      // flag and reality ever drift (e.g. the upload failed after the flag
+      // was set).
+      const thumb = v.has_image
+        ? '<img class="box-tier-thumb" width="34" height="34" src="' + variantImgURL(item, v) + '" alt="" onerror="this.remove()" />'
+        : '';
       return '<button type="button" class="box-tier' + (v.id === variantState.variantId ? ' active' : '') + '"' +
         (soldOut ? ' disabled' : '') + ' style="' + (soldOut ? 'opacity:.4;' : '') + '" data-variant-id="' + v.id + '">' +
         thumb +
