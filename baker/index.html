@@ -125,11 +125,24 @@
        are each a single DOM node shared across breakpoints. */
     #page-shell { max-width: 1200px; margin: 0 auto; background: var(--bg); position: relative; display: flex; flex-direction: column; }
 
-    /* Reserved for a future promo/announcement strip. Empty and hidden
-       until a baker sets one — always first in the shell regardless of
-       breakpoint, so it reads above both the mobile hamburger bar and the
-       desktop nav bar/hero. */
-    #announcement-banner { order: -2; }
+    /* Auto-generated from the baker's shipping settings (free-shipping
+       threshold + combined-shipping percentage, see updateAnnouncementBanner)
+       — empty and hidden (.hidden, see global rule above) until a baker sets
+       a free-shipping threshold on a store with physical listings. Always
+       first in the shell regardless of breakpoint, so it reads above both
+       the mobile hamburger bar and the desktop nav bar/hero. Colored from
+       the same --accent/--accent-fg theme variables every other themed
+       pill/button/badge on this page uses. */
+    #announcement-banner {
+      order: -2;
+      background: var(--accent);
+      color: var(--accent-fg);
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .01em;
+      padding: 10px 16px;
+    }
 
     /* ══════════════════════ Site header bar ══════════════════════
        One shared bar: hamburger + centered brand + icons on mobile
@@ -1042,6 +1055,33 @@
 
   // ══════════════════════ Render ══════════════════════
 
+  // Auto-generated from the baker's own shipping settings — no freeform
+  // banner-text field exists, this always just reflects whatever's
+  // actually configured (see WebShopShippingSheet), so it can never go
+  // stale relative to the real checkout math. Silent for the common case
+  // (no threshold set, or no physical listings at all); only mentions the
+  // additional-item percentage once it's not the no-op 100% default.
+  function updateAnnouncementBanner(profile, listings) {
+    const banner = document.getElementById('announcement-banner');
+    if (!banner) return;
+    const threshold = profile.shipping_free_over_threshold || 0;
+    const hasPhysical = listings.some(function (l) { return l.listing_kind === 'physical'; });
+    if (threshold <= 0 || !hasPhysical) {
+      banner.classList.add('hidden');
+      banner.textContent = '';
+      return;
+    }
+    let text = 'Free shipping over $' + threshold.toFixed(2);
+    const percent = profile.shipping_additional_item_percent;
+    if (percent != null && percent < 100 && percent > 0) {
+      text += ' · ' + Math.round(100 - percent) + '% off shipping on extra items';
+    } else if (percent === 0) {
+      text += ' · Free shipping on every extra item';
+    }
+    banner.textContent = text;
+    banner.classList.remove('hidden');
+  }
+
   function render(profile, listings, faqs, links) {
     // A custom listing with no intake form attached has no working way to
     // actually collect a request — customOrderURL would build a link with
@@ -1052,6 +1092,7 @@
     // until the baker finishes setting it up.
     allListings = listings.filter(function (l) { return l.listing_kind !== 'custom' || l.intake_form_id; });
     allLinks = links;
+    updateAnnouncementBanner(profile, listings);
     const name = profile.business_name || profile.user_name || 'Baker';
     const location = profile.neighbourhood
       ? [profile.neighbourhood, profile.pickup_province].filter(Boolean).join(', ')
@@ -2032,24 +2073,46 @@
     return shipCartItems().reduce(function (s, l) { return s + l.item.price * l.qty; }, 0);
   }
   // Shipping fee is a flat per-listing amount (set by the baker, see
-  // AddEditMenuItemView) charged once per distinct BASE item in the cart
+  // WebShopShippingSheet) charged once per distinct BASE item in the cart
   // (deduped by the item's real id, not lineKey — two different options of
   // the same cookie-cutter-set listing still only pay the fee once), not
   // once per unit. Real carrier-computed rates are a later integration;
   // this is just the manual placeholder for it. A baker can also set a
   // storefront-wide "free shipping over $X"
-  // (profile.shipping_free_over_threshold, see WebShopShippingSheet) that
-  // waives every item's fee once the ship-cart's item subtotal alone
-  // clears it.
+  // (profile.shipping_free_over_threshold) that waives every item's fee
+  // once the ship-cart's item subtotal alone clears it.
+  //
+  // Combined-shipping: among the distinct base items in the cart, the one
+  // with the highest shipping_fee charges in full; every other distinct
+  // item charges round(shipping_fee * shipping_additional_item_percent /
+  // 100) instead of its own full fee, unless it has
+  // shipping_always_full_price set (always full fee regardless of rank).
+  // shipping_additional_item_percent defaults to 100 (no discount) — same
+  // "sum of full fees" behavior as before this existed. See
+  // finalize-guest-physical-order for the authoritative server-side
+  // recompute of this exact same rule.
   function shipCartShippingFees() {
     const threshold = (profile && profile.shipping_free_over_threshold) || 0;
     if (threshold > 0 && shipCartItemsSubtotal() >= threshold) return 0;
+    const additionalPercent = (profile && profile.shipping_additional_item_percent != null)
+      ? profile.shipping_additional_item_percent : 100;
     const seen = {};
-    let fee = 0;
+    const distinct = [];
     shipCartItems().forEach(function (l) {
       if (seen[l.item.id]) return;
       seen[l.item.id] = true;
-      fee += (l.item.shipping_fee || 0);
+      distinct.push(l.item);
+    });
+    if (distinct.length === 0) return 0;
+    let highestIdx = 0;
+    distinct.forEach(function (item, idx) {
+      if ((item.shipping_fee || 0) > (distinct[highestIdx].shipping_fee || 0)) highestIdx = idx;
+    });
+    let fee = 0;
+    distinct.forEach(function (item, idx) {
+      if (idx === highestIdx) fee += (item.shipping_fee || 0);
+      else if (item.shipping_always_full_price) fee += (item.shipping_fee || 0);
+      else fee += Math.round((item.shipping_fee || 0) * additionalPercent / 100 * 100) / 100;
     });
     return fee;
   }
@@ -3150,18 +3213,36 @@
       // shipping threshold, so checkout.html — which just sums whatever
       // shippingFee arrives per item — naturally charges $0 shipping too.
       shipItems: (function () {
+        // Per-line shippingFee values here must reproduce the exact same
+        // total shipCartShippingFees() computed above, since checkout.html
+        // just sums whatever arrives per line — see that function for the
+        // combined-shipping rule (highest-fee item full price, every other
+        // distinct item at its additional-item percentage or its own full
+        // fee if flagged shipping_always_full_price).
         const waived = shipCartItemsSubtotal() > 0 && shipCartShippingFees() === 0;
-        const seenForFee = {};
-        return shipCartItems().map(function (l) {
-          // Shipping fee is per distinct base item, not per line — a second
-          // variant line of an already-seen base item charges $0 shipping
-          // here so finalize-guest-physical-order's per-line sum matches
-          // shipCartShippingFees()'s own dedup-by-base-id logic above.
-          const chargeFee = !seenForFee[l.item.id];
-          seenForFee[l.item.id] = true;
+        const additionalPercent = (profile && profile.shipping_additional_item_percent != null)
+          ? profile.shipping_additional_item_percent : 100;
+        const items = shipCartItems();
+        const seenIds = {};
+        const distinctIds = [];
+        items.forEach(function (l) { if (!seenIds[l.item.id]) { seenIds[l.item.id] = true; distinctIds.push(l.item.id); } });
+        let highestId = null, highestFee = -1;
+        distinctIds.forEach(function (id) {
+          const it = items.find(function (l) { return l.item.id === id; }).item;
+          if ((it.shipping_fee || 0) > highestFee) { highestFee = it.shipping_fee || 0; highestId = id; }
+        });
+        const chargedForFee = {};
+        return items.map(function (l) {
+          let fee = 0;
+          if (!waived && !chargedForFee[l.item.id]) {
+            chargedForFee[l.item.id] = true;
+            if (l.item.id === highestId) fee = l.item.shipping_fee || 0;
+            else if (l.item.shipping_always_full_price) fee = l.item.shipping_fee || 0;
+            else fee = Math.round((l.item.shipping_fee || 0) * additionalPercent / 100 * 100) / 100;
+          }
           return {
             id: l.item.id, name: l.item.name, price: l.item.price, qty: l.qty,
-            leadDays: l.item.lead_days || 3, shippingFee: (waived || !chargeFee) ? 0 : (l.item.shipping_fee || 0),
+            leadDays: l.item.lead_days || 3, shippingFee: fee,
             variantId: l.item.variantId || null, variantLabel: l.item.variantLabel || null
           };
         });

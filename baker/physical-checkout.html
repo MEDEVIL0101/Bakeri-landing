@@ -216,23 +216,39 @@
       .filter(Boolean);
     if (items.length === 0) { showMessage('Not found', 'This item link looks invalid.'); return; }
     purchasableItems = items.filter(function (i) { return !i.soldOut; });
-    // Guest checkout: buyer pays the listed price(s) plus each distinct BASE
-    // item's flat shipping fee (once per base listing id, not per line or
-    // qty — two variant lines of the same listing still only pay the fee
-    // once) — Bakeri's service charge still only comes out of the baker's
-    // side. Waived entirely once the item subtotal alone clears the baker's
+    // Guest checkout: buyer pays the listed price(s) plus shipping —
+    // Bakeri's service charge still only comes out of the baker's side.
+    // Waived entirely once the item subtotal alone clears the baker's
     // storefront-wide free-shipping threshold (0 = no such rule, see
     // WebShopShippingSheet). Sold-out lines never contribute to any of this.
+    //
+    // Combined-shipping: among the distinct base items here, the one with
+    // the highest shipping_fee charges in full; every other distinct item
+    // charges round(shipping_fee * shipping_additional_item_percent / 100)
+    // instead of its own full fee, unless it has shipping_always_full_price
+    // set (always full fee regardless of rank). Same rule as
+    // baker/index.html's shipCartShippingFees() and
+    // finalize-guest-physical-order's authoritative recompute.
     const itemsSubtotal = purchasableItems.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
     const freeOverThreshold = (data.profile && data.profile.shipping_free_over_threshold) || 0;
-    const seenForFee = {};
-    shippingFeeTotal = (freeOverThreshold > 0 && itemsSubtotal >= freeOverThreshold)
-      ? 0
-      : purchasableItems.reduce(function (s, i) {
-          if (seenForFee[i.id]) return s;
-          seenForFee[i.id] = true;
-          return s + (i.shipping_fee || 0);
-        }, 0);
+    const additionalPercent = (data.profile && data.profile.shipping_additional_item_percent != null)
+      ? data.profile.shipping_additional_item_percent : 100;
+    if (freeOverThreshold > 0 && itemsSubtotal >= freeOverThreshold) {
+      shippingFeeTotal = 0;
+    } else {
+      const seen = {};
+      const distinct = [];
+      purchasableItems.forEach(function (i) { if (!seen[i.id]) { seen[i.id] = true; distinct.push(i); } });
+      let highestIdx = 0;
+      distinct.forEach(function (item, idx) {
+        if ((item.shipping_fee || 0) > (distinct[highestIdx].shipping_fee || 0)) highestIdx = idx;
+      });
+      shippingFeeTotal = distinct.reduce(function (s, item, idx) {
+        if (idx === highestIdx) return s + (item.shipping_fee || 0);
+        if (item.shipping_always_full_price) return s + (item.shipping_fee || 0);
+        return s + Math.round((item.shipping_fee || 0) * additionalPercent / 100 * 100) / 100;
+      }, 0);
+    }
     total = itemsSubtotal + shippingFeeTotal;
     renderForm();
   })

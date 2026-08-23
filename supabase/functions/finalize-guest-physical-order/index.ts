@@ -121,7 +121,7 @@ Deno.serve(async (req: Request) => {
   // Re-fetch every listing server-side — never trust client-supplied price/name.
   const { data: menuItemRows, error: itemsErr } = await db
     .from("menu_items")
-    .select("id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, available_qty_today, unit, shipping_fee, has_variants")
+    .select("id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, available_qty_today, unit, shipping_fee, shipping_always_full_price, has_variants")
     .in("id", menuItemIds);
 
   if (itemsErr || !menuItemRows || menuItemRows.length !== menuItemIds.length) {
@@ -184,12 +184,13 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("business_name, user_name, email, stripe_connect_account_id, shipping_free_over_threshold")
+    .select("business_name, user_name, email, stripe_connect_account_id, shipping_free_over_threshold, shipping_additional_item_percent")
     .eq("id", bakerId)
     .single();
   const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || "Baker";
   const connectedAccountId = bakerProfile?.stripe_connect_account_id ?? null;
   const shippingFreeOverThreshold = bakerProfile?.shipping_free_over_threshold ?? 0;
+  const shippingAdditionalItemPercent = bakerProfile?.shipping_additional_item_percent ?? 100;
 
   // A ship cart is always single-baker, so the PaymentIntent
   // create-payment-intent made for this was a direct charge on that baker's
@@ -267,11 +268,36 @@ Deno.serve(async (req: Request) => {
   // same rule the storefront cart applies before charging, re-applied here
   // so this recomputed total always matches what create-payment-intent
   // actually charged.
+  //
+  // Combined-shipping: among the distinct base listings here, the one with
+  // the highest shipping_fee charges in full; every other distinct listing
+  // charges round(shipping_fee * shippingAdditionalItemPercent / 100)
+  // instead of its own full fee, unless it has shipping_always_full_price
+  // set (always full fee regardless of rank). This is the authoritative,
+  // ground-truth implementation of the same rule baker/index.html and
+  // baker/physical-checkout.html compute client-side as a pre-payment
+  // preview — this is what actually settles the charge.
   const shippingFreeOverThresholdCents = Math.round(shippingFreeOverThreshold * 100);
+  const distinctMenuItemIds = [...new Set(lines.map((l) => l.menuItemId))];
+  function computeShippingFeeCents(): number {
+    if (distinctMenuItemIds.length === 0) return 0;
+    let highestId = distinctMenuItemIds[0];
+    let highestFeeCents = Math.round((itemsById.get(highestId)?.shipping_fee ?? 0) * 100);
+    for (const id of distinctMenuItemIds) {
+      const feeCents = Math.round((itemsById.get(id)?.shipping_fee ?? 0) * 100);
+      if (feeCents > highestFeeCents) { highestFeeCents = feeCents; highestId = id; }
+    }
+    return distinctMenuItemIds.reduce((sum, id) => {
+      const item = itemsById.get(id);
+      const feeCents = Math.round((item?.shipping_fee ?? 0) * 100);
+      if (id === highestId) return sum + feeCents;
+      if (item?.shipping_always_full_price) return sum + feeCents;
+      return sum + Math.round(feeCents * shippingAdditionalItemPercent / 100);
+    }, 0);
+  }
   const shippingFeeCents = (shippingFreeOverThresholdCents > 0 && subtotalCents >= shippingFreeOverThresholdCents)
     ? 0
-    : [...new Set(lines.map((l) => l.menuItemId))]
-        .reduce((sum, id) => sum + Math.round((itemsById.get(id)?.shipping_fee ?? 0) * 100), 0);
+    : computeShippingFeeCents();
   // Guest checkout: buyer pays exactly the item price(s) plus shipping —
   // Bakeri's service charge comes out of the baker's cut instead (see
   // create-payment-intent), computed off the item subtotal only, same as
