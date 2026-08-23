@@ -35,8 +35,10 @@
 //
 // Two independent legs are swept below:
 //   1. The main/balance leg (every order type) — gated on
-//      marketplace_status='completed' + completed_at past the dispute window,
-//      same as always.
+//      marketplace_status in ('completed','delivered') + completed_at past
+//      the dispute window ('delivered' is a physical order's terminal status
+//      as of 20260823000001_physical_order_lifecycle.sql; 'completed' still
+//      covers every other order type).
 //   2. The deposit leg of deposit_and_save orders — previously transferred
 //      instantly via a Stripe destination charge (application_fee_amount +
 //      transfer_data), which deducts Stripe's fee from the *platform's* cut,
@@ -177,7 +179,11 @@ serve(async (req) => {
     .from("orders")
     .select("id, user_id, payment_intent_id, platform_fee_cents")
     .eq("payment_status", "captured")
-    .eq("marketplace_status", "completed")
+    // 'delivered' covers physical orders as of
+    // 20260823000001_physical_order_lifecycle.sql — their terminal status is
+    // 'delivered', not 'completed'; without this a platform_custody physical
+    // order (a baker not yet Stripe-connected) would never get paid out.
+    .in("marketplace_status", ["completed", "delivered"])
     .eq("payment_model", "platform_custody")
     .is("baker_transfer_id", null)
     .not("payment_intent_id", "is", null)

@@ -9,17 +9,13 @@ import {
   renderReceiptShell,
 } from "../_shared/receiptEmailStyle.ts";
 
-// Called directly by mark-order-shipped, same shape as
-// send-guest-order-ready-email (which it's modeled on) being called by
-// mark-order-ready-for-pickup — built on receiptEmailStyle.ts's shared
-// shell so this reads as the same email family as the quote/invoice/receipt/
-// ready-for-pickup emails, with a "Shipping Details" section (tracking +
-// ship-to address) in place of "Billing and Payment".
-//
-// Also sent (with is_correction: true in the request body) when the baker
-// corrects an already-recorded tracking number/carrier — same template,
-// just a different heading/subject so it doesn't read as a duplicate
-// "shipped" notification.
+// Called directly by cancel-order's refund branch (a physical order that
+// had already progressed past awaiting_shipment/preparing/shipped/delivered
+// before the baker issued a refund — see
+// 20260823000001_physical_order_lifecycle.sql). Same shell as
+// send-guest-order-shipped-email/send-guest-order-delivered-email; the
+// pre-fulfillment true-cancel path has its own notification via the DB
+// trigger and does not use this.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -36,16 +32,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
-}
-
-interface ShippingAddress {
-  name?: string;
-  line1?: string;
-  line2?: string;
-  city?: string;
-  province?: string;
-  postal_code?: string;
-  country?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -65,19 +51,13 @@ Deno.serve(async (req: Request) => {
 
   const orderId = String(body.order_id ?? "").trim();
   if (!orderId) return json({ error: "Invalid request." }, 400);
-  const isCorrection = body.is_correction === true;
-  const eventType = isCorrection ? "guest_order_tracking_updated" : "guest_order_shipped";
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Whole body wrapped in try/catch, same reasoning as
-  // send-guest-order-ready-email — an unhandled failure here left literally
-  // no trace anywhere on that function's original bug, since the caller's
-  // fetch() doesn't throw on a non-2xx response either.
   try {
     const { data: order, error: orderErr } = await db
       .from("orders")
-      .select("id, order_name, customer_name, customer_email, user_id, shipping_address, tracking_number, shipping_carrier, shipped_at, invoice_code")
+      .select("id, order_name, customer_name, customer_email, user_id, refunded_at, invoice_code")
       .eq("id", orderId)
       .single();
 
@@ -104,53 +84,36 @@ Deno.serve(async (req: Request) => {
 
     const itemsHtml = await renderReceiptItemsHtml(db, order.user_id, itemRows, false, 0);
 
-    const addr = (order.shipping_address ?? {}) as ShippingAddress;
-    const addressLines = [
-      addr.name,
-      addr.line1,
-      addr.line2,
-      [addr.city, addr.province, addr.postal_code].filter(Boolean).join(", "),
-      addr.country,
-    ].filter(Boolean) as string[];
-    const addressHtml = addressLines.map((l) => escapeHtml(l)).join("<br/>");
-
-    const carrier = (order.shipping_carrier ?? "").trim();
-    const trackingNumber = (order.tracking_number ?? "").trim();
-
-    // The whole point of this email — shown big, not buried in a table row,
-    // same treatment send-guest-order-ready-email gives the pickup window.
-    const prominentTrackingHtml = `
+    const refundedHtml = `
       <div style="margin:18px 0;padding:18px 16px;background:#F7F2E9;border-radius:10px;text-align:center;">
-        <div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:#A89B8C;text-transform:uppercase;">${carrier ? "Shipped via" : "On its way"}</div>
-        <div style="font-size:22px;font-weight:700;color:#241712;margin-top:6px;">${carrier ? escapeHtml(carrier) : "Your order has shipped"}</div>
-        ${trackingNumber ? `<div style="font-size:17px;color:#4A3E33;margin-top:2px;">${escapeHtml(trackingNumber)}</div>` : ""}
+        <div style="font-size:11.5px;font-weight:700;letter-spacing:.02em;color:#A89B8C;text-transform:uppercase;">Refunded</div>
+        <div style="font-size:22px;font-weight:700;color:#241712;margin-top:6px;">A full refund has been issued</div>
       </div>
     `;
 
     const detailRows = [
-      addressLines.length ? `<tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;vertical-align:top;">Ship to</td><td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${addressHtml}</td></tr>` : "",
       `<tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Contact</td><td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${escapeHtml(bakerName)}${baker?.email ? `<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">${escapeHtml(baker.email)}</span>` : ""}</td></tr>`,
-    ].filter(Boolean).join("");
+    ].join("");
 
     const legalHtml = `
       <p style="color:#A89B8C;font-size:11.5px;line-height:1.5;margin-top:20px;">
-        Questions about your shipment? Reach out to ${escapeHtml(bakerName)} directly using the contact info above.
+        The refund should appear on your original payment method within 5–10 business days. Questions? Reach out to ${escapeHtml(bakerName)} directly using the contact info above.
       </p>
     `;
 
     const html = renderReceiptShell({
-      docType: "Shipped",
+      docType: "Refund",
       bakerName,
       bakerUrl,
       metaRowsHtml: [
-        metaRow("", escapeHtml(formatDate(order.shipped_at ?? new Date().toISOString()))),
+        metaRow("", escapeHtml(formatDate(order.refunded_at ?? new Date().toISOString()))),
         metaRow("Order ID", escapeHtml(order.invoice_code || order.id.slice(0, 8).toUpperCase())),
         metaRow("Email", escapeHtml(order.customer_email)),
       ].join(""),
-      heading: isCorrection ? "Your tracking info was updated" : "Your order has shipped!",
+      heading: "Your order has been refunded",
       itemsHtml,
-      afterItemsHtml: prominentTrackingHtml,
-      sectionTitle: "Shipping Details",
+      afterItemsHtml: refundedHtml,
+      sectionTitle: "Order Details",
       sectionSubRowHtml: metaRow("", escapeHtml((order.customer_name ?? "").trim() || "Guest")),
       breakdownRowsHtml: detailRows,
       footerHtml: "",
@@ -166,7 +129,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: "Bakerï <hello@bakeriapp.com>",
         to: order.customer_email,
-        subject: (isCorrection ? "Updated tracking — " : "Your order has shipped — ") + (order.order_name || "your order"),
+        subject: "Your order has been refunded — " + (order.order_name || "your order"),
         html,
       }),
     });
@@ -175,12 +138,12 @@ Deno.serve(async (req: Request) => {
       throw new Error(`resend_failed: ${(await resendRes.text()).slice(0, 500)}`);
     }
 
-    await logNotification(db, orderId, eventType, "sent");
+    await logNotification(db, orderId, "guest_order_refunded", "sent");
     return json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`send-guest-order-shipped-email failed for order ${orderId}:`, message);
-    await logNotification(db, orderId, eventType, "failed", message.slice(0, 500));
+    console.error(`send-guest-order-refunded-email failed for order ${orderId}:`, message);
+    await logNotification(db, orderId, "guest_order_refunded", "failed", message.slice(0, 500));
     return json({ error: message }, 400);
   }
 });

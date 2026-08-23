@@ -2,20 +2,14 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logNotification } from "../_shared/notificationLog.ts";
 
-// Baker-triggered: "Mark as Shipped" in MarketplaceOrderSheet.swift, for a
-// physical (fulfillment_type='Shipping') order sitting in
-// marketplace_status='preparing' (awaiting_shipment -> preparing -> shipped
-// -> delivered is the full lifecycle as of
-// 20260823000001_physical_order_lifecycle.sql). Records the carrier/tracking
-// number and moves the order to 'shipped' — no longer 'completed'; delivery
-// is its own later step owned by mark-order-delivered. Owns the whole
-// customer notification itself — same shape as mark-order-ready-for-pickup,
-// which this is deliberately modeled on.
-//
-// Also re-callable once already 'shipped'/'delivered' purely to correct the
-// carrier/tracking number (e.g. a typo) — in that case it doesn't touch
-// marketplace_status/shipped_at again, and sends a "tracking updated"
-// notification instead of "your order has shipped".
+// Baker-triggered: "Mark as Delivered" in MarketplaceOrderSheet.swift, for a
+// physical order sitting in marketplace_status='shipped'. Terminal state for
+// a physical order — the shipping flow's equivalent of 'completed' for
+// pickup/delivery/digital orders (see
+// 20260823000001_physical_order_lifecycle.sql). Owns its own customer
+// notification, same shape as mark-order-shipped (which this is
+// deliberately modeled on) — the DB trigger has no 'delivered' branch, so
+// there is nothing to double-fire against.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -29,9 +23,8 @@ function json(body: unknown, status = 200) {
   });
 }
 
-// A plain `fetch(...).catch(...)` doesn't catch a non-2xx response — see
-// mark-order-ready-for-pickup's postWithRetry, which this copies verbatim
-// (same failure mode would otherwise silently drop the shipped email).
+// Same retry shape as mark-order-shipped's postWithRetry — a plain
+// `fetch(...).catch(...)` doesn't catch a non-2xx response.
 async function postWithRetry(url: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
   let lastError = "unknown error";
   const delaysMs = [0, 600, 1400, 2600];
@@ -78,16 +71,9 @@ Deno.serve(async (req: Request) => {
   if (authErr || !user) return json({ error: "Unauthorized" }, 401);
 
   try {
-    const body = await req.json() as {
-      order_id: string;
-      carrier: string;
-      tracking_number?: string;
-    };
+    const body = await req.json() as { order_id: string };
     const order_id = String(body.order_id ?? "").trim();
-    const carrier = String(body.carrier ?? "").trim();
-    const tracking_number = body.tracking_number ? String(body.tracking_number).trim() : null;
     if (!order_id) throw new Error("Missing order_id");
-    if (!carrier) throw new Error("Missing carrier");
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
@@ -97,63 +83,46 @@ Deno.serve(async (req: Request) => {
 
     if (orderErr || !order) throw new Error("Order not found");
     if (order.user_id !== user.id) throw new Error("Forbidden");
-
-    const isCorrection = order.marketplace_status === "shipped" || order.marketplace_status === "delivered";
-    if (!isCorrection && order.marketplace_status !== "preparing") {
-      throw new Error(`Cannot mark shipped from status: ${order.marketplace_status}`);
+    if (order.marketplace_status !== "shipped") {
+      throw new Error(`Cannot mark delivered from status: ${order.marketplace_status}`);
     }
 
-    const nowIso = new Date().toISOString();
-    const updatePayload: Record<string, unknown> = {
-      tracking_number,
-      shipping_carrier: carrier,
-      updated_at: nowIso,
-    };
-    if (!isCorrection) {
-      updatePayload.marketplace_status = "shipped";
-      updatePayload.shipped_at = nowIso;
-    }
+    const deliveredAt = new Date().toISOString();
     const { error: updateErr } = await supabase
       .from("orders")
-      .update(updatePayload)
+      .update({
+        marketplace_status: "delivered",
+        delivered_at: deliveredAt,
+        completed_at: deliveredAt,
+        updated_at: deliveredAt,
+      })
       .eq("id", order_id);
     if (updateErr) throw new Error(updateErr.message);
 
     let notified = true;
-    const pushTitle = isCorrection ? "📦 Tracking updated" : "📦 Your order has shipped!";
-    const pushBody = isCorrection
-      ? `The tracking info for ${order.order_name || "your order"} was updated.`
-      : `${order.order_name || "your order"} is on its way${carrier ? ` via ${carrier}` : ""}.`;
-    const pushEventType = isCorrection ? "order_tracking_updated" : "order_shipped";
-    const emailEventType = isCorrection ? "guest_order_tracking_updated" : "guest_order_shipped";
 
-    // Push (in-app buyer) — always null today (finalize-guest-physical-order
-    // is guest-checkout only), kept for parity with mark-order-ready-for-pickup
-    // in case an in-app physical-purchase flow is ever added.
     if (order.buyer_profile_id) {
       const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
         recipient_user_id: order.buyer_profile_id,
-        title: pushTitle,
-        body: pushBody,
-        data: { type: pushEventType, order_id },
+        title: "✅ Your order was delivered!",
+        body: `${order.order_name || "Your order"} has arrived. Enjoy!`,
+        data: { type: "order_delivered", order_id },
       });
       if (!result.ok) {
         console.error(`notify-marketplace push failed for order ${order_id}:`, result.error);
         notified = false;
-        await logNotification(supabase, order_id, pushEventType, "failed", result.error, "push");
+        await logNotification(supabase, order_id, "order_delivered", "failed", result.error, "push");
       }
     }
 
-    // Email (guest)
     if (!order.buyer_profile_id && order.lead_channel === "website") {
-      const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/send-guest-order-shipped-email`, {
+      const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/send-guest-order-delivered-email`, {
         order_id,
-        is_correction: isCorrection,
       });
       if (!result.ok) {
-        console.error(`send-guest-order-shipped-email failed for order ${order_id}:`, result.error);
+        console.error(`send-guest-order-delivered-email failed for order ${order_id}:`, result.error);
         notified = false;
-        await logNotification(supabase, order_id, emailEventType, "failed", result.error, "email");
+        await logNotification(supabase, order_id, "guest_order_delivered", "failed", result.error, "email");
       }
     }
 
