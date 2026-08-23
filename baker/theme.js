@@ -29,7 +29,8 @@ window.addEventListener('pageshow', function (event) {
       bg:        { light: '#FAF6EE', dark: '#1A130F' },
       gold:      { light: '#C49A6C', dark: '#A07840' },
       buttonFg:  { light: '#FFFFFF', dark: '#1C1C1E' },
-      swatches: ['#1C1C1E', '#A89B8C', '#D9E3E2']
+      swatches: ['#1C1C1E', '#A89B8C', '#D9E3E2'],
+      pumpkinTint: { light: '#C49A6C', dark: '#A07840' }
     },
     'Macaron': {
       primary:   { light: '#D966B0', dark: '#E87CC0' },
@@ -93,7 +94,8 @@ window.addEventListener('pageshow', function (event) {
       gold:      { light: '#946B2D', dark: '#C79149' },
       buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
       swatches: ['#0E1A40', '#222F5B', '#946B2D'],
-      bold: true
+      bold: true,
+      pumpkinTint: { light: '#946B2D', dark: '#C79149' }
     },
     'Honey': {
       primary:   { light: '#ECB939', dark: '#F0C75E' },
@@ -231,7 +233,7 @@ window.addEventListener('pageshow', function (event) {
   // multiply, blending against layer 1's already-grayscaled pixels.
   // Mirrors AppBackgroundPattern's SwiftUI .saturation(0) + .blendMode
   // (.multiply) construction exactly.
-  function buildPumpkinLayer(theme, dark) {
+  function buildPumpkinLayer(theme, dark, themeName) {
     var wrap = document.createElement('div');
     wrap.id = 'theme-pattern-layer';
     wrap.style.position = 'fixed';
@@ -245,15 +247,26 @@ window.addEventListener('pageshow', function (event) {
     art.style.inset = '0';
     art.style.backgroundImage = 'url(assets/pumpkin-background.jpg)';
     art.style.backgroundRepeat = 'repeat';
+    wrap.appendChild(art);
+
+    // Fall's palette is drawn from this artwork's own colours, so it shows
+    // the real photographed colours unfiltered rather than the grayscale +
+    // multiply duotone every other theme gets.
+    if (themeName === 'Fall') return wrap;
     art.style.filter = 'grayscale(1)';
 
+    // Mirrors AppTheme.pumpkinTintColor: Blueberry's swatches[0] (navy) and
+    // Classic's light-mode primary (near-black) multiply the grayscaled
+    // artwork down to near-illegible, so those two use `pumpkinTint`
+    // (== their `gold` accent) instead. Every other theme keeps the same
+    // header/stripe colour as before.
     var tint = document.createElement('div');
     tint.style.position = 'absolute';
     tint.style.inset = '0';
-    tint.style.backgroundColor = theme.bold ? theme.swatches[0] : theme.primary[dark ? 'dark' : 'light'];
+    tint.style.backgroundColor = theme.pumpkinTint
+      ? theme.pumpkinTint[dark ? 'dark' : 'light']
+      : (theme.bold ? theme.swatches[0] : theme.primary[dark ? 'dark' : 'light']);
     tint.style.mixBlendMode = 'multiply';
-
-    wrap.appendChild(art);
     wrap.appendChild(tint);
     return wrap;
   }
@@ -286,7 +299,7 @@ window.addEventListener('pageshow', function (event) {
     if (opts && opts.suppressPatternLayer) return;
 
     if (pattern === 'Pumpkins') {
-      document.body.insertBefore(buildPumpkinLayer(theme, dark), document.body.firstChild);
+      document.body.insertBefore(buildPumpkinLayer(theme, dark, themeName), document.body.firstChild);
       return;
     }
 
