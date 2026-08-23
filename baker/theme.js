@@ -103,6 +103,21 @@ window.addEventListener('pageshow', function (event) {
       buttonFg:  { light: '#2A2020', dark: '#2A2020' },
       swatches: ['#ECB939', '#726255', '#372E29'],
       bold: true
+    },
+    // Fifth bold-header theme — mirrors AppTheme.swift's .fall case exactly.
+    // legacyGingham: bold everywhere else (dark header, bold Stripes/Polka
+    // Dot/Pumpkins), but keeps the same pale image-tile Gingham the five
+    // original themes use instead of the two-colour woven check the other
+    // four bold themes get for that one pattern specifically.
+    'Fall': {
+      primary:   { light: '#BF3E0F', dark: '#F25C05' },
+      secondary: { light: '#D95A11', dark: '#F25C05' },
+      bg:        { light: '#FDF1E7', dark: '#1F0D08' },
+      gold:      { light: '#D95A11', dark: '#F25C05' },
+      buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
+      swatches: ['#A63117', '#F25C05', '#D95A11'],
+      bold: true,
+      legacyGingham: true
     }
   };
 
@@ -177,8 +192,12 @@ window.addEventListener('pageshow', function (event) {
         backgroundSize: tileW + 'px ' + tileH + 'px'
       };
     }
+    // Pumpkins is handled separately in apply() — it needs a two-layer
+    // grayscale-then-multiply duotone (real artwork, not a CSS-drawn
+    // shape), which a single flat background-image/color object here can't
+    // express. See buildPumpkinLayer below.
     if (pattern === 'Gingham') {
-      if (theme.bold) {
+      if (theme.bold && !theme.legacyGingham) {
         // A genuine two-colour woven check — horizontal bands of one
         // palette colour, vertical bands of another, both translucent so
         // CSS alpha-composites their overlap into a third, deeper blended
@@ -200,6 +219,43 @@ window.addEventListener('pageshow', function (event) {
       };
     }
     return null; // Standard — no pattern
+  }
+
+  // Pumpkins needs two stacked layers, not one flat background object:
+  // CSS composites background-image + background-color (via
+  // background-blend-mode) on an element BEFORE any filter on that same
+  // element runs, so a single-element grayscale-then-multiply isn't
+  // possible — the filter would strip the colour back out after blending.
+  // Layer 1 (the real artwork, tiled) gets grayscale(1) on its own;
+  // layer 2 (a flat theme colour) sits on top with mix-blend-mode:
+  // multiply, blending against layer 1's already-grayscaled pixels.
+  // Mirrors AppBackgroundPattern's SwiftUI .saturation(0) + .blendMode
+  // (.multiply) construction exactly.
+  function buildPumpkinLayer(theme, dark) {
+    var wrap = document.createElement('div');
+    wrap.id = 'theme-pattern-layer';
+    wrap.style.position = 'fixed';
+    wrap.style.inset = '0';
+    wrap.style.zIndex = '-1';
+    wrap.style.pointerEvents = 'none';
+    wrap.style.opacity = dark ? '0.4' : '0.5';
+
+    var art = document.createElement('div');
+    art.style.position = 'absolute';
+    art.style.inset = '0';
+    art.style.backgroundImage = 'url(assets/pumpkin-background.jpg)';
+    art.style.backgroundRepeat = 'repeat';
+    art.style.filter = 'grayscale(1)';
+
+    var tint = document.createElement('div');
+    tint.style.position = 'absolute';
+    tint.style.inset = '0';
+    tint.style.backgroundColor = theme.bold ? theme.swatches[0] : theme.primary[dark ? 'dark' : 'light'];
+    tint.style.mixBlendMode = 'multiply';
+
+    wrap.appendChild(art);
+    wrap.appendChild(tint);
+    return wrap;
   }
 
   // Applies theme + pattern from a fetched web-profile RPC response onto the
@@ -228,6 +284,11 @@ window.addEventListener('pageshow', function (event) {
     // Callers that want that (checkout/custom-order/pay-quote, which have
     // no cover band of their own) get the old full-page layer unchanged.
     if (opts && opts.suppressPatternLayer) return;
+
+    if (pattern === 'Pumpkins') {
+      document.body.insertBefore(buildPumpkinLayer(theme, dark), document.body.firstChild);
+      return;
+    }
 
     var css = patternBackground(pattern, theme, dark);
     if (css) {
