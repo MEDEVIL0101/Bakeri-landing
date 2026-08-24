@@ -21,6 +21,22 @@ Entry format:
 
 ---
 
+## 2026-08-24 — Past Orders showed the wrong status screen for marketplace orders
+
+**Reported by:** Diana, directly, after checking the cookie jar order's fix from earlier tonight ("it's being displayed as if it were a food item, with status bar options: baked; decorated; packaged... it shouldn't be like that").
+
+**Symptom:** Opening the delivered "Bakeri Cookie Jar" order (a physical/shipping marketplace order) from Past Orders showed `OrderDetailView` — the manual-order kitchen-workflow screen — complete with Confirmed/Baked/Decorated/Packaged status chips, which don't apply to a marketplace order at all.
+
+**Root cause:** `CompletedOrdersView`'s row tap handler always set `selectedOrder`, routed by a single `.navigationDestination(item:)` straight into `OrderDetailView`, with no branch on `order_source`. `OrdersView.swift`'s own order list has always correctly branched — `isMarketplaceOrder ? selectedMarketplaceOrder : selectedOrder`, two separate destinations — but `CompletedOrdersView` (a separate, parallel screen; see the 2026-08-24 "delivered orders missing" entry above for the other independent bug already found in this same screen) never got that branch.
+
+**Fix:** Added the same `isMarketplaceOrder` branch and a second `@State`/`.sheet(item:)` presenting `MarketplaceOrderSheet` for marketplace orders, matching `OrdersView.swift` exactly. `OrderDetailView` (unchanged) still handles manual orders via `.navigationDestination(item:)`, since `MarketplaceOrderSheet` manages its own internal `NavigationStack` and is presented as a sheet everywhere else it's used. Also removed the "Add Reference Photos" section for digital orders (already removed for shipping orders when that layout was redesigned) — a digital download has no physical item to photograph, so there's nothing to add a reference photo to. Deployed 2026-08-24 (client-side, needs the new build).
+
+**Affected users:** Any baker opening a marketplace order (not just physical/shipping — digital, ready_now, custom, etc. too) from Past Orders specifically. The main Orders tab was never affected — only this second, parallel screen.
+
+**Follow-up:** None open.
+
+---
+
 ## 2026-08-24 — Bakers never notified of a digital sale (or any marketplace order/quote)
 
 **Reported by:** Diana, directly ("make sure that digital file sales are triggering notifications... they should get an email saying they sold x product").
