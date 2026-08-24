@@ -8,8 +8,18 @@
 // forcing a reload there gets every visit back to a clean, current page.
 // Registered once per real page load, so it's still armed after a bfcache
 // restore re-shows that same JS/DOM state.
+//
+// Exception: a checkout page that has finished a purchase (order placed /
+// downloads issued / quote paid) sets data-bakeri-no-reload="1" on <body>
+// right when it renders that final success screen. Reloading a completed
+// checkout throws away the in-memory success state and restarts the page
+// from scratch — for a payment flow that means the buyer lands back on a
+// "Continue to Payment" / "Pay" screen for an order they already paid for
+// (e.g. clicking a digital download link, then pressing the browser's Back
+// button). bfcache already froze the correct, already-paid DOM in place, so
+// the right move there is to just leave it alone, not reload over it.
 window.addEventListener('pageshow', function (event) {
-  if (event.persisted) {
+  if (event.persisted && document.body.getAttribute('data-bakeri-no-reload') !== '1') {
     window.location.reload();
   }
 });

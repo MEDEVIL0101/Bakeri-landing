@@ -21,6 +21,38 @@ Entry format:
 
 ---
 
+## 2026-08-24 — Back button after a digital download returned buyers to an already-paid checkout screen
+
+**Reported by:** Diana, directly ("after a digital transaction is completed, a download your file link comes up... when they go back a page, it takes them... back to the page where they are to pay the balance of the bill").
+
+**Symptom:** On `checkout.html`, `digital-checkout.html`, `physical-checkout.html`, and `pay-quote.html`, a buyer who finished paying, clicked the "Download now" (or similar) link, then pressed the browser's Back button, landed back on a payable screen — the pre-payment order form, not the "your download is ready" / receipt screen they'd just seen. It looked like the order hadn't gone through and invited a second attempt to pay.
+
+**Root cause:** `theme.js`'s shared `pageshow` handler (also duplicated inline in `pay-quote.html`) unconditionally calls `window.location.reload()` whenever the page is restored from the browser's back/forward cache (`event.persisted`) — added to stop in-app browsers like Instagram's from silently resuming a stale, previously-visited page state. That reload throws away the in-memory "success" render and restarts the page from scratch, which for these checkout pages means back at the top of the payment flow. Separately, `checkout.html` only cleared its `sessionStorage` cart after the pickup leg of a mixed cart (`finalizeOrder`), so a digital- or ship-only checkout left a stale, already-paid cart sitting in storage too.
+
+**Fix:** `theme.js`'s (and `pay-quote.html`'s) reload now checks a `data-bakeri-no-reload="1"` attribute on `<body>` and skips the reload if it's set. Each checkout page's final success render (`checkout.html`, `digital-checkout.html`, `physical-checkout.html`, `pay-quote.html`) now sets that attribute, so a bfcache restore just leaves the already-correct paid/success DOM in place instead of reloading over it. `checkout.html`'s `renderSuccess()` also now always clears `bakeri_checkout_cart` from `sessionStorage`, not just on the pickup leg. Deployed 2026-08-24.
+
+**Affected users:** Any guest buyer completing a digital, physical/shipping, mixed-cart, or quote/deposit checkout who navigated away (e.g. to their download) and used Back afterward.
+
+**Follow-up:** None open.
+
+---
+
+## 2026-08-24 — No warning that a mixed cart checks out as multiple separate charges
+
+**Reported by:** Diana, directly — flagged that buyers with items from more than one category (pickup + digital, digital + shipping, etc.) see two or three separate "Pay" screens back-to-back with no explanation, which reads as broken and risks someone abandoning partway through with only part of their order (and payment) completed.
+
+**Symptom:** `checkout.html` silently walked a mixed cart through up to three sequential Stripe charges (pickup, digital, shipping) with only a single terse sentence buried in the fine print explaining why — nothing on the summary screen prepared the buyer for a second or third payment screen.
+
+**Root cause:** Design gap, not a code defect — pickup items (authorize-then-capture-on-accept) can't share a PaymentIntent with digital or shipping items (instant capture), so the multi-charge flow itself is a real Stripe constraint, but the UI never surfaced that up front.
+
+**Fix:** `checkout.html`'s order summary now shows a prominent notice up front when a cart spans more than one category, listing exactly how many charges there will be, what each pays for, and warning that stopping partway leaves the rest of the order unplaced. Each subsequent pay screen also now shows a "Step X of Y" label and how many charges remain. Deployed 2026-08-24.
+
+**Affected users:** Any guest buyer checking out a cart with items from more than one category (pickup/digital/shipping combined).
+
+**Follow-up:** A true single-charge checkout (one payment, one confirmation screen) was discussed as the better long-term fix but needs a backend redesign — pickup's authorize-then-capture-on-accept hold can't currently share a charge with digital/shipping's instant capture. Revisit if abandonment on mixed carts is still a problem after this messaging change.
+
+---
+
 ## 2026-08-24 — Past Orders showed the wrong status screen for marketplace orders
 
 **Reported by:** Diana, directly, after checking the cookie jar order's fix from earlier tonight ("it's being displayed as if it were a food item, with status bar options: baked; decorated; packaged... it shouldn't be like that").

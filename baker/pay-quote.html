@@ -11,9 +11,12 @@
   <script>
     // See baker/theme.js for why: forces a fresh load instead of an in-app
     // browser (Instagram especially) silently resuming a stale, previously
-    // visited state of this page from bfcache.
+    // visited state of this page from bfcache. Skipped once the quote is
+    // paid (renderSuccess sets data-bakeri-no-reload) — see theme.js for why.
     window.addEventListener('pageshow', function (event) {
-      if (event.persisted) window.location.reload();
+      if (event.persisted && document.body.getAttribute('data-bakeri-no-reload') !== '1') {
+        window.location.reload();
+      }
     });
   </script>
 
@@ -428,6 +431,9 @@
   // a balance still due later, so that's shown as "Not yet paid" rather than
   // just disappearing after the deposit is confirmed.
   function renderSuccess(isDeposit, amountPaid) {
+    // Stops the bfcache-restore reload above from throwing this paid state
+    // away — see theme.js.
+    document.body.setAttribute('data-bakeri-no-reload', '1');
     const data = currentQuoteData || {};
     const items = data.items || [];
     const amount = Number(data.quoted_price || 0);

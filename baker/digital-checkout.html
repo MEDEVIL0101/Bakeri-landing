@@ -315,6 +315,10 @@
   }
 
   function renderSuccess(data) {
+    // Stops the bfcache-restore reload in theme.js from throwing this paid
+    // state away — otherwise clicking a download link then pressing Back
+    // reloads the page back to the pre-payment "Continue to Payment" form.
+    document.body.setAttribute('data-bakeri-no-reload', '1');
     const downloads = data.downloads || [];
     const links = downloads.map(function (d) {
       return '<a class="btn-download" href="' + d.download_url + '">' +

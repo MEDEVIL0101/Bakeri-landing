@@ -64,6 +64,13 @@
 
     #payment-element { margin-top: 20px; }
 
+    .multi-charge-notice { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: rgba(148,133,119,0.1); border: 1px solid var(--line); }
+    .multi-charge-notice .title { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .multi-charge-notice .desc { font-size: 12.5px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+    .multi-charge-notice ol { margin: 10px 0 0; padding-left: 18px; }
+    .multi-charge-notice li { font-size: 12.5px; color: var(--bio); padding: 3px 0; line-height: 1.4; }
+    .multi-charge-notice li b { color: var(--ink); }
+
     .btn-primary {
       display: flex; align-items: center; justify-content: center;
       width: 100%; height: 52px; margin-top: 22px;
@@ -229,6 +236,17 @@
   let shipError = null;
   let shipAddress = null;
 
+  // How many separate Stripe charges this checkout will actually run (see
+  // the comments above digitalItems/shipItems for why they can't share a
+  // PaymentIntent with pickup or each other). Surfaced up front in
+  // renderSummary so a mixed cart never looks like two unexplained charges,
+  // and as a "Step X of Y" label on each leg's own pay screen so the buyer
+  // knows there's more to finish (and what happens if they stop early).
+  const legTotalCount = (cart.items.length > 0 ? 1 : 0) + (digitalItems.length > 0 ? 1 : 0) + (shipItems.length > 0 ? 1 : 0);
+  let legStepIndex = 0;
+  function nextLegStep() { legStepIndex += 1; return legStepIndex; }
+  function legStepLabel() { return legTotalCount > 1 ? 'Step ' + legStepIndex + ' of ' + legTotalCount + ' · ' : ''; }
+
   renderSummary();
 
   function renderSummary() {
@@ -253,6 +271,7 @@
     content.innerHTML =
       '<div class="eyebrow">Your Order</div>' +
       '<div class="heading">Checkout</div>' +
+      renderMultiChargeNotice() +
       lines +
       (cart.items.length > 0 ? (
         '<div class="totals-row"><span>Subtotal</span><span>$' + subtotal.toFixed(2) + '</span></div>' +
@@ -270,15 +289,34 @@
         (shipShippingFeeTotal > 0 ? '<div class="totals-row"><span>Shipping fee</span><span>$' + shipShippingFeeTotal.toFixed(2) + '</span></div>' : '')
       ) : '') +
       '<div class="totals-row grand"><span>Total</span><span>$' + grandTotal.toFixed(2) + '</span></div>' +
-      '<button class="btn-primary" id="continue-btn">Continue to Payment</button>' +
+      '<button class="btn-primary" id="continue-btn">' + (legTotalCount > 1 ? 'Continue to Payment · Step 1 of ' + legTotalCount : 'Continue to Payment') + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
       '<div class="pickup-note">' +
         (cart.items.length > 0 ? '📍 Exact pickup address is provided by email once your order is confirmed.' : '') +
-        (digitalItems.length > 0 ? ' Digital downloads are delivered instantly, as a separate charge from pickup items.' : '') +
-        (shipItems.length > 0 ? ' Shipping items are a separate charge — you\'ll enter a shipping address next.' : '') +
+        (shipItems.length > 0 ? ' You\'ll enter a shipping address on the shipping payment step.' : '') +
       '</div>';
 
     document.getElementById('continue-btn').addEventListener('click', startCheckout);
+  }
+
+  // A mixed cart settles as multiple back-to-back Stripe charges (see the
+  // legTotalCount comment above) — without warning, a buyer sees a second
+  // (or third) unexplained "Pay" screen right after they thought they were
+  // done, which reads as broken and is exactly the kind of moment where
+  // someone abandons partway through, leaving part of their order unpaid.
+  // This spells out up front how many charges there are and what each pays
+  // for, before they commit to starting.
+  function renderMultiChargeNotice() {
+    if (legTotalCount <= 1) return '';
+    const steps = [];
+    if (cart.items.length > 0) steps.push('<b>Pickup items</b> — $' + total.toFixed(2) + ', authorized now and charged once the baker confirms your order');
+    if (digitalItems.length > 0) steps.push('<b>Digital downloads</b> — $' + digitalSubtotal.toFixed(2) + ', charged right away and delivered instantly');
+    if (shipItems.length > 0) steps.push('<b>Shipping items</b> — $' + shipSubtotal.toFixed(2) + ', charged right away after you enter a shipping address');
+    return '<div class="multi-charge-notice">' +
+      '<div class="title">This order is ' + legTotalCount + ' separate charges</div>' +
+      '<div class="desc">Your card is charged once per step below, one after another — not all at once, and not as one combined charge. Please complete every step in the same visit: if you stop partway, only the completed charges go through and the rest of your order won\'t be placed.</div>' +
+      '<ol>' + steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>' +
+    '</div>';
   }
 
   // Dispatches to whichever leg actually has items — a cart can reach this
@@ -304,6 +342,7 @@
   }
 
   function goToPayment() {
+    nextLegStep();
     const btn = document.getElementById('continue-btn');
     const status = document.getElementById('submit-status');
     btn.disabled = true;
@@ -345,8 +384,9 @@
     const payTotal = (typeof amountCents === 'number' ? amountCents : Math.round(total * 100)) / 100;
 
     content.innerHTML =
-      '<div class="eyebrow">Pay</div>' +
+      '<div class="eyebrow">' + legStepLabel() + 'Pay' + '</div>' +
       '<div class="heading">$' + payTotal.toFixed(2) + '</div>' +
+      (legTotalCount > 1 ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">' + (legTotalCount - legStepIndex) + ' more charge' + (legTotalCount - legStepIndex === 1 ? '' : 's') + ' to go after this one to finish your order.</p>' : '') +
       '<div id="payment-element"></div>' +
       '<button class="btn-primary" id="pay-btn">Pay $' + payTotal.toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
@@ -430,6 +470,7 @@
   // after the pickup one, since (see renderSummary) the two can't share a
   // capture mode. ──
   function goToDigitalPayment() {
+    nextLegStep();
     fetch(SUPABASE_URL + '/functions/v1/create-payment-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
@@ -456,10 +497,15 @@
   }
 
   function renderDigitalPayment(clientSecret, connectedAccountId) {
+    const remaining = legTotalCount - legStepIndex;
     content.innerHTML =
-      '<div class="eyebrow">Pay · Digital Downloads</div>' +
+      '<div class="eyebrow">' + legStepLabel() + 'Pay · Digital Downloads</div>' +
       '<div class="heading">$' + digitalSubtotal.toFixed(2) + '</div>' +
-      '<p style="color:var(--muted);font-size:13px;margin-top:6px;">Your pickup order is confirmed — one more charge for your downloads, delivered instantly.</p>' +
+      '<p style="color:var(--muted);font-size:13px;margin-top:6px;">' +
+        (physicalResult ? 'Your pickup order is confirmed — ' : '') +
+        'this charge is for your downloads, delivered instantly' +
+        (remaining > 0 ? ', with ' + remaining + ' more charge' + (remaining === 1 ? '' : 's') + ' to go after.' : '.') +
+      '</p>' +
       '<div id="payment-element"></div>' +
       '<button class="btn-primary" id="pay-btn">Pay $' + digitalSubtotal.toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
@@ -527,12 +573,13 @@
   // shipping address first, which nothing collected so far in this flow
   // gathers (the pickup step above only asks for name/phone/email). ──
   function goToShipPayment() {
+    nextLegStep();
     renderShipAddressForm();
   }
 
   function renderShipAddressForm() {
     content.innerHTML =
-      '<div class="eyebrow">Ships to You</div>' +
+      '<div class="eyebrow">' + legStepLabel() + 'Ships to You</div>' +
       '<div class="heading">Shipping address</div>' +
       '<p style="color:var(--muted);font-size:13px;margin-top:6px;">' +
         (physicalResult || digitalResult ? 'The rest of your order is confirmed — j' : 'J') +
@@ -613,8 +660,9 @@
 
   function renderShipPayment(clientSecret, connectedAccountId) {
     content.innerHTML =
-      '<div class="eyebrow">Pay · Ships to You</div>' +
+      '<div class="eyebrow">' + legStepLabel() + 'Pay · Ships to You</div>' +
       '<div class="heading">$' + shipSubtotal.toFixed(2) + '</div>' +
+      (legTotalCount > 1 ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">This is the last charge to finish your order.</p>' : '') +
       '<div id="payment-element"></div>' +
       '<button class="btn-primary" id="pay-btn">Pay $' + shipSubtotal.toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
@@ -675,6 +723,15 @@
   }
 
   function renderSuccess() {
+    // Stops the bfcache-restore reload in theme.js from throwing this
+    // completed state away — otherwise clicking a download link then
+    // pressing Back reloads the page back to a payable state. Also clears
+    // whatever's left of the cart: finalizeOrder() only did this for the
+    // pickup leg, so a digital- or ship-only checkout left the cart sitting
+    // in sessionStorage, ready to render "Continue to Payment" again for an
+    // order that's already fully paid for.
+    document.body.setAttribute('data-bakeri-no-reload', '1');
+    sessionStorage.removeItem('bakeri_checkout_cart');
     const pickupBlock = physicalResult ? (
       '<h2>Order confirmed</h2>' +
       '<p>' + escapeHtml(physicalResult.baker_name || 'The baker') + ' is reviewing your order. You\'ll get an email as soon as it\'s confirmed, with your pickup details.</p>' +

@@ -429,6 +429,9 @@
   }
 
   function renderSuccess(data) {
+    // Stops the bfcache-restore reload in theme.js from throwing this paid
+    // state away — see digital-checkout.html for the equivalent fix.
+    document.body.setAttribute('data-bakeri-no-reload', '1');
     const lines = (data.items || purchasableItems).map(function (i) {
       const qty = i.quantity || i.qty || 1;
       const name = i.item_name || i.name;
