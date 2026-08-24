@@ -21,6 +21,22 @@ Entry format:
 
 ---
 
+## 2026-08-24 — Delivered physical orders missing from "Past Orders"
+
+**Reported by:** Diana, directly ("the user sugarland is suddenly not seeing their past orders").
+
+**Symptom:** Sugarland's "Bakeri Cookie Jar — Small" order (a physical/shipping marketplace order, `marketplace_status = 'delivered'`) didn't appear in the Past Orders screen, even though it was fully intact server-side (not deleted, not otherwise abnormal).
+
+**Investigation note:** first ruled out data loss — 3 other, unrelated orders on this account *were* genuinely soft-deleted (`deleted_at` set), but all three on 2026-08-21, via the app's own "Delete Order" confirmation (`OrderDetailView.swift`, the only code path that ever writes `orders.deleted_at`), and none of them was the cookie jar order. That's a separate, non-bug event (deliberate delete, `deleted_at` timestamp frozen at the 21st, nothing changed since) — not what caused this report, and the data was left untouched.
+
+**Root cause:** `CompletedOrdersView.swift`'s `@Query` predicate only matched `marketplace_status == "completed"`. `20260823000001_physical_order_lifecycle.sql` (this same day, earlier session) introduced `"delivered"` as a physical order's own terminal status, distinct from `"completed"`. `OrdersView.swift`'s own completed-orders filter was updated for this at the time, but `CompletedOrdersView.swift` — a separate, parallel screen reachable from the sidebar's "Past Orders" menu item — has its own independent filter that was missed, so every delivered shipping order silently stopped appearing there.
+
+**Fix:** Added the `"delivered"` case to `CompletedOrdersView.swift`'s filter. Along the way, the original 3-condition `#Predicate` macro failed to compile ("unable to type-check this expression in reasonable time") once the third OR'd condition was added — switched to an unfiltered `@Query` + plain Swift `.filter`, the same pattern `OrdersView.swift` already uses for this exact reason. Requires a new app build to reach devices (client-side only, no backend change).
+
+**Affected users:** Any baker with a physical/shipping order that reached "Delivered" — invisible specifically in Past Orders (sidebar), not in the main Orders tab's own Completed section, which was already correct.
+
+**Follow-up:** None open. Worth remembering for future new terminal-ish marketplace statuses: `OrdersView.swift`'s `completedOrders` and `CompletedOrdersView.swift`'s filter are two independent, unlinked copies of the same logic and must be updated together.
+
 ## 2026-08-20 — Digital cart items couldn't be removed without leaving the page
 
 **Reported by:** Diana, directly ("I noticed that a user can't remove digital products from the cart- they have to go back to the users page and deselect them there").
