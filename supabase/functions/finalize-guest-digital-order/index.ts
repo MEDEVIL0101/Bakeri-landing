@@ -40,6 +40,22 @@ const SIGNED_URL_EXPIRY_SECONDS = 60 * 60 * 24 * 7; // 7 days — plenty for a b
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
+// A plain <a href="signedUrl"> just navigates to the file — for a PDF or
+// image, most browsers render it inline instead of downloading it, replacing
+// the whole page the buyer was just looking at. Passing `download` here
+// makes Supabase Storage answer with Content-Disposition: attachment, which
+// is what actually makes a click trigger a real save-file download regardless
+// of file type or browser — a client-side `download` attribute on the link
+// can't do this reliably since the URL is cross-origin (storage.supabase.co,
+// not bakeriapp.com). Named after the item (not the raw storage path, which
+// is a content-hashed filename) so what lands in the buyer's Downloads
+// folder is legible.
+function buildDownloadFilename(itemName: string, filePath: string): string {
+  const ext = (filePath.split(".").pop() || "").toLowerCase();
+  const safeName = (itemName || "download").replace(/[\/\\?%*:|"<>]/g, "-").trim() || "download";
+  return ext && ext !== filePath ? `${safeName}.${ext}` : safeName;
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type",
@@ -236,15 +252,18 @@ Deno.serve(async (req: Request) => {
   const uniqueFileLines = [...new Map(digitalLines.map((l) => [l.digitalFilePath, l])).values()];
   const downloads: { item_name: string; download_url: string }[] = [];
   for (const line of uniqueFileLines) {
+    const itemName = itemsById.get(line.menuItemId)?.name ?? line.name;
     const { data: signedUrlData, error: signedUrlErr } = await db.storage
       .from("digital-products")
-      .createSignedUrl(line.digitalFilePath as string, SIGNED_URL_EXPIRY_SECONDS);
+      .createSignedUrl(line.digitalFilePath as string, SIGNED_URL_EXPIRY_SECONDS, {
+        download: buildDownloadFilename(itemName, line.digitalFilePath as string),
+      });
 
     if (signedUrlErr || !signedUrlData?.signedUrl) {
       console.error("createSignedUrl failed:", line.menuItemId, signedUrlErr?.message);
       return refundAndFail("We couldn't prepare your download.");
     }
-    downloads.push({ item_name: itemsById.get(line.menuItemId)?.name ?? line.name, download_url: signedUrlData.signedUrl });
+    downloads.push({ item_name: itemName, download_url: signedUrlData.signedUrl });
   }
 
   // Order name: the single item's name, or "First item + N more" for a
