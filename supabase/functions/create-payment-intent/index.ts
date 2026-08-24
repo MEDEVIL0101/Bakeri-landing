@@ -7,7 +7,7 @@ import { currencyForCountry } from "../_shared/currency.ts";
 
 const stripe = getStripeClient();
 
-// Thrown by the isDigital/isPhysical validation blocks below (item gone,
+// Thrown by the hasDigital/hasPhysical validation blocks below (item gone,
 // unlisted, sold out, or an unrecognized variant) — caught at the bottom
 // and turned into the same 400 + friendly message shape those blocks used
 // to return directly, before validation needed to happen inline inside a
@@ -39,8 +39,9 @@ interface RequestBody {
   tax_amount_cents?: number;
   // Flat manual shipping fee(s), summed client-side (once per distinct
   // physical listing, not per unit) and re-validated below before it's
-  // trusted for the actual charge. Only ever present for a physical-only
-  // cart. Real carrier-computed rates are a later integration.
+  // trusted for the actual charge. Only ever present when the cart has
+  // physical items (physical-only, or mixed digital+physical). Real
+  // carrier-computed rates are a later integration.
   shipping_fee_cents?: number;
 }
 
@@ -69,6 +70,8 @@ function getSupabaseClient() {
 
 interface BakerConnectRow {
   id: string;
+  business_name: string | null;
+  user_name: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarding_complete: boolean;
   country: string | null;
@@ -83,7 +86,7 @@ async function fetchBakerConnectRows(bakerIds: string[]): Promise<BakerConnectRo
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
+    .select("id, business_name, user_name, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
     .in("id", bakerIds);
   if (error || !data || data.length !== bakerIds.length) return null;
   return data;
@@ -148,7 +151,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Authoritative per-line price for any variant pick — never trust
-    // price_from for these, filled in by the isDigital/isPhysical
+    // price_from for these, filled in by the hasDigital/hasPhysical
     // validation blocks below before itemsTotalCents is computed.
     const authoritativePriceByIndex = new Map<number, number>();
 
@@ -160,13 +163,17 @@ Deno.serve(async (req: Request) => {
     // fee. Digital and physical goods both capture immediately instead —
     // digital because there's no physical handoff to wait for, physical
     // because it's sold outright on purchase (decrements stock rather than
-    // needing a baker accept step). Each cart is always single-kind and
-    // single-baker (its own storefront mini-cart, see digital-checkout.html/
-    // physical-checkout.html) but can hold multiple items — see
-    // finalize-guest-digital-order / finalize-guest-physical-order.
-    const isDigital = items.every((i) => i.listing_kind === "digital");
-    const isPhysical = items.every((i) => i.listing_kind === "physical");
-    const captureMethod = (paymentFlow === "deposit_and_save" || isDigital || isPhysical) ? "automatic" : "manual";
+    // needing a baker accept step). A cart is always single-baker (its own
+    // storefront mini-cart) and can hold multiple items of EITHER instant-
+    // capture kind mixed together — checkout.html's digital+ship leg settles
+    // as one combined PaymentIntent (see finalize-guest-digital-physical-order)
+    // rather than one charge per kind — but never mixed with a pickup
+    // (ready_now/preorder) or custom item, which stay manual-capture and
+    // always get their own separate PaymentIntent.
+    const hasDigital = items.some((i) => i.listing_kind === "digital");
+    const hasPhysical = items.some((i) => i.listing_kind === "physical");
+    const isInstantCaptureCart = items.every((i) => i.listing_kind === "digital" || i.listing_kind === "physical");
+    const captureMethod = (paymentFlow === "deposit_and_save" || isInstantCaptureCart) ? "automatic" : "manual";
 
     // Everything below trusts client-supplied fields (name, price) with no
     // server-side check against the live menu_items row — for digital/
@@ -177,15 +184,16 @@ Deno.serve(async (req: Request) => {
     // deleted, sold out, or had its file removed since the buyer loaded the
     // page still charges them in full, and they only find out once finalize
     // rejects it.
-    if (isDigital) {
+    if (hasDigital) {
       const supabase = getSupabaseClient();
+      const digitalCartItems = items.filter((i) => i.listing_kind === "digital");
       const { data: digitalItems, error: digitalItemsErr } = await supabase
         .from("menu_items")
         .select("id, name, listing_kind, is_listed_in_marketplace, digital_file_path, has_variants")
-        .in("id", items.map((i) => i.listing_id));
+        .in("id", digitalCartItems.map((i) => i.listing_id));
 
       const itemsById = new Map((digitalItems ?? []).map((d) => [d.id, d]));
-      const variantIds = items.filter((i) => i.variant_id).map((i) => i.listing_id);
+      const variantIds = digitalCartItems.filter((i) => i.variant_id).map((i) => i.listing_id);
       const { data: variantRows } = variantIds.length
         ? await supabase.from("listing_variants").select("id, menu_item_id, label, price")
             .in("menu_item_id", variantIds).is("deleted_at", null)
@@ -197,7 +205,11 @@ Deno.serve(async (req: Request) => {
         variantsByItemId.set(v.menu_item_id, list);
       });
 
+      // Iterates the full items array (not just digitalCartItems) so idx
+      // stays aligned with authoritativePriceByIndex/items — a mixed
+      // digital+physical cart interleaves both kinds in one array.
       items.forEach((cartItem, idx) => {
+        if (cartItem.listing_kind !== "digital") return;
         const digitalItem = itemsById.get(cartItem.listing_id);
         if (digitalItemsErr || !digitalItem || digitalItem.listing_kind !== "digital") {
           throw new ValidationError("This item is no longer available.");
@@ -218,15 +230,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    if (isPhysical) {
+    if (hasPhysical) {
       const supabase = getSupabaseClient();
+      const physicalCartItems = items.filter((i) => i.listing_kind === "physical");
       const { data: physicalItems, error: physicalItemsErr } = await supabase
         .from("menu_items")
         .select("id, name, listing_kind, is_listed_in_marketplace, available_qty_today, has_variants")
-        .in("id", items.map((i) => i.listing_id));
+        .in("id", physicalCartItems.map((i) => i.listing_id));
 
       const itemsById = new Map((physicalItems ?? []).map((d) => [d.id, d]));
-      const variantIds = items.filter((i) => i.variant_id).map((i) => i.listing_id);
+      const variantIds = physicalCartItems.filter((i) => i.variant_id).map((i) => i.listing_id);
       const { data: variantRows } = variantIds.length
         ? await supabase.from("listing_variants").select("id, menu_item_id, label, price, stock_qty")
             .in("menu_item_id", variantIds).is("deleted_at", null)
@@ -239,6 +252,7 @@ Deno.serve(async (req: Request) => {
       });
 
       items.forEach((cartItem, idx) => {
+        if (cartItem.listing_kind !== "physical") return;
         const physicalItem = itemsById.get(cartItem.listing_id);
         if (physicalItemsErr || !physicalItem || physicalItem.listing_kind !== "physical") {
           throw new ValidationError("This item is no longer available.");
@@ -295,8 +309,14 @@ Deno.serve(async (req: Request) => {
 
     const bakerRows = await fetchBakerConnectRows(bakerIDs);
     if (!bakerRows || !allBakersStripeReady(bakerRows)) {
+      // Named, not generic — a guest has no context for "this baker" when
+      // they're mid-checkout on a specific storefront.
+      const notReadyNames = (bakerRows ?? [])
+        .filter((r) => !(r.stripe_connect_onboarding_complete && r.stripe_connect_account_id))
+        .map((r) => r.business_name?.trim() || r.user_name?.trim() || "This baker");
+      const bakerLabel = notReadyNames.length > 0 ? [...new Set(notReadyNames)].join(" and ") : "This baker";
       return new Response(
-        JSON.stringify({ error: "This baker hasn't finished setting up payments yet. Check back soon!" }),
+        JSON.stringify({ error: `${bakerLabel} hasn't finished setting up payments yet. Check back soon!` }),
         { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
       );
     }

@@ -57,11 +57,12 @@ Deno.serve(async (req: Request) => {
 
     const { data: baker } = await supabase
       .from("profiles")
-      .select("stripe_connect_account_id, stripe_connect_onboarding_complete, country")
+      .select("business_name, user_name, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
       .eq("id", order.user_id)
       .single();
     if (!baker?.stripe_connect_onboarding_complete || !baker?.stripe_connect_account_id) {
-      throw new Error("This baker hasn't finished setting up payments yet. Check back soon!");
+      const bakerDisplayName = baker?.business_name?.trim() || baker?.user_name?.trim() || "This baker";
+      throw new Error(`${bakerDisplayName} hasn't finished setting up payments yet. Check back soon!`);
     }
     const connectedAccountId = baker.stripe_connect_account_id;
 

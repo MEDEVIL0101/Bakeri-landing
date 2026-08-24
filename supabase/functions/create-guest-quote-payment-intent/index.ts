@@ -71,11 +71,12 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("stripe_connect_account_id, stripe_connect_onboarding_complete, country")
+    .select("business_name, user_name, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
     .eq("id", order.user_id)
     .single();
   if (!bakerProfile?.stripe_connect_onboarding_complete || !bakerProfile?.stripe_connect_account_id) {
-    return json({ error: "This baker hasn't finished setting up payments yet. Check back soon!" }, 400);
+    const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || "This baker";
+    return json({ error: `${bakerDisplayName} hasn't finished setting up payments yet. Check back soon!` }, 400);
   }
   const connectedAccountId = bakerProfile.stripe_connect_account_id;
 

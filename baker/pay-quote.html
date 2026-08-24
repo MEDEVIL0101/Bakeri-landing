@@ -111,12 +111,8 @@
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
     .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
     .pickup-note { margin-top: 16px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
-    .success-state { text-align: center; padding: 30px 0; }
-    .success-state .icon {
-      width: 54px; height: 54px; border-radius: 50%; background: #3FA672; color: #fff;
-      display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto;
-    }
-    .success-state h2 { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 16px; }
+    .success-state { text-align: center; padding: 10px 0 6px; }
+    .success-state h2 { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 0; }
     .success-state p { font-size: 14px; color: var(--bio); margin-top: 10px; line-height: 1.6; }
     .not-found { text-align: center; color: var(--muted); padding: 40px 0; }
     .not-found h2 { font-size: 18px; margin-bottom: 8px; color: var(--ink); }
@@ -475,7 +471,6 @@
       '<div class="bakeri-mark">Bakerï</div>' +
       '<div class="eyebrow">Receipt from ' + escapeHtml(data.business_name || '') + '</div>' +
       '<div class="success-state" style="padding:16px 0 6px;">' +
-        '<div class="icon">✓</div>' +
         '<h2>Payment confirmed</h2>' +
         '<p>' + escapeHtml(data.business_name || 'Your baker') + ' has been notified. You\'ll get pickup details by email shortly.</p>' +
       '</div>' +

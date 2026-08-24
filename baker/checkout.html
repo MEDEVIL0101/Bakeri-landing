@@ -83,20 +83,30 @@
     .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }
     .pickup-note { margin-top: 16px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
-    .success-state { text-align: center; padding: 30px 0; }
-    .success-state .icon {
-      width: 54px; height: 54px; border-radius: 50%; background: #3FA672; color: #fff;
-      display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto;
-    }
+    .success-state { text-align: center; padding: 10px 0 6px; }
     .success-state h2 { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 16px; }
-    .success-state p { font-size: 14px; color: var(--bio); margin-top: 10px; line-height: 1.6; }
-    .success-state .receipt { text-align: left; margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
+    .success-state p { font-size: 14px; color: var(--bio); margin-top: 10px; line-height: 1.6; max-width: 340px; margin-left: auto; margin-right: auto; }
     .btn-download {
       display: flex; align-items: center; justify-content: center;
       width: 100%; height: 52px; margin-top: 12px;
       background: #3FA672; color: #fff; text-decoration: none;
       font-size: 15px; font-weight: 700; border-radius: 9999px;
     }
+
+    /* Receipt sections — same "Billing and Payment" card shape as
+       pay-quote.html's post-payment view, so a guest sees the same
+       polished receipt style regardless of which checkout page they paid
+       through. */
+    .section-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-top: 24px; margin-bottom: 4px; text-align: left; }
+    .receipt-card { background: rgba(148,133,119,0.08); border-radius: 10px; overflow: hidden; margin-top: 10px; text-align: left; }
+    .receipt-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 11px 16px; font-size: 13.5px; border-top: 1px solid var(--line); }
+    .receipt-row:first-child { border-top: none; }
+    .receipt-row .n { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+    .receipt-row .m { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .receipt-row .label { color: var(--muted); }
+    .receipt-row .value, .receipt-row .p { color: var(--ink); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+    .receipt-row.total { font-weight: 700; }
+    .receipt-row.total .label, .receipt-row.total .value { font-weight: 700; color: var(--ink); }
 
     .not-found { text-align: center; color: var(--muted); padding: 40px 0; }
     .not-found h2 { font-size: 18px; margin-bottom: 8px; color: var(--ink); }
@@ -209,24 +219,29 @@
   const taxCents = calcTaxCents(cart.items);
   const total = subtotal + taxCents / 100;
 
-  // A mixed cart (pickup items + digital downloads, see baker/index.html's
-  // digitalCart) settles as two separate Stripe charges — a pickup item's
-  // authorize-then-capture-on-accept can't share a PaymentIntent with a
-  // digital item's instant capture. goToPayment runs the pickup charge
-  // first, then goToDigitalPayment runs the digital one, so the buyer sees
-  // one connected flow even though it's two charges on their statement.
+  // A mixed cart (pickup items + digital downloads/shipping, see
+  // baker/index.html's digitalCart) settles as up to two separate Stripe
+  // charges — a pickup item's authorize-then-capture-on-accept can't share a
+  // PaymentIntent with digital/physical's instant capture. Digital and
+  // physical/shipping items, though, are both instant-capture with no baker-
+  // accept step, so as of 2026-08-24 they're no longer two charges of their
+  // own — they settle together as ONE combined "instant" leg (one
+  // PaymentIntent, one pay screen, one finalize call — see goToInstantLeg/
+  // finalize-guest-digital-physical-order), running after the pickup leg if
+  // one exists. legTotalCount below is at most 2 (pickup, then instant), not 3.
   const digitalItems = Array.isArray(cart.digitalItems) ? cart.digitalItems : [];
   const digitalSubtotal = digitalItems.reduce(function (s, i) { return s + i.price; }, 0);
 
-  // Ship (physical) leg — a third independent charge, same reasoning as
-  // digital above: instant capture, no baker accept step, so it can't share
-  // a PaymentIntent with the pickup leg's authorize-then-capture-on-accept
-  // hold. Needs a shipping address, which nothing before this page collects
-  // (renderShipAddressForm gathers it right before its PaymentIntent).
+  // Needs a shipping address, which nothing before this page collects
+  // (renderShipAddressForm gathers it right before the instant leg's
+  // PaymentIntent, whether or not digital items are also in that leg).
   const shipItems = Array.isArray(cart.shipItems) ? cart.shipItems : [];
   const shipItemsSubtotal = shipItems.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
   const shipShippingFeeTotal = shipItems.reduce(function (s, i) { return s + (i.shippingFee || 0); }, 0);
   const shipSubtotal = shipItemsSubtotal + shipShippingFeeTotal;
+
+  const hasInstantLeg = digitalItems.length > 0 || shipItems.length > 0;
+  const instantSubtotal = digitalSubtotal + shipSubtotal;
 
   const grandTotal = total + digitalSubtotal + shipSubtotal;
   let physicalResult = null;
@@ -237,12 +252,12 @@
   let shipAddress = null;
 
   // How many separate Stripe charges this checkout will actually run (see
-  // the comments above digitalItems/shipItems for why they can't share a
-  // PaymentIntent with pickup or each other). Surfaced up front in
-  // renderSummary so a mixed cart never looks like two unexplained charges,
-  // and as a "Step X of Y" label on each leg's own pay screen so the buyer
-  // knows there's more to finish (and what happens if they stop early).
-  const legTotalCount = (cart.items.length > 0 ? 1 : 0) + (digitalItems.length > 0 ? 1 : 0) + (shipItems.length > 0 ? 1 : 0);
+  // the comment above digitalItems for why pickup can't join the instant
+  // leg). Surfaced up front in renderSummary so a mixed cart never looks
+  // like an unexplained second charge, and as a "Step X of Y" label on each
+  // leg's own pay screen so the buyer knows there's more to finish (and what
+  // happens if they stop early).
+  const legTotalCount = (cart.items.length > 0 ? 1 : 0) + (hasInstantLeg ? 1 : 0);
   let legStepIndex = 0;
   function nextLegStep() { legStepIndex += 1; return legStepIndex; }
   function legStepLabel() { return legTotalCount > 1 ? 'Step ' + legStepIndex + ' of ' + legTotalCount + ' · ' : ''; }
@@ -310,8 +325,13 @@
     if (legTotalCount <= 1) return '';
     const steps = [];
     if (cart.items.length > 0) steps.push('<b>Pickup items</b> — $' + total.toFixed(2) + ', authorized now and charged once the baker confirms your order');
-    if (digitalItems.length > 0) steps.push('<b>Digital downloads</b> — $' + digitalSubtotal.toFixed(2) + ', charged right away and delivered instantly');
-    if (shipItems.length > 0) steps.push('<b>Shipping items</b> — $' + shipSubtotal.toFixed(2) + ', charged right away after you enter a shipping address');
+    if (digitalItems.length > 0 && shipItems.length > 0) {
+      steps.push('<b>Digital downloads &amp; shipping items</b> — $' + instantSubtotal.toFixed(2) + ', charged right away in one payment — your download link arrives instantly, and shipped items go out separately after you enter a shipping address');
+    } else if (digitalItems.length > 0) {
+      steps.push('<b>Digital downloads</b> — $' + digitalSubtotal.toFixed(2) + ', charged right away and delivered instantly');
+    } else if (shipItems.length > 0) {
+      steps.push('<b>Shipping items</b> — $' + shipSubtotal.toFixed(2) + ', charged right away after you enter a shipping address');
+    }
     return '<div class="multi-charge-notice">' +
       '<div class="title">This order is ' + legTotalCount + ' separate charges</div>' +
       '<div class="desc">Your card is charged once per step below, one after another — not all at once, and not as one combined charge. Please complete every step in the same visit: if you stop partway, only the completed charges go through and the rest of your order won\'t be placed.</div>' +
@@ -325,19 +345,14 @@
   // start with goToPayment.
   function startCheckout() {
     if (cart.items.length > 0) { goToPayment(); }
-    else if (digitalItems.length > 0) { goToDigitalPayment(); }
-    else if (shipItems.length > 0) { goToShipPayment(); }
+    else if (hasInstantLeg) { goToInstantLeg(); }
   }
 
-  // Each leg's finalize call ends by handing off to the next non-empty leg
-  // (pickup → digital → ship), or the combined success screen once none remain.
+  // Pickup's finalize call ends by handing off to the instant leg (digital
+  // and/or ship, now one combined leg — see hasInstantLeg above), or straight
+  // to the combined success screen if there's nothing else to pay for.
   function afterPickupLeg() {
-    if (digitalItems.length > 0) { goToDigitalPayment(); }
-    else if (shipItems.length > 0) { goToShipPayment(); }
-    else { renderSuccess(); }
-  }
-  function afterDigitalLeg() {
-    if (shipItems.length > 0) { goToShipPayment(); }
+    if (hasInstantLeg) { goToInstantLeg(); }
     else { renderSuccess(); }
   }
 
@@ -466,115 +481,20 @@
     });
   }
 
-  // ── Digital leg of a mixed cart — a second PaymentIntent, confirmed right
-  // after the pickup one, since (see renderSummary) the two can't share a
-  // capture mode. ──
-  function goToDigitalPayment() {
+  // ── Instant leg of a mixed cart — digital downloads and/or shipping
+  // items. Both capture instantly with no baker-accept step (unlike pickup,
+  // whose authorize-then-capture-on-accept hold can't share a PaymentIntent
+  // with either), so as of 2026-08-24 they're merged into ONE combined
+  // PaymentIntent/pay screen/finalize call instead of two sequential ones —
+  // see create-payment-intent's isInstantCaptureCart and
+  // finalize-guest-digital-physical-order. Runs after the pickup leg if one
+  // exists. If shipping items are present, an address is collected first
+  // (nothing earlier in this flow gathers one — the pickup step only asks
+  // for name/phone/email). ──
+  function goToInstantLeg() {
     nextLegStep();
-    fetch(SUPABASE_URL + '/functions/v1/create-payment-intent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
-      body: JSON.stringify({
-        items: digitalItems.map(function (i) {
-          return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: 1, price_from: i.price, listing_kind: 'digital', variant_id: i.variantId || null };
-        }),
-        currency: 'cad'
-      })
-    })
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      if (data.error || !data.client_secret) {
-        digitalError = data.error || 'Something went wrong charging for your downloads. Please contact the baker.';
-        renderSuccess();
-        return;
-      }
-      renderDigitalPayment(data.client_secret, data.stripe_connect_account_id);
-    })
-    .catch(function () {
-      digitalError = 'Something went wrong charging for your downloads. Please contact the baker.';
-      renderSuccess();
-    });
-  }
-
-  function renderDigitalPayment(clientSecret, connectedAccountId) {
-    const remaining = legTotalCount - legStepIndex;
-    content.innerHTML =
-      '<div class="eyebrow">' + legStepLabel() + 'Pay · Digital Downloads</div>' +
-      '<div class="heading">$' + digitalSubtotal.toFixed(2) + '</div>' +
-      '<p style="color:var(--muted);font-size:13px;margin-top:6px;">' +
-        (physicalResult ? 'Your pickup order is confirmed — ' : '') +
-        'this charge is for your downloads, delivered instantly' +
-        (remaining > 0 ? ', with ' + remaining + ' more charge' + (remaining === 1 ? '' : 's') + ' to go after.' : '.') +
-      '</p>' +
-      '<div id="payment-element"></div>' +
-      '<button class="btn-primary" id="pay-btn">Pay $' + digitalSubtotal.toFixed(2) + '</button>' +
-      '<div class="submit-status" id="submit-status"></div>';
-
-    const stripe = connectedAccountId ? Stripe(STRIPE_PK, { stripeAccount: connectedAccountId }) : Stripe(STRIPE_PK);
-    const elements = stripe.elements({ clientSecret: clientSecret });
-    const paymentElement = elements.create('payment');
-    paymentElement.mount('#payment-element');
-
-    document.getElementById('pay-btn').addEventListener('click', function () {
-      const btn = document.getElementById('pay-btn');
-      const status = document.getElementById('submit-status');
-      btn.disabled = true;
-      status.textContent = '';
-
-      stripe.confirmPayment({ elements: elements, redirect: 'if_required' }).then(function (result) {
-        if (result.error) {
-          status.textContent = result.error.message || 'Payment failed. Please try again.';
-          btn.disabled = false;
-          return;
-        }
-        const intent = result.paymentIntent;
-        if (!intent || intent.status !== 'succeeded') {
-          status.textContent = 'Payment did not complete. Please try again.';
-          btn.disabled = false;
-          return;
-        }
-        finalizeDigitalOrder(intent.id);
-      });
-    });
-  }
-
-  function finalizeDigitalOrder(paymentIntentId) {
-    fetch(SUPABASE_URL + '/functions/v1/finalize-guest-digital-order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
-      body: JSON.stringify({
-        payment_intent_id: paymentIntentId,
-        items: digitalItems.map(function (i) { return { id: i.id, variant_id: i.variantId || null }; }),
-        customer_name: cart.customer.name,
-        customer_email: cart.customer.email
-      })
-    })
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      if (data.error) {
-        // finalize-guest-digital-order already auto-refunded this charge if
-        // it could — its message says so. The pickup order above is
-        // unaffected either way.
-        digitalError = data.error;
-        renderSuccess();
-        return;
-      }
-      digitalResult = data;
-      fetch(SUPABASE_URL + '/functions/v1/send-guest-digital-delivery-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
-        body: JSON.stringify({ order_id: data.order_id, downloads: data.downloads })
-      }).catch(function () {});
-      afterDigitalLeg();
-    });
-  }
-
-  // ── Ship leg of a mixed cart — a third independent charge. Needs a
-  // shipping address first, which nothing collected so far in this flow
-  // gathers (the pickup step above only asks for name/phone/email). ──
-  function goToShipPayment() {
-    nextLegStep();
-    renderShipAddressForm();
+    if (shipItems.length > 0) { renderShipAddressForm(); }
+    else { createInstantPaymentIntent(); }
   }
 
   function renderShipAddressForm() {
@@ -582,8 +502,10 @@
       '<div class="eyebrow">' + legStepLabel() + 'Ships to You</div>' +
       '<div class="heading">Shipping address</div>' +
       '<p style="color:var(--muted);font-size:13px;margin-top:6px;">' +
-        (physicalResult || digitalResult ? 'The rest of your order is confirmed — j' : 'J') +
-        'ust need an address for the item' + (shipItems.length > 1 ? 's' : '') + ' that ship.</p>' +
+        (physicalResult ? 'Your pickup order is confirmed — j' : 'J') +
+        'ust need an address for the item' + (shipItems.length > 1 ? 's' : '') + ' that ship' +
+        (digitalItems.length > 0 ? ' — your digital download' + (digitalItems.length > 1 ? 's are' : ' is') + ' part of this same payment.' : '.') +
+      '</p>' +
       '<div class="field" style="margin-top:16px;"><label style="font-size:12px;color:var(--muted);">Name</label>' +
         '<input id="ship-name" type="text" autocomplete="name" style="width:100%;height:44px;margin-top:4px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font-size:15px;" /></div>' +
       '<div class="field" style="margin-top:10px;"><label style="font-size:12px;color:var(--muted);">Address line 1</label>' +
@@ -622,23 +544,31 @@
         line2: document.getElementById('ship-line2').value.trim(),
         city: city, province: province, postal_code: postal, country: country
       };
-      createShipPaymentIntent();
+      createInstantPaymentIntent();
     });
   }
 
-  function createShipPaymentIntent() {
+  // One PaymentIntent covering whichever of digitalItems/shipItems are
+  // present — create-payment-intent validates each item against its own
+  // kind's rules internally (see hasDigital/hasPhysical there) and captures
+  // automatically since neither kind needs a baker-accept step.
+  function createInstantPaymentIntent() {
     const btn = document.getElementById('ship-address-continue');
     const status = document.getElementById('submit-status');
     if (btn) btn.disabled = true;
-    status.textContent = '';
+    if (status) status.textContent = '';
+
+    const items = digitalItems.map(function (i) {
+      return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: 1, price_from: i.price, listing_kind: 'digital', variant_id: i.variantId || null };
+    }).concat(shipItems.map(function (i) {
+      return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical', variant_id: i.variantId || null };
+    }));
 
     fetch(SUPABASE_URL + '/functions/v1/create-payment-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
-        items: shipItems.map(function (i) {
-          return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical', variant_id: i.variantId || null };
-        }),
+        items: items,
         currency: 'cad',
         shipping_fee_cents: Math.round(shipShippingFeeTotal * 100)
       })
@@ -646,25 +576,30 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (data.error || !data.client_secret) {
-        shipError = data.error || 'Something went wrong charging for your shipping items. Please contact the baker.';
+        if (digitalItems.length > 0) digitalError = data.error || 'Something went wrong charging for your order. Please contact the baker.';
+        if (shipItems.length > 0) shipError = data.error || 'Something went wrong charging for your order. Please contact the baker.';
         renderSuccess();
         return;
       }
-      renderShipPayment(data.client_secret, data.stripe_connect_account_id);
+      renderInstantPayment(data.client_secret, data.stripe_connect_account_id);
     })
     .catch(function () {
-      shipError = 'Something went wrong charging for your shipping items. Please contact the baker.';
+      if (digitalItems.length > 0) digitalError = 'Something went wrong charging for your order. Please contact the baker.';
+      if (shipItems.length > 0) shipError = 'Something went wrong charging for your order. Please contact the baker.';
       renderSuccess();
     });
   }
 
-  function renderShipPayment(clientSecret, connectedAccountId) {
+  function renderInstantPayment(clientSecret, connectedAccountId) {
+    const bothKinds = digitalItems.length > 0 && shipItems.length > 0;
     content.innerHTML =
-      '<div class="eyebrow">' + legStepLabel() + 'Pay · Ships to You</div>' +
-      '<div class="heading">$' + shipSubtotal.toFixed(2) + '</div>' +
-      (legTotalCount > 1 ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">This is the last charge to finish your order.</p>' : '') +
+      '<div class="eyebrow">' + legStepLabel() + (bothKinds ? 'Pay · Downloads & Shipping' : digitalItems.length > 0 ? 'Pay · Digital Downloads' : 'Pay · Ships to You') + '</div>' +
+      '<div class="heading">$' + instantSubtotal.toFixed(2) + '</div>' +
+      (physicalResult ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">Your pickup order is confirmed — this is the last charge to finish your order.</p>' :
+        legTotalCount > 1 ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">This is the last charge to finish your order.</p>' : '') +
+      (bothKinds ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">One payment covers both — your download link arrives instantly, and the shipped item' + (shipItems.length > 1 ? 's ship' : ' ships') + ' separately.</p>' : '') +
       '<div id="payment-element"></div>' +
-      '<button class="btn-primary" id="pay-btn">Pay $' + shipSubtotal.toFixed(2) + '</button>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + instantSubtotal.toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
     const stripe = connectedAccountId ? Stripe(STRIPE_PK, { stripeAccount: connectedAccountId }) : Stripe(STRIPE_PK);
@@ -690,18 +625,19 @@
           btn.disabled = false;
           return;
         }
-        finalizeShipOrder(intent.id);
+        finalizeInstantOrder(intent.id);
       });
     });
   }
 
-  function finalizeShipOrder(paymentIntentId) {
-    fetch(SUPABASE_URL + '/functions/v1/finalize-guest-physical-order', {
+  function finalizeInstantOrder(paymentIntentId) {
+    fetch(SUPABASE_URL + '/functions/v1/finalize-guest-digital-physical-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         payment_intent_id: paymentIntentId,
-        items: shipItems.map(function (i) { return { menu_item_id: i.id, quantity: i.qty, variant_id: i.variantId || null }; }),
+        digital_items: digitalItems.map(function (i) { return { id: i.id, variant_id: i.variantId || null }; }),
+        physical_items: shipItems.map(function (i) { return { menu_item_id: i.id, quantity: i.qty, variant_id: i.variantId || null }; }),
         customer_name: cart.customer.name,
         customer_email: cart.customer.email,
         shipping_address: shipAddress
@@ -710,14 +646,23 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (data.error) {
-        // finalize-guest-physical-order already auto-refunded this charge if
-        // it could, and released any stock it had reserved — its message
-        // says so. Earlier legs are unaffected either way.
-        shipError = data.error;
+        // finalize-guest-digital-physical-order already auto-refunded the
+        // whole charge if it could — its message says so. The pickup order,
+        // if any, is unaffected either way.
+        if (digitalItems.length > 0) digitalError = data.error;
+        if (shipItems.length > 0) shipError = data.error;
         renderSuccess();
         return;
       }
-      shipResult = data;
+      if (digitalItems.length > 0) digitalResult = data;
+      if (shipItems.length > 0) shipResult = data;
+      if (data.downloads && data.downloads.length > 0) {
+        fetch(SUPABASE_URL + '/functions/v1/send-guest-digital-delivery-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+          body: JSON.stringify({ order_id: data.digital_order_id, downloads: data.downloads })
+        }).catch(function () {});
+      }
       renderSuccess();
     });
   }
@@ -732,21 +677,36 @@
     // order that's already fully paid for.
     document.body.setAttribute('data-bakeri-no-reload', '1');
     sessionStorage.removeItem('bakeri_checkout_cart');
+
+    // Every block below can be either a receipt (its charge succeeded) or a
+    // failure notice (charge or finalize failed) — never a green checkmark
+    // next to red "failed" text, which is what a single fixed icon used to
+    // produce whenever a later leg failed after an earlier one succeeded.
+    const bakerName = (physicalResult && physicalResult.baker_name) || (digitalResult && digitalResult.baker_name) || null;
+
     const pickupBlock = physicalResult ? (
       '<h2>Order confirmed</h2>' +
       '<p>' + escapeHtml(physicalResult.baker_name || 'The baker') + ' is reviewing your order. You\'ll get an email as soon as it\'s confirmed, with your pickup details.</p>' +
-      '<div class="receipt">' +
+      '<div class="section-title">Your Order</div>' +
+      '<div class="receipt-card">' +
         (physicalResult.items || []).map(function (i) {
           // i.name already includes " — {tier label}" for box lines (set server-side).
           const breakdown = (i.variant_breakdown || []).map(function (v) { return v.quantity + '× ' + v.name; }).join(', ');
-          return '<div class="order-line">' +
+          return '<div class="receipt-row">' +
             '<div><div class="n">' + i.quantity + '× ' + escapeHtml(i.name) + '</div>' +
             (breakdown ? '<div class="m">' + escapeHtml(breakdown) + '</div>' : '') + '</div>' +
             '<span class="p">$' + (i.price_per_unit * i.quantity).toFixed(2) + '</span></div>';
         }).join('') +
-        '<div class="totals-row grand"><span>Total</span><span>$' + (physicalResult.total_cents / 100).toFixed(2) + '</span></div>' +
+        '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + (physicalResult.total_cents / 100).toFixed(2) + '</span></div>' +
       '</div>'
     ) : '';
+
+    // Digital and ship now settle as one combined charge (see
+    // finalize-guest-digital-physical-order), so a failure sets both
+    // digitalError and shipError to the same message — shown as one block
+    // when both kinds are in the cart, rather than the same failure text
+    // twice.
+    const bothInstantKinds = digitalItems.length > 0 && shipItems.length > 0;
 
     const digitalBlock = digitalResult ? (
       '<h2 style="margin-top:' + (physicalResult ? '26px' : '0') + ';">Your download' + (digitalResult.downloads.length > 1 ? 's are' : ' is') + ' ready</h2>' +
@@ -755,7 +715,7 @@
         return '<a class="btn-download" href="' + d.download_url + '">' +
           (digitalResult.downloads.length > 1 ? 'Download ' + escapeHtml(d.item_name) : 'Download now') + '</a>';
       }).join('')
-    ) : (digitalError ? (
+    ) : (digitalError && !bothInstantKinds ? (
       '<h2 style="margin-top:' + (physicalResult ? '26px' : '0') + ';color:var(--error);">Downloads charge failed</h2>' +
       '<p>' + escapeHtml(digitalError) + '</p>'
     ) : '');
@@ -763,20 +723,28 @@
     const shipBlock = shipResult ? (
       '<h2 style="margin-top:' + (physicalResult || digitalResult ? '26px' : '0') + ';">Your order will ship soon</h2>' +
       '<p>A confirmation with your shipping address was emailed to you.</p>' +
-      '<div class="receipt">' +
+      '<div class="section-title">Shipping Order</div>' +
+      '<div class="receipt-card">' +
         shipItems.map(function (i) {
-          return '<div class="order-line"><div><div class="n">' + i.qty + '× ' + escapeHtml(i.name) + '</div></div>' +
+          return '<div class="receipt-row"><div><div class="n">' + i.qty + '× ' + escapeHtml(i.name) + '</div></div>' +
             '<span class="p">$' + (i.price * i.qty).toFixed(2) + '</span></div>';
         }).join('') +
-        (shipShippingFeeTotal > 0 ? '<div class="totals-row"><span>Shipping fee</span><span>$' + shipShippingFeeTotal.toFixed(2) + '</span></div>' : '') +
-        '<div class="totals-row grand"><span>Total</span><span>$' + shipSubtotal.toFixed(2) + '</span></div>' +
+        (shipShippingFeeTotal > 0 ? '<div class="receipt-row"><span class="label">Shipping fee</span><span class="value">$' + shipShippingFeeTotal.toFixed(2) + '</span></div>' : '') +
+        '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + shipSubtotal.toFixed(2) + '</span></div>' +
       '</div>'
-    ) : (shipError ? (
+    ) : (shipError && !bothInstantKinds ? (
       '<h2 style="margin-top:' + (physicalResult || digitalResult ? '26px' : '0') + ';color:var(--error);">Shipping items charge failed</h2>' +
       '<p>' + escapeHtml(shipError) + '</p>'
     ) : '');
 
-    content.innerHTML = '<div class="success-state"><div class="icon">✓</div>' + pickupBlock + digitalBlock + shipBlock + '</div>';
+    const instantErrorBlock = (bothInstantKinds && (digitalError || shipError)) ? (
+      '<h2 style="margin-top:' + (physicalResult ? '26px' : '0') + ';color:var(--error);">Downloads &amp; shipping charge failed</h2>' +
+      '<p>' + escapeHtml(digitalError || shipError) + '</p>'
+    ) : '';
+
+    const eyebrow = bakerName ? '<div class="eyebrow" style="text-align:center;">Receipt from ' + escapeHtml(bakerName) + '</div>' : '';
+
+    content.innerHTML = '<div class="success-state">' + eyebrow + pickupBlock + digitalBlock + shipBlock + instantErrorBlock + '</div>';
   }
 
   function showNotFound() {

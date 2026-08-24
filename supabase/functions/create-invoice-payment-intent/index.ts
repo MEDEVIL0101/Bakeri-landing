@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Baker";
 
     if (!baker?.stripe_connect_onboarding_complete || !baker?.stripe_connect_account_id) {
-      throw new Error("This baker hasn't finished setting up payments yet. Check back soon!");
+      throw new Error(`${bakerName} hasn't finished setting up payments yet. Check back soon!`);
     }
     const connectedAccountId = baker.stripe_connect_account_id;
 
