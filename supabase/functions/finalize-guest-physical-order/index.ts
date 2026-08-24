@@ -30,9 +30,12 @@ import { readDirectChargeSettlement } from "../_shared/settlement.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
+import { postWithRetry } from "../_shared/postWithRetry.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
 
 const stripe = getStripeClient();
 
@@ -448,10 +451,13 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Best-effort, never blocks the response — this is a completed, already-
-  // paid sale with no baker-accept step, so unlike create-guest-marketplace-
-  // order there's no existing "new order" push for this to sit alongside;
-  // it's the baker's only notification of the sale.
+  // Best-effort, never blocks the response — this is a paid sale with no
+  // baker-accept step, so unlike create-guest-marketplace-order there's no
+  // existing "new order" push for this to sit alongside from
+  // trg_fn_marketplace_order_notify (it inserts straight into
+  // marketplace_status='awaiting_shipment', not 'pending', so that trigger's
+  // INSERT branch never sees it) — the email below and the push after it are
+  // the baker's only notification of the sale.
   const bakerEmail = await resolveBakerEmail(db, bakerId, bakerProfile?.email);
   if (bakerEmail) {
     const result = await sendBakerOrderEmail({
@@ -472,6 +478,23 @@ Deno.serve(async (req: Request) => {
     });
     await logNotification(db, orderId, "baker_sale_email", result.ok ? "sent" : "failed", result.error);
   }
+
+  // Push notification for the baker — reuses "new_order" as the
+  // notification `type` so it routes identically to a ready_now/preorder
+  // new-order push (NotificationClickRouter -> openBakerOrders; that type is
+  // baker-only so no `audience` tag is needed). See the comment above for
+  // why this order type otherwise gets no push at all.
+  const pushResult = await postWithRetry(
+    `${SUPABASE_URL}/functions/v1/notify-marketplace`,
+    {
+      recipient_user_id: bakerId,
+      title: "📦 New Order!",
+      body: `${customer_name} ordered ${orderName} — pack & ship it!`,
+      data: { type: "new_order", order_id: orderId },
+    },
+    { anonKey: SUPABASE_ANON_KEY, webhookSecret: WEBHOOK_SECRET }
+  );
+  await logNotification(db, orderId, "baker_new_sale_push", pushResult.ok ? "sent" : "failed", pushResult.error, "push");
 
   return json({
     order_id: orderId,

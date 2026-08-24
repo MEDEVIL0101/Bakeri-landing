@@ -27,9 +27,12 @@ import { readDirectChargeSettlement } from "../_shared/settlement.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
+import { postWithRetry } from "../_shared/postWithRetry.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
 
 const stripe = getStripeClient();
 
@@ -339,6 +342,28 @@ Deno.serve(async (req: Request) => {
     });
     await logNotification(db, orderId, "baker_sale_email", result.ok ? "sent" : "failed", result.error);
   }
+
+  // Push notification for the baker — reuses "new_order" as the
+  // notification `type` so it routes identically to a ready_now/preorder
+  // new-order push (NotificationClickRouter -> openBakerOrders; that type is
+  // baker-only so no `audience` tag is needed). A digital sale inserts
+  // straight into marketplace_status='completed' rather than 'pending', so
+  // it never passes through trg_fn_marketplace_order_notify's INSERT branch
+  // and would otherwise get no push at all — confirmed live 2026-08-24 (a
+  // baker asking why she wasn't notified of her sales had nothing to do
+  // with her device notification settings; this code path just never sent
+  // one in the first place).
+  const pushResult = await postWithRetry(
+    `${SUPABASE_URL}/functions/v1/notify-marketplace`,
+    {
+      recipient_user_id: bakerId,
+      title: "🎉 New Sale!",
+      body: `${customer_name} bought ${orderName}`,
+      data: { type: "new_order", order_id: orderId },
+    },
+    { anonKey: SUPABASE_ANON_KEY, webhookSecret: WEBHOOK_SECRET }
+  );
+  await logNotification(db, orderId, "baker_new_sale_push", pushResult.ok ? "sent" : "failed", pushResult.error, "push");
 
   return json({
     order_id: orderId,
