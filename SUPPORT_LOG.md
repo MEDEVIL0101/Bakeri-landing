@@ -21,6 +21,26 @@ Entry format:
 
 ---
 
+## 2026-08-24 — Bakers never notified of a digital sale (or any marketplace order/quote)
+
+**Reported by:** Diana, directly ("make sure that digital file sales are triggering notifications... they should get an email saying they sold x product").
+
+**Root cause (two independent bugs found investigating one real sale):**
+
+1. **Baker notification emails were broken for every sale/order/quote type, not just digital.** `sendBakerOrderEmail` is called from 4 places (`finalize-guest-digital-order`, `finalize-guest-physical-order`, `create-guest-marketplace-order`, `submit-custom-order-inquiry`), all gated on `if (bakerProfile?.email)` from a plain `profiles` table select. `profiles.email` is *never actually populated* — `20260601000003_profiles_column_security.sql` explicitly excludes it from the app's own profile reads with the comment "app reads it from auth.session, not profiles." Nothing in the app or any edge function writes to it. So for any baker whose `profiles.email` happened to be blank (confirmed live: Cookiesbysteph's was `""`), the entire notification block — including the `notification_log` write — was silently skipped. No error, no failed-status log row, nothing. (One baker, Sugarland, had it populated for unknown/legacy reasons, which is why her sale email worked and made this easy to miss as a systemic issue at first.)
+
+2. **Separate, unrelated data-corruption bug found in the same investigation:** `FulfillmentType` (the iOS `Order` model's fulfillment enum) had no `.digital` case — only `pickup`/`delivery`/`shipping` — even though `finalize-guest-digital-order` inserts `fulfillment_type: "Digital"` server-side. The first time a baker's device pulled such an order, `SyncService.toModel()`'s `FulfillmentType(rawValue:) ?? .pickup` fallback silently relabeled it "Pickup" locally, and a subsequent sync push wrote that corrupted value back to the server — confirmed live on Cookiesbysteph's test sale, whose `fulfillment_type` flipped from "Digital" to "Pickup" ~6 minutes after creation.
+
+**Fix:**
+- New `_shared/bakerEmail.ts` (`resolveBakerEmail`) resolves the baker's real address via the Supabase Auth Admin API (`auth.admin.getUserById`) instead of trusting `profiles.email`, falling back to it only if that lookup fails. Wired into all 4 call sites above. Deployed 2026-08-24.
+- Added `FulfillmentType.digital` to `Order.swift`; excluded it from `AddEditOrderView`'s manual fulfillment-type picker (server-only value, never baker-selectable) and added the missing cases to two now-non-exhaustive switches (`OrdersView.fulfillmentIcon`, `OrderDetailView.fulfillmentPillColor`/`fulfillmentPillIcon`). Requires a new app build to reach devices.
+
+**Affected users:** Every baker, for every one of the 4 order/sale/quote email types, whenever `profiles.email` was blank (the norm, not the exception). Cookiesbysteph's one real test sale got its retroactive "You just made a sale!" email sent manually after the fix (confirmed delivered to her real address). Her order's corrupted `fulfillment_type` ("Pickup" instead of "Digital") was left as-is at the user's explicit choice — not repaired.
+
+**Follow-up:** No sweep was run to find/repair other bakers' existing orders that may have had their `fulfillment_type` similarly corrupted before this fix (only this one order was found and confirmed; a proper audit would need to check every marketplace order with `order_source = 'marketplace'` for a `fulfillment_type` that doesn't match what its listing's `listing_kind` implies). Worth doing if more digital-order weirdness turns up.
+
+---
+
 ## 2026-08-24 — Delivered physical orders missing from "Past Orders"
 
 **Reported by:** Diana, directly ("the user sugarland is suddenly not seeing their past orders").

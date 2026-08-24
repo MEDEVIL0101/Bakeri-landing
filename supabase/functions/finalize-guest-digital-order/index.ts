@@ -25,6 +25,7 @@ import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { readDirectChargeSettlement } from "../_shared/settlement.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
+import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -319,11 +320,12 @@ Deno.serve(async (req: Request) => {
   // Best-effort, never blocks the response — this is a completed, already-
   // paid sale with no baker-accept step, so it's the baker's only
   // notification of the sale (same reasoning as finalize-guest-physical-order).
-  if (bakerProfile?.email) {
+  const bakerEmail = await resolveBakerEmail(db, bakerId, bakerProfile?.email);
+  if (bakerEmail) {
     const result = await sendBakerOrderEmail({
       db,
       bakerId,
-      bakerEmail: bakerProfile.email,
+      bakerEmail,
       items: digitalLines.map((line) => ({
         custom_name: line.name,
         quantity: 1,

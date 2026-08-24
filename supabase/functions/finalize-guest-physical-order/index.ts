@@ -28,6 +28,7 @@ import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { readDirectChargeSettlement } from "../_shared/settlement.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
+import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -451,11 +452,12 @@ Deno.serve(async (req: Request) => {
   // paid sale with no baker-accept step, so unlike create-guest-marketplace-
   // order there's no existing "new order" push for this to sit alongside;
   // it's the baker's only notification of the sale.
-  if (bakerProfile?.email) {
+  const bakerEmail = await resolveBakerEmail(db, bakerId, bakerProfile?.email);
+  if (bakerEmail) {
     const result = await sendBakerOrderEmail({
       db,
       bakerId,
-      bakerEmail: bakerProfile.email,
+      bakerEmail,
       items: orderItemsPayload.map((i, idx) => ({
         custom_name: i.custom_name,
         quantity: i.quantity,

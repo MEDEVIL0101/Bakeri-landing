@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
+import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 
 // Public, unauthenticated endpoint for baker/custom-order.html — lets a
@@ -357,11 +358,12 @@ Deno.serve(async (req: Request) => {
   // means the orders INSERT above passed trg_web_inquiry_limits (5 per IP
   // per rolling 24h) — a spam burst is capped there, not here, so this can
   // never fire more than that trigger already allows per IP per day.
-  if (bakerProfile.email) {
+  const bakerEmail = await resolveBakerEmail(db, baker_id, bakerProfile.email);
+  if (bakerEmail) {
     const result = await sendBakerOrderEmail({
       db,
       bakerId: baker_id,
-      bakerEmail: bakerProfile.email,
+      bakerEmail,
       items: [{ custom_name: menuItem.name, quantity: 1, price_per_unit: 0, menu_item_id: menuItem.id }],
       customerName: customer_name,
       customerEmail: customer_email,

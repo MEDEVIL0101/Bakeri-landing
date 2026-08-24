@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
+import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 
 // Public, unauthenticated endpoint for baker/checkout.html — records a
@@ -639,11 +640,12 @@ Deno.serve(async (req: Request) => {
   // endpoint (ready_now and preorder) at the same moment the baker already
   // gets a push notification for it (see trg_fn_marketplace_order_notify) —
   // this is just the email counterpart of that same "new order" signal.
-  if (bakerProfile?.email) {
+  const bakerEmail = await resolveBakerEmail(db, baker_id, bakerProfile?.email);
+  if (bakerEmail) {
     const result = await sendBakerOrderEmail({
       db,
       bakerId: baker_id,
-      bakerEmail: bakerProfile.email,
+      bakerEmail,
       items: lines.map((l) => ({
         custom_name: l.tierLabel ? `${l.item.name} — ${l.tierLabel}` : l.item.name,
         quantity: l.quantity,
