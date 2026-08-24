@@ -71,8 +71,13 @@ Deno.serve(async (req: Request) => {
   if (authErr || !user) return json({ error: "Unauthorized" }, 401);
 
   try {
-    const body = await req.json() as { order_id: string };
+    const body = await req.json() as { order_id: string; notify?: boolean };
     const order_id = String(body.order_id ?? "").trim();
+    // Baker-chosen, not automatic — see MarketplaceOrderSheet's "Mark
+    // Delivered & Notify Customer" vs "Mark Delivered (Don't Notify)"
+    // confirmation choice. Defaults true only for older clients that never
+    // send this field.
+    const notify = body.notify !== false;
     if (!order_id) throw new Error("Missing order_id");
 
     const { data: order, error: orderErr } = await supabase
@@ -101,28 +106,31 @@ Deno.serve(async (req: Request) => {
 
     let notified = true;
 
-    if (order.buyer_profile_id) {
-      const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
-        recipient_user_id: order.buyer_profile_id,
-        title: "✅ Your order was delivered!",
-        body: `${order.order_name || "Your order"} has arrived. Enjoy!`,
-        data: { type: "order_delivered", order_id },
-      });
-      if (!result.ok) {
-        console.error(`notify-marketplace push failed for order ${order_id}:`, result.error);
-        notified = false;
-        await logNotification(supabase, order_id, "order_delivered", "failed", result.error, "push");
+    // Baker chose not to notify — nothing to send, nothing to report failed.
+    if (notify) {
+      if (order.buyer_profile_id) {
+        const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
+          recipient_user_id: order.buyer_profile_id,
+          title: "✅ Your order was delivered!",
+          body: `${order.order_name || "Your order"} has arrived. Enjoy!`,
+          data: { type: "order_delivered", order_id },
+        });
+        if (!result.ok) {
+          console.error(`notify-marketplace push failed for order ${order_id}:`, result.error);
+          notified = false;
+          await logNotification(supabase, order_id, "order_delivered", "failed", result.error, "push");
+        }
       }
-    }
 
-    if (!order.buyer_profile_id && order.lead_channel === "website") {
-      const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/send-guest-order-delivered-email`, {
-        order_id,
-      });
-      if (!result.ok) {
-        console.error(`send-guest-order-delivered-email failed for order ${order_id}:`, result.error);
-        notified = false;
-        await logNotification(supabase, order_id, "guest_order_delivered", "failed", result.error, "email");
+      if (!order.buyer_profile_id && order.lead_channel === "website") {
+        const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/send-guest-order-delivered-email`, {
+          order_id,
+        });
+        if (!result.ok) {
+          console.error(`send-guest-order-delivered-email failed for order ${order_id}:`, result.error);
+          notified = false;
+          await logNotification(supabase, order_id, "guest_order_delivered", "failed", result.error, "email");
+        }
       }
     }
 

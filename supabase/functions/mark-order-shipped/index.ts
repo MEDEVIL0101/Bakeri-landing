@@ -82,10 +82,14 @@ Deno.serve(async (req: Request) => {
       order_id: string;
       carrier: string;
       tracking_number?: string;
+      notify?: boolean;
     };
     const order_id = String(body.order_id ?? "").trim();
     const carrier = String(body.carrier ?? "").trim();
     const tracking_number = body.tracking_number ? String(body.tracking_number).trim() : null;
+    // Baker-chosen, not automatic — see MarkShippedSheet's "Notify customer"
+    // toggle. Defaults true only for older clients that never send this field.
+    const notify = body.notify !== false;
     if (!order_id) throw new Error("Missing order_id");
     if (!carrier) throw new Error("Missing carrier");
 
@@ -99,7 +103,11 @@ Deno.serve(async (req: Request) => {
     if (order.user_id !== user.id) throw new Error("Forbidden");
 
     const isCorrection = order.marketplace_status === "shipped" || order.marketplace_status === "delivered";
-    if (!isCorrection && order.marketplace_status !== "preparing") {
+    // "awaiting_shipment" is accepted too (not just "preparing") — a baker
+    // can enter tracking directly from Paid via the Ships To card's "Add
+    // tracking number" button, skipping the Preparing step entirely if they
+    // ship same-day.
+    if (!isCorrection && order.marketplace_status !== "preparing" && order.marketplace_status !== "awaiting_shipment") {
       throw new Error(`Cannot mark shipped from status: ${order.marketplace_status}`);
     }
 
@@ -127,33 +135,37 @@ Deno.serve(async (req: Request) => {
     const pushEventType = isCorrection ? "order_tracking_updated" : "order_shipped";
     const emailEventType = isCorrection ? "guest_order_tracking_updated" : "guest_order_shipped";
 
-    // Push (in-app buyer) — always null today (finalize-guest-physical-order
-    // is guest-checkout only), kept for parity with mark-order-ready-for-pickup
-    // in case an in-app physical-purchase flow is ever added.
-    if (order.buyer_profile_id) {
-      const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
-        recipient_user_id: order.buyer_profile_id,
-        title: pushTitle,
-        body: pushBody,
-        data: { type: pushEventType, order_id },
-      });
-      if (!result.ok) {
-        console.error(`notify-marketplace push failed for order ${order_id}:`, result.error);
-        notified = false;
-        await logNotification(supabase, order_id, pushEventType, "failed", result.error, "push");
+    // Baker chose not to notify (see MarkShippedSheet's toggle) — nothing to
+    // send, and nothing to report as failed either.
+    if (notify) {
+      // Push (in-app buyer) — always null today (finalize-guest-physical-order
+      // is guest-checkout only), kept for parity with mark-order-ready-for-pickup
+      // in case an in-app physical-purchase flow is ever added.
+      if (order.buyer_profile_id) {
+        const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
+          recipient_user_id: order.buyer_profile_id,
+          title: pushTitle,
+          body: pushBody,
+          data: { type: pushEventType, order_id },
+        });
+        if (!result.ok) {
+          console.error(`notify-marketplace push failed for order ${order_id}:`, result.error);
+          notified = false;
+          await logNotification(supabase, order_id, pushEventType, "failed", result.error, "push");
+        }
       }
-    }
 
-    // Email (guest)
-    if (!order.buyer_profile_id && order.lead_channel === "website") {
-      const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/send-guest-order-shipped-email`, {
-        order_id,
-        is_correction: isCorrection,
-      });
-      if (!result.ok) {
-        console.error(`send-guest-order-shipped-email failed for order ${order_id}:`, result.error);
-        notified = false;
-        await logNotification(supabase, order_id, emailEventType, "failed", result.error, "email");
+      // Email (guest)
+      if (!order.buyer_profile_id && order.lead_channel === "website") {
+        const result = await postWithRetry(`${SUPABASE_URL}/functions/v1/send-guest-order-shipped-email`, {
+          order_id,
+          is_correction: isCorrection,
+        });
+        if (!result.ok) {
+          console.error(`send-guest-order-shipped-email failed for order ${order_id}:`, result.error);
+          notified = false;
+          await logNotification(supabase, order_id, emailEventType, "failed", result.error, "email");
+        }
       }
     }
 
