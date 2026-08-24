@@ -95,7 +95,11 @@ window.addEventListener('pageshow', function (event) {
       buttonFg:  { light: '#FFFFFF', dark: '#FFFFFF' },
       swatches: ['#0E1A40', '#222F5B', '#946B2D'],
       bold: true,
-      pumpkinTint: { light: '#946B2D', dark: '#C79149' }
+      // Gold read as a plain "dark creme" with no blue in it — swapped for
+      // the same hex as this theme's dark-mode primary (#5872B8): light
+      // enough not to crush the pattern under multiply, but still reads
+      // unmistakably as blueberry-blue.
+      pumpkinTint: { light: '#5872B8', dark: '#5872B8' }
     },
     'Honey': {
       primary:   { light: '#ECB939', dark: '#F0C75E' },
