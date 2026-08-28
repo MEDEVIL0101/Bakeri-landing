@@ -1,0 +1,3655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LAB · Bakeri storefront</title>
+  <meta name="description" content="Private design sandbox — not a live storefront." />
+  <!-- ══════════════════════════════════════════════════════════════════════
+       DESIGN LAB — baker-lab/index.html
+       A private, unindexed, unlinked copy of baker/index.html used to try
+       layout changes against a real baker's LIVE data (default slug:
+       cookiesbysteph; override with ?slug=). It only ever READS the public
+       profile RPC — it never writes anything. Checkout / custom-order
+       hand-offs are blocked (see labGo) so a test run can't place a real
+       order. When a design lands here, port the same changes into
+       baker/index.html (the real storefront) and delete nothing here.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <!-- Without an explicit theme-color, iOS Safari/SFSafariViewController
+       guesses the status-bar/toolbar tint itself — and evidently guesses
+       the theme-tinted page background (a baker's pink/lavender/etc, from
+       --bg) rather than the actual header bar color, showing as a stray
+       color strip above #site-header-bar. --surface (unlike --bg) never
+       varies per baker, so this can be a plain static value matching it
+       exactly, with a dark-mode variant for the dark --surface. -->
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#241A14" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/png" href="../assets/favicon.png" />
+  <link rel="apple-touch-icon" href="../assets/favicon.png" />
+  <script src="theme.js"></script>
+
+  <style>
+    :root {
+      /* Overwritten at runtime by theme.js from the baker's chosen in-app
+         theme (profiles.selected_theme) — pre-load fallback. */
+      --theme-primary:   #1C1C1E;
+      --theme-secondary: #A89B8C;
+      --theme-bg:        #FAF6EE;
+      --theme-gold:      #C49A6C;
+      --theme-button-fg: #FFFFFF;
+
+      /* Baker-adaptive */
+      --bg:        var(--theme-bg);
+      --accent:    var(--theme-primary);
+      --accent-fg: var(--theme-button-fg);
+      /* A faint wash of the baker's accent over the surface — used for the
+         section/menu bar so it carries a hint of their theme colour
+         without hurting the dark nav-label text. Bump the % for more. */
+      --menu-bar:  color-mix(in srgb, var(--accent) 12%, var(--surface));
+
+      /* Fixed tokens from BakeriTheme.swift's storefront profile redesign
+         (bakeriProfileInk/Muted/Bio/ChipText, bakeriProfileBadge*) — the
+         same values used for the in-app baker profile, so the web page
+         reads as the same product. */
+      --surface:    #FFFFFF;
+      --ink:        #241712;
+      --muted:      #948577;
+      --bio:        #4A3E33;
+      --chip-text:  #7A6C5D;
+      --line:       rgba(36,23,18,0.08);
+      --line-soft:  rgba(36,23,18,0.06);
+      --ready:      #3FA672;
+      --preorder:   #C79A3D;
+      --custom:     #A66A5B;
+      --digital:    #5F92E6;
+      --physical:   #7A8C5C;
+      --error:      #C0392B;
+
+      --sans: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --theme-bg: #17110C;
+        --surface:  #241A14;
+        --ink:      #F6F1E6;
+        --bio:      #E4D9C8;
+        --muted:    #A69B8C;
+        --chip-text:#C2B29E;
+        --line:     rgba(246,241,230,0.10);
+        --line-soft:rgba(246,241,230,0.08);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* iOS WKWebView paints the rubber-band overscroll area (pulling past the
+       very top or bottom) using <html>'s background, not <body>'s — left
+       unset, that region showed body's theme-tinted --bg (e.g. this baker's
+       pale pink) instead of the header bar's actual white. Matches
+       #site-header-bar's own --surface so the bounce reads as an extension
+       of the bar, not a mismatched color peeking out above it. */
+    html { scroll-behavior: smooth; background: var(--surface); }
+    /* iOS Safari's chrome-color sampling (see html, above) reads body's
+       background specifically — proven by swapping --bg for a test color
+       and watching the strip follow it. Giving body its OWN opaque color
+       (tried twice: --bg unconditionally, then --surface mobile-only)
+       backfired both times: #theme-pattern-layer (theme.js) is a
+       position:fixed, z-index:-1 div inserted as body's first child, and
+       CSS's painting order puts a negative-z-index descendant BEHIND its
+       ancestor's own in-flow box background — so as soon as body had a
+       real painted background instead of being transparent, it covered
+       the pattern everywhere body's box extends (confirmed live
+       2026-08-21: every patterned baker's side-margin/overflow pattern
+       disappeared). Left transparent, body paints nothing of its own —
+       html's white shows through where nothing else does, and the pattern
+       layer/#page-shell stay visible exactly where theme.js and the
+       layout already intend them to be. Chrome-sampling on a patterned
+       baker may pick up a faint tint from the pattern layer instead of
+       pure white — an acceptable tradeoff next to hiding every baker's
+       chosen pattern. */
+    body {
+      font-family: var(--sans);
+      color: var(--bio);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select, textarea { font-family: inherit; }
+    img { max-width: 100%; display: block; }
+    .hidden { display: none !important; }
+    .tabular { font-variant-numeric: tabular-nums; }
+
+    /* ── Photo placeholder (used until a real image loads) ── */
+    .ph-fallback {
+      background: var(--line-soft);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+    }
+
+    /* ══════════════════════ Page shell ══════════════════════
+       Everything (header through footer) lives in one width-constrained,
+       opaque column — matches the in-app screen anatomy (flat cream band,
+       white filter strip, then the pattern behind the product grid) and
+       keeps every section the same width instead of some bleeding full-
+       width and others not. The fixed pattern layer (theme.js) sits behind
+       this whole shell, so on desktop it only shows in the side margins;
+       on mobile the shell fills the viewport, so no margin — no pattern. */
+    /* Flex column (not just block) so #site-header-bar and #profile-hero
+       can swap places between mobile and desktop via `order` below,
+       instead of existing as two separately-positioned/duplicated
+       elements — the hamburger bar, the brand text, and both cart buttons
+       are each a single DOM node shared across breakpoints. */
+    #page-shell { max-width: 1200px; margin: 0 auto; background: var(--bg); position: relative; display: flex; flex-direction: column; }
+
+    /* Auto-generated from the baker's shipping settings (free-shipping
+       threshold + combined-shipping percentage, see updateAnnouncementBanner)
+       — empty and hidden (.hidden, see global rule above) until a baker sets
+       a free-shipping threshold on a store with physical listings. Always
+       first in the shell regardless of breakpoint, so it reads above both
+       the mobile hamburger bar and the desktop nav bar/hero. Colored from
+       the same --accent/--accent-fg theme variables every other themed
+       pill/button/badge on this page uses. */
+    #announcement-banner {
+      order: -2;
+      background: var(--accent);
+      color: var(--accent-fg);
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .01em;
+      padding: 10px 16px;
+    }
+
+    /* ══════════════════════ Site header bar ══════════════════════
+       One shared bar: hamburger + centered brand + icons on mobile
+       (renders above the hero photo, its default DOM position), brand +
+       full nav row + icons on desktop (moved below the hero instead, via
+       #profile-hero's order:-1 in the desktop media query — see below). */
+    #site-header-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 12px 16px; background: var(--menu-bar); border-bottom: 1px solid var(--line);
+      position: relative; z-index: 3;
+    }
+    .icon-btn {
+      width: 36px; height: 36px; flex-shrink: 0; border: none; background: none; color: var(--ink);
+      display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+    }
+    /* The nav itself only renders inline on desktop (see media query below) —
+       on mobile the same tabs render into #mobile-nav-drawer instead. */
+    #section-nav-wrap { display: none; }
+    .nav-bar-icons { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    /* Share/Cart on desktop — floats over the hero photo, same spot as the
+       original overlay, rather than living in the nav row below the hero.
+       Mobile uses the icons already in #site-header-bar's .nav-bar-icons
+       instead (kept as a separate element, not moved via JS, so nothing
+       here ever needs reparenting between breakpoints). */
+    #site-header-desktop {
+      display: none;
+      position: absolute; top: 0; right: 0; z-index: 2;
+      align-items: center; gap: 10px; padding: 14px 16px;
+    }
+
+    /* ══════════════════════ Mobile nav drawer ══════════════════════
+       Opens directly below the hamburger bar — same tabs as the desktop
+       inline nav, rendered as a simple stacked list instead of a wrapping
+       pill row, since a vertical list reads better at hamburger-menu width. */
+    #mobile-nav-drawer {
+      background: var(--menu-bar); border-bottom: 1px solid var(--line);
+      padding: 4px 16px 10px; display: flex; flex-direction: column;
+    }
+    .mobile-nav-item {
+      background: none; border: none; border-bottom: 1px solid var(--line-soft);
+      text-align: left; cursor: pointer; font-family: var(--sans);
+      font-size: 15px; font-weight: 400; color: var(--ink); padding: 13px 4px;
+    }
+    .mobile-nav-item:last-child { border-bottom: none; }
+
+    .circle-btn {
+      width: 40px; height: 40px; border-radius: 50%; border: none;
+      background: var(--surface); color: var(--ink); display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 15px; flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(36,23,18,.08), 0 6px 16px rgba(36,23,18,.06);
+    }
+    #cart-btn { position: relative; }
+    #cart-btn-count {
+      position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 3px;
+      border-radius: 9999px; background: var(--accent); color: var(--accent-fg);
+      font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+    #cart-btn-count:empty { display: none; }
+
+    /* ══════════════════════ Header image ══════════════════════
+       The photo is a full-bleed background behind the whole hero (logo,
+       name, meta pill, bio). The hero is LOCKED to one aspect ratio
+       (16:9, matching the ~16:9 source photos) so the image is cropped to
+       the exact same shape at every screen width and just scales — it used
+       to stretch to whatever height the text stack happened to be, which
+       cropped the photo to a tall sliver on phones and a wide strip on
+       desktop. min-height is a floor for the very narrowest phones, where
+       16:9 would be too short for the centred text; there the photo shows
+       a slightly taller centre crop, still the same centre subject.
+       Falls back to a plain theme-colored gradient when the baker hasn't
+       set one (img.onerror below). */
+    #profile-hero { position: relative; aspect-ratio: 16 / 9; min-height: 350px; overflow: hidden; background: var(--bg); }
+    #storefront-header {
+      position: absolute; inset: 0; overflow: hidden;
+      background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
+    }
+    #storefront-header img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: none; }
+    /* Flat scrim, not just a bottom gradient — text sits everywhere in the
+       block now (avatar ring, name, meta pill, bio), not only at the
+       bottom, so it all needs consistent legibility against the photo.
+       Kept light (.42 was reported as visibly flattening/desaturating the
+       baker's actual header photo, reading as dull instead of energetic)
+       — legibility for the two plain-text elements now leans on their own
+       text-shadow (below) instead of a heavy blanket wash, so the photo's
+       real colour still comes through everywhere else. */
+    #header-scrim { position: absolute; inset: 0; background: rgba(20,15,10,.2); }
+
+    /* Fills the locked-ratio hero and centres its content, instead of being
+       the flow child that DROVE the hero's height (which is what made the
+       photo crop differently per screen size). position:absolute so it no
+       longer contributes height; the hero's aspect-ratio / min-height win. */
+    #profile-block {
+      position: absolute; inset: 0; z-index: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+      text-align: center; padding: 20px 20px 26px;
+    }
+    #profile-block .avatar {
+      width: 96px; height: 96px; font-size: 34px; margin: 0 auto;
+      box-shadow: 0 0 0 4px var(--bg), 0 2px 6px rgba(36,23,18,.15);
+    }
+    #shop-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 14px; }
+    #shop-meta {
+      display: inline-flex; align-items: center; gap: 5px; margin-top: 8px;
+      background: var(--line-soft); padding: 5px 12px; border-radius: 9999px;
+    }
+    #shop-meta span { font-size: 12.5px; font-weight: 500; color: var(--chip-text); }
+    #shop-bio {
+      font-size: 14.5px; line-height: 1.45; color: var(--bio);
+      margin: 14px auto 0; max-width: 600px;
+      /* Clamped so a long bio can't push past the fixed-height hero — the
+         full text still lives in About. */
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    /* Social accounts (baker_links section literally named "Social") — small
+       round icons in the hero, not rectangular rows in the body. Real
+       platform icons (assets/social/*.png): a solid black circle with the
+       logo cut out as transparent. Used as a CSS mask (not a plain <img>)
+       on a var(--accent)-colored circle — the theme color paints the circle
+       itself, the logo shape shows the wrapper's --bg behind it. Recoloring
+       this way (vs. layering the image on top of a color) keeps the logo
+       legible even for a near-black theme accent (Classic is #1C1C1E) —
+       stacking the raw image over a same-toned color would make the cutout
+       collapse into the circle with no contrast at all. */
+    #social-icons { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+    .social-icon {
+      position: relative; width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      text-decoration: none; background: var(--bg);
+      box-shadow: 0 1px 3px rgba(36,23,18,.15);
+    }
+    .social-icon-mask {
+      position: absolute; inset: 0; background: var(--accent);
+      -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+      -webkit-mask-position: center; mask-position: center;
+      -webkit-mask-size: cover; mask-size: cover;
+    }
+    .social-icon-fallback { position: relative; font-size: 15px; }
+    /* Once a header photo is showing, name/meta/bio switch to light text
+       over the scrim instead of the plain-background dark ink tones. The
+       icons themselves don't need a variant — they're already a solid
+       black circle, legible against photo or plain background alike. */
+    #profile-hero.has-photo #shop-name,
+    #profile-hero.has-photo #shop-bio {
+      color: #fff;
+      /* Carries legibility for these two now that the scrim itself is
+         lighter — a shadow only darkens right behind the letterforms,
+         leaving the photo around them untouched, unlike raising the
+         blanket scrim back up would. */
+      text-shadow: 0 1px 6px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.4);
+    }
+    #profile-hero.has-photo #shop-meta { background: rgba(255,255,255,.22); }
+    #profile-hero.has-photo #shop-meta span { color: #fff; }
+
+    /* About / Store policies — plain body sections further down the page,
+       same treatment as FAQ/Hours, not disclosure rows in the header block
+       anymore: they're real content, not something to tuck away. */
+    /* Editorial — the portrait floats within the text (magazine-style pull
+       image) instead of sitting in a fixed-size side column next to it, so
+       it actually scales with the available width instead of staying a
+       small fixed thumbnail regardless of how much room there is. Mobile
+       width is a plain percentage; the >=860px override below pushes it out
+       to roughly a quarter of the (up to 1200px) content column. */
+    .profile-about-inner { margin-top: 12px; }
+    .profile-about-inner::after { content: ""; display: table; clear: both; }
+    .about-portrait {
+      float: left; width: 42%; max-width: 220px; aspect-ratio: 4 / 5; height: auto;
+      border-radius: 14px; object-fit: cover; background: var(--line-soft);
+      margin: 0 18px 10px 0;
+    }
+    #pb-about p, #pb-policies p { font-size: 13.5px; line-height: 1.65; color: var(--bio); }
+    /* ══════════════════════ Section bands ══════════════════════
+       Every top-level content section (Menu, Links, About, FAQ, Store
+       Policies, Store Hours) shares this — a plain white background, and a
+       divider line automatic between any two of them regardless of which
+       are hidden (a hidden one in between takes no visual space, so the
+       divider still lands exactly at the seam a visitor actually sees).
+       Footer is deliberately excluded — it reads as the page's close, not
+       another content section. */
+    .section-band { background: var(--surface); padding: 20px 20px 24px; }
+    .section-band + .section-band { border-top: 1px solid var(--line); }
+    /* #physical-feed (Ships to You) isn't a .section-band — it supplies its
+       own per-category .category-block backgrounds — so the adjacency rule
+       above can't draw the Menu→Ships to You→Digital Downloads seams. Its
+       own .category-block:first-child border-top covers the top seam; this
+       covers the seam into whatever .section-band follows it (Digital
+       Downloads, or About when there are no digital items). */
+    #physical-feed + .section-band { border-top: 1px solid var(--line); }
+    .section-band h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+    /* Sits outside #feed (the filter chips/grid are their own elements, not
+       nested under one wrapper) so the heading can lead them both. */
+    .section-band-heading {
+      font-size: 16px; font-weight: 700; color: var(--ink);
+      background: var(--surface); padding: 20px 20px 0;
+    }
+
+    /* ══════════════════════ Filter strip — white band ══════════════════ */
+    #filter-strip { background: var(--surface); border-bottom: 1px solid var(--line); }
+    #filter-bar {
+      display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px;
+      justify-content: center; scrollbar-width: none;
+    }
+    #filter-bar::-webkit-scrollbar { display: none; }
+    .filter-chip {
+      flex-shrink: 0; padding: 8px 16px; border-radius: 9999px; border: 1.5px solid var(--line);
+      background: var(--bg); color: var(--ink); cursor: pointer;
+      font-family: var(--sans); font-size: 13px; font-weight: 600; white-space: nowrap;
+    }
+    .filter-chip.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+    /* ══════════════════════ Section nav ══════════════════════
+       The section names themselves ARE the navigation — Menu, then each
+       general-goods category, then Digital Downloads, then My Links/About/
+       Store Hours/Store Policies — one flat scroll-to item per always-
+       visible section, no separate heading text anywhere else, no
+       redundant second label. Lives inline in #site-header-bar on desktop
+       (see the media query below) and as a stacked list in
+       #mobile-nav-drawer on mobile — #section-nav itself only wraps
+       instead of scrolling for the rare desktop case where it's forced to. */
+    #section-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; }
+    .section-tab {
+      flex-shrink: 0; background: none; border: none; cursor: pointer; font-family: var(--sans);
+      font-size: 15px; font-weight: 400; color: var(--muted); padding: 0 0 4px;
+      border-bottom: 2px solid transparent; white-space: nowrap;
+    }
+    .section-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+
+    /* ══════════════════════ Link sections ══════════════════════
+       Always visible, every configured section stacked at once — not one
+       swapped in behind a nav click, which made Social links effectively
+       invisible unless a visitor happened to tap the tab. */
+    #links-feed { padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .link-section + .link-section { border-top: 1px solid var(--line); padding-top: 14px; }
+    .link-list { display: flex; flex-direction: column; gap: 10px; }
+    .link-row {
+      display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 16px;
+      background: var(--bg); text-decoration: none; cursor: pointer;
+    }
+    .link-row .circle {
+      width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; background: var(--line-soft);
+      display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--muted);
+    }
+    .link-row .label { font-size: 14.5px; font-weight: 600; color: var(--ink); flex: 1; }
+    .link-row .arrow { color: var(--muted); font-size: 14px; }
+
+    /* ══════════════════════ Product Grid ══════════════════════
+       Matches the app's own Market (listings) card exactly: photo with an
+       overlaid kind badge, name + availability, a divider, then price +
+       action on their own row — not an invented layout. The baker's
+       chosen background pattern shows behind these cards (theme.js's
+       #theme-pattern-layer). */
+    #feed { padding: 18px 20px 28px; }
+    #product-grid, .product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+    /* ── Single-item Menu / category ──────────────────────────────────────
+       When a grid holds exactly one card it is NOT a half-width tile in a
+       2-col grid (dead space beside it). It is a fixed 220px tile — the
+       SAME width the side-by-side feature card's photo uses — so the image
+       size is continuous when the layout switches to side-by-side at
+       >=560px, instead of the old "grow big while stacked, then snap to a
+       smaller side-by-side photo at 860px". A second card drops the
+       :only-child match and the normal grid takes over immediately. */
+    #product-grid:has(> .p-card:only-child),
+    .product-grid:has(> .p-card:only-child) { grid-template-columns: 220px; }
+
+    @media (min-width: 560px) {
+      /* Enough width for the 220px photo AND a text column beside it —
+         flip the lone tile to the horizontal feature card. Photo stays
+         220px square (its base width:100% + aspect-ratio:1/1 inside the
+         fixed 220px track), so it doesn't change size across the switch.
+
+         This card is the only thing in its section, so it earns a little
+         more polish than a grid tile: softer rounding, a hairline border
+         + hover lift, a divider between photo and copy, a larger name and
+         price, and the price row pinned low instead of split off by a
+         rule through the middle of the text. */
+      #product-grid:has(> .p-card:only-child),
+      .product-grid:has(> .p-card:only-child) {
+        grid-template-columns: 1fr; max-width: 640px;
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card {
+        display: grid; grid-template-columns: 220px 1fr; align-items: stretch;
+        border-radius: 20px; border: 1px solid var(--line-soft);
+        box-shadow: 0 1px 2px rgba(36,23,18,.05), 0 14px 30px -14px rgba(36,23,18,.22);
+        transition: transform .16s ease, box-shadow .16s ease;
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 3px 6px rgba(36,23,18,.06), 0 22px 42px -16px rgba(36,23,18,.3);
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-body {
+        display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden;
+        padding: 24px; border-left: 1px solid var(--line-soft);
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-name {
+        font-size: 17px; line-height: 1.3;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-meta { font-size: 12.5px; margin-top: 6px; }
+      /* Price row pinned to the bottom of the card — label up top, price
+         down low — rather than a small cluster floating mid-height. */
+      .product-grid:has(> .p-card:only-child) > .p-card .p-divider {
+        border-top: 0; margin-top: auto; padding-top: 0;
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-price-row { justify-content: flex-start; gap: 16px; }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-price { font-size: 16px; }
+    }
+
+    /* ══════════════════════ Shop sections (categories) ══════════════════
+       Physical items group into one headed block per category (Cookie
+       Cutters, Cookie Stamps, ...) instead of one flat list — each block
+       reuses .product-grid, the same photo-card grid the Menu section uses. */
+    .category-block { padding: 18px 20px 8px; background: var(--surface); }
+    .category-block h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+    .category-block:first-child { border-top: 1px solid var(--line); }
+    .category-block:last-child { padding-bottom: 28px; }
+
+    /* Digital Downloads render as plain rows, not photo-grid cards — a file
+       isn't a physical product you're judging by its thumbnail the way a
+       cake or cookie box is, and a lone item stretching to fill a whole
+       grid cell looked broken (see 2026-08-01 screenshot report). */
+    #digital-grid { display: flex; flex-direction: column; }
+    .digital-row {
+      display: flex; align-items: center; gap: 14px; padding: 12px 0;
+      border-bottom: 1px solid var(--line); cursor: pointer;
+    }
+    .digital-row:last-child { border-bottom: none; }
+    .digital-row .thumb {
+      width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0; position: relative;
+      overflow: hidden; background: var(--line-soft);
+    }
+    .digital-row .thumb img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    .digital-row .thumb .ph-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .digital-row .info { flex: 1; min-width: 0; }
+    .digital-row .info .n { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+    .digital-row .info .m { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .digital-row .price { font-size: 14px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+    /* "View all N" / "Show fewer" toggle — rendered under Digital Downloads
+       and under any Ships to You category longer than its preview count
+       (see renderDigitalFeed / renderPhysicalFeed). */
+    .feed-toggle {
+      width: fit-content; align-self: flex-start; margin-top: 14px;
+      background: none; border: none; padding: 8px 0; cursor: pointer;
+      font-family: var(--sans); font-size: 13.5px; font-weight: 700; color: var(--accent);
+    }
+    .p-card {
+      cursor: pointer; background: var(--surface); border-radius: 16px; overflow: hidden;
+      box-shadow: 0 2px 5px rgba(36,23,18,.08);
+    }
+    .p-card .p-photo { position: relative; width: 100%; aspect-ratio: 1/1; background: var(--bg); }
+    .p-card .p-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    .p-badge {
+      position: absolute; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 700; padding: 4px 10px; border-radius: 9999px; color: #fff;
+    }
+    .p-badge .dot { width: 5px; height: 5px; border-radius: 50%; background: #fff; }
+    .p-body { padding: 10px 12px 11px; }
+    .p-name { font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+    .p-meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+    .p-divider { border-top: 1px solid var(--line); margin-top: 9px; padding-top: 8px; }
+    .p-price-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .p-price { font-size: 13.5px; font-weight: 700; color: var(--accent); }
+    .p-price .from { font-size: 9.5px; font-weight: 400; color: var(--muted); display: block; }
+
+    .add-btn, .qty-stepper { height: 32px; flex-shrink: 0; }
+    .add-btn {
+      width: 32px; border-radius: 50%; border: none; background: var(--accent); color: var(--accent-fg);
+      font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .add-btn.added { background: var(--digital); font-size: 14px; }
+    .qty-stepper {
+      display: flex; align-items: center; border: 1.5px solid var(--ink); border-radius: 9999px; overflow: hidden;
+      animation: popIn .16s ease-out;
+    }
+    .qty-stepper button {
+      width: 26px; height: 100%; border: none; background: transparent; color: var(--ink);
+      font-size: 14px; cursor: pointer;
+    }
+    .qty-stepper .qty { font-size: 12px; padding: 0 2px; color: var(--ink); min-width: 12px; text-align: center; }
+    @keyframes popIn { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+
+    .empty-state { text-align: center; padding: 50px 20px; color: var(--muted); font-size: 14px; }
+
+    /* ══════════════════════ FAQ ══════════════════════ */
+    .faq-row { border-bottom: 1px solid var(--line); }
+    .faq-row:last-child { border-bottom: none; }
+    .faq-q {
+      width: 100%; min-height: 50px; display: flex; align-items: center; justify-content: space-between;
+      background: none; border: none; text-align: left; cursor: pointer; padding: 10px 0;
+      font-size: 14.5px; font-weight: 600; color: var(--ink);
+    }
+    .faq-q .ind { color: var(--muted); font-size: 18px; }
+    .faq-a { max-height: 0; overflow: hidden; transition: max-height .2s ease-out; }
+    .faq-a p { font-size: 13.5px; line-height: 1.7; color: var(--bio); padding-bottom: 14px; }
+    .faq-row.open .faq-a { max-height: 400px; }
+
+    /* Store Hours — free-flowing text elsewhere in these sections is fine
+       filling the full-width container; a day/time list isn't. A
+       space-between row stretched across the whole container would strand
+       "Mon" and "9:00–17:00" at opposite edges with a long dead gap between
+       them, so the row list itself stays a compact, natural width. */
+    #hours-rows { max-width: 320px; }
+    #hours-card .row { display: flex; justify-content: space-between; gap: 24px; padding: 4px 0; font-size: 13px; }
+    #hours-card .day { color: var(--muted); }
+    #hours-card .time { color: var(--ink); }
+
+    /* ══════════════════════ Footer ══════════════════════ */
+    #site-footer { background: var(--surface); border-top: 1px solid var(--line); padding: 20px 20px 120px; text-align: center; }
+    #footer-contact { font-size: 12.5px; line-height: 1.7; color: var(--muted); }
+    #footer-contact a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+    #footer-credit { margin-top: 18px; font-size: 12px; color: var(--muted); }
+    #footer-credit a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+
+    /* ══════════════════════ Fixed Bottom Bar — only ever shows once the
+       cart has something in it; an empty-cart CTA here would just repeat
+       the page itself. ══════════════════════ */
+    #action-bar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+      padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
+    }
+    #action-bar-cart {
+      display: none; align-items: center; justify-content: space-between; height: 56px;
+      background: var(--accent); color: var(--accent-fg); border-radius: 9999px; padding: 0 8px 0 20px; cursor: pointer;
+      border: none; width: 100%; box-shadow: 0 10px 30px -8px rgba(0,0,0,.35);
+      animation: popIn .18s ease-out;
+    }
+    #action-bar-cart .l { text-align: left; }
+    #action-bar-cart .l .t { font-size: 14.5px; font-weight: 700; }
+    #action-bar-cart .l .s { font-size: 11px; color: var(--accent-fg); opacity: .75; margin-top: 2px; }
+    #action-bar-cart .r {
+      font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink);
+      border-radius: 9999px; padding: 10px 16px;
+    }
+
+    /* ══════════════════════ Sheets / Modal / Toast ══════════════════════ */
+    .scrim {
+      position: fixed; inset: 0; background: rgba(20,15,10,.55); z-index: 100;
+      display: none; align-items: flex-end; justify-content: center;
+    }
+    .scrim.open { display: flex; }
+    .sheet {
+      background: var(--bg); width: 100%; max-width: 480px; max-height: 90%; overflow: auto;
+      overscroll-behavior: contain;
+      border-radius: 24px 24px 0 0; box-shadow: 0 30px 70px -20px rgba(0,0,0,.5);
+      animation: riseIn .22s ease-out;
+    }
+    @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .sheet-close {
+      position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(20,15,10,.5); color: #fff; border: none; cursor: pointer; font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      border-radius: 9999px; border: none; cursor: pointer; font-weight: 700; font-size: 15px;
+      text-decoration: none; font-family: var(--sans);
+    }
+    .btn-primary { height: 50px; background: var(--accent); color: var(--accent-fg); }
+    .btn-outline { height: 48px; background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+
+    /* Same 1/1 ratio as .p-card .p-photo in the grid — the detail sheet's
+       photo should look like the same product photo, just larger, not a
+       differently-cropped shape. */
+    /* Photo stays pinned at the top; only the body scrolls internally — a
+       long description used to drag the photo along with it inside one
+       shared scroll area, which also let the sheet rubber-band past its own
+       edges on touch and expose blank space behind the rounded corners. */
+    /* Overrides .sheet's shared max-height: 90% — with real content (photo +
+       fixed header + a long description) the sheet already reached that cap
+       naturally, so raising it (not just replacing max-height with an equal
+       height) is what actually reclaims the dimmed gap above it for the
+       description to use. Cart sheet keeps the shared 90%; this is scoped
+       to the item detail sheet specifically. */
+    #item-sheet { display: flex; flex-direction: column; overflow: hidden; height: 96%; max-height: 96%; }
+    #item-sheet-inner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    /* min-height: 0 overrides the flex-item default of min-height: auto —
+       without it, a tall portrait source photo whose height:100% can't
+       resolve against an aspect-ratio-only parent falls back to its natural
+       aspect ratio and forces this box taller than its intended 1/1 square,
+       eating into the space the scrollable body needs below it. */
+    /* touch-action: none — the photo has no scrollable content of its own,
+       so a touch/scroll gesture starting on it could otherwise fall through
+       and pan the page behind the sheet on iOS Safari. This stops the
+       gesture at its source instead of locking/restoring body scroll (which
+       caused its own bug: the page jumping back to the tapped card's
+       position when the sheet closed). */
+    #item-sheet-photo { position: relative; aspect-ratio: 1/1; background: var(--line-soft); flex: none; min-height: 0; overflow: hidden; touch-action: none; }
+    #item-sheet-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    /* Name/price/box-selector/cta stay put; only the description+specs
+       scroll. Two flex children instead of one shared scroll area, same
+       reasoning as the photo/body split above. */
+    #item-sheet-body { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 14px 20px 14px; }
+    #item-sheet-fixed { flex: none; }
+    #item-sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    #item-sheet-name { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+    #item-sheet-price { font-size: 16px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+    /* Kept tight (10px, not 16) — on a has_variants listing especially, the
+       photo (fixed 1:1) plus name/price/option-picker/CTA above already
+       claim most of a typical viewport's height, and every px trimmed here
+       is a px the description preview actually gets to use. */
+    #item-sheet-desc { font-size: 14px; line-height: 1.6; color: var(--bio); margin-top: 10px; }
+    /* Clamped by default so a short description never scrolls at all and a
+       long one doesn't dominate the sheet on open — "Read more" only shows
+       up when the text actually overflows the clamp (see openItemSheet).
+       Kept short (2 lines, not 4) — the sheet's photo/price/options/CTA
+       already fill most of the viewport above this, so 4 lines of preview
+       often left barely any of the description actually visible before
+       running into the bottom of the screen. A short, honest preview plus
+       a reliably-reachable "Read more" (openDescSheet) beats a long one
+       that mostly gets cut off anyway. */
+    #item-sheet-desc.clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    #item-sheet-desc.tappable { cursor: pointer; }
+    #item-sheet-desc-toggle {
+      display: none; background: none; border: none; padding: 0; margin-top: 8px;
+      font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; font-family: inherit;
+    }
+    .spec-list { margin-top: 8px; }
+    .spec-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 6px 0; border-top: 1px solid var(--line); color: var(--muted); }
+    .spec-row b { color: var(--ink); font-weight: 600; }
+    #item-sheet-body .btn { width: 100%; height: 46px; margin-top: 12px; }
+
+    #item-sheet-box { margin-top: 12px; }
+    .box-step-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin-bottom: 6px; }
+    .box-tiers { display: flex; gap: 8px; margin-bottom: 10px; }
+    .box-tier {
+      flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 14px; background: transparent;
+      padding: 8px 6px; text-align: center; cursor: pointer;
+    }
+    .box-tier.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+    .box-tier.disabled { opacity: .45; cursor: not-allowed; }
+    /* Only the listing-variant picker (not Assorted Box's size tiers) ever
+       renders one of these — an <img> with no matching remote file 404s
+       and hides itself (onerror), so a plain Assorted Box tier with no
+       thumb markup at all still looks identical to before. */
+    .box-tier-thumb { display: block; width: 34px; height: 34px; object-fit: cover; border-radius: 8px; margin: 0 auto 6px; background: var(--line-soft); }
+    .box-tier-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+    .box-tier-price { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .box-flavor-header { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+    .box-flavor-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+    .box-flavor-thumb { width: 38px; height: 38px; border-radius: 10px; object-fit: cover; background: var(--line-soft); flex-shrink: 0; }
+    .box-flavor-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+    .box-flavor-row .stepper {
+      display: flex; align-items: center; border: 1px solid var(--line); border-radius: 9999px; height: 32px; flex-shrink: 0;
+    }
+    .box-flavor-row .stepper button { width: 28px; height: 100%; border: none; background: none; font-size: 15px; cursor: pointer; color: var(--ink); }
+    .box-flavor-row .stepper button:disabled { opacity: .3; cursor: default; }
+    .box-flavor-row .stepper .qty { font-size: 13px; min-width: 16px; text-align: center; }
+
+    #cart-sheet-body { padding: 18px 20px 24px; }
+    #desc-sheet-body { padding: 4px 20px 28px; }
+    #desc-sheet-title { font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+    #desc-sheet-text { font-size: 15px; line-height: 1.75; color: var(--bio); white-space: pre-wrap; }
+    #cart-step-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin-bottom: 8px; }
+    .cart-line { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .cart-line .thumb { width: 48px; height: 48px; border-radius: 12px; background: var(--line-soft); flex-shrink: 0; overflow: hidden; }
+    .cart-line .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .cart-line .info { flex: 1; min-width: 0; }
+    .cart-line .info .n { font-size: 14px; font-weight: 600; color: var(--ink); }
+    .cart-line .info .m { font-size: 11px; color: var(--muted); }
+    .cart-line .stepper { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 9999px; height: 36px; }
+    .cart-line .stepper button { width: 28px; height: 100%; border: none; background: none; font-size: 15px; cursor: pointer; color: var(--ink); }
+    .cart-line .stepper .qty { font-size: 12px; min-width: 16px; text-align: center; }
+    .cart-line .total { font-size: 13px; color: var(--ink); width: 56px; text-align: right; }
+    .cart-line .remove-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 13px; cursor: pointer; flex-shrink: 0; }
+    .cart-section-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin: 16px 0 8px; }
+
+    .cart-financial-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); }
+    .cart-financial-row.total { font-weight: 700; color: var(--ink); font-size: 16px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
+    .cart-note { font-size: 11.5px; color: var(--muted); text-align: center; margin-top: 10px; }
+
+    .field { margin-top: 12px; }
+    .field label { font-size: 12.5px; font-weight: 600; color: var(--ink); display: block; margin-bottom: 6px; }
+    .field input, .field select {
+      width: 100%; height: 46px; border-radius: 12px; border: 1.5px solid var(--line);
+      background: var(--surface); color: var(--ink); padding: 0 14px; font-size: 14px;
+    }
+
+    #toast {
+      position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(10px);
+      background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 9999px; font-size: 13px;
+      z-index: 200; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .avatar {
+      border-radius: 50%; background: var(--theme-secondary); display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #fff; overflow: hidden; position: relative;
+      box-shadow: 0 2px 6px rgba(36,23,18,.15);
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; display: none; }
+
+    /* ══════════════════════ Desktop ══════════════════════ */
+    @media (min-width: 860px) {
+      /* Stands the column off the patterned backdrop showing in the side
+         margins — on mobile the shell fills the viewport edge to edge, so
+         there's no backdrop to separate from and no shadow needed there. */
+      #page-shell { box-shadow: 0 8px 40px rgba(20,15,10,.14); }
+
+      /* Swaps the hero above the header bar instead of below it — the only
+         change needed to move #site-header-bar from "above the photo"
+         (mobile) to "below the photo" (desktop). */
+      #profile-hero { order: -1; }
+
+      #mobile-menu-btn { display: none; }
+      #mobile-nav-drawer { display: none !important; }
+      /* The bar below the hero is nav-only on desktop — no brand text on
+         either breakpoint (the name already reads prominently in the hero
+         itself). Share/Cart move to #site-header-desktop (floating over
+         the hero) instead of living in this bar, restoring their original
+         top-of-page spot. */
+      .nav-bar-icons { display: none; }
+      #site-header-desktop { display: flex; }
+      #site-header-bar { padding: 14px 20px; justify-content: center; }
+      #section-nav-wrap { display: block; flex: 1; }
+
+      /* auto-fit (not auto-fill) — with only a few cards, auto-fill still
+         reserves the grid columns unfilled cards WOULD have used, leaving
+         a dead gap where a phantom next card should be. auto-fit collapses
+         those, letting the real cards stretch to actually fill the row. */
+      #product-grid, .product-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+      .p-card:hover .p-photo { opacity: .92; }
+
+      /* Roughly a quarter of the (up to 1200px) content column, not the 42%
+         the narrower mobile width uses — at this width 42% would swallow
+         the paragraph down to a sliver next to it. */
+      .about-portrait { width: 25%; max-width: 300px; margin: 0 28px 10px 0; }
+
+      #action-bar { display: none; }
+      #desktop-cart-btn { display: flex !important; }
+      #cart-btn { display: none; }
+
+      .scrim { align-items: center; }
+      #cart-sheet { max-width: 800px; width: 90%; border-radius: 24px; max-height: 88vh; }
+      /* Narrower than cart-sheet — at 800px wide, even a same-ratio square
+         photo was too large a presence. Image stays stacked on top (not
+         side-by-side with the details column, which forced it to stretch
+         via aspect-ratio: auto; height: 100% to match whatever height the
+         details column happened to be, visibly rescaling as more content —
+         a chosen size, then flavors — appeared). */
+      #item-sheet { max-width: 560px; width: 90%; border-radius: 24px; max-height: 92vh; height: 92vh; }
+
+      #cart-sheet { max-width: 440px; margin-left: auto; margin-right: 0; height: 100%; max-height: 100%; border-radius: 0; box-shadow: -20px 0 50px -20px rgba(0,0,0,.4); }
+      .scrim:has(#cart-sheet) { justify-content: flex-end; }
+    }
+    /* ── DESIGN LAB ribbon ── (baker-lab only; not in baker/index.html) */
+    #lab-ribbon {
+      position: sticky; top: 0; z-index: 9999;
+      background: repeating-linear-gradient(45deg, #1c1c1e, #1c1c1e 12px, #2b2b2e 12px, #2b2b2e 24px);
+      color: #fff; font-family: var(--sans);
+      font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      text-align: center; padding: 6px 12px; line-height: 1.35;
+    }
+    #lab-ribbon span { opacity: .7; text-transform: none; font-weight: 500; letter-spacing: 0; }
+  </style>
+</head>
+<body>
+
+<div id="lab-ribbon">Design lab — not a live storefront
+  <span id="lab-ribbon-sub"></span>
+</div>
+
+<div id="page-shell">
+
+<!-- Reserved for a future promo/announcement strip — empty and hidden
+     until a baker sets one. Always first, both mobile and desktop
+     (see #announcement-banner's order:-2). -->
+<div id="announcement-banner" class="hidden"></div>
+
+<!-- Mobile-only bar: hamburger + icons, above the hero photo — no brand
+     text, the baker's name already reads prominently in the hero right
+     below. On desktop this bar holds just the nav row instead (below the
+     hero, via #profile-hero's order:-1) — icons move out to
+     #site-header-desktop (floating over the hero, its original
+     position), see the desktop media query above. -->
+<header id="site-header-bar">
+  <button class="icon-btn" id="mobile-menu-btn" aria-label="Menu">
+    <svg width="20" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 1H19M1 7H19M1 13H19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+  </button>
+  <nav id="section-nav-wrap"><div id="section-nav"></div></nav>
+  <div class="nav-bar-icons">
+    <button class="circle-btn" id="share-btn-mobile" aria-label="Share">
+      <svg width="16" height="19" viewBox="0 0 17 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8.5 1V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M4.5 5L8.5 1L12.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M1.5 9V17.5C1.5 18.3284 2.17157 19 3 19H14C14.8284 19 15.5 18.3284 15.5 17.5V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="circle-btn" id="cart-btn" aria-label="Cart">🛒<span id="cart-btn-count"></span></button>
+  </div>
+</header>
+
+<!-- Mobile-only — same tabs as #section-nav, rendered as a stacked list.
+     Hidden entirely on desktop, where the nav already renders inline
+     above (see #mobile-nav-drawer's display:none!important there). -->
+<div id="mobile-nav-drawer" class="hidden"></div>
+
+<div id="profile-hero">
+  <div id="storefront-header" class="hidden">
+    <img id="header-img" alt="" />
+    <div id="header-scrim"></div>
+  </div>
+
+  <!-- Desktop-only — floats over the hero, its original position. Mobile
+       uses the icons already in #site-header-bar above instead. -->
+  <header id="site-header-desktop">
+    <button class="circle-btn" id="share-btn" aria-label="Share">
+      <svg width="16" height="19" viewBox="0 0 17 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8.5 1V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M4.5 5L8.5 1L12.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M1.5 9V17.5C1.5 18.3284 2.17157 19 3 19H14C14.8284 19 15.5 18.3284 15.5 17.5V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="circle-btn" id="desktop-cart-btn" style="width:auto; padding:0 16px; border-radius:9999px;">
+      <span id="desktop-cart-label">Cart</span>
+    </button>
+  </header>
+
+  <section id="profile-block">
+    <div class="avatar" id="pb-avatar"><span id="pb-avatar-letter"></span></div>
+    <div id="shop-name"></div>
+    <div id="shop-meta" class="hidden"><span id="shop-meta-text"></span></div>
+    <div id="shop-bio" class="hidden"></div>
+    <div id="social-icons" class="hidden"></div>
+  </section>
+</div>
+
+<h2 id="feed-heading" class="section-band-heading hidden">Menu</h2>
+
+<div id="filter-strip">
+  <div id="filter-bar" class="hidden"></div>
+</div>
+
+<section id="feed" class="section-band">
+  <div id="product-grid" class="product-grid"></div>
+</section>
+
+<!-- Ships to You (physical goods) renders directly under the Menu grid and
+     ABOVE Digital Downloads — shippable products are judged by their photo
+     like the Menu is and belong with it, ahead of the digital file list;
+     this also matches the section-nav order (see shopNavTabs). Fully
+     JS-populated (see renderPhysicalFeed) — one .category-block (heading +
+     .product-grid) per distinct category among physical listings, rather
+     than one flat list, since "ships to you" spans genuinely different
+     product types (cookie cutters vs. printable labels vs. kits). -->
+<section id="physical-feed" class="hidden"></section>
+
+<section id="digital-feed" class="section-band hidden">
+  <h2 id="digital-feed-heading">Digital Downloads</h2>
+  <div id="digital-grid"></div>
+</section>
+
+<!-- Links sits ahead of About, right after Menu/Ships to You/Digital
+     Downloads — a baker selling nothing yet is very often running this page as a
+     linktree, so whichever of those sections the baker actually has becomes
+     the first thing shown (each one already self-hides when empty — see
+     updateFeedVisibility/renderDigitalFeed/renderPhysicalFeed/
+     renderLinkSections), with About always coming after. -->
+<section id="links-feed" class="section-band hidden"></section>
+
+<section id="pb-about" class="section-band hidden">
+  <h2 id="pb-about-heading">About</h2>
+  <div class="profile-about-inner">
+    <img id="pb-about-portrait" class="about-portrait" alt="" />
+    <p id="pb-about-text"></p>
+  </div>
+</section>
+
+<section id="faq-col" class="section-band hidden">
+  <h2>FAQ</h2>
+  <div id="faq-list"></div>
+</section>
+
+<section id="pb-policies" class="section-band hidden">
+  <h2>Store Policies</h2>
+  <p id="pb-policies-text"></p>
+</section>
+
+<section id="hours-card" class="section-band hidden">
+  <h2>Store Hours</h2>
+  <div id="hours-rows"></div>
+</section>
+
+<footer id="site-footer">
+  <div id="footer-contact" class="hidden"></div>
+  <div id="footer-credit">
+    <span id="footer-copy"></span> · <a href="https://bakeriapp.com">bakeriapp.com</a> · <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
+  </div>
+</footer>
+
+</div><!-- /page-shell -->
+
+<div id="action-bar">
+  <!-- One banner for the whole cart, regardless of how many different
+       fulfillment types (pickup/preorder, digital, ships-to-you) are mixed
+       in it — a buyer shouldn't have to parse three stacked pills just
+       because the storefront's own plumbing tracks those separately. See
+       updateCartActionBar(). -->
+  <button id="action-bar-cart">
+    <div class="l">
+      <div class="t">View Cart</div>
+    </div>
+    <div class="r tabular" id="cart-bar-total"></div>
+  </button>
+</div>
+
+<!-- Item detail sheet -->
+<div class="scrim" id="item-scrim">
+  <div class="sheet" id="item-sheet">
+    <div id="item-sheet-inner">
+      <div id="item-sheet-photo">
+        <div class="ph-fallback" id="item-sheet-ph" style="position:absolute;inset:0;"></div>
+        <img id="item-sheet-img" alt="" />
+        <div class="p-badge" id="item-sheet-badge" style="top:12px;left:12px;"></div>
+        <button class="sheet-close" id="item-sheet-close">✕</button>
+      </div>
+      <div id="item-sheet-body">
+        <div id="item-sheet-fixed">
+          <div id="item-sheet-name"></div>
+          <div id="item-sheet-price" class="tabular"></div>
+          <div id="item-sheet-box" style="display:none;"></div>
+          <button class="btn btn-primary" id="item-sheet-cta"></button>
+        </div>
+        <div id="item-sheet-scroll">
+          <div id="item-sheet-desc"></div>
+          <button type="button" id="item-sheet-desc-toggle">Read more</button>
+          <div class="spec-list" id="item-sheet-specs"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cart / checkout sheet -->
+<div class="scrim" id="cart-scrim">
+  <div class="sheet" id="cart-sheet">
+    <div style="position:relative;">
+      <button class="sheet-close" id="cart-sheet-close">✕</button>
+    </div>
+    <div id="cart-sheet-body"></div>
+  </div>
+</div>
+
+<!-- Full-description popup — tapping a clamped description opens this
+     instead of expanding inline, so reading it never means scrolling the
+     item sheet itself. -->
+<div class="scrim" id="desc-scrim">
+  <div class="sheet" id="desc-sheet">
+    <div style="position:relative;">
+      <button class="sheet-close" id="desc-sheet-close">✕</button>
+    </div>
+    <div id="desc-sheet-body"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
+  const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const STORAGE_URL  = SUPABASE_URL + '/storage/v1/object/public';
+
+  // ── DESIGN LAB guard ── (baker-lab only)
+  // Every navigation away from this page to a real checkout / order flow
+  // goes through here; in the lab it's blocked so testing against a live
+  // baker can't create an order. In baker/index.html these call sites are
+  // plain `window.location.href = <url>`.
+  const LAB = true;
+  function labGo(url) {
+    console.warn('[LAB] navigation blocked (checkout/order disabled in lab):', url);
+    if (typeof showToast === 'function') showToast('Lab mode — checkout is disabled');
+    else alert('Lab mode — checkout is disabled.\n\n' + url);
+  }
+
+  const params  = new URLSearchParams(window.location.search);
+  // LAB: fall back to a real test baker instead of erroring when no ?slug=
+  const slug    = (params.get('slug') || 'cookiesbysteph').trim().toLowerCase();
+  const bakerID = (params.get('id')   || '').trim();
+  const isCleanRedirect = params.get('clean') === '1';
+
+  const WEEKDAY_LABELS = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+  const WEEKDAY_ORDER  = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+  // pickup_hours_json stores open/close as 24h "HH:mm" (see PickupHours.swift)
+  // — convert to standard 12h "h:mm AM/PM" for display.
+  function formatTime12h(hhmm) {
+    const parts = (hhmm || '').split(':');
+    const h24 = parseInt(parts[0], 10);
+    const min = parts[1] || '00';
+    if (isNaN(h24)) return hhmm;
+    const period = h24 >= 12 ? 'PM' : 'AM';
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    return h12 + ':' + min + ' ' + period;
+  }
+  const FILTERS = [
+    { key: 'all',     label: 'All' },
+    { key: 'now',     label: 'Ready Now' },
+    { key: 'pre',     label: 'Pre-order' },
+    { key: 'custom',  label: 'Custom' }
+  ];
+
+  let profile = null;
+  let allListings = [];
+  let allLinks = [];
+  let resolvedBakerId = bakerID;
+  let tab = 'all';
+  let cart = {}; // { itemId: qty } — ready_now items only; preorder always uses preorderCartLines below
+  let boxCartLines = []; // Assorted Box lines: { lineId, menuItemId, tierId, tierLabel, unitCount, price, qty, variants: [{variantId, name, qty}] }
+  let boxState = null; // in-progress box picker: { item, tierId, chosen: {variantId: qty} }
+  // Preorder lines: { lineId, menuItemId, chosenISO, qty }. A separate line per
+  // distinct (item, chosenISO) pair — a buyer choosing 3 different pickup
+  // dates for the same item is 3 separate lines, not one line with a
+  // silently-overwritten date (chosenISO is null for weekday/lead_time modes
+  // and for fixed_dates-with-1-date, where every add always resolves to the
+  // same deterministic date anyway, so repeat adds correctly bump one line's qty).
+  let preorderCartLines = [];
+  let preorderState = null; // in-progress preorder date picker: { item, chosenISO }
+  let cartStep = 0; // 0 order, 1 customer info, 2 confirmed
+  let toastTimer = null;
+  // Digital Downloads and each Ships to You category show a preview of this
+  // many items, then a "View all N" tap that expands the rest inline (and a
+  // "Show fewer" to re-collapse). Only kicks in past the preview count — a
+  // short list doesn't need hiding. The Menu is deliberately NOT capped:
+  // every ready_now/preorder/custom listing always shows in full.
+  // See renderDigitalFeed / renderPhysicalFeed.
+  const DIGITAL_PREVIEW_COUNT = 6;
+  const PHYSICAL_PREVIEW_COUNT = 6;
+  let digitalExpanded = false;
+  let physicalExpanded = {}; // { [categorySlug]: true } once "View all" tapped
+  // Digital downloads have their own tiny cart — just a set of item ids
+  // (qty is always 1, no dates/tiers/variants to track) — kept separate
+  // from the pickup cart above since it can check out on its own straight
+  // to digital-checkout.html, or combine with the pickup cart into one
+  // mixed checkout.html flow when both have items (see goToCheckout).
+  let digitalCart = [];
+  // Ships (physical) items also get their own small cart, same reasoning as
+  // digitalCart above (checks out independently, or chains into the pickup
+  // checkout when mixed — see goToCheckout) — but unlike digital these are
+  // stock-bound, so it's a { itemId: qty } map rather than a bare id list.
+  let shipCart = {};
+  // Digital/physical items with listing_variants (a picked size/option, its
+  // own price and — physical only — its own stock) can't fit shipCart's
+  // flat { itemId: qty } map or digitalCart's bare-id list, since the same
+  // base item can appear more than once with different options chosen.
+  // Kept as their own line arrays, same pattern as boxCartLines above.
+  let shipVariantCartLines = [];    // { lineId, menuItemId, variantId, variantLabel, price, qty }
+  let digitalVariantCartLines = []; // { lineId, menuItemId, variantId, variantLabel, price }
+  let variantState = null; // in-progress listing-variant picker: { item, variantId }
+  // Direct checkout (ready_now / preorder) needs the baker's Stripe Connect
+  // payout wired up; custom-quote inquiries don't touch payment at intake
+  // time (submit-custom-order-inquiry lands a pending_quote lead), so those
+  // stay open even before onboarding finishes.
+  let stripeReady = false;
+
+  // ── Cart persistence — keyed per baker so a visitor's cart from one
+  // storefront never bleeds into another's. ──
+  function cartStorageKey() { return 'bakeri_cart_' + resolvedBakerId; }
+  function loadCart() {
+    try {
+      const raw = JSON.parse(sessionStorage.getItem(cartStorageKey()) || '{}');
+      // Backward compatible with sessions saved before Assorted Box shipped,
+      // when this key held the flat { itemId: qty } map directly, and with
+      // sessions saved before per-date preorder lines shipped, when a
+      // preorder's date lived in a flat { itemId: isoString } map (raw.preorderDates)
+      // instead of preorderCartLines — that old shape is simply dropped, since
+      // sessionStorage is ephemeral and re-picking a date is a one-click fix.
+      if (raw && (raw.cart || raw.boxLines || raw.preorderLines || raw.preorderDates)) {
+        cart = raw.cart || {};
+        boxCartLines = raw.boxLines || [];
+        preorderCartLines = raw.preorderLines || [];
+        digitalCart = raw.digitalCart || [];
+        shipCart = raw.shipCart || {};
+        shipVariantCartLines = raw.shipVariantLines || [];
+        digitalVariantCartLines = raw.digitalVariantLines || [];
+      } else {
+        cart = raw || {};
+        boxCartLines = [];
+        preorderCartLines = [];
+        digitalCart = [];
+        shipCart = {};
+        shipVariantCartLines = [];
+        digitalVariantCartLines = [];
+      }
+    } catch (e) {
+      cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = []; shipCart = {};
+      shipVariantCartLines = []; digitalVariantCartLines = [];
+    }
+  }
+  function saveCart() {
+    try {
+      sessionStorage.setItem(cartStorageKey(), JSON.stringify({
+        cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines,
+        digitalCart: digitalCart, shipCart: shipCart,
+        shipVariantLines: shipVariantCartLines, digitalVariantLines: digitalVariantCartLines
+      }));
+    } catch (e) {}
+  }
+
+  if (!slug && !bakerID) {
+    showNotFound('No baker specified', 'This link appears to be invalid.');
+    return;
+  }
+
+  const rpcName = slug ? 'get_baker_web_profile_by_slug' : 'get_baker_web_profile_by_id';
+  const rpcBody = slug ? { p_slug: slug } : { p_user_id: bakerID };
+
+  fetch(SUPABASE_URL + '/rest/v1/rpc/' + rpcName, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+    body: JSON.stringify(rpcBody)
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    if (!data || !data.profile) { showNotFound('Baker not found', 'No baker found at this link.'); return; }
+    profile = data.profile;
+    resolvedBakerId = profile.id;
+    // LAB: name the baker whose live data is on screen
+    try {
+      var _lr = document.getElementById('lab-ribbon-sub');
+      if (_lr) _lr.textContent = ' — live data: ' + (profile.business_name || slug);
+    } catch (e) {}
+    loadCart();
+    // LAB: ?theme= / ?pattern= force a specific look regardless of what the
+    // baker has set — for visualising the storefront across the 13 themes
+    // and 5 patterns. e.g. ?slug=cookiesbysteph&theme=Sprinkle&pattern=Polka%20Dot
+    var themeOverride = params.get('theme');
+    var patternOverride = params.get('pattern');
+    if (themeOverride) profile.selected_theme = themeOverride;
+    if (patternOverride) profile.background_pattern = patternOverride;
+    if (window.BakeriTheme) window.BakeriTheme.apply(profile);
+    render(profile, data.listings || [], data.faqs || [], data.links || []);
+    if (isCleanRedirect && slug && window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', '/' + slug);
+    }
+  })
+  .catch(function () { showNotFound('Something went wrong', 'Could not load this profile. Try again later.'); });
+
+  // ══════════════════════ Render ══════════════════════
+
+  // Auto-generated from the baker's own shipping settings — no freeform
+  // banner-text field exists, this always just reflects whatever's
+  // actually configured (see WebShopShippingSheet), so it can never go
+  // stale relative to the real checkout math. Silent for the common case
+  // (no threshold set, or no physical listings at all); only mentions the
+  // additional-item percentage once it's not the no-op 100% default.
+  function updateAnnouncementBanner(profile, listings) {
+    const banner = document.getElementById('announcement-banner');
+    if (!banner) return;
+    const threshold = profile.shipping_free_over_threshold || 0;
+    const hasPhysical = listings.some(function (l) { return l.listing_kind === 'physical'; });
+    if (threshold <= 0 || !hasPhysical) {
+      banner.classList.add('hidden');
+      banner.textContent = '';
+      return;
+    }
+    let text = 'Free shipping over $' + threshold.toFixed(2);
+    const percent = profile.shipping_additional_item_percent;
+    if (percent != null && percent < 100 && percent > 0) {
+      text += ' · ' + Math.round(100 - percent) + '% off shipping on extra items';
+    } else if (percent === 0) {
+      text += ' · Free shipping on every extra item';
+    }
+    banner.textContent = text;
+    banner.classList.remove('hidden');
+  }
+
+  function render(profile, listings, faqs, links) {
+    // A custom listing with no intake form attached has no working way to
+    // actually collect a request — customOrderURL would build a link with
+    // an empty &form= param, which custom-order.html correctly rejects as
+    // invalid. Rather than publish a card that leads to a dead end, treat
+    // it the same as any other not-actually-ready-to-show content (see the
+    // Menu-section-hides-when-empty rule) and just leave it out entirely
+    // until the baker finishes setting it up.
+    allListings = listings.filter(function (l) { return l.listing_kind !== 'custom' || l.intake_form_id; });
+    allLinks = links;
+    updateAnnouncementBanner(profile, listings);
+    const name = profile.business_name || profile.user_name || 'Baker';
+    const location = profile.neighbourhood
+      ? [profile.neighbourhood, profile.pickup_province].filter(Boolean).join(', ')
+      : [profile.pickup_city, profile.pickup_province].filter(Boolean).join(', ') || profile.location || '';
+
+    document.title = 'LAB · ' + name;
+    document.querySelector('meta[name="description"]').content = name + ' — handcrafted bakes on Bakeri. ' + (profile.bio || '');
+
+    stripeReady = profile.stripe_connect_onboarding_complete === true;
+
+    renderAvatar(name);
+    renderHeaderImage(name);
+
+    document.getElementById('shop-name').textContent = name;
+    if (location) {
+      document.getElementById('shop-meta-text').textContent = location;
+      document.getElementById('shop-meta').classList.remove('hidden');
+    }
+
+    if (profile.bio) {
+      document.getElementById('shop-bio').textContent = profile.bio;
+      document.getElementById('shop-bio').classList.remove('hidden');
+    }
+    renderSocialIcons();
+
+    renderHours(profile.pickup_hours_json);
+    renderAboutAndPolicies(profile, name);
+    renderFAQ(faqs);
+    renderDigitalFeed();
+    renderPhysicalFeed();
+    renderLinkSections();
+    renderFooter(profile, name);
+
+    document.getElementById('share-btn').addEventListener('click', shareLink);
+    document.getElementById('share-btn-mobile').addEventListener('click', shareLink);
+    document.getElementById('mobile-menu-btn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      document.getElementById('mobile-nav-drawer').classList.toggle('hidden');
+    });
+    // Closes the mobile nav drawer on any click outside it — wired once
+    // here rather than inside renderSectionNav, since the drawer's
+    // contents get rebuilt on every render but this document-level
+    // listener only ever needs to exist a single time.
+    document.addEventListener('click', function (e) {
+      const drawer = document.getElementById('mobile-nav-drawer');
+      if (!drawer.classList.contains('hidden') && !drawer.contains(e.target)) {
+        closeMobileNav();
+      }
+    });
+
+    updateFeedVisibility();
+    renderFilterBar();
+    renderGrid();
+    renderSectionNav();
+    updateCartUI();
+    updateDigitalCartUI();
+    updateShipCartUI();
+
+    document.getElementById('cart-btn').addEventListener('click', openCartSheet);
+    document.getElementById('desktop-cart-btn').addEventListener('click', openCartSheet);
+    document.getElementById('action-bar-cart').addEventListener('click', openCartSheet);
+    document.getElementById('item-sheet-close').addEventListener('click', closeItemSheet);
+    document.getElementById('cart-sheet-close').addEventListener('click', closeCartSheet);
+    document.getElementById('desc-sheet-close').addEventListener('click', closeDescSheet);
+    document.getElementById('item-scrim').addEventListener('click', function (e) { if (e.target === this) closeItemSheet(); });
+    document.getElementById('cart-scrim').addEventListener('click', function (e) { if (e.target === this) closeCartSheet(); });
+    document.getElementById('desc-scrim').addEventListener('click', function (e) { if (e.target === this) closeDescSheet(); });
+  }
+
+  function renderAvatar(name) {
+    const logoURL = STORAGE_URL + '/business-logos/' + resolvedBakerId.toUpperCase() + '/logo.jpg';
+    const initial = name.charAt(0).toUpperCase();
+    const el = document.getElementById('pb-avatar');
+    const letterEl = document.getElementById('pb-avatar-letter');
+    letterEl.textContent = initial;
+    const img = document.createElement('img');
+    img.alt = name;
+    img.onload = function () { img.style.display = 'block'; letterEl.style.display = 'none'; };
+    img.src = logoURL;
+    el.appendChild(img);
+  }
+
+  // Falls back to the plain gradient already set on #storefront-header if
+  // the baker hasn't uploaded one — same onerror-hide convention as the
+  // about-portrait image. No banner uploaded → the whole layer collapses
+  // (display:none) and .has-photo comes off #profile-hero, so name/meta/bio
+  // fall back to their plain dark-ink colors instead of the light-over-photo
+  // treatment.
+  function renderHeaderImage(name) {
+    const hero = document.getElementById('profile-hero');
+    const header = document.getElementById('storefront-header');
+    const img = document.getElementById('header-img');
+    img.alt = name;
+    img.onerror = function () { header.classList.add('hidden'); hero.classList.remove('has-photo'); };
+    img.onload = function () { header.classList.remove('hidden'); img.style.display = 'block'; hero.classList.add('has-photo'); };
+    img.src = STORAGE_URL + '/storefront-headers/' + resolvedBakerId.toUpperCase() + '/header.jpg';
+  }
+
+  // Only renders if the baker has actually configured hours in the app (the
+  // Pickup & Hours editor) — an untouched profile has an empty object, and
+  // showing a fake "closed every day" table would be worse than showing
+  // nothing at all.
+  // The native "Pickup & Hours" editor always encodes all 7 days (every
+  // unedited day defaults to closed:true) — so a key merely existing
+  // doesn't mean the baker actually set anything. Only treat this as
+  // "configured" once at least one day is explicitly marked open.
+  function hasConfiguredHours(hoursJSON) {
+    return !!(hoursJSON && WEEKDAY_ORDER.some(function (k) { return hoursJSON[k] && hoursJSON[k].closed === false; }));
+  }
+
+  function renderHours(hoursJSON) {
+    const hasHours = hasConfiguredHours(hoursJSON);
+    if (!hasHours) {
+      document.getElementById('hours-card').classList.add('hidden');
+      return;
+    }
+    document.getElementById('hours-card').classList.remove('hidden');
+    const rowsHTML = WEEKDAY_ORDER.map(function (key) {
+      const day = hoursJSON[key];
+      const label = WEEKDAY_LABELS[key];
+      const time = (!day || day.closed) ? 'Closed' : (formatTime12h(day.open) + '–' + formatTime12h(day.close));
+      return '<div class="row"><span class="day">' + label + '</span><span class="time">' + time + '</span></div>';
+    }).join('');
+    document.getElementById('hours-rows').innerHTML = rowsHTML;
+    // A link back up to the one place hours actually live, not a second
+    // copy of the same data.
+    const footerContact = document.getElementById('footer-contact');
+    footerContact.innerHTML = '<a href="#hours-card">See pickup hours ↑</a>';
+    footerContact.classList.remove('hidden');
+  }
+
+  // About + Store Policies are now independent top-level sections (each
+  // self-hides on its own — no shared wrapper to keep in sync anymore). The
+  // heading is baker-editable (about_heading, e.g. "Meet Juliana") since the
+  // story is often about the person, not the bakery brand — falls back to a
+  // plain "About" if unset. Never derived from business_name/name; the nav
+  // tab (scrollTabs, below) always just says "About" regardless of this
+  // heading.
+  function renderAboutAndPolicies(profile, name) {
+    if (profile.about_story) {
+      document.getElementById('pb-about').classList.remove('hidden');
+      document.getElementById('pb-about-heading').textContent = profile.about_heading || 'About the Baker';
+      document.getElementById('pb-about-text').textContent = profile.about_story;
+      const img = document.getElementById('pb-about-portrait');
+      img.alt = name;
+      img.onerror = function () { img.style.display = 'none'; };
+      img.src = STORAGE_URL + '/baker-portraits/' + resolvedBakerId.toUpperCase() + '/portrait.jpg';
+    }
+    if (profile.store_policies) {
+      document.getElementById('pb-policies').classList.remove('hidden');
+      document.getElementById('pb-policies-text').textContent = profile.store_policies;
+    }
+  }
+
+  function renderFAQ(faqs) {
+    if (!faqs || faqs.length === 0) {
+      document.getElementById('faq-col').classList.add('hidden');
+      return;
+    }
+    document.getElementById('faq-col').classList.remove('hidden');
+    const list = document.getElementById('faq-list');
+    list.innerHTML = '';
+    faqs.forEach(function (faq, i) {
+      const row = document.createElement('div');
+      row.className = 'faq-row' + (i === 0 ? ' open' : '');
+      row.innerHTML =
+        '<button class="faq-q"><span>' + escapeHtml(faq.question) + '</span><span class="ind">' + (i === 0 ? '−' : '+') + '</span></button>' +
+        '<div class="faq-a"><p>' + escapeHtml(faq.answer) + '</p></div>';
+      // Independent per row — opening one doesn't close the others.
+      row.querySelector('.faq-q').addEventListener('click', function () {
+        const willOpen = !row.classList.contains('open');
+        row.classList.toggle('open', willOpen);
+        row.querySelector('.ind').textContent = willOpen ? '−' : '+';
+      });
+      list.appendChild(row);
+    });
+  }
+
+  function renderFooter(profile, name) {
+    document.getElementById('footer-copy').textContent = '© ' + new Date().getFullYear() + ' ' + name;
+  }
+
+  // ══════════════════════ Section Nav (Menu / Links / etc.) ═════════════
+  // Only "Menu" is ever a swappable tab (Ready-Now/Pre-order/Custom chips
+  // live one level deeper, inside it). Everything else — Digital Downloads,
+  // About, Store Policies, Store Hours, each baker_links section — is
+  // always-visible body content further down the page, with a scroll-to
+  // shortcut in the nav instead of a tab that hides it until clicked.
+  // Nav order and page order are kept identical on purpose (see
+  // scrollTabs()): a visitor should never have to guess that a nav item
+  // leads to content that isn't otherwise reachable by scrolling.
+
+  function menuListings() { return allListings.filter(function (l) { return l.listing_kind !== 'digital' && l.listing_kind !== 'physical'; }); }
+  function digitalListings() { return allListings.filter(function (l) { return l.listing_kind === 'digital'; }); }
+  function physicalListings() { return allListings.filter(function (l) { return l.listing_kind === 'physical'; }); }
+
+  // ── Category grouping (physical items only, for now) ──────────────────
+  // category is free text a baker types/picks in the app — never trusted to
+  // already be display-ready casing, and never assumed to be one of a fixed
+  // set, so this groups on the raw string but only ever *displays* the
+  // title-cased version.
+  function slugify(str) {
+    return (str || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'other';
+  }
+  function titleCase(str) {
+    return (str || '').toLowerCase().replace(/\b([a-z])/g, function (m, c) { return c.toUpperCase(); });
+  }
+  // Returns [{ category, slug, items }], sorted alphabetically by category —
+  // same convention the app's own MenuView already groups listings by.
+  function groupByCategory(items, fallbackName) {
+    const map = {};
+    items.forEach(function (item) {
+      const cat = (item.category || '').trim() || fallbackName;
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(item);
+    });
+    return Object.keys(map).sort(function (a, b) { return a.localeCompare(b); })
+      .map(function (cat) { return { category: cat, slug: slugify(cat), items: map[cat] }; });
+  }
+
+  function linkSections() {
+    const seen = [];
+    allLinks.forEach(function (l) {
+      if (l.section && seen.indexOf(l.section) === -1) seen.push(l.section);
+    });
+    return seen;
+  }
+
+  // A baker_links section literally named "Social" gets pulled out of the
+  // ordinary rectangular link-row treatment entirely — those render as small
+  // round platform icons up in the hero instead (see renderSocialIcons),
+  // same convention any social-in-bio page uses. Any other section (Amazon
+  // Faves, Recipes, whatever) still renders as a normal link-row list
+  // further down.
+  function isSocialSection(section) { return (section || '').trim().toLowerCase() === 'social'; }
+  // Every non-social link renders under one "My Links" heading regardless
+  // of its actual stored `section` value — older rows saved before this
+  // convention (e.g. a baker's own "Amazon Storefront") would otherwise
+  // still surface as their own separate nav heading forever, since nothing
+  // ever rewrites old data. Collapsing at render time fixes existing bakers
+  // immediately, not just links saved going forward.
+  function bodyLinkSections() { return linkSections().some(function (s) { return !isSocialSection(s); }) ? ['My Links'] : []; }
+
+  function linkSectionId(section) {
+    return 'link-section-' + (section || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  // Every "shoppable" section is now its own flat nav pill, in a fixed
+  // order: Menu (baked goods) first, then each general-goods (physical)
+  // category — same grid display as Menu — then Digital Downloads last,
+  // still its linear row list. Previously these collapsed into one "Shop"
+  // dropdown to keep the bar short; unpacked back into individual pills
+  // per the baker's request, since a wrapping nav (see #section-nav's
+  // flex-wrap) handles any number of categories fine without a dropdown.
+  function shopNavTabs() {
+    const tabs = [];
+    if (menuListings().length > 0) tabs.push({ id: 'feed-heading', label: 'Menu' });
+    groupByCategory(physicalListings(), 'Ships to You').forEach(function (g) {
+      tabs.push({ id: 'physical-cat-' + g.slug, label: titleCase(g.category) });
+    });
+    if (digitalListings().length > 0) tabs.push({ id: 'digital-feed', label: 'Digital Downloads' });
+    return tabs;
+  }
+
+  // Non-shoppable sections, in the requested order: My Links, then About,
+  // Hours, Policies — each only if the baker actually filled it in.
+  function otherNavTabs() {
+    const tabs = [];
+    bodyLinkSections().forEach(function (s) {
+      tabs.push({ id: linkSectionId(s), label: s });
+    });
+    // Label is always the plain section name, never the baker-editable
+    // about_heading — the nav is a fixed set of destinations, not a place
+    // for a custom, possibly-long "Meet Juliana"-style heading to show up.
+    if (profile && profile.about_story) {
+      tabs.push({ id: 'pb-about', label: 'About' });
+    }
+    if (hasConfiguredHours(profile && profile.pickup_hours_json)) {
+      tabs.push({ id: 'hours-card', label: 'Store Hours' });
+    }
+    if (profile && profile.store_policies) {
+      tabs.push({ id: 'pb-policies', label: 'Store Policies' });
+    }
+    return tabs;
+  }
+
+  function scrollToSection(id) {
+    const target = document.getElementById(id);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function closeMobileNav() {
+    document.getElementById('mobile-nav-drawer').classList.add('hidden');
+  }
+
+  // The section/category names are the nav — no separate icon per entry, no
+  // duplicate heading text anywhere else. Renders the same tab list twice:
+  // inline pills for the desktop bar (#section-nav) and a stacked list for
+  // the mobile drawer (#mobile-nav-drawer) — one click handler per tab,
+  // shared between both.
+  function renderSectionNav() {
+    const tabs = shopNavTabs().concat(otherNavTabs());
+    const nav = document.getElementById('section-nav');
+    const drawer = document.getElementById('mobile-nav-drawer');
+    // Nothing to navigate to at all — a brand-new baker with no listings and
+    // no other section filled out yet. Hide the desktop nav slot and the
+    // mobile hamburger button rather than show either with nothing in it.
+    document.getElementById('section-nav-wrap').classList.toggle('hidden', tabs.length === 0);
+    document.getElementById('mobile-menu-btn').classList.toggle('hidden', tabs.length === 0);
+    nav.innerHTML = '';
+    drawer.innerHTML = '';
+    tabs.forEach(function (t) {
+      const btn = document.createElement('button');
+      btn.className = 'section-tab';
+      btn.textContent = t.label;
+      btn.addEventListener('click', function () { scrollToSection(t.id); });
+      nav.appendChild(btn);
+
+      const drawerBtn = document.createElement('button');
+      drawerBtn.className = 'mobile-nav-item';
+      drawerBtn.textContent = t.label;
+      drawerBtn.addEventListener('click', function () { closeMobileNav(); scrollToSection(t.id); });
+      drawer.appendChild(drawerBtn);
+    });
+  }
+
+  // Always-visible — every non-Social link section renders at once, each in
+  // its own labeled block, instead of one section swapped in at a time
+  // behind a nav click. Independent no-op if the baker has no links at all.
+  // Social itself is excluded here — see renderSocialIcons.
+  function renderLinkSections() {
+    const wrap = document.getElementById('links-feed');
+    const sections = bodyLinkSections();
+    if (sections.length === 0) {
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = sections.map(function (s) {
+      // s is always the single collapsed "My Links" bucket now (see
+      // bodyLinkSections) — grab every non-social link regardless of its
+      // actual stored section, not just ones literally tagged "My Links".
+      const items = allLinks.filter(function (l) { return !isSocialSection(l.section); });
+      // No heading text here — the "My Links" nav tab already labels this
+      // section, and a repeated in-body heading was redundant.
+      return '<div class="link-section" id="' + linkSectionId(s) + '">' +
+        '<div class="link-list">' + items.map(function (l) {
+          return '<a class="link-row" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener noreferrer">' +
+            '<span class="circle">🔗</span>' +
+            '<span class="label">' + escapeHtml(l.label) + '</span>' +
+            '<span class="arrow">→</span>' +
+          '</a>';
+        }).join('') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // Guesses the platform from the URL's hostname to pick each icon — the
+  // baker only ever enters a plain URL (same "Social" section as any other
+  // link), there's no separate platform field to key off of. Icon files are
+  // cropped from assets/social/*.png (the baker's own downloaded icon set —
+  // see assets/social/README.txt). Unrecognized hosts still render, just
+  // with a generic glyph instead of a missing image, so an unusual link
+  // never silently disappears.
+  function socialPlatform(url) {
+    let host = '';
+    try { host = new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch (e) { /* leave blank → generic */ }
+    if (host.indexOf('instagram') !== -1) return { label: 'Instagram', icon: 'instagram' };
+    if (host.indexOf('tiktok') !== -1) return { label: 'TikTok', icon: 'tiktok' };
+    if (host.indexOf('facebook') !== -1) return { label: 'Facebook', icon: 'facebook' };
+    if (host === 'x.com' || host.indexOf('twitter') !== -1) return { label: 'X', icon: 'x' };
+    if (host.indexOf('pinterest') !== -1) return { label: 'Pinterest', icon: 'pinterest' };
+    if (host.indexOf('linkedin') !== -1) return { label: 'LinkedIn', icon: 'linkedin' };
+    if (host.indexOf('whatsapp') !== -1 || host === 'wa.me') return { label: 'WhatsApp', icon: 'whatsapp' };
+    return { label: 'Link', icon: null };
+  }
+
+  // Small round icons in the hero, not rows in the body — the visual
+  // convention every social-in-bio page uses for actual social accounts,
+  // distinct from a plain link list (Amazon Faves, Recipes, etc., which
+  // stay as link-rows further down — see renderLinkSections).
+  function renderSocialIcons() {
+    const wrap = document.getElementById('social-icons');
+    const items = allLinks.filter(function (l) { return isSocialSection(l.section); });
+    if (items.length === 0) {
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = items.map(function (l) {
+      const platform = socialPlatform(l.url);
+      // The icon PNG is used as a mask (see .social-icon-mask), not a plain
+      // <img> — that's what lets the theme's accent color paint the circle
+      // itself instead of just sitting behind a fixed-black raster image.
+      const inner = platform.icon
+        ? '<span class="social-icon-mask" style="-webkit-mask-image:url(../assets/social/' + platform.icon + '.png);mask-image:url(../assets/social/' + platform.icon + '.png)"></span>'
+        : '<span class="social-icon-fallback">🔗</span>';
+      return '<a class="social-icon" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener noreferrer" ' +
+        'title="' + escapeHtml(platform.label) + '" aria-label="' + escapeHtml(platform.label) + '">' +
+        inner + '</a>';
+    }).join('');
+  }
+
+  // ══════════════════════ Filter / Feed (within Menu) ══════════════════
+
+  function listingsForTab(t) {
+    if (t === 'all') return menuListings();
+    const kind = t === 'now' ? 'ready_now' : (t === 'pre' ? 'preorder' : 'custom');
+    return menuListings().filter(function (l) { return l.listing_kind === kind; });
+  }
+
+  // Only a category with at least one item gets a chip — "All" is never
+  // empty as long as the Menu section itself is showing at all, so it's
+  // exempt from the check.
+  function availableFilters() {
+    return FILTERS.filter(function (f) { return f.key === 'all' || listingsForTab(f.key).length > 0; });
+  }
+
+  // The filter bar only earns its place once it can actually split
+  // something — a single-category menu (e.g. one custom-order item) would
+  // otherwise show "All / Custom" chips that filter to the exact same
+  // grid either way. Hide the whole bar and just list the grid in that case.
+  function renderFilterBar() {
+    const strip = document.getElementById('filter-strip');
+    const bar = document.getElementById('filter-bar');
+    const distinctKinds = new Set(menuListings().map(function (l) { return l.listing_kind; }));
+    if (menuListings().length === 0 || distinctKinds.size <= 1) {
+      strip.classList.add('hidden');
+      bar.classList.add('hidden');
+      tab = 'all';
+      return;
+    }
+    strip.classList.remove('hidden');
+    bar.classList.remove('hidden');
+    bar.innerHTML = availableFilters().map(function (f) {
+      return '<button class="filter-chip' + (f.key === tab ? ' active' : '') + '" data-tab="' + f.key + '">' + f.label + '</button>';
+    }).join('');
+    bar.querySelectorAll('.filter-chip').forEach(function (btn) {
+      btn.addEventListener('click', function () { setTab(btn.dataset.tab); });
+    });
+  }
+
+  function setTab(t) {
+    tab = t;
+    document.querySelectorAll('.filter-chip').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === t); });
+    renderGrid();
+  }
+
+  // The Menu section (nav entry, filter bar, and this grid) only ever
+  // renders when the baker actually has at least one ready_now/preorder/
+  // custom listing — see updateFeedVisibility. availableFilters() only ever
+  // offers a category that has items, so listings here should never
+  // legitimately come back empty; the message is a defensive fallback only.
+  function renderGrid() {
+    const grid = document.getElementById('product-grid');
+    const listings = listingsForTab(tab);
+    if (listings.length === 0) {
+      grid.innerHTML = '<div class="empty-state">No items in this category.</div>';
+      return;
+    }
+    grid.innerHTML = '';
+    listings.forEach(function (item) {
+      grid.appendChild(buildCard(item));
+    });
+  }
+
+  // Hides the whole Menu section — nav entry, filter bar, and grid — when
+  // the baker has no ready_now/preorder/custom listings, per "only show
+  // what the baker has actually made available." Digital Downloads is a
+  // fully separate section (see renderDigitalFeed) so it's unaffected.
+  function updateFeedVisibility() {
+    const noMenu = menuListings().length === 0;
+    document.getElementById('feed').classList.toggle('hidden', noMenu);
+    document.getElementById('feed-heading').classList.toggle('hidden', noMenu);
+  }
+
+  // Always-visible, below the Menu grid and the Ships to You blocks —
+  // matches how Links/About/Policies/Hours already behave (see
+  // renderLinkSections), instead of hiding digital items behind a
+  // swappable tab a visitor has to discover.
+  function renderDigitalFeed() {
+    const section = document.getElementById('digital-feed');
+    const grid = document.getElementById('digital-grid');
+    const items = digitalListings();
+    if (items.length === 0) {
+      section.classList.add('hidden');
+      grid.innerHTML = '';
+      return;
+    }
+    section.classList.remove('hidden');
+    grid.innerHTML = '';
+
+    const collapsible = items.length > DIGITAL_PREVIEW_COUNT;
+    const shown = (collapsible && !digitalExpanded)
+      ? items.slice(0, DIGITAL_PREVIEW_COUNT)
+      : items;
+    shown.forEach(function (item) {
+      grid.appendChild(buildDigitalRow(item));
+    });
+
+    if (collapsible) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'feed-toggle';
+      toggle.textContent = digitalExpanded
+        ? 'Show fewer'
+        : 'View all ' + items.length + ' downloads';
+      toggle.addEventListener('click', function () {
+        digitalExpanded = !digitalExpanded;
+        renderDigitalFeed();
+        if (!digitalExpanded) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      grid.appendChild(toggle);
+    }
+  }
+
+  // Always-visible, directly under the Menu grid and above Digital
+  // Downloads, but split into one headed .category-block per distinct
+  // category ("Cookie Cutters",
+  // "Cookie Stamps", "Cookie Kits", ...) rather than one flat list —
+  // physical spans genuinely different product types in a way a single
+  // "Ships to You" grid couldn't tell apart. Cards use buildCard (the same
+  // full-photo badged grid card Ready Now/Pre-order/Custom use), not
+  // buildDigitalRow — a physical good is worth judging by its photo the way
+  // a digital file isn't.
+  function renderPhysicalFeed() {
+    const section = document.getElementById('physical-feed');
+    const items = physicalListings();
+    section.innerHTML = '';
+    if (items.length === 0) {
+      section.classList.add('hidden');
+      return;
+    }
+    section.classList.remove('hidden');
+    groupByCategory(items, 'Ships to You').forEach(function (g) {
+      const block = document.createElement('div');
+      block.className = 'category-block';
+      block.id = 'physical-cat-' + g.slug;
+      const heading = document.createElement('h2');
+      heading.textContent = titleCase(g.category);
+      const grid = document.createElement('div');
+      grid.className = 'product-grid';
+
+      // Same preview + "View all" behaviour as Digital Downloads, but per
+      // category — a baker with 30 cookie cutters shouldn't bury everything
+      // below them under one endless grid.
+      const collapsible = g.items.length > PHYSICAL_PREVIEW_COUNT;
+      const expanded = !!physicalExpanded[g.slug];
+      const shown = (collapsible && !expanded)
+        ? g.items.slice(0, PHYSICAL_PREVIEW_COUNT)
+        : g.items;
+      shown.forEach(function (item) { grid.appendChild(buildCard(item)); });
+
+      block.appendChild(heading);
+      block.appendChild(grid);
+
+      if (collapsible) {
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'feed-toggle';
+        toggle.textContent = expanded
+          ? 'Show fewer'
+          : 'View all ' + g.items.length + ' in ' + titleCase(g.category);
+        toggle.addEventListener('click', function () {
+          physicalExpanded[g.slug] = !physicalExpanded[g.slug];
+          renderPhysicalFeed();
+          if (!physicalExpanded[g.slug]) {
+            const b = document.getElementById('physical-cat-' + g.slug);
+            if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+        block.appendChild(toggle);
+      }
+
+      section.appendChild(block);
+    });
+  }
+
+  function buildDigitalRow(item) {
+    const row = document.createElement('div');
+    row.className = 'digital-row';
+    row.addEventListener('click', function () { openItemSheet(item); });
+
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    const ph = photoFallback(item);
+    thumb.appendChild(ph);
+    const img = document.createElement('img');
+    img.alt = item.name;
+    img.onload = function () { img.style.display = 'block'; ph.style.display = 'none'; };
+    img.src = itemImgURL(item);
+    thumb.appendChild(img);
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'n';
+    nameEl.textContent = item.name;
+    const metaEl = document.createElement('div');
+    metaEl.className = 'm';
+    metaEl.textContent = subtitleFor(item);
+    info.appendChild(nameEl);
+    info.appendChild(metaEl);
+
+    const priceEl = document.createElement('div');
+    priceEl.className = 'price tabular';
+    priceEl.textContent = '$' + formatPrice(item.price);
+
+    row.appendChild(thumb);
+    row.appendChild(info);
+    row.appendChild(priceEl);
+    row.appendChild(buildAddControl(item));
+    return row;
+  }
+
+  function buildCard(item) {
+    const card = document.createElement('div');
+    card.className = 'p-card';
+    card.addEventListener('click', function () { openItemSheet(item); });
+
+    const photo = document.createElement('div');
+    photo.className = 'p-photo';
+    const ph = photoFallback(item);
+    photo.appendChild(ph);
+    const img = document.createElement('img');
+    img.alt = item.name;
+    img.onload = function () { img.style.display = 'block'; ph.style.display = 'none'; };
+    img.src = itemImgURL(item);
+    photo.appendChild(img);
+
+    // Plain kind badge overlaid on the photo — matches the app's own
+    // Market listing card exactly (a sold-out ready_now item keeps its
+    // normal badge, distinguished only by the lighter meta text below).
+    const kind = kindBadgeInfo(item);
+    const badge = document.createElement('div');
+    badge.className = 'p-badge';
+    badge.style.background = kind.bg;
+    badge.innerHTML = '<span class="dot"></span>' + kind.label;
+    photo.appendChild(badge);
+
+    const body = document.createElement('div');
+    body.className = 'p-body';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'p-name';
+    nameEl.textContent = item.name;
+    const metaEl = document.createElement('div');
+    metaEl.className = 'p-meta';
+    metaEl.textContent = subtitleFor(item);
+
+    const divider = document.createElement('div');
+    divider.className = 'p-divider';
+    const priceRow = document.createElement('div');
+    priceRow.className = 'p-price-row';
+    const priceEl = document.createElement('div');
+    priceEl.className = 'p-price tabular';
+    priceEl.innerHTML = priceIsFrom(item) ? '<span class="from">from</span>$' + formatPrice(item.price) : '$' + formatPrice(item.price);
+    priceRow.appendChild(priceEl);
+    priceRow.appendChild(buildAddControl(item));
+    divider.appendChild(priceRow);
+
+    body.appendChild(nameEl);
+    body.appendChild(metaEl);
+    body.appendChild(divider);
+    card.appendChild(photo);
+    card.appendChild(body);
+    return card;
+  }
+
+  function buildAddControl(item) {
+    const wrap = document.createElement('div');
+    wrap.dataset.itemId = item.id;
+    refreshAddControl(wrap, item);
+    return wrap;
+  }
+
+  function refreshAddControl(wrap, item) {
+    wrap.innerHTML = '';
+    if (item.listing_kind === 'custom') {
+      const btn = document.createElement('button');
+      btn.className = 'add-btn';
+      btn.textContent = '→';
+      btn.setAttribute('aria-label', 'Request a custom order');
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        labGo(customOrderURL(item));
+      });
+      wrap.appendChild(btn);
+      return;
+    }
+    if (item.listing_kind === 'digital' && item.has_variants) {
+      // A digital listing with variants (e.g. one file, four print sizes)
+      // always routes to the item sheet's picker — same "no direct card
+      // stepper" reasoning as is_assorted_box below, just for a single-select
+      // option list instead of a flavor mix.
+      const picked = digitalVariantCartLines.filter(function (l) { return l.menuItemId === item.id; }).length;
+      const btn = document.createElement('button');
+      btn.className = 'add-btn' + (picked > 0 ? ' added' : '');
+      btn.textContent = picked > 0 ? String(picked) : '+';
+      btn.setAttribute('aria-label', 'Choose an option');
+      btn.addEventListener('click', function (e) { e.stopPropagation(); openItemSheet(item); });
+      wrap.appendChild(btn);
+      return;
+    }
+    if (item.listing_kind === 'digital') {
+      // Digital purchases skip the pickup cart (no qty/dates/tiers to
+      // track) but do get their own small cart — see digitalCart — so
+      // multiple downloads can check out together instead of one at a time.
+      const inCart = digitalCart.indexOf(item.id) !== -1;
+      const btn = document.createElement('button');
+      btn.className = 'add-btn' + (inCart ? ' added' : '');
+      btn.textContent = inCart ? '✓' : '+';
+      btn.setAttribute('aria-label', inCart ? 'Remove from download cart' : 'Add to download cart');
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleDigitalCartItem(item);
+      });
+      wrap.appendChild(btn);
+      return;
+    }
+    if (item.listing_kind === 'physical' && item.has_variants) {
+      // A physical listing with variants (e.g. a cookie-cutter set in
+      // Small/Medium/Large/XL, each with its own stock) always routes to
+      // the item sheet's picker, same reasoning as digital has_variants
+      // above — a card-level stepper can't represent "which size."
+      const qty = shipVariantCartLines.filter(function (l) { return l.menuItemId === item.id; })
+        .reduce(function (s, l) { return s + l.qty; }, 0);
+      const anyStock = (item.listing_variants || []).some(function (v) { return (v.stock_qty || 0) > 0; });
+      const btn = document.createElement('button');
+      btn.className = 'add-btn' + (qty > 0 ? ' added' : '');
+      if (!anyStock || !stripeReady) {
+        btn.style.opacity = '.4'; btn.disabled = true; btn.textContent = '—';
+        btn.title = stripeReady ? 'Sold out' : 'Ordering isn\'t live yet';
+      } else {
+        btn.textContent = qty > 0 ? String(qty) : '+';
+        btn.setAttribute('aria-label', 'Choose an option');
+        btn.addEventListener('click', function (e) { e.stopPropagation(); openItemSheet(item); });
+      }
+      wrap.appendChild(btn);
+      return;
+    }
+    if (item.listing_kind === 'physical') {
+      // Ships items skip the pickup cart too, same reasoning as digital —
+      // but unlike digital they're stock-bound, so this is a qty stepper
+      // (see shipCart) clamped at available_qty_today rather than a plain
+      // in/out toggle.
+      const qty = shipCart[item.id] || 0;
+      const max = item.available_qty_today || 0;
+      if (max <= 0 || !stripeReady) {
+        const btn = document.createElement('button');
+        btn.className = 'add-btn';
+        btn.style.opacity = '.4'; btn.disabled = true;
+        btn.textContent = '—';
+        btn.title = stripeReady ? 'Sold out' : 'Ordering isn\'t live yet';
+        wrap.appendChild(btn);
+        return;
+      }
+      if (qty === 0) {
+        const btn = document.createElement('button');
+        btn.className = 'add-btn';
+        btn.textContent = '+';
+        btn.setAttribute('aria-label', 'Add to ship cart');
+        btn.addEventListener('click', function (e) { e.stopPropagation(); changeShipQty(item, 1); });
+        wrap.appendChild(btn);
+      } else {
+        const stepper = document.createElement('div');
+        stepper.className = 'qty-stepper';
+        const minus = document.createElement('button');
+        minus.textContent = '−';
+        minus.addEventListener('click', function (e) { e.stopPropagation(); changeShipQty(item, -1); });
+        const qtyEl = document.createElement('span');
+        qtyEl.className = 'qty';
+        qtyEl.textContent = qty;
+        const plus = document.createElement('button');
+        plus.textContent = '+';
+        // Clamped at stock on hand — the real, atomic check happens
+        // server-side at charge time (decrement_menu_item_stock_batch);
+        // this is just so a buyer never sees a total they can't pay for.
+        if (qty >= max) { plus.disabled = true; plus.style.opacity = '.35'; }
+        plus.addEventListener('click', function (e) { e.stopPropagation(); changeShipQty(item, 1); });
+        stepper.appendChild(minus); stepper.appendChild(qtyEl); stepper.appendChild(plus);
+        wrap.appendChild(stepper);
+      }
+      return;
+    }
+    if (item.is_assorted_box) {
+      // Boxes don't track a plain sold-out quantity — building the flavor
+      // mix always happens in the sheet, never a direct card stepper.
+      const btn = document.createElement('button');
+      btn.className = 'add-btn';
+      if (!stripeReady) {
+        btn.style.opacity = '.4'; btn.disabled = true; btn.textContent = '—';
+      } else {
+        btn.textContent = '+';
+        btn.setAttribute('aria-label', 'Build your box');
+        btn.addEventListener('click', function (e) { e.stopPropagation(); openItemSheet(item); });
+      }
+      wrap.appendChild(btn);
+      return;
+    }
+    if (item.listing_kind === 'preorder') {
+      // Always routes through the sheet — even single-date/weekday/lead-time
+      // modes benefit from showing the ready date there, and a multi-date
+      // listing requires picking one before it can be added at all.
+      const btn = document.createElement('button');
+      btn.className = 'add-btn';
+      if (isSoldOut(item) || !stripeReady) {
+        btn.style.opacity = '.4'; btn.disabled = true; btn.textContent = '—';
+        btn.title = stripeReady ? 'Ordering closed' : 'Ordering isn\'t live yet';
+      } else {
+        btn.textContent = '+';
+        btn.setAttribute('aria-label', 'Choose pickup date');
+        btn.addEventListener('click', function (e) { e.stopPropagation(); openItemSheet(item); });
+      }
+      wrap.appendChild(btn);
+      return;
+    }
+    const qty = cart[item.id] || 0;
+    if (isSoldOut(item) || !stripeReady) {
+      const btn = document.createElement('button');
+      btn.className = 'add-btn';
+      btn.style.opacity = '.4'; btn.disabled = true;
+      btn.textContent = '—';
+      btn.title = stripeReady ? 'Sold out for today' : 'Ordering isn\'t live yet';
+      wrap.appendChild(btn);
+      return;
+    }
+    if (qty === 0) {
+      const btn = document.createElement('button');
+      btn.className = 'add-btn';
+      btn.textContent = '+';
+      btn.setAttribute('aria-label', 'Add to order');
+      btn.addEventListener('click', function (e) { e.stopPropagation(); changeQty(item, 1); });
+      wrap.appendChild(btn);
+    } else {
+      const stepper = document.createElement('div');
+      stepper.className = 'qty-stepper';
+      const minus = document.createElement('button');
+      minus.textContent = '−';
+      minus.addEventListener('click', function (e) { e.stopPropagation(); changeQty(item, -1); });
+      const qtyEl = document.createElement('span');
+      qtyEl.className = 'qty';
+      qtyEl.textContent = qty;
+      const plus = document.createElement('button');
+      plus.textContent = '+';
+      plus.addEventListener('click', function (e) { e.stopPropagation(); changeQty(item, 1); });
+      stepper.appendChild(minus); stepper.appendChild(qtyEl); stepper.appendChild(plus);
+      wrap.appendChild(stepper);
+    }
+  }
+
+  function changeQty(item, delta) {
+    const current = cart[item.id] || 0;
+    const next = Math.max(0, current + delta);
+    if (next === 0) { delete cart[item.id]; } else { cart[item.id] = next; }
+    saveCart();
+    document.querySelectorAll('[data-item-id="' + item.id + '"]').forEach(function (wrap) {
+      refreshAddControl(wrap, item);
+    });
+    updateCartUI();
+  }
+
+  // Every cart type — pickup/preorder/box, digital downloads, ships-to-you
+  // — counted and totalled together. A buyer shouldn't have to parse
+  // separate mini-carts just because the storefront's own plumbing tracks
+  // pickup/digital/ship as distinct arrays internally; that split is our
+  // problem to manage, not something to surface as three competing
+  // banners. The cart sheet (renderCartStepOrder) is still the one place
+  // per-vertical detail — sections, shipping fee, etc. — belongs.
+  function cartCombinedCount() {
+    const plainCount = Object.values(cart).reduce(function (s, q) { return s + q; }, 0);
+    const boxCount = boxCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
+    const preorderCount = preorderCartLines.reduce(function (s, l) { return s + l.qty; }, 0);
+    const digitalCount = digitalCartItems().length;
+    const shipCount = shipCartItems().reduce(function (s, l) { return s + l.qty; }, 0);
+    return plainCount + boxCount + preorderCount + digitalCount + shipCount;
+  }
+  // Item subtotal only, across every vertical — no shipping fee, no tax.
+  // Not customary for a mini-cart banner to show a fees-inclusive figure
+  // before the buyer has even reached checkout, and the three separate
+  // subtotal helpers below already exclude each other's fees by construction.
+  function cartCombinedSubtotal() {
+    return cartSubtotal() + digitalCartTotal() + shipCartItemsSubtotal();
+  }
+
+  // Header cart icon (mobile 🛒 badge + desktop "Cart · N" pill) — kept in
+  // sync by having updateCartUI/updateDigitalCartUI/updateShipCartUI all
+  // call this (and updateCartActionBar below) whenever any cart changes.
+  function updateHeaderCartBadge() {
+    const count = cartCombinedCount();
+    document.getElementById('cart-btn-count').textContent = count > 0 ? count : '';
+    document.getElementById('desktop-cart-label').textContent = count > 0 ? ('Cart · ' + count) : 'Cart';
+  }
+
+  // The one bottom-of-screen cart banner (#action-bar-cart) — see the HTML
+  // comment above it for why this used to be up to three stacked banners.
+  // Deliberately just "View Cart" + the subtotal, no item count — nothing
+  // else on the page needed a per-vertical breakdown at this level either.
+  function updateCartActionBar() {
+    const bar = document.getElementById('action-bar-cart');
+    const count = cartCombinedCount();
+    if (count > 0) {
+      bar.style.display = 'flex';
+      document.getElementById('cart-bar-total').textContent = '$' + formatPrice(cartCombinedSubtotal());
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+
+  // updateCartUI/updateDigitalCartUI/updateShipCartUI are called from
+  // every place that mutates their respective cart (changeQty,
+  // toggleDigitalCartItem, changeShipQty, etc.) — kept as three distinctly-
+  // named entry points (rather than renaming every call site to one shared
+  // function) but all converging on the same header badge + single banner.
+  function updateCartUI() {
+    updateHeaderCartBadge();
+    updateCartActionBar();
+  }
+
+  // Returns every digital cart entry — both the plain in/out picks
+  // (digitalCart, bare ids) and variant picks (digitalVariantCartLines,
+  // since the same base item can appear more than once with a different
+  // option chosen) — normalized to one shape via Object.assign: every
+  // field the base listing has (id, category, etc., for itemImgURL and
+  // friends) plus lineKey (unique per cart line, used for removal —
+  // equal to the base item id for a plain pick, so existing single-pick
+  // behavior is unchanged) and, for a variant pick, an overridden
+  // price/name and the variantId/variantLabel that picked it.
+  function digitalCartItems() {
+    const plain = digitalCart.map(function (id) {
+      const item = allListings.find(function (l) { return l.id === id; });
+      return item ? Object.assign({}, item, { lineKey: item.id, variantId: null, variantLabel: null }) : null;
+    }).filter(Boolean);
+    const variantLines = digitalVariantCartLines.map(function (ln) {
+      const base = allListings.find(function (l) { return l.id === ln.menuItemId; });
+      if (!base) return null;
+      return Object.assign({}, base, {
+        lineKey: ln.lineId, price: ln.price, variantId: ln.variantId, variantLabel: ln.variantLabel,
+        name: base.name + ' — ' + ln.variantLabel
+      });
+    }).filter(Boolean);
+    return plain.concat(variantLines);
+  }
+  function digitalCartTotal() {
+    return digitalCartItems().reduce(function (s, i) { return s + i.price; }, 0);
+  }
+  function toggleDigitalCartItem(item) {
+    const idx = digitalCart.indexOf(item.id);
+    if (idx === -1) digitalCart.push(item.id); else digitalCart.splice(idx, 1);
+    saveCart();
+    renderDigitalFeed();
+    updateDigitalCartUI();
+  }
+  // A digital item with variants always adds/removes through the item
+  // sheet's picker (see refreshAddControl's has_variants check), toggling
+  // one specific option in or out — same in/out feel as
+  // toggleDigitalCartItem, just keyed by (item, variant) instead of item alone.
+  function toggleDigitalVariantCartLine(item, variant) {
+    const idx = digitalVariantCartLines.findIndex(function (l) { return l.menuItemId === item.id && l.variantId === variant.id; });
+    if (idx !== -1) {
+      digitalVariantCartLines.splice(idx, 1);
+    } else {
+      digitalVariantCartLines.push({
+        lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
+        menuItemId: item.id, variantId: variant.id, variantLabel: variant.label, price: variant.price
+      });
+    }
+    saveCart();
+    updateDigitalCartUI();
+  }
+  // Single removal entry point for the cart sheet's ✕ button — works for
+  // either a plain pick or a variant line without the caller needing to
+  // know which one a given lineKey belongs to.
+  function removeDigitalCartLine(lineKey) {
+    const idx = digitalCart.indexOf(lineKey);
+    if (idx !== -1) { digitalCart.splice(idx, 1); saveCart(); return; }
+    digitalVariantCartLines = digitalVariantCartLines.filter(function (l) { return l.lineId !== lineKey; });
+    saveCart();
+  }
+  function updateDigitalCartUI() {
+    updateHeaderCartBadge();
+    updateCartActionBar();
+  }
+  // itemId, or itemId~variantId for a variant pick — parsed back out by
+  // digital-checkout.html.
+  function digitalCartLineToken(entry) {
+    return entry.variantId ? (entry.id + '~' + entry.variantId) : entry.id;
+  }
+  function digitalCartCheckoutURL() {
+    const tokens = digitalCartItems().map(digitalCartLineToken);
+    return '/baker/digital-checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
+      '&items=' + encodeURIComponent(tokens.join(',')) +
+      '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
+      '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
+  }
+
+  // Ships (physical) cart — a { itemId: qty } map for plain items, so
+  // those lines carry a real stepper (see refreshAddControl's 'physical'
+  // branch and the cart sheet's 'ship' line kind); variant picks live in
+  // shipVariantCartLines instead (same reasoning as digitalVariantCartLines
+  // above — the same base item can appear more than once with a different
+  // option chosen). shipCartItems() normalizes both into one list of
+  // { item, qty } pairs, with the variant line's own price/lineKey/
+  // variantId/variantLabel folded into `item` via Object.assign so every
+  // existing consumer that reads l.item.price/l.item.id etc. picks up the
+  // right value automatically without needing to know which source a
+  // given line came from.
+  function shipCartItems() {
+    const plain = Object.keys(shipCart).map(function (id) {
+      const base = allListings.find(function (l) { return l.id === id; });
+      if (!base) return null;
+      return { item: Object.assign({}, base, { lineKey: base.id, variantId: null, variantLabel: null }), qty: shipCart[id] };
+    }).filter(Boolean);
+    const variantLines = shipVariantCartLines.map(function (ln) {
+      const base = allListings.find(function (l) { return l.id === ln.menuItemId; });
+      if (!base) return null;
+      return {
+        item: Object.assign({}, base, {
+          lineKey: ln.lineId, price: ln.price, variantId: ln.variantId, variantLabel: ln.variantLabel,
+          name: base.name + ' — ' + ln.variantLabel
+        }),
+        qty: ln.qty
+      };
+    }).filter(Boolean);
+    return plain.concat(variantLines);
+  }
+  function shipCartItemsSubtotal() {
+    return shipCartItems().reduce(function (s, l) { return s + l.item.price * l.qty; }, 0);
+  }
+  // Shipping fee is a flat per-listing amount (set by the baker, see
+  // WebShopShippingSheet) charged once per distinct BASE item in the cart
+  // (deduped by the item's real id, not lineKey — two different options of
+  // the same cookie-cutter-set listing still only pay the fee once), not
+  // once per unit. Real carrier-computed rates are a later integration;
+  // this is just the manual placeholder for it. A baker can also set a
+  // storefront-wide "free shipping over $X"
+  // (profile.shipping_free_over_threshold) that waives every item's fee
+  // once the ship-cart's item subtotal alone clears it.
+  //
+  // Combined-shipping: among the distinct base items in the cart, the one
+  // with the highest shipping_fee charges in full; every other distinct
+  // item charges round(shipping_fee * shipping_additional_item_percent /
+  // 100) instead of its own full fee, unless it has
+  // shipping_always_full_price set (always full fee regardless of rank).
+  // shipping_additional_item_percent defaults to 100 (no discount) — same
+  // "sum of full fees" behavior as before this existed. See
+  // finalize-guest-physical-order for the authoritative server-side
+  // recompute of this exact same rule.
+  function shipCartShippingFees() {
+    const threshold = (profile && profile.shipping_free_over_threshold) || 0;
+    if (threshold > 0 && shipCartItemsSubtotal() >= threshold) return 0;
+    const additionalPercent = (profile && profile.shipping_additional_item_percent != null)
+      ? profile.shipping_additional_item_percent : 100;
+    const seen = {};
+    const distinct = [];
+    shipCartItems().forEach(function (l) {
+      if (seen[l.item.id]) return;
+      seen[l.item.id] = true;
+      distinct.push(l.item);
+    });
+    if (distinct.length === 0) return 0;
+    let highestIdx = 0;
+    distinct.forEach(function (item, idx) {
+      if ((item.shipping_fee || 0) > (distinct[highestIdx].shipping_fee || 0)) highestIdx = idx;
+    });
+    let fee = 0;
+    distinct.forEach(function (item, idx) {
+      if (idx === highestIdx) fee += (item.shipping_fee || 0);
+      else if (item.shipping_always_full_price) fee += (item.shipping_fee || 0);
+      else fee += Math.round((item.shipping_fee || 0) * additionalPercent / 100 * 100) / 100;
+    });
+    return fee;
+  }
+  function shipCartTotal() {
+    return shipCartItemsSubtotal() + shipCartShippingFees();
+  }
+  // Plain (non-variant) physical items only — a has_variants item always
+  // goes through the item sheet's picker/stepper instead (see
+  // refreshAddControl and changeShipVariantLineQty below).
+  function changeShipQty(item, delta) {
+    const current = shipCart[item.id] || 0;
+    const max = item.available_qty_today || 0;
+    const next = Math.max(0, Math.min(max, current + delta));
+    if (next === 0) { delete shipCart[item.id]; } else { shipCart[item.id] = next; }
+    saveCart();
+    document.querySelectorAll('[data-item-id="' + item.id + '"]').forEach(function (wrap) {
+      refreshAddControl(wrap, item);
+    });
+    updateShipCartUI();
+  }
+  // Adds one unit of a specific variant to the ship cart, merging into an
+  // existing line for the same (item, variant) pair rather than creating a
+  // duplicate — clamped at that variant's own stock, re-resolved live from
+  // allListings rather than trusted from whatever the sheet had open.
+  function addShipVariantToCart(item, variant) {
+    const base = allListings.find(function (l) { return l.id === item.id; }) || item;
+    const liveVariant = (base.listing_variants || []).find(function (v) { return v.id === variant.id; }) || variant;
+    const max = liveVariant.stock_qty || 0;
+    const existing = shipVariantCartLines.find(function (l) { return l.menuItemId === item.id && l.variantId === variant.id; });
+    if (existing) {
+      existing.qty = Math.min(max, existing.qty + 1);
+    } else if (max > 0) {
+      shipVariantCartLines.push({
+        lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
+        menuItemId: item.id, variantId: liveVariant.id, variantLabel: liveVariant.label, price: liveVariant.price, qty: 1
+      });
+    }
+    saveCart();
+    updateShipCartUI();
+  }
+  function changeShipVariantLineQty(lineId, delta) {
+    const line = shipVariantCartLines.find(function (l) { return l.lineId === lineId; });
+    if (!line) return;
+    const base = allListings.find(function (l) { return l.id === line.menuItemId; });
+    const variant = base && (base.listing_variants || []).find(function (v) { return v.id === line.variantId; });
+    const max = variant ? (variant.stock_qty || 0) : line.qty;
+    line.qty = Math.max(0, Math.min(max, line.qty + delta));
+    if (line.qty === 0) { shipVariantCartLines = shipVariantCartLines.filter(function (l) { return l.lineId !== lineId; }); }
+    saveCart();
+    updateShipCartUI();
+  }
+  // Single "change qty by delta" entry point for the cart sheet's
+  // −/+ buttons — routes to the plain or variant path without the caller
+  // needing to know which one a given lineKey belongs to.
+  function changeShipCartLine(lineKey, delta) {
+    if (Object.prototype.hasOwnProperty.call(shipCart, lineKey)) {
+      const item = allListings.find(function (l) { return l.id === lineKey; });
+      if (item) changeShipQty(item, delta);
+    } else {
+      changeShipVariantLineQty(lineKey, delta);
+    }
+  }
+  function updateShipCartUI() {
+    updateHeaderCartBadge();
+    updateCartActionBar();
+  }
+  // itemId:qty, or itemId:qty:variantId for a variant pick — parsed back
+  // out by physical-checkout.html.
+  function shipCartLineToken(l) {
+    return l.item.id + ':' + l.qty + (l.item.variantId ? ':' + l.item.variantId : '');
+  }
+  function shipCartCheckoutURL() {
+    const pairs = shipCartItems().map(shipCartLineToken);
+    return '/baker/physical-checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
+      '&items=' + encodeURIComponent(pairs.join(',')) +
+      '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
+      '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
+  }
+
+  function cartLines() {
+    const plain = Object.keys(cart).map(function (id) {
+      const item = allListings.find(function (l) { return l.id === id; });
+      return item ? { kind: 'plain', item: item, qty: cart[id] } : null;
+    }).filter(Boolean);
+    const boxed = boxCartLines.map(function (bl) {
+      const item = allListings.find(function (l) { return l.id === bl.menuItemId; }) ||
+        { id: bl.menuItemId, name: bl.itemName, tax_category: bl.taxCategory, unit_weight_grams: bl.unitWeightGrams };
+      return { kind: 'box', item: item, line: bl, qty: bl.qty };
+    });
+    const preordered = preorderCartLines.map(function (pl) {
+      const item = allListings.find(function (l) { return l.id === pl.menuItemId; });
+      return item ? { kind: 'preorder', item: item, line: pl, qty: pl.qty } : null;
+    }).filter(Boolean);
+    return plain.concat(boxed).concat(preordered);
+  }
+
+  function cartSubtotal() {
+    return cartLines().reduce(function (sum, l) {
+      const price = l.kind === 'box' ? l.line.price : l.item.price;
+      return sum + price * l.qty;
+    }, 0);
+  }
+
+  // Guest checkout: the customer pays exactly the item subtotal (+ tax) —
+  // Bakeri's service charge comes out of the baker's side instead, so it's
+  // never shown or added to this preview. Mirrors create-payment-intent's
+  // guest branch in supabase/functions/create-payment-intent/index.ts.
+
+  // Tax estimate — mirrors create-guest-marketplace-order/index.ts and
+  // checkout.html exactly, so this preview never drifts from what's
+  // actually charged. Shown here (before checkout.html) so the cart total
+  // a buyer sees is realistic, not just the bare item subtotal.
+  function taxRateForProvince(p) {
+    switch ((p || '').toUpperCase().trim()) {
+      case 'ON': return 0.13;
+      case 'NB': case 'NL': case 'PE': return 0.15;
+      case 'NS': return 0.14;
+      case 'QC': return 0.14975;
+      default: return 0.05;
+    }
+  }
+  function isSingleServing(taxCategory, unitWeightGrams) {
+    if (taxCategory !== 'sweetened_single_serving') return false;
+    if (unitWeightGrams != null) return unitWeightGrams <= 230;
+    return true;
+  }
+  function cartTaxCents() {
+    if (!profile || !profile.is_gst_registered) return 0;
+    const items = cartLines().map(function (l) {
+      return {
+        taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
+        qty: l.qty, price: l.kind === 'box' ? l.line.price : l.item.price
+      };
+    });
+    const rate = taxRateForProvince(profile.pickup_province);
+    const totalSingleServings = items.filter(function (i) { return isSingleServing(i.taxCategory, i.unitWeightGrams); })
+      .reduce(function (s, i) { return s + i.qty; }, 0);
+    let taxableSubtotal = 0;
+    items.forEach(function (item) {
+      if (item.taxCategory === 'plain_bread' || item.taxCategory === 'whole_item') return;
+      if (isSingleServing(item.taxCategory, item.unitWeightGrams) && totalSingleServings < 6) {
+        taxableSubtotal += item.price * item.qty;
+      }
+    });
+    return Math.round(taxableSubtotal * rate * 100);
+  }
+  function cartTotal() { return cartSubtotal() + cartTaxCents() / 100; }
+
+  // ══════════════════════ Item Sheet ══════════════════════
+
+  function openItemSheet(item) {
+    document.getElementById('item-sheet-name').textContent = item.name;
+    document.getElementById('item-sheet-price').innerHTML = (priceIsFrom(item) ? 'from ' : '') + '$' + formatPrice(item.price);
+    const descEl = document.getElementById('item-sheet-desc');
+    const descToggle = document.getElementById('item-sheet-desc-toggle');
+    descEl.textContent = item.item_description || '';
+    descEl.classList.add('clamped');
+    // Tapping the (clamped) text itself or "Read more" both open the full
+    // description in its own popup rather than expanding inline — reading
+    // a long one then never means scrolling the item sheet at all.
+    const openFullDesc = function () { openDescSheet(item.name, item.item_description || ''); };
+    descEl.onclick = openFullDesc;
+    descToggle.onclick = openFullDesc;
+
+    // Sold-out-aware badge — the one place a "Sold Out" label appears,
+    // matching the app's dedicated item-detail treatment rather than
+    // swapping the grid's badge (which stays the plain kind label there).
+    const badge = badgeInfo(item);
+    const badgeEl = document.getElementById('item-sheet-badge');
+    badgeEl.style.background = badge.bg;
+    badgeEl.innerHTML = '<span class="dot"></span>' + badge.label;
+
+    const ph = document.getElementById('item-sheet-ph');
+    ph.textContent = categoryEmoji(item);
+    ph.style.display = 'flex';
+    const img = document.getElementById('item-sheet-img');
+    img.style.display = 'none';
+    img.onload = function () { img.style.display = 'block'; ph.style.display = 'none'; };
+    img.src = itemImgURL(item);
+
+    const specs = [];
+    if (item.lead_time_note) specs.push({ k: 'Lead time', v: item.lead_time_note });
+    if (item.allergens) specs.push({ k: 'Allergens', v: item.allergens });
+    document.getElementById('item-sheet-specs').innerHTML = specs.map(function (s) {
+      return '<div class="spec-row"><span>' + s.k + '</span><b>' + escapeHtml(s.v) + '</b></div>';
+    }).join('');
+
+    const cta = document.getElementById('item-sheet-cta');
+    const boxEl = document.getElementById('item-sheet-box');
+    boxState = null;
+    preorderState = null;
+    variantState = null;
+
+    if (item.is_assorted_box) {
+      boxEl.style.display = 'block';
+      openBoxPicker(item);
+    } else if (item.listing_kind === 'preorder') {
+      openPreorderPicker(item);
+    } else if (item.has_variants) {
+      boxEl.style.display = 'block';
+      openVariantPicker(item);
+    } else {
+      boxEl.style.display = 'none';
+      boxEl.innerHTML = '';
+      if (item.listing_kind === 'custom') {
+        cta.textContent = 'Request a Custom Order';
+        cta.disabled = false;
+        cta.style.opacity = '1';
+        cta.onclick = function () { labGo(customOrderURL(item)); };
+      } else if (item.listing_kind === 'digital') {
+        const inCart = digitalCart.indexOf(item.id) !== -1;
+        cta.textContent = (inCart ? 'Remove from Cart ✓ — $' : 'Add to Cart — $') + formatPrice(item.price);
+        cta.disabled = !stripeReady;
+        cta.style.opacity = stripeReady ? '1' : '.5';
+        cta.onclick = stripeReady ? function () {
+          toggleDigitalCartItem(item);
+          closeItemSheet();
+          showToast(inCart ? 'Removed from your download cart' : 'Added to your download cart');
+        } : null;
+      } else if (item.listing_kind === 'physical') {
+        if (isSoldOut(item) || !stripeReady) {
+          cta.textContent = isSoldOut(item) ? 'Sold Out' : 'Ordering Opens Soon';
+          cta.disabled = true;
+          cta.style.opacity = '.5';
+        } else {
+          cta.textContent = 'Add to Cart — $' + formatPrice(item.price);
+          cta.disabled = false;
+          cta.style.opacity = '1';
+          cta.onclick = function () {
+            changeShipQty(item, 1);
+            closeItemSheet();
+            showToast('Added to your ship cart');
+          };
+        }
+      } else if (isSoldOut(item)) {
+        cta.textContent = 'Sold Out';
+        cta.disabled = true;
+        cta.style.opacity = '.5';
+      } else if (!stripeReady) {
+        cta.textContent = 'Ordering Opens Soon';
+        cta.disabled = true;
+        cta.style.opacity = '.5';
+      } else {
+        cta.textContent = 'Add to Order';
+        cta.disabled = false;
+        cta.style.opacity = '1';
+        cta.onclick = function () {
+          changeQty(item, 1);
+          closeItemSheet();
+          showToast('Added to your order');
+        };
+      }
+    }
+
+    document.getElementById('item-scrim').classList.add('open');
+
+    // CSS aspect-ratio on a flex item has inconsistent cross-browser
+    // support for constraining height (notably iOS Safari) — set the
+    // photo's height explicitly from its own resolved width instead of
+    // relying on the browser to reconcile aspect-ratio with flex sizing.
+    // clientWidth forces a synchronous layout, so this reads correctly
+    // right after the sheet becomes visible.
+    const photoEl = document.getElementById('item-sheet-photo');
+    photoEl.style.height = photoEl.clientWidth + 'px';
+
+    // Only now (sheet visible, clamp applied) do scrollHeight/clientHeight
+    // reflect real layout — measuring this before .open is added would
+    // read 0/0 off a display:none subtree and never show the toggle. A
+    // short description that doesn't overflow isn't clickable at all —
+    // opening a popup to show the exact same text it's already showing
+    // would just be a dead tap.
+    const descOverflows = descEl.scrollHeight > descEl.clientHeight + 1;
+    descToggle.style.display = descOverflows ? 'block' : 'none';
+    descEl.classList.toggle('tappable', descOverflows);
+    if (!descOverflows) descEl.onclick = null;
+  }
+  function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); }
+
+  // ══════════════════════ Swipe down to dismiss ══════════════════════
+  //
+  // Mobile users expect a bottom sheet to close on a downward swipe, not
+  // just the ✕ button. A touch starting inside the scrollable description
+  // only arms the dismiss-drag once that area is already scrolled to its
+  // top (scrollTop <= 0) — otherwise this would fight normal scrolling of
+  // long descriptions. A touch starting on the photo or the fixed
+  // name/price/button block arms immediately since neither scrolls.
+  (function setupItemSheetSwipeDismiss() {
+    const sheet = document.getElementById('item-sheet');
+    const scrollArea = document.getElementById('item-sheet-scroll');
+    let startY = 0;
+    let currentY = 0;
+    let dragging = false;
+    let armed = false;
+
+    sheet.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      startY = currentY = e.touches[0].clientY;
+      dragging = true;
+      armed = false;
+      sheet.style.transition = 'none';
+    }, { passive: true });
+
+    sheet.addEventListener('touchmove', function (e) {
+      if (!dragging || e.touches.length !== 1) return;
+      currentY = e.touches[0].clientY;
+      const deltaY = currentY - startY;
+      if (deltaY <= 0) { armed = false; sheet.style.transform = ''; return; }
+
+      if (!armed) {
+        const inScrollArea = scrollArea.contains(e.target);
+        if (inScrollArea && scrollArea.scrollTop > 0) return;
+        armed = true;
+      }
+
+      e.preventDefault();
+      sheet.style.transform = 'translateY(' + deltaY + 'px)';
+    }, { passive: false });
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      const deltaY = currentY - startY;
+      if (armed && deltaY > 120) {
+        closeItemSheet();
+        sheet.style.transform = '';
+      } else {
+        sheet.style.transition = 'transform 0.25s ease-out';
+        sheet.style.transform = '';
+      }
+      armed = false;
+    }
+    sheet.addEventListener('touchend', endDrag);
+    sheet.addEventListener('touchcancel', endDrag);
+  })();
+
+  // ══════════════════════ Full-description popup ══════════════════════
+
+  function openDescSheet(name, text) {
+    document.getElementById('desc-sheet-body').innerHTML =
+      '<div id="desc-sheet-title">' + escapeHtml(name) + '</div>' +
+      '<div id="desc-sheet-text"></div>';
+    document.getElementById('desc-sheet-text').textContent = text;
+    document.getElementById('desc-scrim').classList.add('open');
+  }
+  function closeDescSheet() { document.getElementById('desc-scrim').classList.remove('open'); }
+
+  // Same swipe-down-to-dismiss as the item sheet, simplified — desc-sheet
+  // has no separate fixed/scroll split, it's just one scrollable block via
+  // the shared .sheet overflow: auto, so the sheet itself is both the drag
+  // target and the thing whose scrollTop needs checking.
+  (function setupDescSheetSwipeDismiss() {
+    const sheet = document.getElementById('desc-sheet');
+    let startY = 0, currentY = 0, dragging = false, armed = false;
+
+    sheet.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      startY = currentY = e.touches[0].clientY;
+      dragging = true;
+      armed = false;
+      sheet.style.transition = 'none';
+    }, { passive: true });
+
+    sheet.addEventListener('touchmove', function (e) {
+      if (!dragging || e.touches.length !== 1) return;
+      currentY = e.touches[0].clientY;
+      const deltaY = currentY - startY;
+      if (deltaY <= 0) { armed = false; sheet.style.transform = ''; return; }
+      if (!armed) {
+        if (sheet.scrollTop > 0) return;
+        armed = true;
+      }
+      e.preventDefault();
+      sheet.style.transform = 'translateY(' + deltaY + 'px)';
+    }, { passive: false });
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      const deltaY = currentY - startY;
+      if (armed && deltaY > 120) {
+        closeDescSheet();
+        sheet.style.transform = '';
+      } else {
+        sheet.style.transition = 'transform 0.25s ease-out';
+        sheet.style.transform = '';
+      }
+      armed = false;
+    }
+    sheet.addEventListener('touchend', endDrag);
+    sheet.addEventListener('touchcancel', endDrag);
+  })();
+
+  // ══════════════════════ Assorted Box picker ══════════════════════
+
+  function openBoxPicker(item) {
+    boxState = { item: item, tierId: null, chosen: {} };
+    renderBoxPickerBody();
+  }
+
+  function renderBoxPickerBody() {
+    const item = boxState.item;
+    const tiers = item.size_tiers || [];
+    const variants = item.variants || [];
+    const activeTier = tiers.find(function (t) { return t.id === boxState.tierId; });
+    const target = activeTier ? activeTier.unit_count : 0;
+    const chosenTotal = Object.values(boxState.chosen).reduce(function (s, q) { return s + q; }, 0);
+
+    const tierHtml = '<div class="box-tiers">' + tiers.map(function (t) {
+      return '<button type="button" class="box-tier' + (t.id === boxState.tierId ? ' active' : '') + '" data-tier-id="' + t.id + '">' +
+        '<div class="box-tier-label">' + escapeHtml(t.label) + '</div>' +
+        '<div class="box-tier-price tabular">$' + formatPrice(t.price) + '</div>' +
+        '</button>';
+    }).join('') + '</div>';
+
+    const flavorHtml = !activeTier ? '' :
+      '<div class="box-flavor-header">Choose your flavors (' + chosenTotal + '/' + target + ')</div>' +
+      variants.map(function (v) {
+        const q = boxState.chosen[v.id] || 0;
+        const plusDisabled = chosenTotal >= target;
+        const minusDisabled = q === 0;
+        return '<div class="box-flavor-row" data-variant-id="' + v.id + '">' +
+          '<img class="box-flavor-thumb" src="' + variantImgURL(item, v) + '" alt="" onerror="this.style.visibility=\'hidden\'" />' +
+          '<div class="box-flavor-name">' + escapeHtml(v.name) + '</div>' +
+          '<div class="stepper">' +
+          '<button type="button" class="box-minus"' + (minusDisabled ? ' disabled' : '') + '>−</button>' +
+          '<span class="qty">' + q + '</span>' +
+          '<button type="button" class="box-plus"' + (plusDisabled ? ' disabled' : '') + '>+</button>' +
+          '</div></div>';
+      }).join('');
+
+    document.getElementById('item-sheet-box').innerHTML =
+      '<div class="box-step-label">Choose your size</div>' + tierHtml + flavorHtml;
+
+    wireBoxPickerEvents();
+    updateBoxCTA();
+  }
+
+  function wireBoxPickerEvents() {
+    document.querySelectorAll('.box-tier').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (boxState.tierId !== btn.dataset.tierId) {
+          boxState.tierId = btn.dataset.tierId;
+          boxState.chosen = {}; // switching size starts the flavor mix over
+          renderBoxPickerBody();
+        }
+      });
+    });
+    document.querySelectorAll('.box-plus').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const vid = btn.closest('.box-flavor-row').dataset.variantId;
+        const tiers = boxState.item.size_tiers || [];
+        const tier = tiers.find(function (t) { return t.id === boxState.tierId; });
+        const target = tier ? tier.unit_count : 0;
+        const total = Object.values(boxState.chosen).reduce(function (s, q) { return s + q; }, 0);
+        if (total >= target) return;
+        boxState.chosen[vid] = (boxState.chosen[vid] || 0) + 1;
+        renderBoxPickerBody();
+      });
+    });
+    document.querySelectorAll('.box-minus').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const vid = btn.closest('.box-flavor-row').dataset.variantId;
+        const q = boxState.chosen[vid] || 0;
+        if (q <= 0) return;
+        if (q - 1 <= 0) { delete boxState.chosen[vid]; } else { boxState.chosen[vid] = q - 1; }
+        renderBoxPickerBody();
+      });
+    });
+  }
+
+  function updateBoxCTA() {
+    const cta = document.getElementById('item-sheet-cta');
+    const tiers = boxState.item.size_tiers || [];
+    const tier = tiers.find(function (t) { return t.id === boxState.tierId; });
+    if (!tier) {
+      cta.textContent = 'Choose a size';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    const chosenTotal = Object.values(boxState.chosen).reduce(function (s, q) { return s + q; }, 0);
+    const ready = chosenTotal === tier.unit_count;
+    const canBuy = ready && stripeReady;
+    cta.textContent = ready ? ('Add to Order — $' + formatPrice(tier.price)) : ('Choose ' + (tier.unit_count - chosenTotal) + ' more');
+    cta.disabled = !canBuy;
+    cta.style.opacity = canBuy ? '1' : '.5';
+    cta.onclick = canBuy ? addBoxToCart : null;
+  }
+
+  function addBoxToCart() {
+    const item = boxState.item;
+    const tier = (item.size_tiers || []).find(function (t) { return t.id === boxState.tierId; });
+    if (!tier) return;
+    const variants = item.variants || [];
+    const breakdown = Object.keys(boxState.chosen).filter(function (id) { return boxState.chosen[id] > 0; }).map(function (id) {
+      const v = variants.find(function (x) { return x.id === id; });
+      return { variantId: id, name: v ? v.name : '', qty: boxState.chosen[id] };
+    });
+    boxCartLines.push({
+      lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
+      menuItemId: item.id, itemName: item.name, tierId: tier.id, tierLabel: tier.label,
+      unitCount: tier.unit_count, price: tier.price, qty: 1, variants: breakdown,
+      taxCategory: item.tax_category, unitWeightGrams: item.unit_weight_grams
+    });
+    saveCart();
+    updateCartUI();
+    closeItemSheet();
+    showToast('Added to your order');
+  }
+
+  function changeBoxLineQty(lineId, delta) {
+    const line = boxCartLines.find(function (l) { return l.lineId === lineId; });
+    if (!line) return;
+    line.qty = Math.max(0, line.qty + delta);
+    if (line.qty === 0) { boxCartLines = boxCartLines.filter(function (l) { return l.lineId !== lineId; }); }
+    saveCart();
+    updateCartUI();
+  }
+
+  function variantImgURL(item, variant) {
+    return STORAGE_URL + '/menu-item-images/' + resolvedBakerId.toUpperCase() + '/' + item.id.toUpperCase() + '/variants/' + variant.id.toUpperCase() + '.jpg';
+  }
+
+  // ══════════════════════ Listing variant picker ══════════════════════
+  //
+  // Single-select size/option picker for a plain (non-Assorted-Box)
+  // digital or physical listing — e.g. a cookie-cutter set sold in
+  // Small/Medium/Large/XL, or a printable design offered at a few sizes.
+  // Deliberately simpler than the box picker above (no flavor mix to
+  // build): pick exactly one listing_variants row, then Add to Cart.
+  // Reuses the box picker's .box-tiers/.box-tier CSS since the "one row
+  // of tappable option cards" shape is identical.
+
+  function openVariantPicker(item) {
+    variantState = { item: item, variantId: null };
+    renderVariantPickerBody();
+  }
+
+  function renderVariantPickerBody() {
+    const item = variantState.item;
+    const variants = item.listing_variants || [];
+    const isPhysical = item.listing_kind === 'physical';
+    const tierHtml = '<div class="box-tiers">' + variants.map(function (v) {
+      const soldOut = isPhysical && (v.stock_qty || 0) <= 0;
+      // Gated on v.has_image rather than always attempting the thumbnail and
+      // relying on onerror to hide a 404 — for the (currently overwhelming)
+      // common case of a variant with no photo, that meant every tap
+      // (re-rendering this whole button's innerHTML) started a fresh failed
+      // image load, and iOS Safari's broken-image placeholder briefly
+      // ignored the CSS width/height and rendered at its own intrinsic
+      // size — the button visibly stretching wider with a broken-image
+      // glyph before onerror caught up and hid it. Explicit width/height
+      // attributes (not just the CSS class) plus removing the element
+      // outright on error guard the has_image:true path too, in case that
+      // flag and reality ever drift (e.g. the upload failed after the flag
+      // was set).
+      const thumb = v.has_image
+        ? '<img class="box-tier-thumb" width="34" height="34" src="' + variantImgURL(item, v) + '" alt="" onerror="this.remove()" />'
+        : '';
+      return '<button type="button" class="box-tier' + (v.id === variantState.variantId ? ' active' : '') + '"' +
+        (soldOut ? ' disabled' : '') + ' style="' + (soldOut ? 'opacity:.4;' : '') + '" data-variant-id="' + v.id + '">' +
+        thumb +
+        '<div class="box-tier-label">' + escapeHtml(v.label) + (soldOut ? ' (Sold Out)' : '') + '</div>' +
+        '<div class="box-tier-price tabular">$' + formatPrice(v.price) + '</div>' +
+        '</button>';
+    }).join('') + '</div>';
+
+    document.getElementById('item-sheet-box').innerHTML =
+      '<div class="box-step-label">Choose an option</div>' + tierHtml;
+
+    wireVariantPickerEvents();
+    updateVariantCTA();
+  }
+
+  function wireVariantPickerEvents() {
+    document.querySelectorAll('#item-sheet-box .box-tier').forEach(function (btn) {
+      if (btn.disabled) return;
+      btn.addEventListener('click', function () {
+        variantState.variantId = btn.dataset.variantId;
+        renderVariantPickerBody();
+      });
+    });
+  }
+
+  function updateVariantCTA() {
+    const cta = document.getElementById('item-sheet-cta');
+    const item = variantState.item;
+    const variant = (item.listing_variants || []).find(function (v) { return v.id === variantState.variantId; });
+    // Header price tracks the picker: "from $lowest" before a choice is
+    // made (if options differ in price), the exact chosen option's price
+    // once one is — otherwise it's stuck showing the lowest option's price
+    // even after picking a pricier one, which reads as a bug/bait-and-switch.
+    const priceEl = document.getElementById('item-sheet-price');
+    priceEl.innerHTML = variant
+      ? '$' + formatPrice(variant.price)
+      : (priceIsFrom(item) ? 'from ' : '') + '$' + formatPrice(item.price);
+    if (!variant) {
+      cta.textContent = 'Choose an option';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    if (item.listing_kind === 'digital') {
+      const inCart = digitalVariantCartLines.some(function (l) { return l.menuItemId === item.id && l.variantId === variant.id; });
+      cta.textContent = (inCart ? 'Remove from Cart ✓ — $' : 'Add to Cart — $') + formatPrice(variant.price);
+      cta.disabled = !stripeReady;
+      cta.style.opacity = stripeReady ? '1' : '.5';
+      cta.onclick = stripeReady ? function () {
+        toggleDigitalVariantCartLine(item, variant);
+        closeItemSheet();
+        showToast(inCart ? 'Removed from your download cart' : 'Added to your download cart');
+      } : null;
+      return;
+    }
+    const soldOut = (variant.stock_qty || 0) <= 0;
+    if (soldOut || !stripeReady) {
+      cta.textContent = soldOut ? 'Sold Out' : 'Ordering Opens Soon';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    cta.textContent = 'Add to Cart — $' + formatPrice(variant.price);
+    cta.disabled = false;
+    cta.style.opacity = '1';
+    cta.onclick = function () {
+      addShipVariantToCart(item, variant);
+      closeItemSheet();
+      showToast('Added to your ship cart');
+    };
+  }
+
+  // ══════════════════════ Pre-order date picker ══════════════════════
+
+  // Per-date capacity cache — { menuItemId: { dateTimeMs: committedQty } }.
+  // Refetched fresh every time a multi-date picker opens (cheap aggregate
+  // query), so it's never more than one sheet-open stale; the edge function
+  // is the real authority and re-checks at checkout regardless.
+  let preorderCommitmentsCache = {};
+
+  function fetchPreorderCommitments(menuItemId) {
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/get_preorder_date_commitments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+      body: JSON.stringify({ p_menu_item_id: menuItemId })
+    })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) {
+        const map = {};
+        (rows || []).forEach(function (row) {
+          map[new Date(row.preorder_date).getTime()] = Number(row.committed_qty) || 0;
+        });
+        preorderCommitmentsCache[menuItemId] = map;
+        return map;
+      })
+      .catch(function () { return preorderCommitmentsCache[menuItemId] || {}; });
+  }
+
+  // Remaining stock for one candidate date — server-committed quantity plus
+  // whatever this buyer already has in their own cart for that same date
+  // (so repeatedly clicking + can't exceed the cap before a page refresh
+  // would next refetch commitments), against the listing's shared per-date
+  // cap (max_preorder_quantity; 0 = unlimited, matching MenuItem's semantics).
+  function remainingForPreorderDate(item, dateMs) {
+    const cap = item.max_preorder_quantity || 0;
+    if (cap <= 0) return Infinity;
+    const committed = (preorderCommitmentsCache[item.id] || {})[dateMs] || 0;
+    const iso = new Date(dateMs).toISOString();
+    const inCart = preorderCartLines
+      .filter(function (l) { return l.menuItemId === item.id && l.chosenISO === iso; })
+      .reduce(function (s, l) { return s + l.qty; }, 0);
+    return Math.max(0, cap - committed - inCart);
+  }
+
+  function openPreorderPicker(item) {
+    const boxEl = document.getElementById('item-sheet-box');
+    const cta = document.getElementById('item-sheet-cta');
+
+    if (isPreorderClosed(item)) {
+      boxEl.style.display = 'block';
+      boxEl.innerHTML = '<div class="box-step-label">Ordering has closed for this item.</div>';
+      cta.textContent = 'Ordering Closed';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+
+    const mode = item.preorder_schedule_mode || 'fixed_dates';
+    if (mode === 'fixed_dates') {
+      const dates = futurePreorderDates(item);
+      if (dates.length > 1) {
+        boxEl.style.display = 'block';
+        // Always starts blank, even if this item already has cart lines —
+        // re-opening the sheet is for adding another (possibly different)
+        // date, not editing a prior choice; the existing line's qty stepper
+        // in the cart is how a buyer adds more of an already-chosen date.
+        preorderState = { item: item, chosenISO: null };
+        boxEl.innerHTML = '<div class="box-step-label">Choose a pickup date</div><div class="box-tiers" style="flex-wrap:wrap;"></div>';
+        cta.textContent = 'Choose a date';
+        cta.disabled = true;
+        cta.style.opacity = '.5';
+        cta.onclick = null;
+        fetchPreorderCommitments(item.id).then(function () {
+          if (!preorderState || preorderState.item !== item) return; // buyer moved to a different item
+          renderPreorderDatePicker(dates);
+          updatePreorderCTA();
+        });
+        return;
+      }
+    }
+
+    // Single deterministic date (or none, for lead_time) — no picker needed.
+    const readyDate = resolvePreorderDate(item, null);
+    if (readyDate) {
+      boxEl.style.display = 'block';
+      boxEl.innerHTML = '<div class="box-step-label">Ready ' + formatDateLong(readyDate) + '</div>';
+    } else {
+      boxEl.style.display = 'none';
+      boxEl.innerHTML = '';
+    }
+    if (!stripeReady) {
+      cta.textContent = 'Ordering Opens Soon';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    cta.textContent = 'Add to Order';
+    cta.disabled = false;
+    cta.style.opacity = '1';
+    cta.onclick = function () { addPreorderToCart(item, readyDate ? readyDate.toISOString() : null); };
+  }
+
+  function renderPreorderDatePicker(dates) {
+    const boxEl = document.getElementById('item-sheet-box');
+    const item = preorderState.item;
+    boxEl.innerHTML = '<div class="box-step-label">Choose a pickup date</div>' +
+      '<div class="box-tiers" style="flex-wrap:wrap;">' + dates.map(function (d) {
+        const iso = d.toISOString();
+        const active = preorderState.chosenISO === iso;
+        const remaining = remainingForPreorderDate(item, d.getTime());
+        const soldOut = remaining <= 0;
+        if (soldOut && active) preorderState.chosenISO = null;
+        return '<button type="button" class="box-tier' + (active && !soldOut ? ' active' : '') + (soldOut ? ' disabled' : '') + '"' +
+          (soldOut ? ' disabled' : '') + ' data-date="' + iso + '">' +
+          '<div class="box-tier-label">' + formatDateShort(d) + '</div>' +
+          (soldOut ? '<div class="box-tier-price">Sold out</div>' : '') +
+        '</button>';
+      }).join('') + '</div>';
+    boxEl.querySelectorAll('.box-tier:not(.disabled)').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        preorderState.chosenISO = btn.dataset.date;
+        renderPreorderDatePicker(dates);
+        updatePreorderCTA();
+      });
+    });
+  }
+
+  function updatePreorderCTA() {
+    const cta = document.getElementById('item-sheet-cta');
+    if (!preorderState.chosenISO) {
+      cta.textContent = 'Choose a date';
+      cta.disabled = true;
+      cta.style.opacity = '.5';
+      cta.onclick = null;
+      return;
+    }
+    const canBuy = stripeReady;
+    cta.textContent = canBuy ? 'Add to Order' : 'Ordering Opens Soon';
+    cta.disabled = !canBuy;
+    cta.style.opacity = canBuy ? '1' : '.5';
+    cta.onclick = canBuy ? function () { addPreorderToCart(preorderState.item, preorderState.chosenISO); } : null;
+  }
+
+  function addPreorderToCart(item, chosenISO) {
+    const iso = chosenISO || null;
+    const existing = preorderCartLines.find(function (l) { return l.menuItemId === item.id && l.chosenISO === iso; });
+    if (existing) {
+      existing.qty += 1;
+    } else {
+      preorderCartLines.push({
+        lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
+        menuItemId: item.id, chosenISO: iso, qty: 1
+      });
+    }
+    saveCart();
+    updateCartUI();
+    closeItemSheet();
+    showToast('Added to your order');
+  }
+
+  function changePreorderLineQty(lineId, delta) {
+    const line = preorderCartLines.find(function (l) { return l.lineId === lineId; });
+    if (!line) return;
+    if (delta > 0 && line.chosenISO) {
+      // Best-effort client-side guard using whatever commitments this
+      // session already fetched (see preorderCommitmentsCache) — the edge
+      // function is the real authority and re-checks fresh at checkout.
+      const item = allListings.find(function (l) { return l.id === line.menuItemId; });
+      if (item && remainingForPreorderDate(item, new Date(line.chosenISO).getTime()) <= 0) {
+        showToast('No more available for that date');
+        return;
+      }
+    }
+    line.qty = Math.max(0, line.qty + delta);
+    if (line.qty === 0) { preorderCartLines = preorderCartLines.filter(function (l) { return l.lineId !== lineId; }); }
+    saveCart();
+    updateCartUI();
+  }
+
+  // ══════════════════════ Cart / Checkout Sheet ══════════════════════
+
+  function openCartSheet() {
+    // Always opens this sheet first, regardless of which cart(s) have items
+    // — a digital- or ship-only cart used to jump straight to its own
+    // lightweight checkout page from here, which had no way to remove an
+    // item (a baker reported this: the only fix was going back to the
+    // listing and deselecting it). The sheet's own Continue button (see
+    // wireCartStepEvents) is what actually decides whether to go to the
+    // full pickup-info step or straight to a lighter digital/ship checkout
+    // page — this function just makes sure that decision is always made
+    // from a screen where every line item is removable.
+    cartStep = 0;
+    renderCartSheet();
+    document.getElementById('cart-scrim').classList.add('open');
+  }
+  function closeCartSheet() { document.getElementById('cart-scrim').classList.remove('open'); }
+
+  function renderCartSheet() {
+    const body = document.getElementById('cart-sheet-body');
+    if (cartStep === 0) body.innerHTML = renderCartStepOrder();
+    else if (cartStep === 1) body.innerHTML = renderCartStepPickup();
+    else body.innerHTML = renderCartStepConfirmed();
+    wireCartStepEvents();
+  }
+
+  function renderCartStepOrder() {
+    const lines = cartLines();
+    const digitalItems = digitalCartItems();
+    const shipLinesData = shipCartItems();
+    if (lines.length === 0 && digitalItems.length === 0 && shipLinesData.length === 0) {
+      return '<div id="cart-step-label">Your order</div>' +
+        '<div class="empty-state">Your order is empty.</div>' +
+        '<button class="btn btn-outline" id="cart-see-ready" style="width:100%;margin-top:12px;">Browse the menu</button>';
+    }
+    const rows = lines.map(function (l) {
+      if (l.kind === 'box') {
+        const breakdownStr = l.line.variants.map(function (v) { return v.qty + '× ' + v.name; }).join(', ');
+        return '<div class="cart-line" data-line-kind="box" data-line-id="' + l.line.lineId + '">' +
+          '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
+          '<div class="info"><div class="n">' + escapeHtml(l.item.name) + ' — ' + escapeHtml(l.line.tierLabel) + '</div><div class="m">' + escapeHtml(breakdownStr) + '</div></div>' +
+          '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
+          '<div class="total tabular">$' + formatPrice(l.line.price * l.qty) + '</div>' +
+          '</div>';
+      }
+      if (l.kind === 'preorder') {
+        const date = resolvePreorderDate(l.item, l.line.chosenISO);
+        const meta = date ? 'Ready ' + formatDateShort(date) : subtitleFor(l.item);
+        return '<div class="cart-line" data-line-kind="preorder" data-line-id="' + l.line.lineId + '">' +
+          '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
+          '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(meta) + '</div></div>' +
+          '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
+          '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
+          '</div>';
+      }
+      return '<div class="cart-line" data-line-kind="plain" data-line-id="' + l.item.id + '">' +
+        '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
+        '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(subtitleFor(l.item)) + '</div></div>' +
+        '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
+        '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
+        '</div>';
+    }).join('');
+    const subtotal = cartSubtotal();
+    const taxCents = cartTaxCents();
+
+    // A mixed cart (pickup items + digital downloads) checks out as two
+    // separate Stripe charges under the hood — see checkout.html — since a
+    // pickup item's authorize-then-capture-on-accept can't share a
+    // PaymentIntent with a digital item's instant capture. Folding the
+    // digital lines into this same summary/total keeps it feeling like one
+    // order to the buyer even though it settles as two charges.
+    const digitalRows = digitalItems.map(function (item) {
+      return '<div class="cart-line" data-line-kind="digital" data-line-id="' + item.lineKey + '">' +
+        '<div class="thumb"><img src="' + itemImgURL(item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
+        '<div class="info"><div class="n">' + escapeHtml(item.name) + '</div><div class="m">Instant digital download</div></div>' +
+        '<button class="remove-btn" aria-label="Remove">✕</button>' +
+        '<div class="total tabular">$' + formatPrice(item.price) + '</div>' +
+        '</div>';
+    }).join('');
+    // Ship lines get the same qty-stepper look as a plain pickup line (not
+    // digital's flat remove-✕ row) — a ships item is stock-bound and a
+    // buyer can reasonably want more than one, unlike a digital download.
+    const shipRows = shipLinesData.map(function (l) {
+      return '<div class="cart-line" data-line-kind="ship" data-line-id="' + l.item.lineKey + '">' +
+        '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
+        '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">Ships in ' + (l.item.lead_days || 3) + ' day' + (l.item.lead_days === 1 ? '' : 's') + '</div></div>' +
+        '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
+        '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
+        '</div>';
+    }).join('');
+    const grandTotal = cartTotal() + digitalCartTotal() + shipCartTotal();
+    const nonPickupVerticals = (digitalItems.length > 0 ? 1 : 0) + (shipLinesData.length > 0 ? 1 : 0);
+
+    return '<div id="cart-step-label">Your order</div>' +
+      rows +
+      (lines.length > 0 ? (
+        '<div class="cart-financial-row"><span>Subtotal</span><span class="tabular">$' + formatPrice(subtotal) + '</span></div>' +
+        (taxCents > 0 ? '<div class="cart-financial-row"><span>Tax</span><span class="tabular">$' + formatPrice(taxCents / 100) + '</span></div>' : '')
+      ) : '') +
+      (digitalItems.length > 0 ? (
+        '<div class="cart-section-label">Digital Downloads</div>' +
+        digitalRows +
+        '<div class="cart-financial-row"><span>Downloads subtotal</span><span class="tabular">$' + formatPrice(digitalCartTotal()) + '</span></div>'
+      ) : '') +
+      (shipLinesData.length > 0 ? (
+        '<div class="cart-section-label">Ships to You</div>' +
+        shipRows +
+        '<div class="cart-financial-row"><span>Items subtotal</span><span class="tabular">$' + formatPrice(shipCartItemsSubtotal()) + '</span></div>' +
+        (shipCartShippingFees() > 0 ? '<div class="cart-financial-row"><span>Shipping fee</span><span class="tabular">$' + formatPrice(shipCartShippingFees()) + '</span></div>' : '')
+      ) : '') +
+      '<div class="cart-financial-row total"><span>Total</span><span class="tabular">$' + formatPrice(grandTotal) + '</span></div>' +
+      '<button class="btn btn-primary" id="cart-continue" style="width:100%;">Continue to ' + (lines.length > 0 || nonPickupVerticals > 1 ? 'checkout' : (digitalItems.length > 0 ? 'download details' : (shipLinesData.length > 0 ? 'shipping details' : 'pickup details'))) + '</button>' +
+      '<div class="cart-note">' +
+        (lines.length > 0 ? 'Upon confirmation of your order, pickup details will be provided by email. Customers are responsible for coordinating pickup of their order with the Seller.' : '') +
+        (digitalItems.length > 0 ? ' Digital downloads are delivered instantly, separately from pickup items.' : '') +
+        (shipLinesData.length > 0 ? ' Shipping items are a separate charge, and you\'ll be asked for a shipping address.' : '') +
+      '</div>';
+  }
+
+  function renderCartStepPickup() {
+    // No pickup-window picker — the baker coordinates the actual pickup
+    // time directly with the customer using the contact details below,
+    // rather than having the customer pre-select a slot here (this field
+    // was also never actually read into the order payload).
+    // No total/pay amount shown here either — this step only collects
+    // contact info. checkout.html (next) is the one place that shows the
+    // definitive fee/tax-inclusive total and actually takes payment, so
+    // there's only ever one number for a buyer to trust.
+    return '<div id="cart-step-label">Customer Information</div>' +
+      '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
+      '<div class="field"><label>Mobile</label><input id="f-phone" type="tel" autocomplete="tel" /></div>' +
+      '<div class="field"><label>Email</label><input id="f-email" type="email" autocomplete="email" /></div>' +
+      '<div class="field"><label>Confirm email</label><input id="f-email-confirm" type="email" autocomplete="email" onpaste="return false" oncopy="return false" oncut="return false" /></div>' +
+      '<div id="pay-error" style="color:var(--error);font-size:13px;margin-top:6px;"></div>' +
+      '<button class="btn btn-primary" id="cart-pay" style="width:100%;">Continue to Payment</button>' +
+      '<button class="btn" id="cart-back" style="width:100%;height:auto;padding:10px;text-decoration:underline;background:none;color:var(--muted);">Back to order</button>';
+  }
+
+  function renderCartStepConfirmed() {
+    return '<div style="text-align:center;padding:20px 0;">' +
+      '<div style="width:54px;height:54px;border-radius:50%;background:var(--ready);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto;">✓</div>' +
+      '<div style="font-size:20px;font-weight:700;color:var(--ink);margin-top:16px;">Order confirmed</div>' +
+      '<p style="font-size:14px;color:var(--bio);margin-top:10px;">The pickup address and window are in your email.</p>' +
+      '<button class="btn btn-outline" id="cart-keep-shopping" style="width:100%;margin-top:20px;">Keep shopping</button>' +
+      '</div>';
+  }
+
+  function wireCartStepEvents() {
+    const seeReady = document.getElementById('cart-see-ready');
+    if (seeReady) seeReady.addEventListener('click', function () { closeCartSheet(); });
+    document.querySelectorAll('.line-minus, .line-plus').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const row = btn.closest('.cart-line');
+        const id = row.dataset.lineId;
+        const delta = btn.classList.contains('line-plus') ? 1 : -1;
+        if (row.dataset.lineKind === 'box') {
+          changeBoxLineQty(id, delta);
+        } else if (row.dataset.lineKind === 'preorder') {
+          changePreorderLineQty(id, delta);
+        } else if (row.dataset.lineKind === 'ship') {
+          changeShipCartLine(id, delta);
+        } else {
+          const item = allListings.find(function (l) { return l.id === id; });
+          changeQty(item, delta);
+        }
+        renderCartSheet();
+      });
+    });
+    document.querySelectorAll('.cart-line[data-line-kind="digital"] .remove-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const id = btn.closest('.cart-line').dataset.lineId;
+        removeDigitalCartLine(id);
+        updateDigitalCartUI();
+        // Keeps the underlying Digital Downloads row's own add-control (the
+        // ✓/+ toggle) in sync — without this it kept showing "added" after
+        // a removal here until the next full page load.
+        renderDigitalFeed();
+        renderCartSheet();
+      });
+    });
+    const cont = document.getElementById('cart-continue');
+    if (cont) cont.addEventListener('click', function () {
+      // A pickup line (or 2+ non-pickup verticals at once — e.g. digital +
+      // ship with no pickup items) goes through the full name/email step
+      // and checkout.html, which chains whichever legs are actually
+      // present. A single non-pickup vertical alone skips straight to its
+      // own lighter single-purpose checkout page (no phone number, since
+      // neither digital nor ship needs one for pickup coordination).
+      const hasPickup = cartLines().length > 0;
+      const hasDigital = digitalCartItems().length > 0;
+      const hasShip = shipCartItems().length > 0;
+      const verticalCount = (hasPickup ? 1 : 0) + (hasDigital ? 1 : 0) + (hasShip ? 1 : 0);
+      if (hasPickup || verticalCount > 1) {
+        cartStep = 1;
+        renderCartSheet();
+      } else if (hasDigital) {
+        labGo(digitalCartCheckoutURL());
+      } else if (hasShip) {
+        labGo(shipCartCheckoutURL());
+      }
+    });
+    const back = document.getElementById('cart-back');
+    if (back) back.addEventListener('click', function () { cartStep = 0; renderCartSheet(); });
+    const pay = document.getElementById('cart-pay');
+    if (pay) pay.addEventListener('click', goToCheckout);
+    const keep = document.getElementById('cart-keep-shopping');
+    if (keep) keep.addEventListener('click', function () {
+      cart = {}; boxCartLines = []; preorderCartLines = []; digitalCart = []; shipCart = {};
+      shipVariantCartLines = []; digitalVariantCartLines = [];
+      saveCart(); updateCartUI(); updateDigitalCartUI(); updateShipCartUI(); closeCartSheet();
+    });
+  }
+
+  // Hands the whole cart off to checkout.html as a sessionStorage payload —
+  // avoids an unbounded query string for a multi-item order.
+  function goToCheckout() {
+    const name = document.getElementById('f-name').value.trim();
+    const phone = document.getElementById('f-phone').value.trim();
+    const email = document.getElementById('f-email').value.trim();
+    const emailConfirm = document.getElementById('f-email-confirm').value.trim();
+    const errEl = document.getElementById('pay-error');
+    if (!name || !phone || !email || !emailConfirm) {
+      errEl.textContent = 'Please fill in your name, mobile and email (twice, to confirm).';
+      return;
+    }
+    // A single mistyped character in the domain (e.g. .ckm instead of .com)
+    // still looks like a syntactically valid email, so it passes any regex
+    // check but silently fails to deliver — the confirmation email never
+    // arrives and the baker has no working way to reach the customer.
+    // Requiring the address twice catches exactly that class of typo.
+    if (email.toLowerCase() !== emailConfirm.toLowerCase()) {
+      errEl.textContent = "Those emails don't match — please check for typos.";
+      return;
+    }
+    const payload = {
+      baker: resolvedBakerId,
+      theme: profile.selected_theme,
+      pattern: profile.background_pattern,
+      gstRegistered: profile.is_gst_registered ? '1' : '0',
+      province: profile.pickup_province || '',
+      customer: { name: name, phone: phone, email: email },
+      items: cartLines().map(function (l) {
+        if (l.kind === 'box') {
+          return {
+            id: l.item.id, name: l.item.name + ' — ' + l.line.tierLabel, qty: l.qty, price: l.line.price,
+            taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
+            listingKind: 'ready_now', dropDate: '', maxQty: 0, availQty: 0,
+            isAssortedBox: true, tierId: l.line.tierId, tierLabel: l.line.tierLabel, variants: l.line.variants
+          };
+        }
+        if (l.kind === 'preorder') {
+          return {
+            id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
+            taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
+            listingKind: l.item.listing_kind, dropDate: l.item.preorder_drop_date || '',
+            maxQty: l.item.max_preorder_quantity || 0, availQty: l.item.available_qty_today || 0,
+            // Only meaningful for fixed_dates mode with 2+ candidates — the
+            // server re-validates this against the listing's actual dates
+            // rather than trusting it outright; weekday/lead_time modes are
+            // computed server-side from the listing itself, no buyer choice.
+            // This line's own chosenISO (not a global per-item value), so a
+            // cart with the same item on 3 different dates sends 3 distinct
+            // line objects here instead of collapsing to one.
+            chosenPreorderDate: l.line.chosenISO || ''
+          };
+        }
+        return {
+          id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
+          taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
+          listingKind: l.item.listing_kind, dropDate: '', maxQty: 0, availQty: l.item.available_qty_today || 0
+        };
+      }),
+      // Present only for a mixed cart — checkout.html runs this as a second,
+      // separate charge after the pickup one (see comment on renderCartStepOrder
+      // for why they can't share a PaymentIntent), then shows one combined
+      // confirmation screen.
+      digitalItems: digitalCartItems().map(function (item) {
+        return { id: item.id, name: item.name, price: item.price, variantId: item.variantId || null, variantLabel: item.variantLabel || null };
+      }),
+      // A third, independent leg — same reasoning as digitalItems above,
+      // but stock-bound (qty can be >1) and needs a shipping address,
+      // which checkout.html collects just before charging this leg.
+      // Per-item fees are zeroed here (rather than passed raw) whenever
+      // shipCartShippingFees() came back waived by the baker's free-
+      // shipping threshold, so checkout.html — which just sums whatever
+      // shippingFee arrives per item — naturally charges $0 shipping too.
+      shipItems: (function () {
+        // Per-line shippingFee values here must reproduce the exact same
+        // total shipCartShippingFees() computed above, since checkout.html
+        // just sums whatever arrives per line — see that function for the
+        // combined-shipping rule (highest-fee item full price, every other
+        // distinct item at its additional-item percentage or its own full
+        // fee if flagged shipping_always_full_price).
+        const waived = shipCartItemsSubtotal() > 0 && shipCartShippingFees() === 0;
+        const additionalPercent = (profile && profile.shipping_additional_item_percent != null)
+          ? profile.shipping_additional_item_percent : 100;
+        const items = shipCartItems();
+        const seenIds = {};
+        const distinctIds = [];
+        items.forEach(function (l) { if (!seenIds[l.item.id]) { seenIds[l.item.id] = true; distinctIds.push(l.item.id); } });
+        let highestId = null, highestFee = -1;
+        distinctIds.forEach(function (id) {
+          const it = items.find(function (l) { return l.item.id === id; }).item;
+          if ((it.shipping_fee || 0) > highestFee) { highestFee = it.shipping_fee || 0; highestId = id; }
+        });
+        const chargedForFee = {};
+        return items.map(function (l) {
+          let fee = 0;
+          if (!waived && !chargedForFee[l.item.id]) {
+            chargedForFee[l.item.id] = true;
+            if (l.item.id === highestId) fee = l.item.shipping_fee || 0;
+            else if (l.item.shipping_always_full_price) fee = l.item.shipping_fee || 0;
+            else fee = Math.round((l.item.shipping_fee || 0) * additionalPercent / 100 * 100) / 100;
+          }
+          return {
+            id: l.item.id, name: l.item.name, price: l.item.price, qty: l.qty,
+            leadDays: l.item.lead_days || 3, shippingFee: fee,
+            variantId: l.item.variantId || null, variantLabel: l.item.variantLabel || null
+          };
+        });
+      })()
+    };
+    sessionStorage.setItem('bakeri_checkout_cart', JSON.stringify(payload));
+    labGo('/baker/checkout.html?baker=' + encodeURIComponent(resolvedBakerId) +
+      '&theme=' + encodeURIComponent(profile.selected_theme || '') +
+      '&pattern=' + encodeURIComponent(profile.background_pattern || ''));
+  }
+
+  // ══════════════════════ Helpers ══════════════════════
+
+  function shareLink() {
+    const url = window.location.href;
+    if (navigator.clipboard) navigator.clipboard.writeText(url).catch(function () {});
+    showToast('Link copied — ' + window.location.host + window.location.pathname);
+  }
+
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2000);
+  }
+
+  function isSoldOut(item) {
+    if (item.is_assorted_box) return false; // no plain daily quantity tracked
+    if (item.listing_kind === 'preorder') return isPreorderClosed(item);
+    return (item.listing_kind === 'ready_now' || item.listing_kind === 'physical') && (item.available_qty_today || 0) <= 0;
+  }
+
+  // ══════════════════════ Pre-order scheduling ══════════════════════
+  // Three mutually exclusive modes a baker can set per listing — see
+  // MenuItem.PreorderScheduleMode (iOS) / preorder_schedule_mode (Supabase):
+  //   fixed_dates — 1+ candidate dates; buyer picks one if there's >1
+  //   weekday     — a day of week + an explicit order-by cutoff
+  //   lead_time   — ready N days after whenever the buyer orders
+
+  function futurePreorderDates(item) {
+    const raw = (item.preorder_dates && item.preorder_dates.length)
+      ? item.preorder_dates
+      : (item.preorder_drop_date ? [item.preorder_drop_date] : []);
+    return raw.map(function (d) { return new Date(d); })
+      .filter(function (d) { return d > new Date(); })
+      .sort(function (a, b) { return a - b; });
+  }
+
+  // Mirrors MenuItem.weekdayComputedReadyDate exactly: the first date
+  // strictly after the cutoff matching the chosen weekday. JS Date.getDay()
+  // is 0=Sun...6=Sat; Calendar's convention (used server-side and in the
+  // app) is 1=Sun...7=Sat, hence the +1.
+  function computeWeekdayReadyDate(weekday, cutoffISO) {
+    if (!weekday || !cutoffISO) return null;
+    const date = new Date(cutoffISO);
+    date.setDate(date.getDate() + 1);
+    for (let i = 0; i < 7; i++) {
+      if (date.getDay() + 1 === weekday) return date;
+      date.setDate(date.getDate() + 1);
+    }
+    return null;
+  }
+
+  // The listing's one deterministic ready date for fixed_dates-with-1-date,
+  // weekday, and lead_time modes — null for lead_time (no fixed date exists;
+  // the server computes now+lead_days at order time) and for fixed_dates
+  // with no chosen date yet when there's more than one candidate.
+  function resolvePreorderDate(item, chosenISO) {
+    const mode = item.preorder_schedule_mode || 'fixed_dates';
+    if (mode === 'weekday') return computeWeekdayReadyDate(item.preorder_weekday, item.preorder_order_cutoff_date);
+    if (mode === 'lead_time') return null;
+    if (chosenISO) return new Date(chosenISO);
+    const dates = futurePreorderDates(item);
+    return dates.length ? dates[0] : null;
+  }
+
+  function isPreorderClosed(item) {
+    const mode = item.preorder_schedule_mode || 'fixed_dates';
+    if (mode === 'weekday') {
+      return item.preorder_order_cutoff_date ? new Date() > new Date(item.preorder_order_cutoff_date) : false;
+    }
+    if (mode === 'lead_time') return false;
+    const raw = (item.preorder_dates && item.preorder_dates.length)
+      ? item.preorder_dates
+      : (item.preorder_drop_date ? [item.preorder_drop_date] : []);
+    if (!raw.length) return false;
+    return raw.every(function (d) { return new Date(d) < new Date(); });
+  }
+
+  function formatDateShort(d) { return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+  function formatDateLong(d) { return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+
+  // Plain kind badge — used on grid cards. A sold-out ready_now item keeps
+  // its normal "Ready Now" tag, distinguished only by lighter subtitle
+  // text below (see subtitleFor) — swapping the tag itself in a dense
+  // grid would read as a second, competing badge type.
+  function kindBadgeInfo(item) {
+    // Assorted Box is a composition detail, not a fulfillment type — the
+    // badge should still say Ready Now/Pre-order like any other listing
+    // (that's the info a buyer actually needs at a glance); "pick your own
+    // flavors" in the subtitle already signals it's a box.
+    if (item.listing_kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
+    if (item.listing_kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
+    if (item.listing_kind === 'digital')   return { bg: 'var(--digital)', label: 'Digital' };
+    if (item.listing_kind === 'physical')  return { bg: 'var(--physical)', label: 'Ships' };
+    return { bg: 'var(--custom)', label: 'Custom' };
+  }
+
+  // Sold-out-aware badge — used only in the item detail sheet.
+  function badgeInfo(item) {
+    if (isSoldOut(item)) return { bg: 'var(--muted)', label: 'Sold Out' };
+    return kindBadgeInfo(item);
+  }
+
+  function subtitleFor(item) {
+    if (item.is_assorted_box) return 'Pick your own flavors';
+    if (item.listing_kind === 'custom') {
+      return item.lead_time_note
+        ? 'Lead time required: ' + item.lead_time_note
+        : 'Request a custom quote';
+    }
+    if (item.listing_kind === 'digital') return 'Instant digital download';
+    if (item.listing_kind === 'physical') {
+      if (isSoldOut(item)) return 'Sold out';
+      const n = item.lead_days || 3;
+      return (item.available_qty_today || 0) + ' in stock · ships in ' + n + ' day' + (n === 1 ? '' : 's');
+    }
+    if (item.listing_kind === 'preorder') {
+      if (item.lead_time_note) return 'Lead time required: ' + item.lead_time_note;
+      if (isPreorderClosed(item)) return 'Ordering closed';
+      const mode = item.preorder_schedule_mode || 'fixed_dates';
+      if (mode === 'weekday') {
+        const ready = computeWeekdayReadyDate(item.preorder_weekday, item.preorder_order_cutoff_date);
+        return ready ? 'Ready ' + formatDateShort(ready) : 'Order ahead';
+      }
+      if (mode === 'lead_time') {
+        const n = item.lead_days || 2;
+        return 'Ready in ' + n + ' day' + (n === 1 ? '' : 's');
+      }
+      const dates = futurePreorderDates(item);
+      if (dates.length > 1) return 'Pick a pickup date';
+      if (dates.length === 1) return 'Ready ' + formatDateShort(dates[0]);
+      return 'Order ahead';
+    }
+    if (isSoldOut(item)) return 'Sold out for today';
+    if (item.listing_kind === 'ready_now' && item.available_qty_today > 0) return item.available_qty_today + ' available today';
+    return item.item_description || '';
+  }
+
+  // A has_variants listing's own price field always holds the lowest
+  // option's price (set server-side at save — see AddEditMenuItemView's
+  // performSave), so it needs the same "from $X" treatment as Custom/
+  // Assorted Box whenever its options don't all share one price.
+  function priceIsFrom(item) {
+    if (item.listing_kind === 'custom' || item.is_assorted_box === true) return true;
+    if (item.has_variants) {
+      const prices = (item.listing_variants || []).map(function (v) { return v.price; });
+      return new Set(prices).size > 1;
+    }
+    return false;
+  }
+  function formatPrice(v) { return parseFloat(v).toFixed(2); }
+
+  function photoFallback(item) {
+    const ph = document.createElement('div');
+    ph.className = 'ph-fallback';
+    ph.style.position = 'absolute'; ph.style.inset = '0';
+    ph.textContent = categoryEmoji(item);
+    return ph;
+  }
+
+  function itemImgURL(item) {
+    return STORAGE_URL + '/menu-item-images/' + resolvedBakerId.toUpperCase() + '/' + item.id.toUpperCase() + '.jpg';
+  }
+
+  function customOrderURL(item) {
+    return '/baker/custom-order.html?baker=' + encodeURIComponent(resolvedBakerId) +
+      '&item=' + encodeURIComponent(item.id) +
+      '&form=' + encodeURIComponent(item.intake_form_id || '') +
+      '&name=' + encodeURIComponent(item.name) +
+      '&theme=' + encodeURIComponent((profile && profile.selected_theme) || '') +
+      '&pattern=' + encodeURIComponent((profile && profile.background_pattern) || '');
+  }
+
+  // Falls back by listing_kind rather than always defaulting to 🍰 — a cake
+  // slice is a nonsensical placeholder for an unrecognized physical or
+  // digital category (a baker's own free-text "Cookie Cutters"/"Printable
+  // Labels"/etc. will never all be enumerable here).
+  function categoryEmoji(item) {
+    const map = {
+      'Cakes': '🎂', 'Cookies': '🍪', 'Bread': '🍞', 'Pastries': '🥐',
+      'Cupcakes': '🧁', 'Pies': '🥧', 'Donuts': '🍩', 'Macarons': '🫶',
+      'Muffins': '🧁', 'Bars': '🍫'
+    };
+    if (map[item.category]) return map[item.category];
+    if (item.listing_kind === 'physical') return '📦';
+    if (item.listing_kind === 'digital') return '📄';
+    return '🍰';
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  function showNotFound(title, subtitle) {
+    document.body.innerHTML = '<div class="empty-state"><h2 style="color:var(--ink);margin-bottom:8px;font-size:18px;">' + escapeHtml(title) + '</h2><p>' + escapeHtml(subtitle) + '</p></div>';
+  }
+})();
+</script>
+</body>
+</html>

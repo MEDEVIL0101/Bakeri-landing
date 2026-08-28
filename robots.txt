@@ -3,6 +3,9 @@
 # assistants and answer engines, by default.
 User-agent: *
 Allow: /
+# Private design sandbox — a copy of the storefront for testing layout
+# changes. Not a real page; keep it out of every index.
+Disallow: /baker-lab/
 
 # Listed explicitly so intent is unambiguous to each crawler's operator,
 # even though the wildcard rule above already allows them.
