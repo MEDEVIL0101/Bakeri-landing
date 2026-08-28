@@ -13,10 +13,16 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // digital_file_path); only the URL token dies. This function walks an
 // order's items back to that file and signs a new URL.
 //
+// "Is this a digital order?" is decided by whether its line items resolve to
+// a digital listing's file — NOT by fulfillment_type, which gets corrupted
+// to 'Pickup' on older app builds (see the 2026-08-24 SUPPORT_LOG entry).
+//
 // Modes (in the request body):
 //   { order_id }                 — one order
-//   { customer_email }           — every completed digital order for that buyer
-//   { all: true, ... }           — sweep every completed digital order
+//   { customer_email }           — every marketplace order for that buyer
+//                                  whose items resolve to digital files
+//   { all: true, ... }           — sweep every marketplace order; those that
+//                                  resolve no digital files are skipped
 //                                  (paged via limit/offset; secret-gated)
 // Flags:
 //   dry_run     — resolve + report only; mint nothing, email nothing
@@ -65,13 +71,6 @@ function buildDownloadFilename(itemName: string, filePath: string): string {
   return ext && ext !== filePath ? `${safeName}.${ext}` : safeName;
 }
 
-// order_items.custom_name for a variant line is "Listing Name — Option"
-// (see finalize-guest-digital-order). Strip the option to match the listing.
-function listingNameFromCustomName(customName: string): string {
-  const dash = customName.indexOf(" — ");
-  return (dash === -1 ? customName : customName.slice(0, dash)).trim();
-}
-
 interface ResolvedFile {
   file_path: string;
   item_name: string;
@@ -94,53 +93,56 @@ async function resolveOrderFiles(
     .eq("order_id", order.id)
     .is("deleted_at", null);
 
+  // The baker's digital listings that still have a file — fetched once for
+  // the whole order rather than per line.
+  const { data: listingRows } = await db
+    .from("menu_items")
+    .select("id, name, digital_file_path")
+    .eq("user_id", order.user_id)
+    .eq("listing_kind", "digital")
+    .is("deleted_at", null);
+  const digitalListings: { id: string; name: string; digital_file_path: string }[] =
+    (listingRows ?? []).filter((l: { digital_file_path: string | null }) => l.digital_file_path);
+
   const files = new Map<string, ResolvedFile>(); // dedupe by file_path
   const unresolved: Unresolved[] = [];
 
   for (const item of items ?? []) {
     const customName: string = item.custom_name ?? "";
 
-    // 1. Direct link (recorded on orders placed after 2026-08-28).
+    // 1. Direct link — order_items.menu_item_id, recorded on orders placed
+    // after 2026-08-28.
     if (item.menu_item_id) {
-      const { data: mi } = await db
-        .from("menu_items")
-        .select("name, listing_kind, digital_file_path")
-        .eq("id", item.menu_item_id)
-        .maybeSingle();
-      if (mi?.listing_kind === "digital" && mi.digital_file_path) {
-        files.set(mi.digital_file_path, {
-          file_path: mi.digital_file_path,
-          item_name: mi.name || listingNameFromCustomName(customName),
-        });
+      const direct = digitalListings.find((l) => l.id === item.menu_item_id);
+      if (direct) {
+        files.set(direct.digital_file_path, { file_path: direct.digital_file_path, item_name: direct.name });
         continue;
       }
+      // menu_item_id set but not one of this baker's current digital
+      // listings (converted/deleted) — fall through to a name match.
     }
 
-    // 2. Fall back to an exact, case-insensitive listing-name match against
-    // the baker's own digital listings — trusted only when it's unambiguous
-    // (mirrors resolve_order_item_image_id).
-    const listingName = listingNameFromCustomName(customName);
-    // ilike treats % _ \ as wildcards — escape so this stays an exact
-    // (case-insensitive) match, not a pattern.
-    const escaped = listingName.replace(/([\\%_])/g, "\\$1");
-    const { data: matches } = await db
-      .from("menu_items")
-      .select("name, digital_file_path")
-      .eq("user_id", order.user_id)
-      .eq("listing_kind", "digital")
-      .is("deleted_at", null)
-      .ilike("name", escaped);
-    const withFile = (matches ?? []).filter((m: { digital_file_path: string | null }) => m.digital_file_path);
+    // 2. Name match. custom_name is either the listing name exactly, or the
+    // listing name followed by a variant suffix — the separator has varied
+    // over time (" — Pink", "-pink set", " | Large"), so match any listing
+    // whose name is custom_name or a separator-delimited prefix of it, and
+    // take the longest (most specific) such match when it's unambiguous.
+    const lc = customName.toLowerCase().trim();
+    const prefixed = digitalListings.filter((l) => {
+      const n = l.name.toLowerCase().trim();
+      if (!n) return false;
+      if (lc === n) return true;
+      return lc.startsWith(n) && /^[\s\-—|:/]/.test(lc.slice(n.length));
+    });
+    const maxLen = prefixed.reduce((m, c) => Math.max(m, c.name.trim().length), 0);
+    const best = prefixed.filter((c) => c.name.trim().length === maxLen);
 
-    if (withFile.length === 1) {
-      files.set(withFile[0].digital_file_path, {
-        file_path: withFile[0].digital_file_path,
-        item_name: withFile[0].name || listingName,
-      });
-    } else if (withFile.length === 0) {
-      unresolved.push({ custom_name: customName, reason: "no matching digital listing with a file (deleted or file removed?)" });
+    if (best.length === 1) {
+      files.set(best[0].digital_file_path, { file_path: best[0].digital_file_path, item_name: best[0].name });
+    } else if (best.length === 0) {
+      unresolved.push({ custom_name: customName, reason: "no matching digital listing with a file (deleted, renamed, or file removed)" });
     } else {
-      unresolved.push({ custom_name: customName, reason: `${withFile.length} listings named "${listingName}" — can't tell which file` });
+      unresolved.push({ custom_name: customName, reason: `${best.length} digital listings match "${customName}" — can't tell which file` });
     }
   }
 
@@ -199,10 +201,16 @@ Deno.serve(async (req: Request) => {
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   // ---- gather target orders -------------------------------------------------
+  // Deliberately NOT filtered on fulfillment_type = 'Digital'. A digital
+  // marketplace order that synced to a baker whose app build predates the
+  // FulfillmentType.digital fix gets silently relabeled 'Pickup' (and shows
+  // pickup UI). Those still need their downloads re-issued, so "is this a
+  // digital order?" is decided by whether its items resolve to a digital
+  // listing's file (resolveOrderFiles), not by this column. An order that
+  // resolves zero files is treated as genuinely non-digital and skipped.
   let q = db
     .from("orders")
-    .select("id, user_id, order_name, customer_email, created_at")
-    .eq("fulfillment_type", "Digital")
+    .select("id, user_id, order_name, customer_email, created_at, fulfillment_type")
     .eq("order_source", "marketplace");
 
   if (orderId) {
@@ -236,22 +244,30 @@ Deno.serve(async (req: Request) => {
 
   // ---- process ------------------------------------------------------------
   const results: Record<string, unknown>[] = [];
-  let fullyResolved = 0, partial = 0, failed = 0;
+  let fullyResolved = 0, partial = 0, failed = 0, emailedCount = 0;
+
+  const isSweep = !orderId && !customerEmail;
 
   for (const order of scoped) {
     const { files, unresolved } = await resolveOrderFiles(db, order);
 
     if (files.length === 0) {
+      // Sweep scans every marketplace order — a genuine pickup/shipping
+      // order resolves nothing and is simply not our concern, so don't
+      // report it or count it as a failure. An explicitly named order or
+      // buyer email that resolves nothing IS worth surfacing.
+      if (isSweep) continue;
       failed++;
       results.push({
         order_id: order.id,
         order_reference: orderReference(order.id),
         customer_email: order.customer_email,
         order_name: order.order_name,
+        fulfillment_type: order.fulfillment_type,
         downloads: [],
         unresolved,
         emailed: false,
-        error: "No files could be resolved for this order.",
+        error: "No digital-listing files could be resolved for this order — is it actually a digital purchase?",
       });
       continue;
     }
@@ -286,6 +302,7 @@ Deno.serve(async (req: Request) => {
 
     let emailed = false;
     if (sendEmail && !dryRun) emailed = await sendDeliveryEmail(order.id, downloads);
+    if (emailed) emailedCount++;
 
     if (unresolved.length === 0) fullyResolved++; else partial++;
 
@@ -294,6 +311,7 @@ Deno.serve(async (req: Request) => {
       order_reference: orderReference(order.id),
       customer_email: order.customer_email,
       order_name: order.order_name,
+      fulfillment_type: order.fulfillment_type,
       // Public path never echoes URLs; operator path always does.
       downloads: isOperator ? downloads : downloads.map((d) => ({ item_name: d.item_name })),
       unresolved,
@@ -302,7 +320,14 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!isOperator) {
-    return json({ ok: true, message: "Fresh links have been emailed to the address on file." });
+    // Only claim a send if one actually happened — otherwise stay vague so
+    // this can't be used to probe which emails have purchases.
+    return json({
+      ok: true,
+      message: emailedCount > 0
+        ? "Fresh links have been emailed to the address on file."
+        : "If a matching purchase exists, fresh links are on their way to the email on file.",
+    });
   }
 
   return json({

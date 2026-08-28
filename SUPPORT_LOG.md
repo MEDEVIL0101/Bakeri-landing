@@ -21,6 +21,22 @@ Entry format:
 
 ---
 
+## 2026-08-28 — resend-digital-download missed a buyer whose digital order was mislabeled "Pickup"
+
+**Reported by:** Diana, directly — a second buyer (wendytippy@hotmail.com) with the expired-link problem. `resend-digital-download` in buyer mode returned "if a matching purchase exists…" (its not-found branch) even though Diana could see the Stripe charge and the baker's app showed the order — as a **Storefront Order → "Ready for Pickup"** with a "Change Pickup Time" button, on an order of three digital sticker/label downloads.
+
+**Root cause:** The order's `fulfillment_type` had been corrupted from `Digital` to `Pickup` — the exact mechanism documented in the 2026-08-24 notifications entry (a baker whose app build predates the `FulfillmentType.digital` case relabels the order to `.pickup` via `SyncService.toModel()`'s `?? .pickup` fallback, then syncs that back to the server). `resend-digital-download` filtered its order lookup on `fulfillment_type = 'Digital'`, so every corrupted digital order was invisible to it. The 2026-08-24 entry's follow-up had explicitly flagged that no audit for this corruption was ever run beyond Cookiesbysteph's account.
+
+**Fix:** [resend-digital-download/index.ts](supabase/functions/resend-digital-download/index.ts) no longer trusts `fulfillment_type` at all. It queries `order_source = 'marketplace'` only, and "is this a digital order?" is now decided purely by whether the line items resolve to a digital listing's file. Sweep mode silently skips orders that resolve nothing (genuine pickup/shipping); named order/buyer lookups surface them. Name→file matching also hardened: fetches the baker's digital listings once and matches a line whose `custom_name` equals or is a separator-delimited prefix of a listing name (handles the `" — "`, `"-pink set"`, `" | Large"` variant-suffix forms), longest unambiguous match wins. Redeployed 2026-08-28; re-ran for wendytippy@hotmail.com — response flipped to "emailed".
+
+**Affected users:** Any buyer of a digital order that synced through a baker on a pre-2026-08-24 app build — links couldn't be re-issued via the buyer/email path (operator could still do it by `order_id`). The underlying `fulfillment_type` corruption also makes these orders show pickup UI (pickup-time editor, "Ready for Pickup" status) in the baker app.
+
+**Follow-up:**
+- **DB audit + repair not yet run.** Precise signal: `order_items.unit = 'download'` (set only by the two digital finalize functions, survives the `fulfillment_type` corruption). Identify: `select o.id, o.customer_email, o.fulfillment_type, o.created_at from orders o where o.order_source='marketplace' and o.fulfillment_type <> 'Digital' and exists (select 1 from order_items oi where oi.order_id=o.id and oi.unit='download');` — repair is the same predicate with `update orders set fulfillment_type='Digital', updated_at=now()`.
+- **Repair alone won't hold** while pre-2026-08-24 builds are in the wild — those re-corrupt on next sync. Durable fix is a DB trigger locking `fulfillment_type` on marketplace orders (same pattern as the immutable-`order_source` guard from the 2026-08-06 manual-order entry), and/or pushing the baker app update.
+
+---
+
 ## 2026-08-28 — Digital download links expired after 7 days with no way to get them back
 
 **Reported by:** Diana, directly — a buyer (courtneymeyer12@gmail.com, same buyer as the 2026-08-19 entry) whose download link had stopped working before she downloaded her files. Diana's read: "I suspect this may affect everyone who's done a digital download."
