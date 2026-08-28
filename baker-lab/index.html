@@ -225,12 +225,19 @@
        the exact same shape at every screen width and just scales — it used
        to stretch to whatever height the text stack happened to be, which
        cropped the photo to a tall sliver on phones and a wide strip on
-       desktop. min-height is a floor for the very narrowest phones, where
+       desktop. The 350px floor covers the very narrowest phones, where
        16:9 would be too short for the centred text; there the photo shows
        a slightly taller centre crop, still the same centre subject.
        Falls back to a plain theme-colored gradient when the baker hasn't
-       set one (img.onerror below). */
-    #profile-hero { position: relative; aspect-ratio: 16 / 9; min-height: 350px; overflow: hidden; background: var(--bg); }
+       set one (img.onerror below).
+
+       Height is a clamp() (not aspect-ratio) on purpose: aspect-ratio on a
+       flex-column child makes Safari infer an intrinsic width of
+       min-height x 16/9 (~622px), which overflows the phone and exposes the
+       fixed theme pattern in the gap. 56.25vw == 9/16 of the viewport, so
+       this still locks a 16:9 crop that just scales; 675px is exactly 16:9
+       of the 1200px max page width, 350px is the small-phone floor. */
+    #profile-hero { position: relative; width: 100%; height: clamp(350px, 56.25vw, 675px); overflow: hidden; background: var(--bg); }
     #storefront-header {
       position: absolute; inset: 0; overflow: hidden;
       background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
