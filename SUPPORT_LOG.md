@@ -21,6 +21,26 @@ Entry format:
 
 ---
 
+## 2026-08-28 — Digital download links expired after 7 days with no way to get them back
+
+**Reported by:** Diana, directly — a buyer (courtneymeyer12@gmail.com, same buyer as the 2026-08-19 entry) whose download link had stopped working before she downloaded her files. Diana's read: "I suspect this may affect everyone who's done a digital download."
+
+**Symptom:** Buyer clicks the "Download now" link from her purchase email (or the on-page receipt) and gets a Supabase Storage "expired" error instead of the file. No self-serve recovery — the guest has no account, and the link in the email was the only copy.
+
+**Root cause:** `finalize-guest-digital-order` and `finalize-guest-digital-physical-order` mint the Storage signed URL exactly once, at purchase time, with `SIGNED_URL_EXPIRY_SECONDS = 60*60*24*7` (7 days). `send-guest-digital-delivery-email` re-uses that same URL rather than minting its own, so the emailed link and the on-page link die together 7 days after purchase. There was no endpoint to re-issue one, and the order row didn't even record which file it was for (`digital_file_path` lives only on the baker's `menu_items` row; digital `order_items` weren't storing `menu_item_id`). Diana is right that it's systemic: every digital purchase older than 7 days has a dead link.
+
+**Fix:** (files under `supabase/functions/`, deployed 2026-08-28)
+- `SIGNED_URL_EXPIRY_SECONDS` raised from 7 days to **1 year** in both `finalize-guest-digital-order` and `finalize-guest-digital-physical-order`. Chosen over "forever" because the URL is a bearer token; 1 year removes the ticket class without an open-ended exposure window.
+- Delivery-email copy updated ("this link stays active for a year… reply and we'll send a fresh link").
+- Both finalize functions now write `menu_item_id` onto digital `order_items` rows, so future orders resolve straight back to their file.
+- **New `resend-digital-download` edge function** — the durable recovery path. Given `{ order_id }` or `{ customer_email }` (or `{ all: true }` for a secret-gated sweep), it walks each order's items back to the file (via `menu_item_id`, else an unambiguous case-insensitive listing-name match, mirroring `resolve_order_item_image_id`), mints a fresh 1-year signed URL, and re-sends the delivery email. `dry_run` reports blast radius without sending. With `x-webhook-secret` it's a full operator tool (echoes URLs, sweep + dry-run); without, it's a locked-down "resend my own links to my own inbox" endpoint that never echoes a URL or confirms an order exists — left public so a storefront "resend" button can use it later.
+
+**Affected users:** Every guest who bought a digital download more than 7 days before their download attempt, across all bakers. Courtney rescued directly via `resend-digital-download` (buyer mode). Broader remediation: run the dry-run sweep to size it, then decide between a one-shot sweep vs. resending per request — no blanket re-email sent yet (consistent with the "no retroactive emails without explicit instruction" practice from the 2026-08-24 notification entry).
+
+**Follow-up:** `resend-digital-download`'s public (no-secret) path isn't wired to any UI yet. No rate limiting on it beyond requiring both a valid order/email — fine while it only emails the address on file, revisit if a storefront button is added. Sweep is paged (`limit`/`offset`, default 50, max 200) to stay under the function timeout — a full sweep of a large backlog needs multiple calls.
+
+---
+
 ## 2026-08-24 — Back button after a digital download returned buyers to an already-paid checkout screen
 
 **Reported by:** Diana, directly ("after a digital transaction is completed, a download your file link comes up... when they go back a page, it takes them... back to the page where they are to pay the balance of the bill").

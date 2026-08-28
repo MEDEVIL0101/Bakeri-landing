@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
         ${escapeHtml(order.order_name || "your item")} ${downloads.length > 1 ? "are" : "is"} ready to download.
       </p>
       ${linksHtml}
-      <p style="color:#A89B8C;font-size:12px;margin-top:24px;">${downloads.length > 1 ? "These links" : "This link"} expire${downloads.length > 1 ? "" : "s"} in 7 days. Order reference: ${orderId.replace(/-/g, "").slice(0, 8).toUpperCase()}</p>
+      <p style="color:#A89B8C;font-size:12px;margin-top:24px;">${downloads.length > 1 ? "These links stay" : "This link stays"} active for a year — save your ${downloads.length > 1 ? "files" : "file"} somewhere safe. If ${downloads.length > 1 ? "they ever stop" : "it ever stops"} working, reply to this email and we'll send ${downloads.length > 1 ? "fresh links" : "a fresh link"}. Order reference: ${orderId.replace(/-/g, "").slice(0, 8).toUpperCase()}</p>
     </div>
   `;
 

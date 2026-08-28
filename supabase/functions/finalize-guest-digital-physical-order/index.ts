@@ -41,7 +41,7 @@ const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
 
 const stripe = getStripeClient();
 
-const SIGNED_URL_EXPIRY_SECONDS = 60 * 60 * 24 * 7; // 7 days — matches finalize-guest-digital-order
+const SIGNED_URL_EXPIRY_SECONDS = 60 * 60 * 24 * 365; // 1 year — matches finalize-guest-digital-order (see the rationale there)
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
@@ -450,6 +450,9 @@ Deno.serve(async (req: Request) => {
         user_id: bakerId,
         order_id: digitalOrderId,
         recipe_id: null,
+        // Recorded so resend-digital-download can resolve this line straight
+        // back to its file instead of falling back to a listing-name match.
+        menu_item_id: line.menuItemId,
         custom_name: line.name,
         quantity: 1,
         unit: "download",

@@ -36,7 +36,13 @@ const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
 
 const stripe = getStripeClient();
 
-const SIGNED_URL_EXPIRY_SECONDS = 60 * 60 * 24 * 7; // 7 days — plenty for a buyer to grab their download
+// 1 year. A guest has no session to re-fetch this later, and the emailed
+// copy is the buyer's only lasting record of a purchase they paid for — a
+// short window (was 7 days) just generates "my link expired" tickets with
+// no self-serve recovery. resend-digital-download can re-mint a fresh one
+// from the still-present file if this ever does lapse. Keep this value in
+// sync with finalize-guest-digital-physical-order and resend-digital-download.
+const SIGNED_URL_EXPIRY_SECONDS = 60 * 60 * 24 * 365;
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
@@ -323,6 +329,9 @@ Deno.serve(async (req: Request) => {
       user_id: bakerId,
       order_id: orderId,
       recipe_id: null,
+      // Recorded so resend-digital-download can resolve this line straight
+      // back to its file instead of falling back to a listing-name match.
+      menu_item_id: line.menuItemId,
       custom_name: line.name,
       quantity: 1,
       unit: "download",
