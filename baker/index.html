@@ -32,6 +32,10 @@
       --bg:        var(--theme-bg);
       --accent:    var(--theme-primary);
       --accent-fg: var(--theme-button-fg);
+      /* A faint wash of the baker's accent over the surface — used for the
+         section/menu bar so it carries a hint of their theme colour
+         without hurting the dark nav-label text. Bump the % for more. */
+      --menu-bar:  color-mix(in srgb, var(--accent) 12%, var(--surface));
 
       /* Fixed tokens from BakeriTheme.swift's storefront profile redesign
          (bakeriProfileInk/Muted/Bio/ChipText, bakeriProfileBadge*) — the
@@ -151,7 +155,7 @@
        #profile-hero's order:-1 in the desktop media query — see below). */
     #site-header-bar {
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
+      padding: 12px 16px; background: var(--menu-bar); border-bottom: 1px solid var(--line);
       position: relative; z-index: 3;
     }
     .icon-btn {
@@ -179,7 +183,7 @@
        inline nav, rendered as a simple stacked list instead of a wrapping
        pill row, since a vertical list reads better at hamburger-menu width. */
     #mobile-nav-drawer {
-      background: var(--surface); border-bottom: 1px solid var(--line);
+      background: var(--menu-bar); border-bottom: 1px solid var(--line);
       padding: 4px 16px 10px; display: flex; flex-direction: column;
     }
     .mobile-nav-item {
@@ -204,19 +208,23 @@
     #cart-btn-count:empty { display: none; }
 
     /* ══════════════════════ Header image ══════════════════════
-       The photo is a full-bleed background behind the entire hero (logo,
-       name, meta pill, bio) rather than a banner that just peeks above it —
-       #storefront-header is absolutely positioned to fill #profile-hero,
-       whatever height that ends up being (driven by profile-block's actual
-       content), not a fixed aspect ratio. Falls back to a plain
-       theme-colored gradient when the baker hasn't set one (img.onerror
-       below), same convention as the about-portrait fallback. */
-    #profile-hero { position: relative; }
+       The photo is a full-bleed background behind the whole hero (logo,
+       name, meta pill, bio). The hero is LOCKED to one aspect ratio
+       (16:9, matching the ~16:9 source photos) so the image is cropped to
+       the exact same shape at every screen width and just scales — it used
+       to stretch to whatever height the text stack happened to be, which
+       cropped the photo to a tall sliver on phones and a wide strip on
+       desktop. min-height is a floor for the very narrowest phones, where
+       16:9 would be too short for the centred text; there the photo shows
+       a slightly taller centre crop, still the same centre subject.
+       Falls back to a plain theme-colored gradient when the baker hasn't
+       set one (img.onerror below). */
+    #profile-hero { position: relative; aspect-ratio: 16 / 9; min-height: 350px; overflow: hidden; background: var(--bg); }
     #storefront-header {
       position: absolute; inset: 0; overflow: hidden;
       background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
     }
-    #storefront-header img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+    #storefront-header img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: none; }
     /* Flat scrim, not just a bottom gradient — text sits everywhere in the
        block now (avatar ring, name, meta pill, bio), not only at the
        bottom, so it all needs consistent legibility against the photo.
@@ -227,9 +235,17 @@
        real colour still comes through everywhere else. */
     #header-scrim { position: absolute; inset: 0; background: rgba(20,15,10,.2); }
 
-    #profile-block { text-align: center; padding: 64px 20px 22px; position: relative; z-index: 1; }
+    /* Fills the locked-ratio hero and centres its content, instead of being
+       the flow child that DROVE the hero's height (which is what made the
+       photo crop differently per screen size). position:absolute so it no
+       longer contributes height; the hero's aspect-ratio / min-height win. */
+    #profile-block {
+      position: absolute; inset: 0; z-index: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+      text-align: center; padding: 20px 20px 26px;
+    }
     #profile-block .avatar {
-      width: 128px; height: 128px; font-size: 42px; margin: 0 auto;
+      width: 96px; height: 96px; font-size: 34px; margin: 0 auto;
       box-shadow: 0 0 0 4px var(--bg), 0 2px 6px rgba(36,23,18,.15);
     }
     #shop-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 14px; }
@@ -241,6 +257,9 @@
     #shop-bio {
       font-size: 14.5px; line-height: 1.45; color: var(--bio);
       margin: 14px auto 0; max-width: 600px;
+      /* Clamped so a long bio can't push past the fixed-height hero — the
+         full text still lives in About. */
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
     }
     /* Social accounts (baker_links section literally named "Social") — small
        round icons in the hero, not rectangular rows in the body. Real
@@ -309,6 +328,13 @@
        another content section. */
     .section-band { background: var(--surface); padding: 20px 20px 24px; }
     .section-band + .section-band { border-top: 1px solid var(--line); }
+    /* #physical-feed (Ships to You) isn't a .section-band — it supplies its
+       own per-category .category-block backgrounds — so the adjacency rule
+       above can't draw the Menu→Ships to You→Digital Downloads seams. Its
+       own .category-block:first-child border-top covers the top seam; this
+       covers the seam into whatever .section-band follows it (Digital
+       Downloads, or About when there are no digital items). */
+    #physical-feed + .section-band { border-top: 1px solid var(--line); }
     .section-band h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
     /* Sits outside #feed (the filter chips/grid are their own elements, not
        nested under one wrapper) so the heading can lead them both. */
@@ -375,6 +401,60 @@
     #feed { padding: 18px 20px 28px; }
     #product-grid, .product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 
+    /* ── Single-item Menu / category ──────────────────────────────────────
+       When a grid holds exactly one card it is NOT a half-width tile in a
+       2-col grid (dead space beside it). It is a fixed 220px tile — the
+       SAME width the side-by-side feature card's photo uses — so the image
+       size is continuous when the layout switches to side-by-side at
+       >=560px, instead of the old "grow big while stacked, then snap to a
+       smaller side-by-side photo at 860px". A second card drops the
+       :only-child match and the normal grid takes over immediately. */
+    #product-grid:has(> .p-card:only-child),
+    .product-grid:has(> .p-card:only-child) { grid-template-columns: 220px; }
+
+    @media (min-width: 560px) {
+      /* Enough width for the 220px photo AND a text column beside it —
+         flip the lone tile to the horizontal feature card. Photo stays
+         220px square (its base width:100% + aspect-ratio:1/1 inside the
+         fixed 220px track), so it doesn't change size across the switch.
+
+         This card is the only thing in its section, so it earns a little
+         more polish than a grid tile: softer rounding, a hairline border
+         + hover lift, a divider between photo and copy, a larger name and
+         price, and the price row pinned low instead of split off by a
+         rule through the middle of the text. */
+      #product-grid:has(> .p-card:only-child),
+      .product-grid:has(> .p-card:only-child) {
+        grid-template-columns: 1fr; max-width: 640px;
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card {
+        display: grid; grid-template-columns: 220px 1fr; align-items: stretch;
+        border-radius: 20px; border: 1px solid var(--line-soft);
+        box-shadow: 0 1px 2px rgba(36,23,18,.05), 0 14px 30px -14px rgba(36,23,18,.22);
+        transition: transform .16s ease, box-shadow .16s ease;
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 3px 6px rgba(36,23,18,.06), 0 22px 42px -16px rgba(36,23,18,.3);
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-body {
+        display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden;
+        padding: 24px; border-left: 1px solid var(--line-soft);
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-name {
+        font-size: 17px; line-height: 1.3;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-meta { font-size: 12.5px; margin-top: 6px; }
+      /* Price row pinned to the bottom of the card — label up top, price
+         down low — rather than a small cluster floating mid-height. */
+      .product-grid:has(> .p-card:only-child) > .p-card .p-divider {
+        border-top: 0; margin-top: auto; padding-top: 0;
+      }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-price-row { justify-content: flex-start; gap: 16px; }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-price { font-size: 16px; }
+    }
+
     /* ══════════════════════ Shop sections (categories) ══════════════════
        Physical items group into one headed block per category (Cookie
        Cutters, Cookie Stamps, ...) instead of one flat list — each block
@@ -404,6 +484,14 @@
     .digital-row .info .n { font-size: 14.5px; font-weight: 700; color: var(--ink); }
     .digital-row .info .m { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .digital-row .price { font-size: 14px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+    /* "View all N" / "Show fewer" toggle — rendered under Digital Downloads
+       and under any Ships to You category longer than its preview count
+       (see renderDigitalFeed / renderPhysicalFeed). */
+    .feed-toggle {
+      width: fit-content; align-self: flex-start; margin-top: 14px;
+      background: none; border: none; padding: 8px 0; cursor: pointer;
+      font-family: var(--sans); font-size: 13.5px; font-weight: 700; color: var(--accent);
+    }
     .p-card {
       cursor: pointer; background: var(--surface); border-radius: 16px; overflow: hidden;
       box-shadow: 0 2px 5px rgba(36,23,18,.08);
@@ -680,11 +768,8 @@
          a dead gap where a phantom next card should be. auto-fit collapses
          those, letting the real cards stretch to actually fill the row. */
       #product-grid, .product-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
-      /* A lone card has no neighbors to share the row with, so auto-fit's
-         one remaining track stretches to the full container width instead
-         of staying card-sized — cap it explicitly for the single-item case
-         without touching the intentional stretch behavior for 2+ cards. */
-      #product-grid:has(> .p-card:only-child), .product-grid:has(> .p-card:only-child) { grid-template-columns: minmax(180px, 320px); }
+      /* The single-item feature card (see the min-width:560px block above)
+         already handles the lone-card case — nothing extra needed here. */
       .p-card:hover .p-photo { opacity: .92; }
 
       /* Roughly a quarter of the (up to 1200px) content column, not the 42%
@@ -790,20 +875,23 @@
   <div id="product-grid" class="product-grid"></div>
 </section>
 
+<!-- Ships to You (physical goods) renders directly under the Menu grid and
+     ABOVE Digital Downloads — shippable products are judged by their photo
+     like the Menu is and belong with it, ahead of the digital file list;
+     this also matches the section-nav order (see shopNavTabs). Fully
+     JS-populated (see renderPhysicalFeed) — one .category-block (heading +
+     .product-grid) per distinct category among physical listings, rather
+     than one flat list, since "ships to you" spans genuinely different
+     product types (cookie cutters vs. printable labels vs. kits). -->
+<section id="physical-feed" class="hidden"></section>
+
 <section id="digital-feed" class="section-band hidden">
   <h2 id="digital-feed-heading">Digital Downloads</h2>
   <div id="digital-grid"></div>
 </section>
 
-<!-- Fully JS-populated (see renderPhysicalFeed) — one .category-block
-     (heading + .product-grid) per distinct category among physical
-     listings, rather than one flat list, since "ships to you" spans
-     genuinely different product types (cookie cutters vs. printable
-     labels vs. kits). -->
-<section id="physical-feed" class="hidden"></section>
-
-<!-- Links sits ahead of About, right after Menu/Digital Downloads/Ships to
-     You — a baker selling nothing yet is very often running this page as a
+<!-- Links sits ahead of About, right after Menu/Ships to You/Digital
+     Downloads — a baker selling nothing yet is very often running this page as a
      linktree, so whichever of those sections the baker actually has becomes
      the first thing shown (each one already self-hides when empty — see
      updateFeedVisibility/renderDigitalFeed/renderPhysicalFeed/
@@ -957,6 +1045,16 @@
   let preorderState = null; // in-progress preorder date picker: { item, chosenISO }
   let cartStep = 0; // 0 order, 1 customer info, 2 confirmed
   let toastTimer = null;
+  // Digital Downloads and each Ships to You category show a preview of this
+  // many items, then a "View all N" tap that expands the rest inline (and a
+  // "Show fewer" to re-collapse). Only kicks in past the preview count — a
+  // short list doesn't need hiding. The Menu is deliberately NOT capped:
+  // every ready_now/preorder/custom listing always shows in full.
+  // See renderDigitalFeed / renderPhysicalFeed.
+  const DIGITAL_PREVIEW_COUNT = 6;
+  const PHYSICAL_PREVIEW_COUNT = 6;
+  let digitalExpanded = false;
+  let physicalExpanded = {}; // { [categorySlug]: true } once "View all" tapped
   // Digital downloads have their own tiny cart — just a set of item ids
   // (qty is always 1, no dates/tiers/variants to track) — kept separate
   // from the pickup cart above since it can check out on its own straight
@@ -1571,9 +1669,10 @@
     document.getElementById('feed-heading').classList.toggle('hidden', noMenu);
   }
 
-  // Always-visible, directly under the Menu grid — matches how Links/About/
-  // Policies/Hours already behave (see renderLinkSections), instead of
-  // hiding digital items behind a swappable tab a visitor has to discover.
+  // Always-visible, below the Menu grid and the Ships to You blocks —
+  // matches how Links/About/Policies/Hours already behave (see
+  // renderLinkSections), instead of hiding digital items behind a
+  // swappable tab a visitor has to discover.
   function renderDigitalFeed() {
     const section = document.getElementById('digital-feed');
     const grid = document.getElementById('digital-grid');
@@ -1585,13 +1684,34 @@
     }
     section.classList.remove('hidden');
     grid.innerHTML = '';
-    items.forEach(function (item) {
+
+    const collapsible = items.length > DIGITAL_PREVIEW_COUNT;
+    const shown = (collapsible && !digitalExpanded)
+      ? items.slice(0, DIGITAL_PREVIEW_COUNT)
+      : items;
+    shown.forEach(function (item) {
       grid.appendChild(buildDigitalRow(item));
     });
+
+    if (collapsible) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'feed-toggle';
+      toggle.textContent = digitalExpanded
+        ? 'Show fewer'
+        : 'View all ' + items.length + ' downloads';
+      toggle.addEventListener('click', function () {
+        digitalExpanded = !digitalExpanded;
+        renderDigitalFeed();
+        if (!digitalExpanded) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      grid.appendChild(toggle);
+    }
   }
 
-  // Always-visible, like Digital Downloads above, but split into one
-  // headed .category-block per distinct category ("Cookie Cutters",
+  // Always-visible, directly under the Menu grid and above Digital
+  // Downloads, but split into one headed .category-block per distinct
+  // category ("Cookie Cutters",
   // "Cookie Stamps", "Cookie Kits", ...) rather than one flat list —
   // physical spans genuinely different product types in a way a single
   // "Ships to You" grid couldn't tell apart. Cards use buildCard (the same
@@ -1615,9 +1735,38 @@
       heading.textContent = titleCase(g.category);
       const grid = document.createElement('div');
       grid.className = 'product-grid';
-      g.items.forEach(function (item) { grid.appendChild(buildCard(item)); });
+
+      // Same preview + "View all" behaviour as Digital Downloads, but per
+      // category — a baker with 30 cookie cutters shouldn't bury everything
+      // below them under one endless grid.
+      const collapsible = g.items.length > PHYSICAL_PREVIEW_COUNT;
+      const expanded = !!physicalExpanded[g.slug];
+      const shown = (collapsible && !expanded)
+        ? g.items.slice(0, PHYSICAL_PREVIEW_COUNT)
+        : g.items;
+      shown.forEach(function (item) { grid.appendChild(buildCard(item)); });
+
       block.appendChild(heading);
       block.appendChild(grid);
+
+      if (collapsible) {
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'feed-toggle';
+        toggle.textContent = expanded
+          ? 'Show fewer'
+          : 'View all ' + g.items.length + ' in ' + titleCase(g.category);
+        toggle.addEventListener('click', function () {
+          physicalExpanded[g.slug] = !physicalExpanded[g.slug];
+          renderPhysicalFeed();
+          if (!physicalExpanded[g.slug]) {
+            const b = document.getElementById('physical-cat-' + g.slug);
+            if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+        block.appendChild(toggle);
+      }
+
       section.appendChild(block);
     });
   }
@@ -3360,7 +3509,11 @@
 
   function subtitleFor(item) {
     if (item.is_assorted_box) return 'Pick your own flavors';
-    if (item.listing_kind === 'custom') return item.lead_time_note || 'Request a custom quote';
+    if (item.listing_kind === 'custom') {
+      return item.lead_time_note
+        ? 'Lead time required: ' + item.lead_time_note
+        : 'Request a custom quote';
+    }
     if (item.listing_kind === 'digital') return 'Instant digital download';
     if (item.listing_kind === 'physical') {
       if (isSoldOut(item)) return 'Sold out';
@@ -3368,7 +3521,7 @@
       return (item.available_qty_today || 0) + ' in stock · ships in ' + n + ' day' + (n === 1 ? '' : 's');
     }
     if (item.listing_kind === 'preorder') {
-      if (item.lead_time_note) return item.lead_time_note;
+      if (item.lead_time_note) return 'Lead time required: ' + item.lead_time_note;
       if (isPreorderClosed(item)) return 'Ordering closed';
       const mode = item.preorder_schedule_mode || 'fixed_dates';
       if (mode === 'weekday') {
