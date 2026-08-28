@@ -247,30 +247,35 @@ Deno.serve(async (req: Request) => {
     ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, platformFeeCents)
     : null;
 
-  // One signed URL per distinct FILE, not per line — a has_variants digital
-  // listing shares one uploaded file across every size/option (confirmed
-  // scope: "one digital print file makes more sense"), so buying two
-  // different sizes of the same listing should hand back one download link,
-  // not the same file twice under two different labels. If any fails,
-  // refund the whole cart rather than partially deliver — keeps the
-  // refund-or-deliver contract all-or-nothing, same as every other failure
-  // path here.
-  const uniqueFileLines = [...new Map(digitalLines.map((l) => [l.digitalFilePath, l])).values()];
-  const downloads: { item_name: string; download_url: string }[] = [];
-  for (const line of uniqueFileLines) {
-    const itemName = itemsById.get(line.menuItemId)?.name ?? line.name;
+  // One download entry per cart line, labelled with exactly what the buyer
+  // chose (line.name carries any variant). A has_variants digital listing
+  // shares one uploaded file across every option, so each DISTINCT file is
+  // signed once and the URL reused across the lines that point at it — but
+  // the buyer still gets a button per line so her receipt reads back as the
+  // things she actually bought, each saving under its own name. The per-line
+  // `&download=` filename is appended after signing (the token covers the
+  // path + expiry, not the query string). If any file fails to sign, refund
+  // the whole cart rather than partially deliver — same all-or-nothing
+  // contract as every other failure path here.
+  const signedByPath = new Map<string, string>();
+  for (const path of new Set(digitalLines.map((l) => l.digitalFilePath as string))) {
     const { data: signedUrlData, error: signedUrlErr } = await db.storage
       .from("digital-products")
-      .createSignedUrl(line.digitalFilePath as string, SIGNED_URL_EXPIRY_SECONDS, {
-        download: buildDownloadFilename(itemName, line.digitalFilePath as string),
-      });
-
+      .createSignedUrl(path, SIGNED_URL_EXPIRY_SECONDS);
     if (signedUrlErr || !signedUrlData?.signedUrl) {
-      console.error("createSignedUrl failed:", line.menuItemId, signedUrlErr?.message);
+      console.error("createSignedUrl failed:", path, signedUrlErr?.message);
       return refundAndFail("We couldn't prepare your download.");
     }
-    downloads.push({ item_name: itemName, download_url: signedUrlData.signedUrl });
+    signedByPath.set(path, signedUrlData.signedUrl);
   }
+  const downloads: { item_name: string; download_url: string; menu_item_id: string }[] = digitalLines.map((line) => {
+    const path = line.digitalFilePath as string;
+    return {
+      item_name: line.name,
+      download_url: `${signedByPath.get(path)}&download=${encodeURIComponent(buildDownloadFilename(line.name, path))}`,
+      menu_item_id: line.menuItemId,
+    };
+  });
 
   // Order name: the single item's name, or "First item + N more" for a
   // cart — matches create-guest-marketplace-order's convention.

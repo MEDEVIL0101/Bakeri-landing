@@ -376,24 +376,29 @@ Deno.serve(async (req: Request) => {
   const digitalSettlement = digitalLines.length > 0 ? splitSettlement(digitalTotalCents) : null;
   const physicalSettlement = physicalLines.length > 0 ? splitSettlement(physicalTotalCents) : null;
 
-  // One signed URL per distinct FILE, not per line — same reasoning as
-  // finalize-guest-digital-order.
-  const uniqueFileLines = [...new Map(digitalLines.map((l) => [l.digitalFilePath, l])).values()];
-  const downloads: { item_name: string; download_url: string }[] = [];
-  for (const line of uniqueFileLines) {
-    const itemName = itemsById.get(line.menuItemId)?.name ?? line.name;
+  // One download entry per cart line, labelled with what the buyer chose;
+  // each distinct file signed once and the URL reused across shared-file
+  // variant lines, per-line `&download=` name appended after signing — same
+  // reasoning as finalize-guest-digital-order.
+  const signedByPath = new Map<string, string>();
+  for (const path of new Set(digitalLines.map((l) => l.digitalFilePath as string))) {
     const { data: signedUrlData, error: signedUrlErr } = await db.storage
       .from("digital-products")
-      .createSignedUrl(line.digitalFilePath as string, SIGNED_URL_EXPIRY_SECONDS, {
-        download: buildDownloadFilename(itemName, line.digitalFilePath as string),
-      });
-
+      .createSignedUrl(path, SIGNED_URL_EXPIRY_SECONDS);
     if (signedUrlErr || !signedUrlData?.signedUrl) {
-      console.error("createSignedUrl failed:", line.menuItemId, signedUrlErr?.message);
+      console.error("createSignedUrl failed:", path, signedUrlErr?.message);
       return refundAndFail("We couldn't prepare your download.");
     }
-    downloads.push({ item_name: itemName, download_url: signedUrlData.signedUrl });
+    signedByPath.set(path, signedUrlData.signedUrl);
   }
+  const downloads: { item_name: string; download_url: string; menu_item_id: string }[] = digitalLines.map((line) => {
+    const path = line.digitalFilePath as string;
+    return {
+      item_name: line.name,
+      download_url: `${signedByPath.get(path)}&download=${encodeURIComponent(buildDownloadFilename(line.name, path))}`,
+      menu_item_id: line.menuItemId,
+    };
+  });
 
   const clientIp = getClientIp(req);
   const now = new Date().toISOString();

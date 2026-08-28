@@ -71,9 +71,15 @@ function buildDownloadFilename(itemName: string, filePath: string): string {
   return ext && ext !== filePath ? `${safeName}.${ext}` : safeName;
 }
 
-interface ResolvedFile {
+// One entry per order line — NOT deduped by file. A buyer who ordered three
+// things should get three buttons, each labelled with what she actually
+// bought (item_name), even when two of them are variants sharing one
+// uploaded file. The handler signs each distinct file once and reuses the
+// URL across the lines that point at it.
+interface ResolvedLine {
+  item_name: string; // the buyer's own cart line, incl. any variant suffix
   file_path: string;
-  item_name: string;
+  menu_item_id: string | null; // the listing this resolved to, for the email's photo
 }
 interface Unresolved {
   custom_name: string;
@@ -86,7 +92,7 @@ type Db = any;
 async function resolveOrderFiles(
   db: Db,
   order: { id: string; user_id: string },
-): Promise<{ files: ResolvedFile[]; unresolved: Unresolved[] }> {
+): Promise<{ lines: ResolvedLine[]; unresolved: Unresolved[] }> {
   const { data: items } = await db
     .from("order_items")
     .select("custom_name, menu_item_id")
@@ -104,18 +110,26 @@ async function resolveOrderFiles(
   const digitalListings: { id: string; name: string; digital_file_path: string }[] =
     (listingRows ?? []).filter((l: { digital_file_path: string | null }) => l.digital_file_path);
 
-  const files = new Map<string, ResolvedFile>(); // dedupe by file_path
+  const lines: ResolvedLine[] = [];
   const unresolved: Unresolved[] = [];
+  const seen = new Set<string>(); // collapse only exact (name + file) dupes
+
+  const add = (itemName: string, filePath: string, menuItemId: string | null) => {
+    const key = `${itemName} ${filePath}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    lines.push({ item_name: itemName, file_path: filePath, menu_item_id: menuItemId });
+  };
 
   for (const item of items ?? []) {
-    const customName: string = item.custom_name ?? "";
+    const customName: string = (item.custom_name ?? "").trim();
 
     // 1. Direct link — order_items.menu_item_id, recorded on orders placed
     // after 2026-08-28.
     if (item.menu_item_id) {
       const direct = digitalListings.find((l) => l.id === item.menu_item_id);
       if (direct) {
-        files.set(direct.digital_file_path, { file_path: direct.digital_file_path, item_name: direct.name });
+        add(customName || direct.name, direct.digital_file_path, direct.id);
         continue;
       }
       // menu_item_id set but not one of this baker's current digital
@@ -127,7 +141,7 @@ async function resolveOrderFiles(
     // over time (" — Pink", "-pink set", " | Large"), so match any listing
     // whose name is custom_name or a separator-delimited prefix of it, and
     // take the longest (most specific) such match when it's unambiguous.
-    const lc = customName.toLowerCase().trim();
+    const lc = customName.toLowerCase();
     const prefixed = digitalListings.filter((l) => {
       const n = l.name.toLowerCase().trim();
       if (!n) return false;
@@ -138,7 +152,7 @@ async function resolveOrderFiles(
     const best = prefixed.filter((c) => c.name.trim().length === maxLen);
 
     if (best.length === 1) {
-      files.set(best[0].digital_file_path, { file_path: best[0].digital_file_path, item_name: best[0].name });
+      add(customName || best[0].name, best[0].digital_file_path, best[0].id);
     } else if (best.length === 0) {
       unresolved.push({ custom_name: customName, reason: "no matching digital listing with a file (deleted, renamed, or file removed)" });
     } else {
@@ -146,7 +160,7 @@ async function resolveOrderFiles(
     }
   }
 
-  return { files: [...files.values()], unresolved };
+  return { lines, unresolved };
 }
 
 async function sendDeliveryEmail(orderId: string, downloads: { item_name: string; download_url: string }[]): Promise<boolean> {
@@ -249,9 +263,9 @@ Deno.serve(async (req: Request) => {
   const isSweep = !orderId && !customerEmail;
 
   for (const order of scoped) {
-    const { files, unresolved } = await resolveOrderFiles(db, order);
+    const { lines, unresolved } = await resolveOrderFiles(db, order);
 
-    if (files.length === 0) {
+    if (lines.length === 0) {
       // Sweep scans every marketplace order — a genuine pickup/shipping
       // order resolves nothing and is simply not our concern, so don't
       // report it or count it as a failure. An explicitly named order or
@@ -272,23 +286,31 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    const downloads: { item_name: string; download_url: string }[] = [];
+    // Sign each distinct file once; a variant line that shares a file reuses
+    // the URL. The per-line `&download=` name (what lands in the buyer's
+    // Downloads folder) is appended after signing — the token covers the
+    // path + expiry, not the query string — so two lines on one file each
+    // save under their own item name.
+    const signedByPath = new Map<string, string>();
     let signFailed = false;
-    for (const f of files) {
-      if (dryRun) {
-        downloads.push({ item_name: f.item_name, download_url: `(dry run — would sign ${f.file_path})` });
-        continue;
-      }
+    for (const path of new Set(lines.map((l) => l.file_path))) {
+      if (dryRun) { signedByPath.set(path, `(dry run — would sign ${path})`); continue; }
       const { data: signed, error: signErr } = await db.storage
         .from("digital-products")
-        .createSignedUrl(f.file_path, SIGNED_URL_EXPIRY_SECONDS, { download: buildDownloadFilename(f.item_name, f.file_path) });
+        .createSignedUrl(path, SIGNED_URL_EXPIRY_SECONDS);
       if (signErr || !signed?.signedUrl) {
-        console.error("createSignedUrl failed:", order.id, f.file_path, signErr?.message);
+        console.error("createSignedUrl failed:", order.id, path, signErr?.message);
         signFailed = true;
         break;
       }
-      downloads.push({ item_name: f.item_name, download_url: signed.signedUrl });
+      signedByPath.set(path, signed.signedUrl);
     }
+
+    const downloads = signFailed ? [] : lines.map((l) => {
+      const base = signedByPath.get(l.file_path)!;
+      const url = dryRun ? base : `${base}&download=${encodeURIComponent(buildDownloadFilename(l.item_name, l.file_path))}`;
+      return { item_name: l.item_name, download_url: url, menu_item_id: l.menu_item_id };
+    });
 
     if (signFailed) {
       failed++;
