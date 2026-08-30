@@ -151,12 +151,17 @@ async function resolveOrderFiles(
     const maxLen = prefixed.reduce((m, c) => Math.max(m, c.name.trim().length), 0);
     const best = prefixed.filter((c) => c.name.trim().length === maxLen);
 
-    if (best.length === 1) {
-      add(customName || best[0].name, best[0].digital_file_path, best[0].id);
-    } else if (best.length === 0) {
+    const distinctFiles = [...new Set(best.map((b) => b.digital_file_path))];
+    if (best.length === 0) {
       unresolved.push({ custom_name: customName, reason: "no matching digital listing with a file (deleted, renamed, or file removed)" });
+    } else if (distinctFiles.length === 1) {
+      add(customName || best[0].name, best[0].digital_file_path, best[0].id);
     } else {
-      unresolved.push({ custom_name: customName, reason: `${best.length} digital listings match "${customName}" — can't tell which file` });
+      // Genuine ambiguity: the baker has >1 listing with this exact name
+      // pointing at different files (usually an accidental duplicate upload —
+      // e.g. a PDF and a PNG of the same printable). We can't know which the
+      // buyer meant, so hand over every candidate rather than short her.
+      for (const b of best) add(customName || b.name, b.digital_file_path, b.id);
     }
   }
 
