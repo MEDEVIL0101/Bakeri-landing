@@ -40,7 +40,7 @@ Entry format:
 - **Baker data + guard:** migration [20260828000001_lock_marketplace_fulfillment_type.sql](supabase/migrations/20260828000001_lock_marketplace_fulfillment_type.sql) — backfills the 13 non-test orders to `fulfillment_type='Digital'`, and adds a silent coerce-back to `orders_sync_conflict_resolution` (BEFORE UPDATE): a client update can no longer move `fulfillment_type` on an `order_source='marketplace'` order (edge functions / RPCs unaffected, INSERT untouched). Chosen over a `RAISE` so an old-build sync push still applies its other field changes.
 
 **Follow-up:**
-- Cookiesbysteph's app still needs updating — the guard stops re-corruption server-side, but her local copy shows pickup UI until it pulls the corrected value.
+- Cookiesbysteph's app still needs updating — the guard stops re-corruption server-side, but her local copy shows pickup UI until it pulls the corrected value. Confirmed live 2026-08-28: buyer Tina Fullen (`tinafullen01@aol.com`, order `#3B05E8` / `3b05e85d`, 6 digital items, 08-23) — her order was **already `Digital`/`completed` in the DB** (backfilled by the migration) but the baker's app still showed it as "Pickup / Due Aug 23". Only her expired links needed re-sending; done via `resend-digital-download`.
 - **Data quality:** she has exact-duplicate digital listings ("Zombie Snack Attack…" ×2, "Dumpling Surprise Mystery Bag Printable | 8.5x11 Foldable…" ×2) and a `"Title: "` prefix artifact on one listing name — cleaning these up would let future orders resolve unambiguously without manual `menu_item_id` patching.
 - No other baker showed corrupted digital orders in the audit (query in the migration), but it was only run against the current data — re-run if more digital-order weirdness appears elsewhere.
 
