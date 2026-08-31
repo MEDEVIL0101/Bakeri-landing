@@ -322,7 +322,7 @@ Deno.serve(async (req: Request) => {
       if (i < digitalLines.length) digitalLines[i].unitPriceCents = rl.effective_unit_price_cents;
       else physicalLines[i - digitalLines.length].unitPriceCents = rl.effective_unit_price_cents;
     });
-    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null);
+    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null, payment_intent_id);
   }
 
   const digitalSubtotalCents = digitalLines.reduce((sum, l) => sum + l.unitPriceCents, 0);

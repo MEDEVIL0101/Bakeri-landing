@@ -108,14 +108,19 @@ export async function resolvePromotions(
   }
 }
 
-// Bump a coded promo's redemption count once an order is finalized.
-// No-op for automatic sales (promotionId null) or a codeStatus that wasn't
-// "valid". Safe to call more than once only if the caller guards against
-// double-finalize — it always increments.
-export async function redeemPromoCode(promotionId: string | null): Promise<void> {
+// Bump a coded promo's redemption count once an order is finalized. No-op
+// for automatic sales (promotionId null). Idempotent per PaymentIntent —
+// pass paymentIntentId so a finalize retry doesn't double-count.
+export async function redeemPromoCode(
+  promotionId: string | null,
+  paymentIntentId?: string | null,
+): Promise<void> {
   if (!promotionId) return;
   try {
-    await serviceClient().rpc("redeem_promo_code", { p_promotion_id: promotionId });
+    await serviceClient().rpc("redeem_promo_code", {
+      p_promotion_id: promotionId,
+      p_payment_intent_id: paymentIntentId ?? null,
+    });
   } catch (err) {
     console.error("redeemPromoCode failed:", err instanceof Error ? err.message : err);
   }

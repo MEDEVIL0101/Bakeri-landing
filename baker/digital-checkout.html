@@ -59,6 +59,12 @@
     .order-line .n { font-size: 14.5px; font-weight: 600; color: var(--ink); }
     .order-line .p { font-size: 14.5px; font-weight: 600; color: var(--ink); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
+    .promo-row { display: flex; gap: 8px; margin-top: 14px; }
+    .promo-row input { flex: 1; min-width: 0; height: 42px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface, #fff); color: var(--ink); padding: 0 12px; font-size: 14px; text-transform: uppercase; }
+    .promo-row button { flex-shrink: 0; height: 42px; padding: 0 16px; border-radius: 10px; border: 1.5px solid var(--ink); background: transparent; color: var(--ink); font-weight: 700; font-size: 13px; cursor: pointer; }
+    .promo-status { font-size: 12.5px; margin-top: 6px; min-height: 1em; }
+    .promo-status.ok { color: #3FA672; font-weight: 600; }
+    .promo-status.err { color: #C0392B; }
     .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); font-variant-numeric: tabular-nums; }
     .totals-row.grand { font-weight: 700; color: var(--ink); font-size: 17px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
 
@@ -179,6 +185,9 @@
       })
       .filter(Boolean);
     if (items.length === 0) { showMessage('Not found', 'These items are no longer available.'); return; }
+    // Automatic-sale price per line, before any promo code — the baseline a
+    // code discount is re-applied from (or reverted to).
+    items.forEach(function (i) { i.autoPrice = i.price; });
     // Guest checkout: buyer pays exactly the listed price(s) — no fee added
     // on top (Bakeri's service charge comes out of the baker's side).
     total = items.reduce(function (s, i) { return s + i.price; }, 0);
@@ -186,15 +195,69 @@
   })
   .catch(function () { showMessage('Something went wrong', 'Could not load this item. Please try again later.'); });
 
-  function renderForm() {
-    const lines = items.length > 1 ? items.map(function (i) {
+  // ── Promo code ──
+  var appliedCode = null;         // set once a code validates
+  var codeDiscount = 0;           // dollars off, across all lines
+  function promoItemsPayload() {
+    return items.map(function (i) {
+      return { menu_item_id: i.id, listing_kind: 'digital',
+               unit_price: (i.originalPrice != null ? i.originalPrice : i.price), qty: 1 };
+    });
+  }
+  function applyPromoCode() {
+    var input = document.getElementById('promo-input');
+    var st = document.getElementById('promo-status');
+    var code = (input.value || '').trim();
+    if (!code) { return; }
+    items.forEach(function (i) { i.price = i.autoPrice; }); // revert any prior code
+    st.textContent = 'Checking…'; st.className = 'promo-status';
+    fetch(SUPABASE_URL + '/rest/v1/rpc/resolve_effective_prices', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+      body: JSON.stringify({ p_user_id: bakerID, p_items: promoItemsPayload(), p_code: code })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      var STATUS = { invalid: "That code isn't valid.", expired: 'That code has expired.',
+        not_started: "That code isn't active yet.", used_up: 'That code has been fully redeemed.' };
+      if (!res || res.code_status !== 'valid') {
+        appliedCode = null; codeDiscount = 0;
+        st.textContent = (res && STATUS[res.code_status]) || "That code isn't valid.";
+        st.className = 'promo-status err';
+        recomputeTotal(); return;
+      }
+      appliedCode = code.toUpperCase();
+      (res.lines || []).forEach(function (ln, idx) {
+        if (items[idx] && ln.effective_unit_price != null) items[idx].price = parseFloat(ln.effective_unit_price);
+      });
+      codeDiscount = parseFloat(res.total_discount || 0);
+      st.textContent = 'Code ' + appliedCode + ' applied — $' + codeDiscount.toFixed(2) + ' off';
+      st.className = 'promo-status ok';
+      recomputeTotal();
+    })
+    .catch(function () { st.textContent = "Couldn't check that code — try again."; st.className = 'promo-status err'; });
+  }
+  function recomputeTotal() {
+    total = items.reduce(function (s, i) { return s + i.price; }, 0);
+    var g = document.getElementById('grand-total');
+    if (g) g.textContent = '$' + total.toFixed(2);
+    var ll = document.getElementById('order-lines');
+    if (ll) ll.innerHTML = orderLinesHTML();
+  }
+  function orderLinesHTML() {
+    return items.length > 1 ? items.map(function (i) {
       return '<div class="order-line"><span class="n">' + escapeHtml(i.name) + '</span><span class="p">$' + i.price.toFixed(2) + '</span></div>';
     }).join('') : '';
+  }
+
+  function renderForm() {
     content.innerHTML =
       '<div class="eyebrow">Buy &amp; Download</div>' +
       '<div class="heading">' + (items.length === 1 ? escapeHtml(items[0].name) : items.length + ' Digital Downloads') + '</div>' +
-      lines +
-      '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
+      '<div id="order-lines">' + orderLinesHTML() + '</div>' +
+      '<div class="promo-row"><input id="promo-input" type="text" placeholder="Promo code" autocapitalize="characters" autocomplete="off" />' +
+      '<button type="button" id="promo-apply">Apply</button></div>' +
+      '<div class="promo-status" id="promo-status"></div>' +
+      '<div class="totals-row grand"><span>Total</span><span id="grand-total">$' + total.toFixed(2) + '</span></div>' +
       '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
       '<div class="field"><label>Email</label><input id="f-email" type="email" autocomplete="email" /></div>' +
       '<div class="field"><label>Confirm email</label><input id="f-email-confirm" type="email" autocomplete="email" onpaste="return false" oncopy="return false" oncut="return false" /></div>' +
@@ -203,6 +266,7 @@
       '<div class="submit-status" id="submit-status"></div>';
 
     document.getElementById('continue-btn').addEventListener('click', goToPayment);
+    document.getElementById('promo-apply').addEventListener('click', applyPromoCode);
   }
 
   function goToPayment() {
@@ -231,9 +295,10 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         items: items.map(function (i) {
-          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: 1, price_from: i.price, listing_kind: 'digital', variant_id: i.variantId || null };
+          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: 1, price_from: (i.originalPrice != null ? i.originalPrice : i.price), listing_kind: 'digital', variant_id: i.variantId || null };
         }),
-        currency: 'cad'
+        currency: 'cad',
+        promo_code: appliedCode
       })
     })
     .then(function (r) { return r.json(); })

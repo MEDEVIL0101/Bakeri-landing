@@ -543,7 +543,7 @@ Deno.serve(async (req: Request) => {
       (intent.metadata?.promo_code as string) ?? null,
     );
     promo.lines.forEach((rl, i) => { lines[i].pricePerUnit = rl.effective_unit_price_cents / 100; });
-    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null);
+    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null, payment_intent_id);
   }
 
   const taxCents = calculateTaxCents(

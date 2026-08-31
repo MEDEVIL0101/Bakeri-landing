@@ -64,6 +64,12 @@
       padding: 4px 10px; border-radius: 9999px; align-self: center;
     }
 
+    .promo-row { display: flex; gap: 8px; margin-top: 14px; }
+    .promo-row input { flex: 1; min-width: 0; height: 42px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface, #fff); color: var(--ink); padding: 0 12px; font-size: 14px; text-transform: uppercase; }
+    .promo-row button { flex-shrink: 0; height: 42px; padding: 0 16px; border-radius: 10px; border: 1.5px solid var(--ink); background: transparent; color: var(--ink); font-weight: 700; font-size: 13px; cursor: pointer; }
+    .promo-status { font-size: 12.5px; margin-top: 6px; min-height: 1em; }
+    .promo-status.ok { color: #3FA672; font-weight: 600; }
+    .promo-status.err { color: #C0392B; }
     .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); font-variant-numeric: tabular-nums; }
     .totals-row.grand { font-weight: 700; color: var(--ink); font-size: 17px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
 
@@ -171,6 +177,75 @@
   let purchasableItems = [];
   let total = 0;
   let shippingFeeTotal = 0;
+  let profileData = null;
+
+  // ── Promo code ──
+  var appliedCode = null;
+  var codeDiscount = 0;
+  function promoItemsPayload() {
+    return purchasableItems.map(function (i) {
+      return { menu_item_id: i.id, listing_kind: 'physical',
+               unit_price: (i.originalPrice != null ? i.originalPrice : i.price), qty: i.qty };
+    });
+  }
+  function applyPromoCode() {
+    var input = document.getElementById('promo-input');
+    var st = document.getElementById('promo-status');
+    var code = (input.value || '').trim();
+    if (!code) return;
+    purchasableItems.forEach(function (i) { i.price = i.autoPrice; }); // revert any prior code
+    st.textContent = 'Checking…'; st.className = 'promo-status';
+    fetch(SUPABASE_URL + '/rest/v1/rpc/resolve_effective_prices', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+      body: JSON.stringify({ p_user_id: bakerID, p_items: promoItemsPayload(), p_code: code })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      var STATUS = { invalid: "That code isn't valid.", expired: 'That code has expired.',
+        not_started: "That code isn't active yet.", used_up: 'That code has been fully redeemed.' };
+      if (!res || res.code_status !== 'valid') {
+        appliedCode = null; codeDiscount = 0;
+        st.textContent = (res && STATUS[res.code_status]) || "That code isn't valid.";
+        st.className = 'promo-status err';
+        computeTotals(); renderForm(); return;
+      }
+      appliedCode = code.toUpperCase();
+      (res.lines || []).forEach(function (ln, idx) {
+        if (purchasableItems[idx] && ln.effective_unit_price != null) purchasableItems[idx].price = parseFloat(ln.effective_unit_price);
+      });
+      codeDiscount = parseFloat(res.total_discount || 0);
+      computeTotals(); renderForm();
+      var st2 = document.getElementById('promo-status');
+      if (st2) { st2.textContent = 'Code ' + appliedCode + ' applied — $' + codeDiscount.toFixed(2) + ' off'; st2.className = 'promo-status ok'; }
+    })
+    .catch(function () { st.textContent = "Couldn't check that code — try again."; st.className = 'promo-status err'; });
+  }
+
+  // Item subtotal + combined-shipping fee. Re-runnable after a promo code
+  // changes per-line prices (which can flip the free-shipping threshold).
+  function computeTotals() {
+    const itemsSubtotal = purchasableItems.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
+    const freeOverThreshold = (profileData && profileData.shipping_free_over_threshold) || 0;
+    const additionalPercent = (profileData && profileData.shipping_additional_item_percent != null)
+      ? profileData.shipping_additional_item_percent : 100;
+    if (freeOverThreshold > 0 && itemsSubtotal >= freeOverThreshold) {
+      shippingFeeTotal = 0;
+    } else {
+      const seen = {};
+      const distinct = [];
+      purchasableItems.forEach(function (i) { if (!seen[i.id]) { seen[i.id] = true; distinct.push(i); } });
+      let highestIdx = 0;
+      distinct.forEach(function (item, idx) {
+        if ((item.shipping_fee || 0) > (distinct[highestIdx].shipping_fee || 0)) highestIdx = idx;
+      });
+      shippingFeeTotal = distinct.reduce(function (s, item, idx) {
+        if (idx === highestIdx) return s + (item.shipping_fee || 0);
+        if (item.shipping_always_full_price) return s + (item.shipping_fee || 0);
+        return s + Math.round((item.shipping_fee || 0) * additionalPercent / 100 * 100) / 100;
+      }, 0);
+    }
+    total = itemsSubtotal + shippingFeeTotal;
+  }
   let shipAddress = null;
 
   fetch(SUPABASE_URL + '/rest/v1/rpc/get_baker_web_profile_by_id', {
@@ -221,6 +296,7 @@
       .filter(Boolean);
     if (items.length === 0) { showMessage('Not found', 'This item link looks invalid.'); return; }
     purchasableItems = items.filter(function (i) { return !i.soldOut; });
+    purchasableItems.forEach(function (i) { i.autoPrice = i.price; }); // pre-code baseline
     // Guest checkout: buyer pays the listed price(s) plus shipping —
     // Bakeri's service charge still only comes out of the baker's side.
     // Waived entirely once the item subtotal alone clears the baker's
@@ -234,27 +310,8 @@
     // set (always full fee regardless of rank). Same rule as
     // baker/index.html's shipCartShippingFees() and
     // finalize-guest-physical-order's authoritative recompute.
-    const itemsSubtotal = purchasableItems.reduce(function (s, i) { return s + i.price * i.qty; }, 0);
-    const freeOverThreshold = (data.profile && data.profile.shipping_free_over_threshold) || 0;
-    const additionalPercent = (data.profile && data.profile.shipping_additional_item_percent != null)
-      ? data.profile.shipping_additional_item_percent : 100;
-    if (freeOverThreshold > 0 && itemsSubtotal >= freeOverThreshold) {
-      shippingFeeTotal = 0;
-    } else {
-      const seen = {};
-      const distinct = [];
-      purchasableItems.forEach(function (i) { if (!seen[i.id]) { seen[i.id] = true; distinct.push(i); } });
-      let highestIdx = 0;
-      distinct.forEach(function (item, idx) {
-        if ((item.shipping_fee || 0) > (distinct[highestIdx].shipping_fee || 0)) highestIdx = idx;
-      });
-      shippingFeeTotal = distinct.reduce(function (s, item, idx) {
-        if (idx === highestIdx) return s + (item.shipping_fee || 0);
-        if (item.shipping_always_full_price) return s + (item.shipping_fee || 0);
-        return s + Math.round((item.shipping_fee || 0) * additionalPercent / 100 * 100) / 100;
-      }, 0);
-    }
-    total = itemsSubtotal + shippingFeeTotal;
+    profileData = data.profile;
+    computeTotals();
     renderForm();
   })
   .catch(function () { showMessage('Something went wrong', 'Could not load this item. Please try again later.'); });
@@ -289,6 +346,9 @@
       '<div class="eyebrow">Buy</div>' +
       '<div class="heading">' + (items.length === 1 ? escapeHtml(items[0].name) : items.length + ' Items') + '</div>' +
       lines +
+      '<div class="promo-row"><input id="promo-input" type="text" placeholder="Promo code" autocapitalize="characters" autocomplete="off" value="' + (appliedCode || '') + '" />' +
+      '<button type="button" id="promo-apply">Apply</button></div>' +
+      '<div class="promo-status ' + (appliedCode ? 'ok' : '') + '" id="promo-status">' + (appliedCode ? 'Code ' + appliedCode + ' applied — $' + codeDiscount.toFixed(2) + ' off' : '') + '</div>' +
       (shippingFeeTotal > 0 ? '<div class="totals-row"><span>Shipping</span><span>$' + shippingFeeTotal.toFixed(2) + '</span></div>' : '') +
       '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
       '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
@@ -307,6 +367,7 @@
       '<div class="submit-status" id="submit-status"></div>';
 
     document.getElementById('continue-btn').addEventListener('click', goToPayment);
+    document.getElementById('promo-apply').addEventListener('click', applyPromoCode);
   }
 
   function goToPayment() {
@@ -350,10 +411,11 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         items: purchasableItems.map(function (i) {
-          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical', variant_id: i.variantId || null };
+          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: i.qty, price_from: (i.originalPrice != null ? i.originalPrice : i.price), listing_kind: 'physical', variant_id: i.variantId || null };
         }),
         currency: 'cad',
-        shipping_fee_cents: Math.round(shippingFeeTotal * 100)
+        shipping_fee_cents: Math.round(shippingFeeTotal * 100),
+        promo_code: appliedCode
       })
     })
     .then(function (r) { return r.json(); })

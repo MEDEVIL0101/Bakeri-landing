@@ -278,7 +278,7 @@ Deno.serve(async (req: Request) => {
       (intent.metadata?.promo_code as string) ?? null,
     );
     promo.lines.forEach((rl, i) => { lines[i].unitPriceCents = rl.effective_unit_price_cents; });
-    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null);
+    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null, payment_intent_id);
   }
 
   const subtotalCents = lines.reduce((sum, l) => sum + l.unitPriceCents * l.quantity, 0);

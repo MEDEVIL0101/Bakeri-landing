@@ -59,6 +59,12 @@
     .order-line .m { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .order-line .p { font-size: 14.5px; font-weight: 600; color: var(--ink); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
+    .promo-row { display: flex; gap: 8px; margin-top: 14px; }
+    .promo-row input { flex: 1; min-width: 0; height: 42px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface, #fff); color: var(--ink); padding: 0 12px; font-size: 14px; text-transform: uppercase; }
+    .promo-row button { flex-shrink: 0; height: 42px; padding: 0 16px; border-radius: 10px; border: 1.5px solid var(--ink); background: transparent; color: var(--ink); font-weight: 700; font-size: 13px; cursor: pointer; }
+    .promo-status { font-size: 12.5px; margin-top: 6px; min-height: 1em; }
+    .promo-status.ok { color: #3FA672; font-weight: 600; }
+    .promo-status.err { color: #C0392B; }
     .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); font-variant-numeric: tabular-nums; }
     .totals-row.grand { font-weight: 700; color: var(--ink); font-size: 17px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
 
@@ -157,6 +163,38 @@
 
   let cart = null;
   try { cart = JSON.parse(sessionStorage.getItem('bakeri_checkout_cart') || 'null'); } catch (e) { cart = null; }
+
+  // ── Promo code ── the discount is applied authoritatively by
+  // create-payment-intent (and mirrored by the finalize functions from the
+  // PI metadata); here we only validate the code and pass it along, then
+  // show the real discounted amount on the payment step.
+  var appliedCode = null;
+  function applyPromoCode() {
+    var input = document.getElementById('promo-input');
+    var st = document.getElementById('promo-status');
+    var code = (input.value || '').trim();
+    if (!code) return;
+    st.textContent = 'Checking…'; st.className = 'promo-status';
+    fetch(SUPABASE_URL + '/rest/v1/rpc/validate_promo_code', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+      body: JSON.stringify({ p_baker_id: cart.baker, p_code: code })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      var STATUS = { invalid: "That code isn't valid.", expired: 'That code has expired.',
+        not_started: "That code isn't active yet.", used_up: 'That code has been fully redeemed.' };
+      if (!res || res.status !== 'valid') {
+        appliedCode = null;
+        st.textContent = (res && STATUS[res.status]) || "That code isn't valid.";
+        st.className = 'promo-status err';
+        return;
+      }
+      appliedCode = code.toUpperCase();
+      st.textContent = 'Code ' + appliedCode + ' (' + (res.label || 'discount') + ') applied — discount shown at payment';
+      st.className = 'promo-status ok';
+    })
+    .catch(function () { st.textContent = "Couldn't check that code — try again."; st.className = 'promo-status err'; });
+  }
 
   // Any of the three verticals (pickup, digital, ship) is enough to land
   // here — a digital+ship-only cart (no pickup lines) reaches checkout.html
@@ -303,6 +341,9 @@
         '<div class="totals-row"><span>Items subtotal</span><span>$' + shipItemsSubtotal.toFixed(2) + '</span></div>' +
         (shipShippingFeeTotal > 0 ? '<div class="totals-row"><span>Shipping fee</span><span>$' + shipShippingFeeTotal.toFixed(2) + '</span></div>' : '')
       ) : '') +
+      '<div class="promo-row"><input id="promo-input" type="text" placeholder="Promo code" autocapitalize="characters" autocomplete="off" value="' + (appliedCode || '') + '" />' +
+      '<button type="button" id="promo-apply">Apply</button></div>' +
+      '<div class="promo-status ' + (appliedCode ? 'ok' : '') + '" id="promo-status">' + (appliedCode ? 'Code ' + appliedCode + ' applied — discount shown at payment' : '') + '</div>' +
       '<div class="totals-row grand"><span>Total</span><span>$' + grandTotal.toFixed(2) + '</span></div>' +
       '<button class="btn-primary" id="continue-btn">' + (legTotalCount > 1 ? 'Continue to Payment · Step 1 of ' + legTotalCount : 'Continue to Payment') + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
@@ -312,6 +353,8 @@
       '</div>';
 
     document.getElementById('continue-btn').addEventListener('click', startCheckout);
+    var pa = document.getElementById('promo-apply');
+    if (pa) pa.addEventListener('click', applyPromoCode);
   }
 
   // A mixed cart settles as multiple back-to-back Stripe charges (see the
@@ -377,7 +420,8 @@
           };
         }),
         currency: 'cad',
-        tax_amount_cents: taxCents
+        tax_amount_cents: taxCents,
+        promo_code: appliedCode
       })
     })
     .then(function (r) { return r.json(); })
@@ -562,9 +606,9 @@
     if (status) status.textContent = '';
 
     const items = digitalItems.map(function (i) {
-      return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: 1, price_from: i.price, listing_kind: 'digital', variant_id: i.variantId || null };
+      return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: 1, price_from: (i.originalPrice != null ? i.originalPrice : i.price), listing_kind: 'digital', variant_id: i.variantId || null };
     }).concat(shipItems.map(function (i) {
-      return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty, price_from: i.price, listing_kind: 'physical', variant_id: i.variantId || null };
+      return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty, price_from: (i.originalPrice != null ? i.originalPrice : i.price), listing_kind: 'physical', variant_id: i.variantId || null };
     }));
 
     fetch(SUPABASE_URL + '/functions/v1/create-payment-intent', {
@@ -573,7 +617,8 @@
       body: JSON.stringify({
         items: items,
         currency: 'cad',
-        shipping_fee_cents: Math.round(shipShippingFeeTotal * 100)
+        shipping_fee_cents: Math.round(shipShippingFeeTotal * 100),
+        promo_code: appliedCode
       })
     })
     .then(function (r) { return r.json(); })
