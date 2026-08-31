@@ -150,6 +150,9 @@
       letter-spacing: .01em;
       padding: 10px 16px;
     }
+    /* A promotion's own banner (see updateAnnouncementBanner) — a sale
+       strip in the fixed red, not the baker's brand accent. */
+    #announcement-banner.promo { background: var(--sale); color: #fff; font-weight: 700; }
 
     /* ══════════════════════ Site header bar ══════════════════════
        One shared bar: hamburger + centered brand + icons on mobile
@@ -1184,6 +1187,19 @@
   function updateAnnouncementBanner(profile, listings) {
     const banner = document.getElementById('announcement-banner');
     if (!banner) return;
+
+    // A promotion's own storefront banner (profile.promo_banner — the newest
+    // currently-active promotion that has one) takes the strip when set,
+    // styled as a sale strip. Otherwise fall back to the shipping notice.
+    const promoBanner = (profile.promo_banner || '').trim();
+    if (promoBanner) {
+      banner.textContent = promoBanner;
+      banner.classList.add('promo');
+      banner.classList.remove('hidden');
+      return;
+    }
+    banner.classList.remove('promo');
+
     const threshold = profile.shipping_free_over_threshold || 0;
     const hasPhysical = listings.some(function (l) { return l.listing_kind === 'physical'; });
     if (threshold <= 0 || !hasPhysical) {
