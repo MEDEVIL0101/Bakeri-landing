@@ -5,6 +5,7 @@ import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
+import { resolvePromotions, redeemPromoCode } from "../_shared/promotions.ts";
 
 // Public, unauthenticated endpoint for baker/checkout.html — records a
 // guest's already-paid marketplace purchase (one or more ready_now/preorder
@@ -527,6 +528,23 @@ Deno.serve(async (req: Request) => {
       preorderDate,
     };
   });
+
+  // Apply the same percent-off promotion the PaymentIntent was charged
+  // under (see create-payment-intent) before tax + subtotal are derived, so
+  // the recorded pickup order matches the charge. Automatic sales resolve
+  // from the code = null path; a coded promo rides the PI metadata.
+  {
+    const promo = await resolvePromotions(
+      baker_id,
+      lines.map((l) => ({
+        menu_item_id: l.item.id, listing_kind: l.item.listing_kind,
+        unit_price_cents: Math.round(l.pricePerUnit * 100), quantity: l.quantity,
+      })),
+      (intent.metadata?.promo_code as string) ?? null,
+    );
+    promo.lines.forEach((rl, i) => { lines[i].pricePerUnit = rl.effective_unit_price_cents / 100; });
+    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null);
+  }
 
   const taxCents = calculateTaxCents(
     lines.map((l) => ({

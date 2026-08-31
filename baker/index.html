@@ -36,6 +36,9 @@
          section/menu bar so it carries a hint of their theme colour
          without hurting the dark nav-label text. Bump the % for more. */
       --menu-bar:  color-mix(in srgb, var(--accent) 12%, var(--surface));
+      /* Promotions / sale pricing — the existing red, not theme-tinted, so a
+         markdown reads the same on every baker's storefront. */
+      --sale:      var(--error);
 
       /* Fixed tokens from BakeriTheme.swift's storefront profile redesign
          (bakeriProfileInk/Muted/Bio/ChipText, bakeriProfileBadge*) — the
@@ -517,6 +520,17 @@
     .p-price-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .p-price { font-size: 13.5px; font-weight: 700; color: var(--accent); }
     .p-price .from { font-size: 9.5px; font-weight: 400; color: var(--muted); display: block; }
+    /* ── Sale pricing ── struck original + red current, plus a red pill on
+       the photo. `.orig` is reused verbatim in the digital rows and the
+       item sheet. */
+    .orig { text-decoration: line-through; color: var(--muted); font-weight: 400; margin-right: 6px; }
+    .p-price:has(.orig), .digital-row .price:has(.orig), .digital-row .price.on-sale { color: var(--sale); }
+    .p-sale-badge {
+      position: absolute; top: 8px; right: 8px;
+      font-size: 10px; font-weight: 700; letter-spacing: .02em;
+      padding: 4px 10px; border-radius: 9999px;
+      background: var(--sale); color: #fff;
+    }
 
     .add-btn, .qty-stepper { height: 32px; flex-shrink: 0; }
     .add-btn {
@@ -651,6 +665,7 @@
     #item-sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
     #item-sheet-name { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 6px; }
     #item-sheet-price { font-size: 16px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+    #item-sheet-price:has(.orig) { color: var(--sale); }
     /* Kept tight (10px, not 16) — on a has_variants listing especially, the
        photo (fixed 1:1) plus name/price/option-picker/CTA above already
        claim most of a typical viewport's height, and every px trimmed here
@@ -1196,6 +1211,7 @@
     // Menu-section-hides-when-empty rule) and just leave it out entirely
     // until the baker finishes setting it up.
     allListings = listings.filter(function (l) { return l.listing_kind !== 'custom' || l.intake_form_id; });
+    allListings.forEach(applyListingPromo);
     allLinks = links;
     updateAnnouncementBanner(profile, listings);
     const name = profile.business_name || profile.user_name || 'Baker';
@@ -1806,7 +1822,8 @@
 
     const priceEl = document.createElement('div');
     priceEl.className = 'price tabular';
-    priceEl.textContent = '$' + formatPrice(item.price);
+    if (item.original_price != null && parseFloat(item.original_price) > parseFloat(item.price)) priceEl.classList.add('on-sale');
+    priceEl.innerHTML = priceHTML(item.original_price, item.price);
 
     row.appendChild(thumb);
     row.appendChild(info);
@@ -1840,6 +1857,13 @@
     badge.innerHTML = '<span class="dot"></span>' + kind.label;
     photo.appendChild(badge);
 
+    if (item.promo) {
+      const saleBadge = document.createElement('div');
+      saleBadge.className = 'p-sale-badge';
+      saleBadge.textContent = item.promo.label;
+      photo.appendChild(saleBadge);
+    }
+
     const body = document.createElement('div');
     body.className = 'p-body';
     const nameEl = document.createElement('div');
@@ -1855,7 +1879,7 @@
     priceRow.className = 'p-price-row';
     const priceEl = document.createElement('div');
     priceEl.className = 'p-price tabular';
-    priceEl.innerHTML = priceIsFrom(item) ? '<span class="from">from</span>$' + formatPrice(item.price) : '$' + formatPrice(item.price);
+    priceEl.innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
     priceRow.appendChild(priceEl);
     priceRow.appendChild(buildAddControl(item));
     divider.appendChild(priceRow);
@@ -2421,7 +2445,7 @@
 
   function openItemSheet(item) {
     document.getElementById('item-sheet-name').textContent = item.name;
-    document.getElementById('item-sheet-price').innerHTML = (priceIsFrom(item) ? 'from ' : '') + '$' + formatPrice(item.price);
+    document.getElementById('item-sheet-price').innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
     const descEl = document.getElementById('item-sheet-desc');
     const descToggle = document.getElementById('item-sheet-desc-toggle');
     descEl.textContent = item.item_description || '';
@@ -2771,7 +2795,9 @@
     boxCartLines.push({
       lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
       menuItemId: item.id, itemName: item.name, tierId: tier.id, tierLabel: tier.label,
-      unitCount: tier.unit_count, price: tier.price, qty: 1, variants: breakdown,
+      unitCount: tier.unit_count, price: tier.price,
+      originalPrice: tier.original_price != null ? tier.original_price : tier.price,
+      qty: 1, variants: breakdown,
       taxCategory: item.tax_category, unitWeightGrams: item.unit_weight_grams
     });
     saveCart();
@@ -2864,8 +2890,8 @@
     // even after picking a pricier one, which reads as a bug/bait-and-switch.
     const priceEl = document.getElementById('item-sheet-price');
     priceEl.innerHTML = variant
-      ? '$' + formatPrice(variant.price)
-      : (priceIsFrom(item) ? 'from ' : '') + '$' + formatPrice(item.price);
+      ? priceHTML(variant.original_price, variant.price)
+      : priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
     if (!variant) {
       cta.textContent = 'Choose an option';
       cta.disabled = true;
@@ -3327,6 +3353,7 @@
         if (l.kind === 'box') {
           return {
             id: l.item.id, name: l.item.name + ' — ' + l.line.tierLabel, qty: l.qty, price: l.line.price,
+            originalPrice: l.line.originalPrice != null ? l.line.originalPrice : l.line.price,
             taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
             listingKind: 'ready_now', dropDate: '', maxQty: 0, availQty: 0,
             isAssortedBox: true, tierId: l.line.tierId, tierLabel: l.line.tierLabel, variants: l.line.variants
@@ -3335,6 +3362,7 @@
         if (l.kind === 'preorder') {
           return {
             id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
+            originalPrice: l.item.original_price != null ? l.item.original_price : l.item.price,
             taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
             listingKind: l.item.listing_kind, dropDate: l.item.preorder_drop_date || '',
             maxQty: l.item.max_preorder_quantity || 0, availQty: l.item.available_qty_today || 0,
@@ -3350,6 +3378,7 @@
         }
         return {
           id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
+          originalPrice: l.item.original_price != null ? l.item.original_price : l.item.price,
           taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
           listingKind: l.item.listing_kind, dropDate: '', maxQty: 0, availQty: l.item.available_qty_today || 0
         };
@@ -3562,6 +3591,45 @@
     return false;
   }
   function formatPrice(v) { return parseFloat(v).toFixed(2); }
+
+  // ── Promotions (percent-off sales) ──
+  // The web-profile RPC returns, per listing: `price` (headline), `sale_price`
+  // (== price unless an automatic sale applies), and `promo`
+  // ({discount_type:'percent', discount_value, label}) or null. We fold the
+  // sale into the working price ONCE, here, and stash the pre-sale figure on
+  // `original_price` — so every downstream reader (cards, item sheet, cart
+  // math, the checkout hand-off payload) transparently uses the sale price
+  // and only the ~4 display spots need to know about `original_price`.
+  function applyPromoPrice(price, promo) {
+    if (!promo || promo.discount_type !== 'percent' || price == null) return price;
+    return Math.round(parseFloat(price) * (100 - promo.discount_value)) / 100;
+  }
+  function applyListingPromo(item) {
+    item.original_price = item.price;
+    if (!item.promo || item.sale_price == null || parseFloat(item.sale_price) >= parseFloat(item.price)) {
+      item.promo = null;
+      return;
+    }
+    item.price = item.sale_price;
+    (item.listing_variants || []).forEach(function (v) {
+      v.original_price = v.price;
+      v.price = applyPromoPrice(v.price, item.promo);
+    });
+    (item.size_tiers || []).forEach(function (t) {
+      t.original_price = t.price;
+      t.price = applyPromoPrice(t.price, item.promo);
+    });
+  }
+  // "<s>$X</s> $Y" when on sale, "$Y" otherwise. `from` prefixes a "from"
+  // ('.p-price .from' makes it a block in cards; inline everywhere else).
+  function priceHTML(originalPrice, price, opts) {
+    opts = opts || {};
+    const fromTag = opts.from ? '<span class="from">from</span> ' : '';
+    if (originalPrice != null && parseFloat(originalPrice) > parseFloat(price)) {
+      return fromTag + '<span class="orig">$' + formatPrice(originalPrice) + '</span>$' + formatPrice(price);
+    }
+    return fromTag + '$' + formatPrice(price);
+  }
 
   function photoFallback(item) {
     const ph = document.createElement('div');

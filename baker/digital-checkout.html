@@ -158,6 +158,14 @@
     // the whole cart — better to let the buyer still check out with what's
     // still there than block them over one bad item (matches the "still
     // deliver what we can" bias in finalize-guest-digital-order).
+    // Effective (post-promotion) unit price for display — the same percent-off
+    // the edge functions apply authoritatively server-side. `sale_price` is
+    // pre-computed for the base listing; variant prices get the same percent.
+    function promoAdjust(base, raw) {
+      var p = base && base.promo;
+      if (p && p.discount_type === 'percent') return Math.round(raw * (100 - p.discount_value)) / 100;
+      return raw;
+    }
     items = requestedLines
       .map(function (line) {
         const base = (data.listings || []).find(function (l) { return l.id === line.id && l.listing_kind === 'digital'; });
@@ -165,9 +173,9 @@
         if (line.variantId) {
           const variant = (base.listing_variants || []).find(function (v) { return v.id === line.variantId; });
           if (!variant) return null;
-          return Object.assign({}, base, { price: variant.price, variantId: variant.id, variantLabel: variant.label, name: base.name + ' — ' + variant.label });
+          return Object.assign({}, base, { price: promoAdjust(base, variant.price), originalPrice: variant.price, variantId: variant.id, variantLabel: variant.label, name: base.name + ' — ' + variant.label });
         }
-        return Object.assign({}, base, { variantId: null, variantLabel: null });
+        return Object.assign({}, base, { price: (base.sale_price != null ? base.sale_price : base.price), originalPrice: base.price, variantId: null, variantLabel: null });
       })
       .filter(Boolean);
     if (items.length === 0) { showMessage('Not found', 'These items are no longer available.'); return; }

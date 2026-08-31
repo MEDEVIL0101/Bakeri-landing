@@ -2842,7 +2842,9 @@
     boxCartLines.push({
       lineId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
       menuItemId: item.id, itemName: item.name, tierId: tier.id, tierLabel: tier.label,
-      unitCount: tier.unit_count, price: tier.price, qty: 1, variants: breakdown,
+      unitCount: tier.unit_count, price: tier.price,
+      originalPrice: tier.original_price != null ? tier.original_price : tier.price,
+      qty: 1, variants: breakdown,
       taxCategory: item.tax_category, unitWeightGrams: item.unit_weight_grams
     });
     saveCart();
@@ -3398,6 +3400,7 @@
         if (l.kind === 'box') {
           return {
             id: l.item.id, name: l.item.name + ' — ' + l.line.tierLabel, qty: l.qty, price: l.line.price,
+            originalPrice: l.line.originalPrice != null ? l.line.originalPrice : l.line.price,
             taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
             listingKind: 'ready_now', dropDate: '', maxQty: 0, availQty: 0,
             isAssortedBox: true, tierId: l.line.tierId, tierLabel: l.line.tierLabel, variants: l.line.variants
@@ -3406,6 +3409,7 @@
         if (l.kind === 'preorder') {
           return {
             id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
+            originalPrice: l.item.original_price != null ? l.item.original_price : l.item.price,
             taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
             listingKind: l.item.listing_kind, dropDate: l.item.preorder_drop_date || '',
             maxQty: l.item.max_preorder_quantity || 0, availQty: l.item.available_qty_today || 0,
@@ -3421,6 +3425,7 @@
         }
         return {
           id: l.item.id, name: l.item.name, qty: l.qty, price: l.item.price,
+          originalPrice: l.item.original_price != null ? l.item.original_price : l.item.price,
           taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
           listingKind: l.item.listing_kind, dropDate: '', maxQty: 0, availQty: l.item.available_qty_today || 0
         };

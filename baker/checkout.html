@@ -370,7 +370,10 @@
         items: cart.items.map(function (i) {
           return {
             listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty,
-            price_from: i.price, listing_kind: i.listingKind, pickup_date: i.dropDate || null
+            // Pre-discount price — create-payment-intent applies any active
+            // promotion server-side (never trusting a client discount).
+            price_from: (i.originalPrice != null ? i.originalPrice : i.price),
+            listing_kind: i.listingKind, pickup_date: i.dropDate || null
           };
         }),
         currency: 'cad',

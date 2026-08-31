@@ -33,6 +33,7 @@ import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 import { postWithRetry } from "../_shared/postWithRetry.ts";
+import { resolvePromotions, redeemPromoCode } from "../_shared/promotions.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -306,6 +307,22 @@ Deno.serve(async (req: Request) => {
         return refundAndFail("One of these options sold out just now.");
       }
     }
+  }
+
+  // Apply the same percent-off promotion the PaymentIntent was charged
+  // under (see create-payment-intent) across both legs, so the recorded
+  // order matches the charge. One resolve call covers digital + physical.
+  {
+    const promoInput = [
+      ...digitalLines.map((l) => ({ menu_item_id: l.menuItemId, listing_kind: "digital", unit_price_cents: l.unitPriceCents, quantity: 1 })),
+      ...physicalLines.map((l) => ({ menu_item_id: l.menuItemId, listing_kind: "physical", unit_price_cents: l.unitPriceCents, quantity: l.quantity })),
+    ];
+    const promo = await resolvePromotions(bakerId, promoInput, (intent.metadata?.promo_code as string) ?? null);
+    promo.lines.forEach((rl, i) => {
+      if (i < digitalLines.length) digitalLines[i].unitPriceCents = rl.effective_unit_price_cents;
+      else physicalLines[i - digitalLines.length].unitPriceCents = rl.effective_unit_price_cents;
+    });
+    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null);
   }
 
   const digitalSubtotalCents = digitalLines.reduce((sum, l) => sum + l.unitPriceCents, 0);

@@ -31,6 +31,7 @@ import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 import { postWithRetry } from "../_shared/postWithRetry.ts";
+import { resolvePromotions, redeemPromoCode } from "../_shared/promotions.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -260,6 +261,24 @@ Deno.serve(async (req: Request) => {
       console.error("decrement_listing_variant_stock_batch failed:", variantStockErr.message);
       return refundAndFail("One of these options sold out just now.");
     }
+  }
+
+  // Apply the same percent-off promotion the PaymentIntent was charged
+  // under (see create-payment-intent). Automatic sales resolve from the
+  // code = null path; a coded promo is carried on the PI metadata. Rewrites
+  // each authoritative unit price to the sale price so the recorded order
+  // matches the charge.
+  {
+    const promo = await resolvePromotions(
+      bakerId,
+      lines.map((l) => ({
+        menu_item_id: l.menuItemId, listing_kind: "physical",
+        unit_price_cents: l.unitPriceCents, quantity: l.quantity,
+      })),
+      (intent.metadata?.promo_code as string) ?? null,
+    );
+    promo.lines.forEach((rl, i) => { lines[i].unitPriceCents = rl.effective_unit_price_cents; });
+    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null);
   }
 
   const subtotalCents = lines.reduce((sum, l) => sum + l.unitPriceCents * l.quantity, 0);

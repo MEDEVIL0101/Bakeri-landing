@@ -189,6 +189,13 @@
     // rather than the whole page going blank. The real atomic stock check
     // still happens server-side at charge time (see create-payment-intent)
     // regardless of what's shown here.
+    // Effective (post-promotion) unit price for display — matches the
+    // percent-off the edge functions apply authoritatively server-side.
+    function promoAdjust(base, raw) {
+      var p = base && base.promo;
+      if (p && p.discount_type === 'percent') return Math.round(raw * (100 - p.discount_value)) / 100;
+      return raw;
+    }
     items = requestedLines
       .map(function (line) {
         const base = (data.listings || []).find(function (l) { return l.id === line.id && l.listing_kind === 'physical'; });
@@ -198,7 +205,8 @@
           if (!variant) return null;
           const soldOut = (variant.stock_qty || 0) <= 0;
           return Object.assign({}, base, {
-            qty: soldOut ? line.qty : Math.min(line.qty, variant.stock_qty), price: variant.price,
+            qty: soldOut ? line.qty : Math.min(line.qty, variant.stock_qty),
+            price: promoAdjust(base, variant.price), originalPrice: variant.price,
             variantId: variant.id, variantLabel: variant.label, name: base.name + ' — ' + variant.label,
             soldOut: soldOut
           });
@@ -206,6 +214,7 @@
         const soldOut = (base.available_qty_today || 0) <= 0;
         return Object.assign({}, base, {
           qty: soldOut ? line.qty : Math.min(line.qty, base.available_qty_today),
+          price: (base.sale_price != null ? base.sale_price : base.price), originalPrice: base.price,
           variantId: null, variantLabel: null, soldOut: soldOut
         });
       })

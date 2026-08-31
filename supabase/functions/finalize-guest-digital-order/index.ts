@@ -28,6 +28,7 @@ import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 import { postWithRetry } from "../_shared/postWithRetry.ts";
+import { resolvePromotions, redeemPromoCode } from "../_shared/promotions.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -233,6 +234,24 @@ Deno.serve(async (req: Request) => {
 
   const missingFile = digitalLines.find((l) => !l.digitalFilePath);
   if (missingFile) return refundAndFail(`"${missingFile.name}" has no file attached.`);
+
+  // Apply the same percent-off promotion the PaymentIntent was charged
+  // under (create-payment-intent stamps promo_code on the PI metadata for a
+  // coded promo; automatic sales resolve identically from the code = null
+  // path). Overwrites each line's authoritative unit price with the sale
+  // price so the recorded order matches what was actually charged.
+  {
+    const promo = await resolvePromotions(
+      bakerId,
+      digitalLines.map((l) => ({
+        menu_item_id: l.menuItemId, listing_kind: "digital",
+        unit_price_cents: l.unitPriceCents, quantity: 1,
+      })),
+      (intent.metadata?.promo_code as string) ?? null,
+    );
+    promo.lines.forEach((rl, i) => { digitalLines[i].unitPriceCents = rl.effective_unit_price_cents; });
+    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null);
+  }
 
   const subtotalCents = digitalLines.reduce((sum, l) => sum + l.unitPriceCents, 0);
   // Guest checkout: buyer pays exactly the item price(s) — Bakeri's service

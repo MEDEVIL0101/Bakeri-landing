@@ -4,6 +4,7 @@ import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
+import { resolvePromotions, type BaseLine } from "../_shared/promotions.ts";
 
 const stripe = getStripeClient();
 
@@ -37,6 +38,10 @@ interface RequestBody {
   items: CartItemPayload[];
   currency?: string;
   tax_amount_cents?: number;
+  // A storefront promo code the buyer entered, if any. Automatic sales
+  // apply with no code. Re-validated + priced server-side (see
+  // _shared/promotions.ts) — the client never decides the discount.
+  promo_code?: string | null;
   // Flat manual shipping fee(s), summed client-side (once per distinct
   // physical listing, not per unit) and re-validated below before it's
   // trusted for the actual charge. Only ever present when the cart has
@@ -132,7 +137,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const isApp = await isAuthenticatedBuyer(req.headers.get("Authorization"));
-    const { items, currency: requestedCurrency = "cad", tax_amount_cents = 0, shipping_fee_cents = 0 }: RequestBody = await req.json();
+    const { items, currency: requestedCurrency = "cad", tax_amount_cents = 0, shipping_fee_cents = 0, promo_code = null }: RequestBody = await req.json();
 
     if (!items || items.length === 0) {
       return new Response(JSON.stringify({ error: "No items" }), {
@@ -189,7 +194,7 @@ Deno.serve(async (req: Request) => {
       const digitalCartItems = items.filter((i) => i.listing_kind === "digital");
       const { data: digitalItems, error: digitalItemsErr } = await supabase
         .from("menu_items")
-        .select("id, name, listing_kind, is_listed_in_marketplace, digital_file_path, has_variants")
+        .select("id, name, listing_kind, is_listed_in_marketplace, digital_file_path, has_variants, default_price, marketplace_price_from")
         .in("id", digitalCartItems.map((i) => i.listing_id));
 
       const itemsById = new Map((digitalItems ?? []).map((d) => [d.id, d]));
@@ -226,6 +231,13 @@ Deno.serve(async (req: Request) => {
             throw new ValidationError(`"${digitalItem.name}" — that option is no longer available.`);
           }
           authoritativePriceByIndex.set(idx, variant.price);
+        } else {
+          // Non-variant: use the live listing price, not the client's
+          // price_from — promotions are then applied on top server-side.
+          const base = ((digitalItem.marketplace_price_from ?? 0) > 0
+            ? digitalItem.marketplace_price_from
+            : digitalItem.default_price) ?? 0;
+          authoritativePriceByIndex.set(idx, base);
         }
       });
     }
@@ -235,7 +247,7 @@ Deno.serve(async (req: Request) => {
       const physicalCartItems = items.filter((i) => i.listing_kind === "physical");
       const { data: physicalItems, error: physicalItemsErr } = await supabase
         .from("menu_items")
-        .select("id, name, listing_kind, is_listed_in_marketplace, available_qty_today, has_variants")
+        .select("id, name, listing_kind, is_listed_in_marketplace, available_qty_today, has_variants, default_price, marketplace_price_from")
         .in("id", physicalCartItems.map((i) => i.listing_id));
 
       const itemsById = new Map((physicalItems ?? []).map((d) => [d.id, d]));
@@ -269,11 +281,34 @@ Deno.serve(async (req: Request) => {
             throw new ValidationError(`"${physicalItem.name} — ${variant.label}" doesn't have enough stock left.`);
           }
           authoritativePriceByIndex.set(idx, variant.price);
-        } else if ((physicalItem.available_qty_today ?? 0) < cartItem.quantity) {
-          throw new ValidationError(`"${physicalItem.name}" doesn't have enough stock left.`);
+        } else {
+          if ((physicalItem.available_qty_today ?? 0) < cartItem.quantity) {
+            throw new ValidationError(`"${physicalItem.name}" doesn't have enough stock left.`);
+          }
+          const base = ((physicalItem.marketplace_price_from ?? 0) > 0
+            ? physicalItem.marketplace_price_from
+            : physicalItem.default_price) ?? 0;
+          authoritativePriceByIndex.set(idx, base);
         }
       });
     }
+
+    // ── Promotions ──
+    // Apply active percent-off sales (+ a valid code) to the authoritative
+    // per-line base prices. For pickup/preorder lines with no DB fetch above
+    // the base is still the client's price_from (unchanged trust model, and
+    // those go through a baker-accept before capture); digital/physical are
+    // now fully server-priced. The discount itself is always server-computed.
+    const promoBaseLines: BaseLine[] = items.map((item, idx) => ({
+      menu_item_id: item.listing_id,
+      listing_kind: item.listing_kind,
+      unit_price_cents: Math.round((authoritativePriceByIndex.get(idx) ?? item.price_from) * 100),
+      quantity: item.quantity,
+    }));
+    const promo = await resolvePromotions(items[0]?.baker_id ?? "", promoBaseLines, promo_code);
+    promo.lines.forEach((rl, idx) => {
+      authoritativePriceByIndex.set(idx, rl.effective_unit_price_cents / 100);
+    });
 
     const itemsTotalCents = Math.round(
       items.reduce((sum, item, idx) => sum + (authoritativePriceByIndex.get(idx) ?? item.price_from) * item.quantity, 0) * 100
@@ -327,6 +362,15 @@ Deno.serve(async (req: Request) => {
       payment_flow: paymentFlow,
       platform_fee_cents: String(platformFeeCents),
     };
+    // So the matching finalize function discounts identically and can bump
+    // a code's redemption count. Only set when a code was actually applied.
+    if (promo.codeStatus === "valid" && promo.codePromotionId) {
+      metadata.promo_code = (promo_code ?? "").trim().toUpperCase();
+      metadata.promo_promotion_id = promo.codePromotionId;
+    }
+    if (promo.totalDiscountCents > 0) {
+      metadata.promo_discount_cents = String(promo.totalDiscountCents);
+    }
 
     const isSingleBaker = bakerIDs.length === 1;
     const paymentModel: "direct" | "platform_custody" = isSingleBaker ? "direct" : "platform_custody";
