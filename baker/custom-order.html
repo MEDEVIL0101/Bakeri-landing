@@ -263,6 +263,14 @@
     const name = profile.business_name || profile.user_name || 'Baker';
     document.getElementById('shop-name').textContent = name;
 
+    // Cache-bust storefront images with the profile's publish timestamp — see
+    // the matching note in baker/index.html's assetURL.
+    const stamp = profile.updated_at ? Date.parse(profile.updated_at) : 0;
+    const assetURL = function (path) {
+      const u = STORAGE_URL + path;
+      return stamp ? u + '?v=' + stamp : u;
+    };
+
     const link = document.getElementById('profile-link');
     link.href = profile.profile_slug
       ? 'https://bakeriapp.com/' + encodeURIComponent(profile.profile_slug)
@@ -273,7 +281,7 @@
     const avatarImg = document.createElement('img');
     avatarImg.alt = name;
     avatarImg.onload = function () { avatarImg.style.display = 'block'; letterEl.style.display = 'none'; };
-    avatarImg.src = STORAGE_URL + '/business-logos/' + bakerId.toUpperCase() + '/logo.jpg';
+    avatarImg.src = assetURL('/business-logos/' + bakerId.toUpperCase() + '/logo.jpg');
     document.getElementById('pb-avatar').appendChild(avatarImg);
 
     const hero = document.getElementById('profile-hero');
@@ -282,7 +290,7 @@
     headerImg.alt = name;
     headerImg.onerror = function () { header.classList.add('hidden'); hero.classList.remove('has-photo'); };
     headerImg.onload = function () { header.classList.remove('hidden'); headerImg.style.display = 'block'; hero.classList.add('has-photo'); };
-    headerImg.src = STORAGE_URL + '/storefront-headers/' + bakerId.toUpperCase() + '/header.jpg';
+    headerImg.src = assetURL('/storefront-headers/' + bakerId.toUpperCase() + '/header.jpg');
   }
 
   function showNotFound(title, subtitle) {
@@ -411,6 +419,8 @@
     } else if (field.field_type === 'date') {
       const today = new Date().toISOString().split('T')[0];
       body = '<input type="date" id="' + id + '" min="' + today + '" />';
+    } else if (field.field_type === 'time') {
+      body = '<input type="time" id="' + id + '" />';
     } else if (field.field_type === 'single_choice' || field.field_type === 'multi_choice') {
       const inputType = field.field_type === 'single_choice' ? 'radio' : 'checkbox';
       const options = Array.isArray(field.options) ? field.options : [];

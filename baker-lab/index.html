@@ -1092,6 +1092,18 @@
   let allLinks = [];
   let resolvedBakerId = bakerID;
   let tab = 'all';
+
+  // Storefront images (logo, header, about portrait) live at fixed Storage
+  // paths with no version in the URL. On publish the bytes at that path are
+  // replaced, but a browser that loaded the storefront in the last hour keeps
+  // serving the stale copy from its own cache (Storage stamps max-age=3600).
+  // Appending the profile's updated_at as ?v= — bumped on every publish — busts
+  // the cache exactly on republish and otherwise lets the image cache normally.
+  function assetURL(path) {
+    const base = STORAGE_URL + path;
+    const stamp = profile && profile.updated_at ? Date.parse(profile.updated_at) : 0;
+    return stamp ? base + (base.indexOf('?') === -1 ? '?' : '&') + 'v=' + stamp : base;
+  }
   let cart = {}; // { itemId: qty } — ready_now items only; preorder always uses preorderCartLines below
   let boxCartLines = []; // Assorted Box lines: { lineId, menuItemId, tierId, tierLabel, unitCount, price, qty, variants: [{variantId, name, qty}] }
   let boxState = null; // in-progress box picker: { item, tierId, chosen: {variantId: qty} }
@@ -1347,7 +1359,7 @@
   }
 
   function renderAvatar(name) {
-    const logoURL = STORAGE_URL + '/business-logos/' + resolvedBakerId.toUpperCase() + '/logo.jpg';
+    const logoURL = assetURL('/business-logos/' + resolvedBakerId.toUpperCase() + '/logo.jpg');
     const initial = name.charAt(0).toUpperCase();
     const el = document.getElementById('pb-avatar');
     const letterEl = document.getElementById('pb-avatar-letter');
@@ -1372,7 +1384,7 @@
     img.alt = name;
     img.onerror = function () { header.classList.add('hidden'); hero.classList.remove('has-photo'); };
     img.onload = function () { header.classList.remove('hidden'); img.style.display = 'block'; hero.classList.add('has-photo'); };
-    img.src = STORAGE_URL + '/storefront-headers/' + resolvedBakerId.toUpperCase() + '/header.jpg';
+    img.src = assetURL('/storefront-headers/' + resolvedBakerId.toUpperCase() + '/header.jpg');
   }
 
   // Only renders if the baker has actually configured hours in the app (the
@@ -1423,7 +1435,7 @@
       const img = document.getElementById('pb-about-portrait');
       img.alt = name;
       img.onerror = function () { img.style.display = 'none'; };
-      img.src = STORAGE_URL + '/baker-portraits/' + resolvedBakerId.toUpperCase() + '/portrait.jpg';
+      img.src = assetURL('/baker-portraits/' + resolvedBakerId.toUpperCase() + '/portrait.jpg');
     }
     if (profile.store_policies) {
       document.getElementById('pb-policies').classList.remove('hidden');

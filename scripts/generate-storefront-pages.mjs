@@ -69,12 +69,17 @@ async function urlExists(url) {
   } catch { return false; }
 }
 
-async function pickOgImage(bakerId) {
+async function pickOgImage(bakerId, updatedAt) {
   const idU = String(bakerId).toUpperCase();
+  // Same cache-bust as baker/index.html's assetURL — storefront images sit at
+  // fixed Storage paths, so pin the OG tag to the profile's publish timestamp
+  // rather than letting scrapers hold a stale thumbnail.
+  const stamp = updatedAt ? Date.parse(updatedAt) : 0;
+  const v = stamp ? `?v=${stamp}` : "";
   const header = `${STORAGE}/storefront-headers/${idU}/header.jpg`;
   const logo = `${STORAGE}/business-logos/${idU}/logo.jpg`;
-  if (await urlExists(header)) return header;
-  if (await urlExists(logo)) return logo;
+  if (await urlExists(header)) return header + v;
+  if (await urlExists(logo)) return logo + v;
   return DEFAULT_OG_IMAGE;
 }
 
@@ -214,7 +219,7 @@ for (const slug of slugs) {
   try {
     const data = await fetchProfile(slug);
     if (!data) { failed.push(`${slug} (no profile from RPC)`); continue; }
-    const ogImage = await pickOgImage(data.profile.id);
+    const ogImage = await pickOgImage(data.profile.id, data.profile.updated_at);
     const html = renderPage({ slug, profile: data.profile, listings: data.listings, ogImage });
     const dir = join(ROOT, slug);
     mkdirSync(dir, { recursive: true });
