@@ -1,0 +1,47 @@
+name: Generate storefront pages
+
+# Pre-generates bakeriapp.com/<slug>/index.html for every baker so the clean
+# storefront URLs return a real HTTP 200 with per-baker SEO / Open Graph meta
+# (see scripts/generate-storefront-pages.mjs). GitHub Pages then serves them.
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily ~06:17 UTC — new bakers get a page within a day
+  workflow_dispatch: {} # manual "Run workflow" button
+  push:
+    branches: [main]
+    paths:
+      - "scripts/generate-storefront-pages.mjs"
+      - "baker/index.html"
+      - ".github/workflows/storefront-pages.yml"
+
+concurrency:
+  group: storefront-pages
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Generate
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/generate-storefront-pages.mjs
+      - name: Commit changes
+        run: |
+          git config user.name  "bakeri-bot"
+          git config user.email "bot@bakeriapp.com"
+          git add -A ':(glob)*/index.html'
+          if git diff --cached --quiet; then
+            echo "No storefront page changes."
+          else
+            git commit -m "chore: regenerate storefront pages"
+            git push
+          fi
