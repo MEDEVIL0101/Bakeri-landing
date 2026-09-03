@@ -21,6 +21,113 @@ Entry format:
 
 ---
 
+## 2026-09-01 — New storefront header image stays stale on the live site
+
+**Reported by:** Harvey — picked a new header image in storefront setup, the
+public storefront kept showing the old one.
+
+**Symptom:** After publishing a changed header (or logo / about portrait), the
+live storefront keeps rendering the previous image for up to an hour; social
+link previews stay stale much longer.
+
+**Root cause:** Storefront images live at fixed Storage paths
+(`<uid>/header.jpg` etc.). The app uploaded with `upsert:true` but no
+`cacheControl`, so Storage stamped the default `max-age=3600`, and the website
+loaded the URL with no version param. Any browser that had already loaded the
+storefront served its cached copy until the hour lapsed. Overwrite-in-place +
+no cache-buster = no signal to refetch.
+
+**Fix:**
+- Migration `20260901000004_web_profile_updated_at.sql` — `get_baker_web_profile_by_{slug,id}` now return `profiles.updated_at` (bumped on every publish).
+- `baker/index.html`, `baker-lab/index.html`, `baker/custom-order.html` — new `assetURL()` helper appends `?v=<updated_at epoch>` to the header/logo/portrait URLs. Caches normally, busts exactly on republish.
+- `scripts/generate-storefront-pages.mjs` — same `?v=` on the OG/Twitter image tags.
+- `SyncService.upload{StorefrontHeader,BusinessLogo,AboutPortrait}` — `FileOptions(cacheControl: "300", …)` to narrow the window for anything that misses the `?v=`.
+- Also this session: the storefront-setup header picker now opens a 16:9 crop/pan/zoom editor (`HeaderImageEditorSheet`) so headers are a consistent aspect ratio.
+
+Migration deployed 2026-09-01. Website + app changes committed/deployed separately.
+
+**Affected users:** every baker who updated a header/logo/portrait after first publish — cosmetic only, self-healed after ~1h. No data loss.
+
+**Follow-up:** `pay/index.html` and `baker/pay-quote.html` still load the header without `?v=` (different RPCs that don't expose `updated_at`); low priority — transient payment pages.
+
+---
+
+## 2026-09-01 — Stripe Connect platform fees ≈ application-fee revenue; migrated Express → Standard
+
+**Reported by:** Harvey, reviewing the Stripe dashboard — ~$15.75 CAD of Connect
+platform fees in August against ~$20–25 of collected application fees, plus the
+platform carrying negative-balance/dispute liability for every baker.
+
+**Root cause:** Not a misconfiguration. Bakeri was still on **Express** connected
+accounts, whose pricing (CA$2/mo per active account + per-payout + 0.25% volume,
+all billed to the platform) and platform loss-liability are designed for a
+platform-custody model. The 2026-07-30 direct-charge migration removed custody
+but left the account type. At current scale the fixed ~$2/active-baker fee
+roughly cancels the skim. (August's number was also inflated by ~4 test/dev
+accounts that each took one live transaction and rang up the $2.)
+
+**Fix:** Migrated all connected accounts to **Standard** (`type:"standard"` +
+Account Links). Direct charges + `application_fee_amount` unchanged; platform
+Connect cost → ~$0, dispute/loss liability moves to the baker, baker owns their
+own dashboard + payout schedule.
+- Edge functions: `create-connect-account-link` creates Standard accounts with
+  `business_profile` (url/name/mcc 5462/product_description) prefilled;
+  `get-baker-payout-summary` dropped Express-only `createLoginLink` +
+  `listExternalAccounts` (both blocked/unsupported on Standard);
+  `trigger-baker-payout` deleted (platforms can't pay out Standard accounts);
+  `stripe-connect-webhook` gained a classic `account.updated` handler (+ its own
+  event destination + `STRIPE_CONNECT_WEBHOOK_SECRET_CLASSIC`); `cancel-order` +
+  `refund-and-notify-guest-order-declined` fall back to
+  `profiles.stripe_connect_express_account_id_legacy` so refunds on Express-era
+  orders still target the right account after a baker reconnects.
+- DB: `profiles.stripe_connect_account_type` + `stripe_connect_express_account_id_legacy`
+  (migrations `20260901000001`, `20260901000002`).
+- iOS: removed the "Request Payout" button + payout-schedule/Express copy; Tap to
+  Pay row now fully hidden while `TapToPayAvailability.tapToPayEnabled == false`
+  (Tap to Pay needs Express/Custom — paused, revisit later).
+- **Storefront URL fix (was the real blocker):** Standard onboarding rejected
+  `bakeriapp.com/<slug>` — GitHub Pages serves it via a client-side JS redirect
+  under an HTTP 404, so Stripe's crawler (and every SEO/link-preview bot) saw a
+  404. Added `scripts/generate-storefront-pages.mjs` + a daily GitHub Action
+  (`.github/workflows/storefront-pages.yml`) that pre-generates a real 200
+  `<slug>/index.html` per baker with per-baker title/description/OG/Twitter/
+  JSON-LD + a static menu. `bakeriapp.com/<slug>/` now returns 200. Needs repo
+  secrets `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` on `Bakeri-landing` for
+  the scheduled run.
+
+**Affected users:** every baker — one-time reconnect via Settings → Banking &
+Payments → Connect with Stripe (the "reconnect Stripe" email went out 2026-09-01;
+`check-stripe-connect-health` nudges stragglers). Cookiesbysteph migrated and
+verified live first (`acct_1UAv0pRyRleSo5O4`). The cutover reset was run, rolled
+back twice (URL bug, then to confirm the fix was adequate), then re-run scoped to
+`account_type='express'` once the storefront-page fix was proven — so Steph's new
+Standard account wasn't disturbed. 25 bakers currently reset, reconnecting as the
+app update rolls out.
+
+**Follow-up:** (1) **Close the 23 zero-transaction legacy Express accounts** —
+deferred ~1–2 months (past the ~120-day dispute window; saves $0 since dormant
+accounts bill nothing, purely housekeeping). Keep Tilly Sugar Cookies
+(`acct_1U0wB7RyVzjyR7Rh`, 6 orders), Sugarland (`acct_1U0EOSRz2K0s7Fkk`, 2), and
+Steph's old Express account — they have dispute-window exposure. Zero-transaction
+list: Betty's Cookies `acct_1U1SVPRuiyTAsNXg`, Cakes By Eve `acct_1U1S7WRq1qRAjbxu`,
+Dipped By Julianna `acct_1U14cN2NTXaDg2ph`, Girly Pops az `acct_1U2gVZRrVG7ejqNx`,
+Grateful Grain `acct_1U1YEtRw10GbMxau`, HomeMade With Tae `acct_1U4i8RRw47pZX8Mf`,
+Jojocookieco `acct_1U3N2PRyfMdWXS8Q`, KDenise sweets `acct_1U3LzM2N26CMLDcz`,
+Our Daily Bread Miami `acct_1U2wxo2NMrWvC891`, Paigey Pie Bakery `acct_1U3hRb2NLUKCUbSq`,
+Pastry Palette LLC `acct_1U45LCRuJoluyJDD`, Sarahs treats `acct_1U1WPv2MQRaOYic2`,
+Simply Sweet Cupcakes `acct_1U28eaRyDSH2hXaW`, Sugar High `acct_1U3HmnRpjuKtGZOp`,
+Sugar Pop Shop `acct_1U3zWkRtvrpt2HjD`, Sugar Rush Goodies `acct_1U9pVV2MTAy7KRdZ`,
+Sugar'd Notes `acct_1U1FeuRqf3V90vKl`, Sweet Encargos `acct_1U8jqxRr8gzxR64A`,
+Sweetsbysoph `acct_1U1GLO2LVbJikcDR`, Taylor'd Cookies `acct_1U2gOyRwbH5huzyu`,
+The Sunday Bakehouse `acct_1U80RX2Nxz6nDH5w`, Whip It `acct_1U9FWuRp4r340KWO`,
+Whisked at Home `acct_1U7mDTRrcK9HNp4Q`. Also delete Steph's abandoned incomplete
+Standard account `acct_1UAuJHRwxvcL5Wt9` (first onboarding attempt, superseded).
+(2) Multi-baker marketplace custody flows (`payment_model='platform_custody'`,
+`release-baker-payouts`) untouched — still need Express/Custom when that reopens.
+(3) `STRIPE_STANDARD_MIGRATION_PLAN.md` has the full runbook.
+
+---
+
 ## 2026-08-28 — resend-digital-download missed a buyer whose digital order was mislabeled "Pickup"
 
 **Reported by:** Diana, directly — a second buyer (wendytippy@hotmail.com) with the expired-link problem. `resend-digital-download` in buyer mode returned "if a matching purchase exists…" (its not-found branch) even though Diana could see the Stripe charge and the baker's app showed the order — as a **Storefront Order → "Ready for Pickup"** with a "Change Pickup Time" button, on an order of three digital sticker/label downloads.

@@ -1,8 +1,21 @@
 // create-connect-account-link
-// Creates a Stripe Express connected account for a baker and returns
-// the hosted onboarding URL. Called once per baker to set up payouts.
-// After onboarding completes, the stripe_connect_account_id webhook
-// (account.updated) writes the account ID back to baker_profiles.
+// Creates a Stripe *Standard* connected account for a baker and returns the
+// hosted onboarding URL. Called once per baker to set up payments/payouts.
+//
+// Standard (not Express): the baker is a full independent Stripe customer who
+// owns their own dashboard, sets their own payout schedule, and carries their
+// own dispute/loss liability. The platform still takes its cut via
+// application_fee_amount on direct charges, but pays Stripe no per-account /
+// per-payout / volume Connect fees and is not the negative-balance backstop.
+// Tap to Pay (Stripe Terminal for Connect) needs Express/Custom and is paused
+// — see STRIPE_STANDARD_MIGRATION_PLAN.md.
+//
+// Onboarding completion is picked up by check-connect-account-status (the
+// app's "I've finished on Stripe — check status" button, and the
+// bakeri://connect-return deep-link handler), which retrieves the account
+// from Stripe and flips stripe_connect_onboarding_complete. stripe-connect-
+// webhook is a best-effort secondary and must not be relied on (it has
+// silently failed to fire before — see check-connect-account-status's doc).
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@13.11.0?target=deno";
@@ -51,7 +64,7 @@ serve(async (req) => {
     // Fetch profile to check for existing Connect account
     const { data: baker, error: bakerError } = await supabase
       .from("profiles")
-      .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
+      .select("stripe_connect_account_id, stripe_connect_onboarding_complete, profile_slug, business_name")
       .eq("id", user.id)
       .single();
 
@@ -90,25 +103,32 @@ serve(async (req) => {
       }
     }
 
+    // The baker's storefront URL for Stripe's onboarding "Your website" step.
+    // The clean bakeriapp.com/<slug> URL is served as a real pre-generated
+    // HTTP 200 page (scripts/generate-storefront-pages.mjs) so Stripe's
+    // server-side reachability check passes. Falls back to the ?id= form
+    // (also a real 200 via baker/index.html) for a baker with no slug yet.
+    // Trailing slash: GitHub Pages 301s "/<slug>" -> "/<slug>/" to serve the
+    // directory index; passing the slashed form skips that redirect hop.
+    const storeUrl = baker.profile_slug
+      ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}/`
+      : `https://bakeriapp.com/baker/?id=${encodeURIComponent(user.id)}`;
+
     if (!accountId) {
       const account = await stripe.accounts.create({
-        type: "express",
+        type: "standard",
+        // Prefill hints only — a Standard account's holder confirms/edits all
+        // of this in Stripe's own hosted onboarding, and manages capabilities
+        // and payout schedule themselves afterward. Country still can't change
+        // once set, so it's the one that matters to get right up front.
         country,
         email: user.email,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-        },
         business_type: "individual",
-        settings: {
-          payouts: {
-            // Fastest Stripe allows: daily auto-payout at whatever minimum
-            // settlement delay Stripe enforces for this account/country —
-            // there's no true zero-delay option. Previously weekly (Friday),
-            // which held every baker's funds for up to a week after
-            // Bakeri's own instant direct-charge settlement.
-            schedule: { interval: "daily", delay_days: "minimum" },
-          },
+        business_profile: {
+          url: storeUrl,
+          name: baker.business_name || undefined,
+          mcc: "5462", // Bakeries
+          product_description: "Homemade baked goods, cookies, cakes and treats sold directly to local customers.",
         },
       });
 
@@ -121,7 +141,11 @@ serve(async (req) => {
       );
       await serviceClient
         .from("profiles")
-        .update({ stripe_connect_account_id: accountId, country })
+        .update({
+          stripe_connect_account_id: accountId,
+          stripe_connect_account_type: "standard",
+          country,
+        })
         .eq("id", user.id);
     }
 

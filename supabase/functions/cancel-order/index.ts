@@ -120,11 +120,17 @@ Deno.serve(async (req: Request) => {
       if (order.payment_model === "direct") {
         const { data: baker } = await supabase
           .from("profiles")
-          .select("stripe_connect_account_id")
+          .select("stripe_connect_account_id, stripe_connect_express_account_id_legacy")
           .eq("id", order.user_id)
           .single();
-        if (baker?.stripe_connect_account_id) {
-          stripeOpts = { stripeAccount: baker.stripe_connect_account_id };
+        // Falls back to the pre-migration Express id if the baker has
+        // disconnected/reconnected since this order was charged (e.g. mid
+        // Express->Standard cutover) — stripe_connect_account_id alone would
+        // point at a different account than the one this PaymentIntent
+        // actually lives on.
+        const acctId = baker?.stripe_connect_account_id ?? baker?.stripe_connect_express_account_id_legacy;
+        if (acctId) {
+          stripeOpts = { stripeAccount: acctId };
         }
       }
 

@@ -138,6 +138,43 @@
     .qty-value { font-size: 14.5px; font-weight: 700; color: var(--ink); min-width: 14px; text-align: center; }
     .product-subtotal { margin-top: 10px; text-align: right; font-size: 13px; font-weight: 700; color: var(--ink); }
 
+    /* Custom date field — a native <input type="date"> can't grey out or
+       cross off individual days, only a contiguous min/max range, which is
+       exactly what showing a baker's blocked dates needs. This is a small
+       self-built calendar instead, mirroring the same grid used in the app. */
+    .date-field { position: relative; }
+    .date-trigger {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px; font-family: var(--sans); font-size: 15px; text-align: left;
+      color: var(--muted); background: var(--bg); border: 1.5px solid var(--line);
+      border-radius: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .date-trigger-text.has-value { color: var(--ink); }
+    .date-trigger-icon { font-size: 14px; opacity: 0.6; }
+    .date-calendar {
+      margin-top: 8px; padding: 12px; background: var(--surface, #fff);
+      border: 1.5px solid var(--line); border-radius: 14px;
+    }
+    .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .cal-month { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .cal-nav {
+      width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent;
+      color: var(--ink); font-size: 17px; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+    }
+    .cal-nav:disabled { opacity: 0.25; cursor: not-allowed; }
+    .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+    .cal-weekdays span { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .cal-day {
+      aspect-ratio: 1; border: none; border-radius: 50%; background: transparent;
+      color: var(--ink); font-size: 13.5px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .cal-day.empty { visibility: hidden; cursor: default; }
+    .cal-day.disabled { color: var(--muted); opacity: 0.4; cursor: not-allowed; }
+    .cal-day.blocked { color: var(--error); text-decoration: line-through; opacity: 0.7; background: rgba(192,57,43,0.08); }
+    .cal-legend { margin-top: 8px; font-size: 11px; color: var(--muted); }
+
     .error-text { font-size: 12px; color: var(--error); margin-top: 6px; display: none; }
     .error-text.show { display: block; }
 
@@ -240,10 +277,21 @@
     headers: { 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }
   }).then(function (r) { return r.json(); });
 
-  Promise.all([profileFetch, fieldsFetch])
+  // Isolated failure — if this one request fails, the form still loads with
+  // every day open, same as before this existed. Not essential like the two above.
+  const unavailableFetch = fetch(SUPABASE_URL + '/rest/v1/baker_unavailable_dates?user_id=eq.' + encodeURIComponent(bakerId) +
+        '&select=date', {
+    headers: { 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }
+  }).then(function (r) { return r.json(); }).catch(function () { return []; });
+
+  Promise.all([profileFetch, fieldsFetch, unavailableFetch])
   .then(function (results) {
     const profileData = results[0];
     const fields = results[1];
+    const unavailableRows = results[2];
+    if (Array.isArray(unavailableRows)) {
+      unavailableRows.forEach(function (row) { if (row && row.date) blockedDateKeys.add(row.date); });
+    }
     if (profileData && profileData.profile) renderHeader(profileData.profile);
     if (!Array.isArray(fields) || fields.length === 0) {
       showNotFound('Form not found', 'This baker hasn\'t set up a custom order form for this item yet.');
@@ -308,6 +356,8 @@
   const productQtyState = {}; // fieldId -> { optionId: quantity }
   const touched = {};
   let standardContact = null; // see detectStandardContactFields
+  const blockedDateKeys = new Set(); // "yyyy-MM-dd" days the baker has marked unavailable
+  const dateFieldState = {}; // fieldId -> { displayedMonth: Date }
 
   // Every form built in the app's builder is seeded with a real "Customer
   // Details" heading + First Name/Last Name/Email/Phone Number fields
@@ -417,8 +467,14 @@
     } else if (field.field_type === 'long_text') {
       body = '<textarea id="' + id + '" maxlength="2000"></textarea>';
     } else if (field.field_type === 'date') {
-      const today = new Date().toISOString().split('T')[0];
-      body = '<input type="date" id="' + id + '" min="' + today + '" />';
+      body = '<div class="date-field" id="' + id + '-field">' +
+        '<button type="button" class="date-trigger" id="' + id + '-trigger">' +
+          '<span class="date-trigger-text" id="' + id + '-text">Select a date</span>' +
+          '<span class="date-trigger-icon">📅</span>' +
+        '</button>' +
+        '<input type="hidden" id="' + id + '" />' +
+        '<div class="date-calendar hidden" id="' + id + '-cal"></div>' +
+      '</div>';
     } else if (field.field_type === 'time') {
       body = '<input type="time" id="' + id + '" />';
     } else if (field.field_type === 'single_choice' || field.field_type === 'multi_choice') {
@@ -484,10 +540,116 @@
       });
     } else if (field.field_type === 'product_selector') {
       wireProductSelector(field);
+    } else if (field.field_type === 'date') {
+      wireDateField(field);
     } else {
       const input = document.getElementById(id);
       input.addEventListener('blur', function () { touched[id] = true; validateCustomField(field); });
     }
+  }
+
+  // ── Date field (calendar picker) ────────────────────────────────────
+
+  function toDateKey(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function wireDateField(field) {
+    const id = 'field-' + field.id;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    dateFieldState[field.id] = { displayedMonth: new Date(today.getFullYear(), today.getMonth(), 1) };
+
+    document.getElementById(id + '-trigger').addEventListener('click', function (e) {
+      e.stopPropagation();
+      const cal = document.getElementById(id + '-cal');
+      const willOpen = cal.classList.contains('hidden');
+      document.querySelectorAll('.date-calendar').forEach(function (el) { el.classList.add('hidden'); });
+      if (willOpen) {
+        renderDateCalendar(field);
+        cal.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Closes any open calendar when clicking elsewhere on the page.
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('.date-field').forEach(function (wrapper) {
+      if (!wrapper.contains(e.target)) {
+        const cal = wrapper.querySelector('.date-calendar');
+        if (cal) cal.classList.add('hidden');
+      }
+    });
+  });
+
+  function renderDateCalendar(field) {
+    const id = 'field-' + field.id;
+    const state = dateFieldState[field.id];
+    const container = document.getElementById(id + '-cal');
+    const month = state.displayedMonth;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    const firstOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
+    const startWeekday = firstOfMonth.getDay();
+    const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    const monthLabel = firstOfMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const canGoPrev = month.getFullYear() > today.getFullYear() ||
+      (month.getFullYear() === today.getFullYear() && month.getMonth() > today.getMonth());
+
+    let hasBlockedDay = false;
+    let html = '<div class="cal-header">' +
+        '<button type="button" class="cal-nav" data-dir="-1"' + (canGoPrev ? '' : ' disabled') + '>‹</button>' +
+        '<span class="cal-month">' + escapeHtml(monthLabel) + '</span>' +
+        '<button type="button" class="cal-nav" data-dir="1">›</button>' +
+      '</div>' +
+      '<div class="cal-weekdays">' + ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (d) { return '<span>' + d + '</span>'; }).join('') + '</div>' +
+      '<div class="cal-grid">';
+
+    for (let i = 0; i < startWeekday; i++) html += '<button type="button" class="cal-day empty" disabled></button>';
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(month.getFullYear(), month.getMonth(), day);
+      const key = toDateKey(d);
+      const past = d < today;
+      const blocked = blockedDateKeys.has(key);
+      if (blocked) hasBlockedDay = true;
+      const disabled = past || blocked;
+      html += '<button type="button" class="cal-day' + (blocked ? ' blocked' : (disabled ? ' disabled' : '')) +
+        '" data-key="' + key + '"' + (disabled ? ' disabled' : '') + '>' + day + '</button>';
+    }
+    html += '</div>';
+    if (hasBlockedDay) {
+      html += '<div class="cal-legend">Crossed-out days — baker unavailable</div>';
+    }
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.cal-nav').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (btn.disabled) return;
+        const dir = parseInt(btn.dataset.dir, 10);
+        state.displayedMonth = new Date(state.displayedMonth.getFullYear(), state.displayedMonth.getMonth() + dir, 1);
+        renderDateCalendar(field);
+      });
+    });
+
+    container.querySelectorAll('.cal-day:not(.empty):not(.disabled):not(.blocked)').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        selectDate(field, btn.dataset.key);
+      });
+    });
+  }
+
+  function selectDate(field, key) {
+    const id = 'field-' + field.id;
+    document.getElementById(id).value = key;
+    const d = new Date(key + 'T00:00:00');
+    const textEl = document.getElementById(id + '-text');
+    textEl.textContent = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    textEl.classList.add('has-value');
+    document.getElementById(id + '-cal').classList.add('hidden');
+    touched[id] = true;
+    validateCustomField(field);
   }
 
   function handlePhotoFiles(field, files) {

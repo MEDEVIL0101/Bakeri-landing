@@ -1,19 +1,30 @@
 // stripe-connect-webhook
-// Handles Stripe Connect account capability events (V2 thin events).
+// Flips profiles.stripe_connect_onboarding_complete = true once a baker's
+// connected account can actually take payments + pay out.
 //
-// This platform's Connect accounts only emit V2 thin events for capability
-// changes (v2.core.account[configuration.*].capability_status_updated) —
-// confirmed empirically via Stripe's own Events log, which showed zero
-// classic V1 account.updated events for a real onboarding completion.
-// Thin events carry no inline object data (just related_object.id), so on
-// every capability-status event we re-fetch the account's real V2 state and
-// only flip onboarding_complete once both required capabilities are active.
+// Two shapes are handled, because the fleet is mid-migration Express -> Standard:
 //
-// Register in Stripe Dashboard → Event destinations → Add destination:
-//   URL: https://aqhebjxaynvtvurwedrl.supabase.co/functions/v1/stripe-connect-webhook
-//   Payload: thin
-//   Events: v2.core.account[configuration.merchant].capability_status_updated
-//           v2.core.account[configuration.recipient].capability_status_updated
+//   1. Legacy Express accounts: V2 thin capability events
+//      (v2.core.account[configuration.*].capability_status_updated). Thin
+//      events carry no object data, so we re-fetch the account's V2 state.
+//
+//   2. Standard accounts: classic "account.updated" snapshot events, which
+//      DO carry the full Account object — check charges_enabled &&
+//      payouts_enabled && details_submitted directly.
+//
+// Neither path is load-bearing: check-connect-account-status (called by the
+// app on the Banking screen and on the bakeri://connect-return deep link)
+// is the reliable primary mechanism and works for both account types. This
+// webhook only additionally covers "baker finished on Stripe but never came
+// back to the app".
+//
+// Stripe Dashboard → Event destinations, pointed at
+//   https://aqhebjxaynvtvurwedrl.supabase.co/functions/v1/stripe-connect-webhook
+//   - thin destination:     v2.core.account[configuration.merchant].capability_status_updated
+//                           v2.core.account[configuration.recipient].capability_status_updated
+//                           (secret -> STRIPE_CONNECT_WEBHOOK_SECRET)
+//   - snapshot destination: account.updated
+//                           (secret -> STRIPE_CONNECT_WEBHOOK_SECRET_CLASSIC)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@13.11.0?target=deno";
@@ -38,6 +49,32 @@ interface ThinEvent {
   id: string;
   type: string;
   related_object: { id: string; type: string; url: string } | null;
+  // Present on classic snapshot events (account.updated); absent on thin.
+  data?: {
+    object?: {
+      id?: string;
+      charges_enabled?: boolean;
+      payouts_enabled?: boolean;
+      details_submitted?: boolean;
+    };
+  };
+}
+
+// constructEvent verifies against whichever destination signed the request;
+// thin and classic destinations have separate signing secrets.
+function verify(body: string, signature: string): ThinEvent | null {
+  const secrets = [
+    Deno.env.get("STRIPE_CONNECT_WEBHOOK_SECRET") ?? "",
+    Deno.env.get("STRIPE_CONNECT_WEBHOOK_SECRET_CLASSIC") ?? "",
+  ].filter(Boolean);
+  for (const secret of secrets) {
+    try {
+      return stripe.webhooks.constructEvent(body, signature, secret) as unknown as ThinEvent;
+    } catch {
+      // try the next secret
+    }
+  }
+  return null;
 }
 
 async function isFullyOnboarded(accountId: string): Promise<boolean> {
@@ -65,30 +102,38 @@ async function isFullyOnboarded(accountId: string): Promise<boolean> {
 serve(async (req) => {
   const body      = await req.text();
   const signature = req.headers.get("stripe-signature") ?? "";
-  const secret    = Deno.env.get("STRIPE_CONNECT_WEBHOOK_SECRET") ?? "";
 
-  let event: ThinEvent;
-  try {
-    event = stripe.webhooks.constructEvent(body, signature, secret) as unknown as ThinEvent;
-  } catch {
+  const event = verify(body, signature);
+  if (!event) {
     return new Response("Invalid signature", { status: 400 });
   }
 
+  const markComplete = (accountId: string) =>
+    supabase
+      .from("profiles")
+      .update({
+        stripe_connect_account_id: accountId,
+        stripe_connect_onboarding_complete: true,
+      })
+      .eq("stripe_connect_account_id", accountId);
+
+  // 1. Legacy Express accounts — V2 thin capability events.
   const isCapabilityEvent =
     event.type === "v2.core.account[configuration.merchant].capability_status_updated" ||
     event.type === "v2.core.account[configuration.recipient].capability_status_updated";
 
   if (isCapabilityEvent && event.related_object?.id) {
     const accountId = event.related_object.id;
-
     if (await isFullyOnboarded(accountId)) {
-      await supabase
-        .from("profiles")
-        .update({
-          stripe_connect_account_id: accountId,
-          stripe_connect_onboarding_complete: true,
-        })
-        .eq("stripe_connect_account_id", accountId);
+      await markComplete(accountId);
+    }
+  }
+
+  // 2. Standard accounts — classic account.updated snapshot event.
+  if (event.type === "account.updated" && event.data?.object?.id) {
+    const acct = event.data.object;
+    if (acct.charges_enabled && acct.payouts_enabled && acct.details_submitted) {
+      await markComplete(acct.id!);
     }
   }
 

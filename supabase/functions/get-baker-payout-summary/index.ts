@@ -3,19 +3,25 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 
 // Baker-triggered: Banking & Payments screen. A direct charge lands on the
-// baker's OWN connected Stripe account instantly — but Express accounts have
-// a completely separate dashboard from a normal Stripe login, reachable only
-// via a one-time login link or a specific Express URL. A baker who didn't
-// know that saw nothing, anywhere, and reasonably concluded the money had
-// vanished (confirmed live 2026-08-08 — real funds were sitting there the
-// whole time, just on a screen nobody could find). This surfaces the same
-// numbers in-app directly, plus always generates a fresh login link (a baker
-// bookmarking or getting sent a stale one after any account reset was part
-// of the original confusion).
+// baker's OWN connected Stripe account instantly. On Standard accounts the
+// baker logs into a normal Stripe dashboard with their own credentials
+// (dashboard.stripe.com) and controls their own payout schedule / instant
+// payouts there — the platform can't (and shouldn't) trigger payouts for
+// them. This still surfaces the balance and recent activity in-app as a
+// convenience, but every "move the money" action lives in Stripe.
+//
+// Reads are best-effort: a Standard account can return a permission error on
+// some of these endpoints, and a single failure must not blank the whole
+// screen — each piece degrades independently.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const stripe = getStripeClient();
+
+// Standard accounts use the regular Stripe dashboard; there's no per-account
+// login link to mint (that's Express-only). Deep-link straight to the
+// balance page.
+const STRIPE_DASHBOARD_URL = "https://dashboard.stripe.com/balance";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -55,32 +61,41 @@ Deno.serve(async (req: Request) => {
     }
     const acctId = profile.stripe_connect_account_id;
 
-    const [balance, balanceTx, bankAccounts, debitCards, loginLink] = await Promise.all([
+    // listExternalAccounts is NOT permitted for Standard connected accounts
+    // (they have full Dashboard access and own their negative-balance
+    // liability, so Stripe won't expose their bank/card details to the
+    // platform). balance.retrieve and balanceTransactions.list DO work via
+    // the Stripe-Account header. The baker manages payout methods in their
+    // own Stripe dashboard; Stripe won't let onboarding complete without one,
+    // so "onboarding_complete" already implies a payout method exists.
+    const [balanceR, balanceTxR] = await Promise.allSettled([
       stripe.balance.retrieve({ stripeAccount: acctId }),
       stripe.balanceTransactions.list({ limit: 15 }, { stripeAccount: acctId }),
-      // A standard payout (trigger-baker-payout) needs a bank_account; an
-      // instant payout needs a card — different requirements, reported
-      // separately so the app can prompt for the right one.
-      stripe.accounts.listExternalAccounts(acctId, { object: "bank_account", limit: 1 }),
-      stripe.accounts.listExternalAccounts(acctId, { object: "card", limit: 1 }),
-      stripe.accounts.createLoginLink(acctId),
     ]);
 
-    const sumByCurrency = (arr: { amount: number; currency: string }[]) =>
-      arr.reduce((sum, a) => sum + a.amount, 0);
+    const balance = balanceR.status === "fulfilled" ? balanceR.value : null;
+    const balanceTx = balanceTxR.status === "fulfilled" ? balanceTxR.value : null;
+
+    const sumByCurrency = (arr: { amount: number; currency: string }[] | undefined) =>
+      (arr ?? []).reduce((sum, a) => sum + a.amount, 0);
 
     // deno-lint-ignore no-explicit-any
-    const instantAvailable = (balance as any).instant_available as { amount: number; currency: string }[] | undefined;
+    const instantAvailable = (balance as any)?.instant_available as { amount: number; currency: string }[] | undefined;
 
     return json({
-      available_cents: sumByCurrency(balance.available),
-      pending_cents: sumByCurrency(balance.pending),
+      available_cents: sumByCurrency(balance?.available),
+      pending_cents: sumByCurrency(balance?.pending),
       instant_available_cents: instantAvailable ? sumByCurrency(instantAvailable) : 0,
-      currency: (balance.available[0]?.currency ?? "cad").toUpperCase(),
-      has_bank_account: bankAccounts.data.length > 0,
-      has_debit_card: debitCards.data.length > 0,
-      dashboard_login_url: loginLink.url,
-      recent_transactions: balanceTx.data.slice(0, 10).map((bt) => ({
+      currency: (balance?.available?.[0]?.currency ?? "cad").toUpperCase(),
+      // Can't verify these for Standard accounts (see above). Onboarding
+      // completion already guarantees a payout method; kept in the response
+      // for shape-stability with the shipped app build, which decodes them.
+      has_bank_account: true,
+      has_debit_card: true,
+      // Kept for response-shape stability with the shipped app build; it's now
+      // just the standard Stripe dashboard, not a minted per-account link.
+      dashboard_login_url: STRIPE_DASHBOARD_URL,
+      recent_transactions: (balanceTx?.data ?? []).slice(0, 10).map((bt) => ({
         id: bt.id,
         type: bt.type,
         amount_cents: bt.amount,
