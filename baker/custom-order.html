@@ -187,6 +187,8 @@
     .agreement-row input[type="checkbox"] { margin-top: 2px; flex-shrink: 0; width: 17px; height: 17px; }
     .agreement-row span { font-size: 14px; color: var(--ink); line-height: 1.4; }
 
+    .cond-wrap.hidden { display: none !important; }
+
     .error-text { font-size: 12px; color: var(--error); margin-top: 6px; display: none; }
     .error-text.show { display: block; }
 
@@ -285,7 +287,7 @@
   }).then(function (r) { return r.json(); });
 
   const fieldsFetch = fetch(SUPABASE_URL + '/rest/v1/intake_form_fields?form_id=eq.' + encodeURIComponent(formId) +
-        '&select=id,position,field_type,label,help_text,is_required,options,product_options&order=position.asc', {
+        '&select=id,position,field_type,label,help_text,is_required,options,product_options,condition_field_id,condition_values&order=position.asc', {
     headers: { 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }
   }).then(function (r) { return r.json(); });
 
@@ -370,6 +372,10 @@
   let standardContact = null; // see detectStandardContactFields
   const blockedDateKeys = new Set(); // "yyyy-MM-dd" days the baker has marked unavailable
   const dateFieldState = {}; // fieldId -> { displayedMonth: Date }
+  // Kept in memory rather than as HTML data-* attributes — a label/option
+  // value containing a quote could otherwise break out of an attribute.
+  const fieldsById = {}; // fieldId -> field object, for looking up a trigger's type
+  const fieldConditions = {}; // fieldId -> { triggerId, values: [] }, only for fields that have one
 
   // Every form built in the app's builder is seeded with a real "Customer
   // Details" heading + First Name/Last Name/Email/Phone Number fields
@@ -438,8 +444,18 @@
       '</div>';
 
     fields.forEach(function (field) {
+      fieldsById[field.id] = field;
+      if (field.condition_field_id) {
+        fieldConditions[field.id] = {
+          triggerId: field.condition_field_id,
+          values: Array.isArray(field.condition_values) ? field.condition_values : []
+        };
+      }
+    });
+
+    fields.forEach(function (field) {
       if (isHiddenStandardField(field)) return;
-      html += renderField(field);
+      html += wrapConditional(field, renderField(field));
     });
 
     html += '<button class="btn-submit" id="submit-btn">Send Request</button>' +
@@ -458,6 +474,8 @@
       if (isHiddenStandardField(field)) return;
       wireField(field);
     });
+
+    reevaluateConditions();
 
     document.getElementById('submit-btn').addEventListener('click', function () {
       submit(fields);
@@ -542,6 +560,90 @@
     '</div>';
   }
 
+  // ── Conditional fields ──────────────────────────────────────────────
+  // A field with condition_field_id only shows once an earlier single/multi-
+  // choice or item-picker field's answer includes one of condition_values —
+  // e.g. a "Cookies" section that only appears once the buyer has picked
+  // "Cookies" in an earlier "What would you like to order?" question.
+
+  function wrapConditional(field, innerHtml) {
+    if (!field.condition_field_id) return innerHtml;
+    // Starts hidden — reevaluateConditions() (called once after wiring, and
+    // again on every trigger-field change) is what reveals it.
+    return '<div class="cond-wrap hidden" id="condwrap-' + field.id + '">' + innerHtml + '</div>';
+  }
+
+  function isFieldVisible(fieldId) {
+    const cond = fieldConditions[fieldId];
+    if (!cond || !cond.values.length) return true;
+    const trigger = fieldsById[cond.triggerId];
+    // Trigger field missing (deleted, or stale saved data) — fail open rather
+    // than permanently hide a field the baker has no way to fix from here.
+    if (!trigger) return true;
+
+    if (trigger.field_type === 'product_selector') {
+      const quantities = productQtyState[cond.triggerId] || {};
+      return cond.values.some(function (optId) { return (quantities[optId] || 0) > 0; });
+    }
+    const container = document.getElementById('field-' + cond.triggerId);
+    if (!container) return false;
+    const checked = Array.from(container.querySelectorAll('input:checked')).map(function (i) { return i.value; });
+    return cond.values.some(function (v) { return checked.indexOf(v) !== -1; });
+  }
+
+  function reevaluateConditions() {
+    Object.keys(fieldConditions).forEach(function (fieldId) {
+      const wrapper = document.getElementById('condwrap-' + fieldId);
+      if (!wrapper) return;
+      const visible = isFieldVisible(fieldId);
+      const wasHidden = wrapper.classList.contains('hidden');
+      wrapper.classList.toggle('hidden', !visible);
+      // Only clear when a visible field newly becomes hidden — clearing on
+      // every reevaluation would wipe an already-hidden field's state
+      // (harmless) but also fire needlessly on every keystroke elsewhere.
+      if (!visible && !wasHidden) clearFieldValue(fieldId);
+    });
+  }
+
+  // Resets a field's own inputs/state when its section becomes hidden, so
+  // flipping the trigger back and forth can't leave a stale answer behind
+  // that the buyer never actually confirmed while the field was visible.
+  function clearFieldValue(fieldId) {
+    const field = fieldsById[fieldId];
+    if (!field) return;
+    const id = 'field-' + fieldId;
+    touched[id] = false;
+    const err = document.getElementById('err-' + id);
+    if (err) err.classList.remove('show');
+
+    if (field.field_type === 'single_choice' || field.field_type === 'multi_choice') {
+      const container = document.getElementById(id);
+      if (container) {
+        container.querySelectorAll('input').forEach(function (i) { i.checked = false; });
+        container.querySelectorAll('.choice-option').forEach(function (el) { el.classList.remove('selected'); });
+      }
+    } else if (field.field_type === 'photo') {
+      photoState[fieldId] = [];
+      renderPhotoThumbs(field);
+    } else if (field.field_type === 'product_selector') {
+      productQtyState[fieldId] = {};
+      const container = document.getElementById(id);
+      if (container) {
+        container.querySelectorAll('.qty-value').forEach(function (el) { el.textContent = '0'; });
+        container.querySelectorAll('[data-action="minus"]').forEach(function (btn) { btn.disabled = true; });
+      }
+      updateProductSubtotal(field);
+    } else if (field.field_type === 'agreement' || field.field_type === 'date' || field.field_type === 'time') {
+      const el = document.getElementById(id);
+      if (el) { el.value = ''; if ('checked' in el) el.checked = false; }
+      const textEl = document.getElementById(id + '-text');
+      if (textEl) { textEl.textContent = 'Select a date'; textEl.classList.remove('has-value'); }
+    } else {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    }
+  }
+
   function wireField(field) {
     const id = 'field-' + field.id;
     if (field.field_type === 'single_choice' || field.field_type === 'multi_choice') {
@@ -554,6 +656,7 @@
           input.closest('.choice-option').classList.toggle('selected', input.checked);
           touched[id] = true;
           validateCustomField(field);
+          reevaluateConditions();
         });
       });
     } else if (field.field_type === 'photo') {
@@ -747,6 +850,7 @@
         touched[id] = true;
         updateProductSubtotal(field);
         validateCustomField(field);
+        reevaluateConditions();
       });
       plusBtn.addEventListener('click', function () {
         const qty = productQtyState[field.id][optId] || 0;
@@ -756,6 +860,7 @@
         touched[id] = true;
         updateProductSubtotal(field);
         validateCustomField(field);
+        reevaluateConditions();
       });
 
       render();
@@ -841,7 +946,8 @@
   function validateCustomField(field) {
     const id = 'field-' + field.id;
     if (!touched[id]) return true;
-    const ok = field.field_type === 'heading' || field.field_type === 'notice' || !field.is_required || !fieldIsBlank(field);
+    const ok = field.field_type === 'heading' || field.field_type === 'notice' || !field.is_required
+      || !isFieldVisible(field.id) || !fieldIsBlank(field);
     const err = document.getElementById('err-' + id);
     if (err) err.classList.toggle('show', !ok);
     return ok;
@@ -849,7 +955,7 @@
 
   function submit(fields) {
     ['first-name', 'last-name', 'email', 'email-confirm', 'phone'].forEach(function (k) { touched[k] = true; });
-    fields.forEach(function (f) { if (f.field_type !== 'heading' && f.field_type !== 'notice' && !isHiddenStandardField(f)) touched['field-' + f.id] = true; });
+    fields.forEach(function (f) { if (f.field_type !== 'heading' && f.field_type !== 'notice' && !isHiddenStandardField(f) && isFieldVisible(f.id)) touched['field-' + f.id] = true; });
 
     let valid = true;
     ['first-name', 'last-name', 'email', 'email-confirm', 'phone'].forEach(function (k) { if (!validateField(k)) valid = false; });
@@ -863,7 +969,9 @@
     status.textContent = '';
     status.style.color = '';
 
-    const answers = fields.filter(function (f) { return f.field_type !== 'heading' && f.field_type !== 'notice'; }).map(function (field) {
+    const answers = fields.filter(function (f) {
+      return f.field_type !== 'heading' && f.field_type !== 'notice' && isFieldVisible(f.id);
+    }).map(function (field) {
       const id = 'field-' + field.id;
       // Not rendered (see isHiddenStandardField) — its answer comes from the
       // fixed name/email/phone block above instead of a matching DOM input.
