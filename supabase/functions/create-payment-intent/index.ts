@@ -293,12 +293,72 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Pickup/preorder/custom carts stay manual-capture (see the payment_flow
+    // doc above) and go through a baker-accept before the hold is captured,
+    // but the accept step just shows whatever price is already on the order
+    // — nothing there catches a client that sent a fabricated price_from.
+    // Re-fetch the live listing price the same way digital/physical do
+    // above so the authorization (and the order row create-marketplace-
+    // orders writes from it) can never be priced off anything but the
+    // baker's actual listing.
+    const hasPickupOrCustom = items.some(
+      (i) => i.listing_kind === "ready_now" || i.listing_kind === "preorder" || i.listing_kind === "custom"
+    );
+    if (hasPickupOrCustom) {
+      const supabase = getSupabaseClient();
+      const pickupCartItems = items.filter(
+        (i) => i.listing_kind === "ready_now" || i.listing_kind === "preorder" || i.listing_kind === "custom"
+      );
+      const { data: pickupItems, error: pickupItemsErr } = await supabase
+        .from("menu_items")
+        .select("id, name, listing_kind, is_listed_in_marketplace, default_price, marketplace_price_from")
+        .in("id", pickupCartItems.map((i) => i.listing_id));
+
+      const itemsById = new Map((pickupItems ?? []).map((d) => [d.id, d]));
+      const variantIds = pickupCartItems.filter((i) => i.variant_id).map((i) => i.listing_id);
+      const { data: variantRows } = variantIds.length
+        ? await supabase.from("listing_variants").select("id, menu_item_id, label, price")
+            .in("menu_item_id", variantIds).is("deleted_at", null)
+        : { data: [] };
+      const variantsByItemId = new Map<string, { id: string; label: string; price: number }[]>();
+      (variantRows ?? []).forEach((v) => {
+        const list = variantsByItemId.get(v.menu_item_id) ?? [];
+        list.push(v);
+        variantsByItemId.set(v.menu_item_id, list);
+      });
+
+      items.forEach((cartItem, idx) => {
+        if (
+          cartItem.listing_kind !== "ready_now" &&
+          cartItem.listing_kind !== "preorder" &&
+          cartItem.listing_kind !== "custom"
+        ) return;
+        const pickupItem = itemsById.get(cartItem.listing_id);
+        if (pickupItemsErr || !pickupItem || pickupItem.listing_kind !== cartItem.listing_kind) {
+          throw new ValidationError("This item is no longer available.");
+        }
+        if (!pickupItem.is_listed_in_marketplace) {
+          throw new ValidationError(`"${pickupItem.name}" is no longer available.`);
+        }
+        if (cartItem.variant_id) {
+          const variant = (variantsByItemId.get(cartItem.listing_id) ?? []).find((v) => v.id === cartItem.variant_id);
+          if (!variant) {
+            throw new ValidationError(`"${pickupItem.name}" — that option is no longer available.`);
+          }
+          authoritativePriceByIndex.set(idx, variant.price);
+        } else {
+          const base = ((pickupItem.marketplace_price_from ?? 0) > 0
+            ? pickupItem.marketplace_price_from
+            : pickupItem.default_price) ?? 0;
+          authoritativePriceByIndex.set(idx, base);
+        }
+      });
+    }
+
     // ── Promotions ──
     // Apply active percent-off sales (+ a valid code) to the authoritative
-    // per-line base prices. For pickup/preorder lines with no DB fetch above
-    // the base is still the client's price_from (unchanged trust model, and
-    // those go through a baker-accept before capture); digital/physical are
-    // now fully server-priced. The discount itself is always server-computed.
+    // per-line base prices. Every listing kind is now server-priced above;
+    // the discount itself is always server-computed.
     const promoBaseLines: BaseLine[] = items.map((item, idx) => ({
       menu_item_id: item.listing_id,
       listing_kind: item.listing_kind,

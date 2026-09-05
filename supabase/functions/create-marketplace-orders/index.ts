@@ -96,6 +96,28 @@ Deno.serve(async (req: Request) => {
       scheduled_hold_at = null,
     }: RequestBody = await req.json();
 
+    // Authoritative per-item price — never trust the client's price_from.
+    // create-payment-intent already re-prices ready_now/preorder/custom
+    // items server-side before the Stripe hold is created; re-fetching here
+    // too means the order/order_items rows this function writes (platform
+    // fee calc, price_per_unit shown to the baker) can't end up recording a
+    // different, fabricated number than what was actually authorized. Falls
+    // back to the client's price_from only if the listing can no longer be
+    // found — the payment already succeeded by this point, so a hard
+    // failure here would leave a captured/held charge with no order.
+    const { data: listingRows } = await supabase
+      .from("menu_items")
+      .select("id, default_price, marketplace_price_from")
+      .in("id", items.map((i) => i.listing_id));
+    const authoritativePriceByListingId = new Map<string, number>(
+      (listingRows ?? []).map((l) => [
+        l.id,
+        ((l.marketplace_price_from ?? 0) > 0 ? l.marketplace_price_from : l.default_price) ?? 0,
+      ])
+    );
+    const priceForItem = (item: CartItemPayload) =>
+      authoritativePriceByListingId.get(item.listing_id) ?? item.price_from;
+
     // Look up buyer's display name from their profile — don't trust client payload
     const { data: buyerProfile } = await supabase
       .from("profiles")
@@ -246,7 +268,7 @@ Deno.serve(async (req: Request) => {
       // flow rather than sharing a cart with other kinds), so it gets the
       // full deposit fee rather than a per-item split.
       const groupSubtotalCents = Math.round(
-        groupItems.reduce((sum, i) => sum + i.price_from * i.quantity, 0) * 100
+        groupItems.reduce((sum, i) => sum + priceForItem(i) * i.quantity, 0) * 100
       );
       // ×2 — see module header comment: an app order's application_fee_amount
       // takes this fee twice (once from the customer's added charge, once
@@ -307,7 +329,7 @@ Deno.serve(async (req: Request) => {
         custom_name: item.name,
         quantity: item.quantity,
         unit: "pieces",
-        price_per_unit: item.price_from,
+        price_per_unit: priceForItem(item),
         notes: item.notes ?? "",
         form_responses: item.form_responses && item.form_responses.length > 0 ? item.form_responses : null,
         wants_delivery: item.wants_delivery ?? false,
