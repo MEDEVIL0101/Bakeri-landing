@@ -637,6 +637,20 @@ Deno.serve(async (req: Request) => {
       { anonKey: SUPABASE_ANON_KEY, webhookSecret: WEBHOOK_SECRET }
     );
     await logNotification(db, digitalOrderId, "baker_new_sale_push", pushResult.ok ? "sent" : "failed", pushResult.error, "push");
+
+    // Buyer's download links — sent server-side, not left to a browser
+    // fire-and-forget after finalize returns (SUPPORT_LOG 2026-09-06). Best-
+    // effort; a failure logs guest_digital_delivery/failed for resend-digital-
+    // download to pick up.
+    const deliveryResult = await postWithRetry(
+      `${SUPABASE_URL}/functions/v1/send-guest-digital-delivery-email`,
+      { order_id: digitalOrderId, downloads },
+      { anonKey: SUPABASE_ANON_KEY, webhookSecret: WEBHOOK_SECRET }
+    );
+    if (!deliveryResult.ok) {
+      console.error("send-guest-digital-delivery-email failed:", deliveryResult.error);
+      await logNotification(db, digitalOrderId, "guest_digital_delivery", "failed", deliveryResult.error);
+    }
   }
   if (physicalOrderId) {
     if (bakerEmail) {

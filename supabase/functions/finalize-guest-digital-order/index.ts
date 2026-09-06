@@ -417,6 +417,24 @@ Deno.serve(async (req: Request) => {
   );
   await logNotification(db, orderId, "baker_new_sale_push", pushResult.ok ? "sent" : "failed", pushResult.error, "push");
 
+  // Deliver the buyer's download links from the server, not the browser.
+  // digital-checkout.html / checkout.html used to fire this as a
+  // `fetch(...).catch(()=>{})` after finalize returned — if the tab closed,
+  // the connection dropped, or an in-app browser tore down the page first,
+  // the buyer got nothing and nothing was logged (SUPPORT_LOG 2026-09-06:
+  // whitneyr44@yahoo.com — baker sale email sent, no delivery email anywhere).
+  // Best-effort, never blocks the paid sale; a failure is logged as
+  // guest_digital_delivery/failed for resend-digital-download to pick up.
+  const deliveryResult = await postWithRetry(
+    `${SUPABASE_URL}/functions/v1/send-guest-digital-delivery-email`,
+    { order_id: orderId, downloads },
+    { anonKey: SUPABASE_ANON_KEY, webhookSecret: WEBHOOK_SECRET }
+  );
+  if (!deliveryResult.ok) {
+    console.error("send-guest-digital-delivery-email failed:", deliveryResult.error);
+    await logNotification(db, orderId, "guest_digital_delivery", "failed", deliveryResult.error);
+  }
+
   return json({
     order_id: orderId,
     baker_name: bakerDisplayName,

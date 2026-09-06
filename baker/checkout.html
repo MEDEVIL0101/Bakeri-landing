@@ -704,13 +704,11 @@
       }
       if (digitalItems.length > 0) digitalResult = data;
       if (shipItems.length > 0) shipResult = data;
-      if (data.downloads && data.downloads.length > 0) {
-        fetch(SUPABASE_URL + '/functions/v1/send-guest-digital-delivery-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
-          body: JSON.stringify({ order_id: data.digital_order_id, downloads: data.downloads })
-        }).catch(function () {});
-      }
+      // The download-links email is sent server-side by
+      // finalize-guest-digital-order / -digital-physical-order now — the
+      // browser fire-and-forget that used to live here never fired when the
+      // tab closed or an in-app browser killed the page (SUPPORT_LOG
+      // 2026-09-06).
       renderSuccess();
     });
   }

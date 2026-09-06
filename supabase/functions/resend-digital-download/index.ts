@@ -209,20 +209,24 @@ Deno.serve(async (req: Request) => {
   const isOperator = req.headers.get("x-webhook-secret") === WEBHOOK_SECRET;
 
   // Baker-authenticated path: a signed-in baker reissuing links for one of
-  // their own orders. Triggered only by a real user JWT — the anon key (or
-  // no Authorization at all) falls straight through to the public path
-  // below, unchanged. A malformed/expired user token is rejected rather
-  // than silently downgraded to public.
+  // their own orders. Only a real *user* JWT in Authorization turns this on;
+  // anything else (the anon key the gateway already required, a service key,
+  // no resolvable user) simply falls through to the public / operator
+  // handling below — never a 401, so an anon-key caller (storefront button,
+  // an operator curl) keeps working exactly as before.
   let bakerUserId: string | null = null;
   if (!isOperator) {
     const authHeader = req.headers.get("Authorization");
     if (authHeader && authHeader !== `Bearer ${SUPABASE_ANON_KEY}`) {
-      const authedClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: authHeader } },
-      });
-      const { data: { user }, error: authErr } = await authedClient.auth.getUser();
-      if (authErr || !user) return json({ error: "Unauthorized" }, 401);
-      bakerUserId = user.id;
+      try {
+        const authedClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const { data: { user } } = await authedClient.auth.getUser();
+        if (user) bakerUserId = user.id;
+      } catch {
+        // not a user token — fall through
+      }
     }
   }
   const isBaker = bakerUserId !== null;

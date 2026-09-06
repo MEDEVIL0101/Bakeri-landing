@@ -373,12 +373,9 @@
         if (status) status.textContent = data.error;
         return;
       }
-      fetch(SUPABASE_URL + '/functions/v1/send-guest-digital-delivery-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
-        body: JSON.stringify({ order_id: data.order_id, downloads: data.downloads })
-      }).catch(function () {});
-
+      // The delivery email is sent server-side by finalize-guest-digital-order
+      // now — a browser fire-and-forget here never fired if the tab closed or
+      // an in-app browser tore the page down first (SUPPORT_LOG 2026-09-06).
       renderSuccess(data);
     });
   }

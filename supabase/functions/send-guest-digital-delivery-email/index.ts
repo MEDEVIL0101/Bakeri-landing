@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { escapeHtml, formatDate, resolveItemImageUrl } from "../_shared/receiptEmailStyle.ts";
 import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
+import { logNotification } from "../_shared/notificationLog.ts";
 
 // Called right after a digital purchase (finalize-guest-digital-order /
 // -digital-physical-order, via the storefront pages) and by
@@ -152,9 +153,15 @@ Deno.serve(async (req: Request) => {
   });
 
   if (!resendRes.ok) {
-    console.error("Resend send failed:", await resendRes.text());
+    const errText = await resendRes.text();
+    console.error("Resend send failed:", errText);
+    // Logged so a silent non-delivery is visible after the fact — this used
+    // to be a fire-and-forget client fetch with no trace anywhere when it
+    // didn't fire (SUPPORT_LOG 2026-09-06, whitneyr44@yahoo.com).
+    await logNotification(db, orderId, "guest_digital_delivery", "failed", errText.slice(0, 500));
     return json({ error: "Email send failed." }, 502);
   }
 
+  await logNotification(db, orderId, "guest_digital_delivery", "sent");
   return json({ ok: true });
 });
