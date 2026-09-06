@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logNotification } from "../_shared/notificationLog.ts";
+import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 import {
   escapeHtml,
   formatCents,
@@ -152,13 +153,14 @@ Deno.serve(async (req: Request) => {
 
   const { data: baker } = await db
     .from("profiles")
-    .select("business_name, user_name, profile_slug")
+    .select("business_name, user_name, profile_slug, email")
     .eq("id", order.user_id)
     .single();
   const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
   const bakerUrl = baker?.profile_slug
     ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
     : "https://bakeriapp.com";
+  const identity = await customerEmailIdentity(db, order.user_id, bakerName, baker?.email);
 
   const payUrl = `https://bakeriapp.com/baker/pay-quote.html?order=${encodeURIComponent(order.id)}`;
   const noteBlock = order.quote_note
@@ -241,7 +243,8 @@ Deno.serve(async (req: Request) => {
       Authorization: `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: "Bakerï <hello@bakeriapp.com>",
+      from: identity.from,
+      reply_to: identity.reply_to,
       to: customerEmail,
       subject: `Your quote from ${bakerName} — ${formatCents(totalCents)}`,
       html,

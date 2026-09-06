@@ -104,6 +104,10 @@ export async function sendBakerOrderEmail(p: BakerOrderEmailParams): Promise<{ o
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendApiKey}` },
       body: JSON.stringify({
         from: "Bakerï <hello@bakeriapp.com>",
+        // So the baker can just hit Reply to reach the customer directly —
+        // Bakerï runs no in-app messaging and shouldn't be the middleman on
+        // a storefront order. Omitted when there's no usable customer email.
+        reply_to: p.customerEmail?.includes("@") ? p.customerEmail : undefined,
         to: p.bakerEmail,
         subject: isSale ? `You just made a sale — ${itemLabel}` : `New quote request — ${itemLabel}`,
         html,

@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
+import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 
 // Trigger-invoked (x-webhook-secret, not a JWT) by call_guest_order_webhook()
 // in the →declined branch of trg_fn_marketplace_order_notify
@@ -179,7 +180,7 @@ Deno.serve(async (req: Request) => {
     ? "No payment was ever taken for this request, so there's nothing to refund."
     : refunded
       ? "You have been fully refunded."
-      : "We're processing your refund — contact us if you don't see it within a few business days.";
+      : "We're processing your refund — reply to this email if you don't see it within a few business days.";
 
   const firstName = (order.customer_name ?? "").trim().split(/\s+/)[0] || "";
   const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi,";
@@ -201,6 +202,7 @@ Deno.serve(async (req: Request) => {
   `;
 
   if (order.customer_email) {
+    const identity = await customerEmailIdentity(db, order.user_id, order.baker_display_name);
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -208,7 +210,8 @@ Deno.serve(async (req: Request) => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "Bakerï <hello@bakeriapp.com>",
+        from: identity.from,
+        reply_to: identity.reply_to,
         to: order.customer_email,
         subject: `Order update — ${order.order_name || "your order"}`,
         html,

@@ -31,6 +31,7 @@ import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
 import { readDirectChargeSettlement } from "../_shared/settlement.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
+import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 import { postWithRetry } from "../_shared/postWithRetry.ts";
 import { resolvePromotions, redeemPromoCode } from "../_shared/promotions.ts";
@@ -494,7 +495,7 @@ Deno.serve(async (req: Request) => {
     shipping_address.line2,
     [shipping_address.city, shipping_address.province, shipping_address.postal_code].filter(Boolean).join(", "),
     shipping_address.country,
-  ].filter(Boolean) : [];
+  ].filter((l): l is string => Boolean(l)) : [];
   const physicalOrderName = physicalLines.length === 1 ? physicalLines[0].name : (physicalLines.length > 1 ? `${physicalLines[0].name} + ${physicalLines.length - 1} more` : "");
 
   if (physicalLines.length > 0) {
@@ -577,6 +578,7 @@ Deno.serve(async (req: Request) => {
         : "";
       const totalRow = `<tr><td style="padding:6px 0;font-weight:700;">Total</td><td style="padding:6px 0;text-align:right;font-weight:700;">$${(physicalTotalCents / 100).toFixed(2)}</td></tr>`;
       const addressHtml = physicalAddressLines.map((l) => escapeHtml(l)).join("<br/>");
+      const identity = await customerEmailIdentity(db, bakerId, bakerDisplayName, bakerProfile?.email);
       const html = `
         <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#241712;">
           <h2 style="margin:0 0 8px;">Your order will ship soon</h2>
@@ -588,6 +590,9 @@ Deno.serve(async (req: Request) => {
             ${itemRows}${shippingRow}${totalRow}
           </table>
           <p style="color:#A89B8C;font-size:12px;margin-top:24px;">Order reference: ${physicalOrderId.replace(/-/g, "").slice(0, 8).toUpperCase()}</p>
+          <p style="color:#A89B8C;font-size:12px;line-height:1.5;margin-top:12px;">
+            Questions about this order? Just reply to this email — it reaches ${escapeHtml(bakerDisplayName)} directly.
+          </p>
         </div>
       `;
       try {
@@ -595,7 +600,8 @@ Deno.serve(async (req: Request) => {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendApiKey}` },
           body: JSON.stringify({
-            from: "Bakerï <hello@bakeriapp.com>",
+            from: identity.from,
+            reply_to: identity.reply_to,
             to: customer_email,
             subject: `Order confirmed — ${physicalOrderName}`,
             html,

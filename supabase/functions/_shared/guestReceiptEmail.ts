@@ -12,6 +12,7 @@
 // as one product (2026-08-07).
 
 import { logNotification } from "./notificationLog.ts";
+import { customerEmailIdentity } from "./senderIdentity.ts";
 import {
   escapeHtml,
   formatCents,
@@ -52,10 +53,11 @@ export async function sendGuestPaymentReceiptEmail(db: any, params: ReceiptParam
 
     const { data: baker } = await db
       .from("profiles")
-      .select("business_name, user_name, profile_slug")
+      .select("business_name, user_name, profile_slug, email")
       .eq("id", order.user_id)
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
+    const identity = await customerEmailIdentity(db, order.user_id, bakerName, baker?.email);
     const bakerUrl = baker?.profile_slug
       ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
       : "https://bakeriapp.com";
@@ -138,7 +140,8 @@ export async function sendGuestPaymentReceiptEmail(db: any, params: ReceiptParam
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "Bakerï <hello@bakeriapp.com>",
+        from: identity.from,
+        reply_to: identity.reply_to,
         to: customerEmail,
         subject: `${heading} — ${bakerName} — ${formatCents(params.amountCents)}`,
         html,

@@ -8,6 +8,7 @@ import {
   renderReceiptItemsHtml,
   renderReceiptShell,
 } from "../_shared/receiptEmailStyle.ts";
+import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 
 // Baker-triggered: "Email Invoice" button on OrderDetailView. Requires the
 // caller's own session and confirms they own the order before sending —
@@ -97,10 +98,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: baker } = await supabase
       .from("profiles")
-      .select("business_name, user_name, profile_slug")
+      .select("business_name, user_name, profile_slug, email")
       .eq("id", order.user_id)
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
+    const identity = await customerEmailIdentity(supabase, order.user_id, bakerName, baker?.email);
     const bakerUrl = baker?.profile_slug
       ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
       : "https://bakeriapp.com";
@@ -191,7 +193,8 @@ Deno.serve(async (req: Request) => {
         "Authorization": `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "Bakerï <hello@bakeriapp.com>",
+        from: identity.from,
+        reply_to: identity.reply_to,
         to: customerEmail,
         subject: `Invoice from ${bakerName} — ${formatCents(amountCents)}`,
         html,

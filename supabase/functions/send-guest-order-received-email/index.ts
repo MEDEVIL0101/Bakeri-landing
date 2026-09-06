@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logNotification } from "../_shared/notificationLog.ts";
+import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 
 // Called directly by baker/checkout.html right after
 // create-guest-marketplace-order succeeds. Immediate "payment processed,
@@ -42,7 +43,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: order, error: orderErr } = await db
     .from("orders")
-    .select("id, order_name, customer_name, customer_email, baker_display_name")
+    .select("id, order_name, customer_name, customer_email, baker_display_name, user_id")
     .eq("id", orderId)
     .single();
 
@@ -90,8 +91,14 @@ Deno.serve(async (req: Request) => {
         ${itemRows}
       </table>
       <p style="color:#A89B8C;font-size:12px;margin-top:24px;">Order reference: ${orderId.replace(/-/g, "").slice(0, 8).toUpperCase()}</p>
+      <p style="color:#A89B8C;font-size:12px;line-height:1.5;margin-top:12px;">
+        Questions about this order? Just reply to this email — it reaches
+        ${escapeHtml(order.baker_display_name || "your baker")} directly.
+      </p>
     </div>
   `;
+
+  const identity = await customerEmailIdentity(db, order.user_id, order.baker_display_name);
 
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -100,7 +107,8 @@ Deno.serve(async (req: Request) => {
       Authorization: `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: "Bakerï <hello@bakeriapp.com>",
+      from: identity.from,
+      reply_to: identity.reply_to,
       to: order.customer_email,
       subject: `Payment received — ${order.order_name || "your order"}`,
       html,

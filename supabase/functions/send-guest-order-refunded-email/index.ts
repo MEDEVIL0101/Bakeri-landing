@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logNotification } from "../_shared/notificationLog.ts";
+import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 import {
   escapeHtml,
   formatDate,
@@ -82,6 +83,8 @@ Deno.serve(async (req: Request) => {
       ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
       : "https://bakeriapp.com";
 
+    const identity = await customerEmailIdentity(db, order.user_id, bakerName, baker?.email);
+
     const itemsHtml = await renderReceiptItemsHtml(db, order.user_id, itemRows, false, 0);
 
     const refundedHtml = `
@@ -92,12 +95,12 @@ Deno.serve(async (req: Request) => {
     `;
 
     const detailRows = [
-      `<tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Contact</td><td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${escapeHtml(bakerName)}${baker?.email ? `<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">${escapeHtml(baker.email)}</span>` : ""}</td></tr>`,
+      `<tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Contact</td><td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${escapeHtml(bakerName)}${identity.reply_to ? `<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">${escapeHtml(identity.reply_to)}</span>` : ""}</td></tr>`,
     ].join("");
 
     const legalHtml = `
       <p style="color:#A89B8C;font-size:11.5px;line-height:1.5;margin-top:20px;">
-        The refund should appear on your original payment method within 5–10 business days. Questions? Reach out to ${escapeHtml(bakerName)} directly using the contact info above.
+        The refund should appear on your original payment method within 5–10 business days. Questions? Reply to this email or use the contact info above — either way it reaches ${escapeHtml(bakerName)} directly.
       </p>
     `;
 
@@ -127,7 +130,8 @@ Deno.serve(async (req: Request) => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "Bakerï <hello@bakeriapp.com>",
+        from: identity.from,
+        reply_to: identity.reply_to,
         to: order.customer_email,
         subject: "Your order has been refunded — " + (order.order_name || "your order"),
         html,

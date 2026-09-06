@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logNotification } from "../_shared/notificationLog.ts";
+import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 
 // Sends the "your quote is being revised" email for a guest (web, no
 // account) custom-order request whose quote the baker retracted. Mirrors
@@ -90,10 +91,11 @@ Deno.serve(async (req: Request) => {
 
   const { data: baker } = await db
     .from("profiles")
-    .select("business_name, user_name")
+    .select("business_name, user_name, email")
     .eq("id", order.user_id)
     .single();
   const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
+  const identity = await customerEmailIdentity(db, order.user_id, bakerName, baker?.email);
 
   const firstName = (order.customer_name ?? "").trim().split(/\s+/)[0] || "";
   const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi,";
@@ -119,7 +121,8 @@ Deno.serve(async (req: Request) => {
       Authorization: `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: "Bakerï <hello@bakeriapp.com>",
+      from: identity.from,
+      reply_to: identity.reply_to,
       to: customerEmail,
       subject: `Update on your quote from ${bakerName}`,
       html,

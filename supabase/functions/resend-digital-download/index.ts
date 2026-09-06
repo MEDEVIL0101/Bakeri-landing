@@ -29,13 +29,21 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //   send_email  — default true; false = mint + return URLs without emailing
 //   limit/offset — only for customer_email / all modes (default 50, max 200)
 //
-// Auth: pass x-webhook-secret to unlock everything (all-mode, dry_run, and
-// URLs echoed in the response — that's how an operator runs it). Without the
-// secret it's a locked-down "resend my own links to my own inbox" endpoint:
-// order_id or customer_email only, always emails, never echoes a URL or even
-// confirms the order exists (so it can't be used to enumerate purchases or
-// harvest someone else's files). That public path is here so a storefront
-// "resend my download" button can be wired to it later.
+// Auth, three principals:
+//   1. Operator — x-webhook-secret unlocks everything (all-mode, dry_run, and
+//      URLs echoed in the response). That's how an operator runs it.
+//   2. Baker — a signed-in baker's user JWT in Authorization. Scoped to a
+//      single order_id that the baker must own (orders.user_id === their uid,
+//      else 403). Always mints + emails the customer; the response reports
+//      what resolved / what didn't and whether the email went out, but never
+//      echoes signed URLs. This is the "Resend Download Email" button in
+//      MarketplaceOrderSheet.
+//   3. Public — no secret, no user JWT (anon key or nothing). A locked-down
+//      "resend my own links to my own inbox" endpoint: order_id or
+//      customer_email only, always emails, never echoes a URL or even
+//      confirms the order exists (so it can't be used to enumerate purchases
+//      or harvest someone else's files). Here so a storefront "resend my
+//      download" button can be wired to it later.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -200,6 +208,25 @@ Deno.serve(async (req: Request) => {
 
   const isOperator = req.headers.get("x-webhook-secret") === WEBHOOK_SECRET;
 
+  // Baker-authenticated path: a signed-in baker reissuing links for one of
+  // their own orders. Triggered only by a real user JWT — the anon key (or
+  // no Authorization at all) falls straight through to the public path
+  // below, unchanged. A malformed/expired user token is rejected rather
+  // than silently downgraded to public.
+  let bakerUserId: string | null = null;
+  if (!isOperator) {
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader && authHeader !== `Bearer ${SUPABASE_ANON_KEY}`) {
+      const authedClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user }, error: authErr } = await authedClient.auth.getUser();
+      if (authErr || !user) return json({ error: "Unauthorized" }, 401);
+      bakerUserId = user.id;
+    }
+  }
+  const isBaker = bakerUserId !== null;
+
   const orderId = String(body.order_id ?? "").trim();
   const customerEmail = String(body.customer_email ?? "").trim().toLowerCase();
   const sweepAll = body.all === true;
@@ -210,6 +237,9 @@ Deno.serve(async (req: Request) => {
   const offset = Math.max(0, Number(body.offset) || 0);
 
   if (sweepAll && !isOperator) return json({ error: "Not authorized for sweep mode." }, 403);
+  if (isBaker && !orderId) {
+    return json({ error: "Provide order_id." }, 400);
+  }
   if (!sweepAll && !orderId && !customerEmail) {
     return json({ error: "Provide order_id or customer_email (or all:true with the operator secret)." }, 400);
   }
@@ -248,8 +278,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Lookup failed." }, 500);
   }
 
+  // Baker path: an order_id that resolves nothing is "not found or not
+  // yours" — same 403 as an order that exists but belongs to someone else.
+  if (isBaker && (!orders || orders.length === 0)) {
+    return json({ error: "Order not found or not yours." }, 403);
+  }
+
   // Public path: never confirm whether the order/buyer exists.
-  if (!isOperator && (!orders || orders.length === 0)) {
+  if (!isOperator && !isBaker && (!orders || orders.length === 0)) {
     return json({ ok: true, message: "If a matching purchase exists, fresh links are on their way to the email on file." });
   }
   if (!orders || orders.length === 0) {
@@ -257,9 +293,16 @@ Deno.serve(async (req: Request) => {
   }
 
   // If order_id was given alongside customer_email, enforce the pairing.
-  const scoped = orderId && customerEmail
+  let scoped = orderId && customerEmail
     ? orders.filter((o: { customer_email: string }) => (o.customer_email ?? "").toLowerCase() === customerEmail)
     : orders;
+
+  // Baker path: the order must belong to the caller. Same 403 whether the
+  // order isn't theirs or doesn't exist, so this can't be used to probe.
+  if (isBaker) {
+    scoped = scoped.filter((o: { user_id: string }) => o.user_id === bakerUserId);
+    if (scoped.length === 0) return json({ error: "Order not found or not yours." }, 403);
+  }
 
   // ---- process ------------------------------------------------------------
   const results: Record<string, unknown>[] = [];
@@ -346,9 +389,11 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  if (!isOperator) {
-    // Only claim a send if one actually happened — otherwise stay vague so
-    // this can't be used to probe which emails have purchases.
+  if (!isOperator && !isBaker) {
+    // Public path only. Only claim a send if one actually happened —
+    // otherwise stay vague so this can't be used to probe which emails have
+    // purchases. The baker path falls through to the detailed response
+    // below (still URL-free — that's gated on isOperator).
     return json({
       ok: true,
       message: emailedCount > 0
