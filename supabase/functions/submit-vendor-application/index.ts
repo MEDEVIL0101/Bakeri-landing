@@ -127,6 +127,15 @@ Deno.serve(async (req: Request) => {
   const attest_compliant = body.attest_compliant === true;
   const recaptcha_token = String(body.recaptcha_token ?? "");
 
+  // Optional affiliate referral code (typed, or carried in a ?ref= link).
+  // Funnel/record only — the authoritative attribution happens in-app once
+  // the baker's profile exists (attribute_referral). Store it if it's the
+  // right shape, otherwise silently drop it rather than failing the apply.
+  const referral_code_raw = String(body.referral_code ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  const referral_code = /^[A-Z0-9]{4,16}$/.test(referral_code_raw) ? referral_code_raw : null;
+
   if (!EMAIL_RE.test(email)) return json({ error: "Please enter a valid email address." }, 400);
   if (!PHONE_RE.test(phone)) return json({ error: "Please enter a valid phone number." }, 400);
   if (!city) return json({ error: "Please enter your city." }, 400);
@@ -177,6 +186,7 @@ Deno.serve(async (req: Request) => {
     attest_self_made,
     attest_compliant,
     ip_address: clientIp,
+    referral_code,
   });
 
   if (error) {
