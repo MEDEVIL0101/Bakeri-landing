@@ -40,6 +40,11 @@ const stripe = new Stripe(STRIPE_SECRET_KEY, {
   httpClient: Stripe.createFetchHttpClient(),
 });
 
+// The Edge (Deno) runtime has no synchronous crypto, so the sync
+// stripe.webhooks.constructEvent throws for every payload. Must use
+// constructEventAsync with the SubtleCrypto provider.
+const cryptoProvider = Stripe.createSubtleCryptoProvider();
+
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -62,18 +67,27 @@ interface ThinEvent {
 
 // constructEvent verifies against whichever destination signed the request;
 // thin and classic destinations have separate signing secrets.
-function verify(body: string, signature: string): ThinEvent | null {
+async function verify(body: string, signature: string): Promise<ThinEvent | null> {
   const secrets = [
     Deno.env.get("STRIPE_CONNECT_WEBHOOK_SECRET") ?? "",
     Deno.env.get("STRIPE_CONNECT_WEBHOOK_SECRET_CLASSIC") ?? "",
   ].filter(Boolean);
+  let lastErr: unknown = null;
   for (const secret of secrets) {
     try {
-      return stripe.webhooks.constructEvent(body, signature, secret) as unknown as ThinEvent;
-    } catch {
+      return (await stripe.webhooks.constructEventAsync(
+        body,
+        signature,
+        secret,
+        undefined,
+        cryptoProvider,
+      )) as unknown as ThinEvent;
+    } catch (err) {
+      lastErr = err;
       // try the next secret
     }
   }
+  console.error("stripe-connect-webhook: signature verification failed —", lastErr);
   return null;
 }
 
@@ -103,7 +117,7 @@ serve(async (req) => {
   const body      = await req.text();
   const signature = req.headers.get("stripe-signature") ?? "";
 
-  const event = verify(body, signature);
+  const event = await verify(body, signature);
   if (!event) {
     return new Response("Invalid signature", { status: 400 });
   }
