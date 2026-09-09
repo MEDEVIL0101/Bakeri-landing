@@ -21,6 +21,48 @@ Entry format:
 
 ---
 
+## 2026-09-09 — Stripe Connect webhook failing every delivery (400 Invalid signature)
+
+**Reported by:** Stripe automated email — 33 consecutive failed deliveries to
+`stripe-connect-webhook` since 6 Sep 2026 18:29 UTC; endpoint scheduled for
+auto-disable 15 Sep.
+
+**Symptom:** Every `account.updated` event to the live snapshot event
+destination (`.../functions/v1/stripe-connect-webhook`) returned HTTP 400
+`"Invalid signature"`. A baker who finished Stripe onboarding but never
+reopened the app would stay `stripe_connect_onboarding_complete = false`
+(the app's `check-connect-account-status` on the Banking screen is the primary
+path and was unaffected, so no one was hard-blocked).
+
+**Root cause:** Two compounding bugs, both from the 2026-09-01 Standard Connect
+migration. (1) `STRIPE_CONNECT_WEBHOOK_SECRET_CLASSIC` in Supabase did not
+match the live snapshot destination's signing secret. (2) `verify()` used the
+**synchronous** `stripe.webhooks.constructEvent`, which throws in the Deno Edge
+runtime (no sync crypto); the `catch {}` swallowed it, so even with the right
+secret every event failed. Bug (2) meant the V2 thin path had almost certainly
+never verified either — just never exercised until real `account.updated`
+events started flowing post-migration.
+
+**Fix:** `supabase/functions/stripe-connect-webhook/index.ts` — switched to
+`stripe.webhooks.constructEventAsync` + `Stripe.createSubtleCryptoProvider()`,
+and log the verification error instead of silently returning null (commit
+`aade495`). Corrected `STRIPE_CONNECT_WEBHOOK_SECRET_CLASSIC` via
+`supabase secrets set`. Redeployed with `--no-verify-jwt`. Verified live with a
+hand-signed probe: `200 {"received":true}`; bad signatures still `400`.
+
+**Affected users:** Any baker who completed Standard onboarding between Sep 6
+and Sep 9 without returning to the app. Made whole by resending the failed
+`account.updated` events from the Stripe Workbench (the function now processes
+them and flips the flag). Verify none remain with a non-null
+`stripe_connect_account_id` and `stripe_connect_onboarding_complete` not true.
+
+**Follow-up:** Confirm the failed events were resent / Stripe's auto-retry
+cleared them and the destination is no longer flagged for disabling. If a
+separate V2 thin (`capability_status_updated`) destination exists, confirm its
+secret is in `STRIPE_CONNECT_WEBHOOK_SECRET` — same async fix now covers it.
+
+---
+
 ## 2026-09-01 — New storefront header image stays stale on the live site
 
 **Reported by:** Harvey — picked a new header image in storefront setup, the
