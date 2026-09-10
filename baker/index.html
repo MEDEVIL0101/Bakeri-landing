@@ -415,56 +415,60 @@
     #product-grid, .product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 
     /* ── Single-item Menu / category ──────────────────────────────────────
-       When a grid holds exactly one card it is NOT a half-width tile in a
-       2-col grid (dead space beside it). On phones it spans the full width
-       as a normal stacked card (photo over body) — the same "fill the
-       space rather than leave it dead" call the >=560px feature card makes,
-       just without the room for a text column beside the photo. At >=560px
-       it flips to the horizontal feature card below. A second card drops
-       the :only-child match and the normal grid takes over immediately. */
+       A grid holding exactly one card is NOT a half-width tile in a 2-col
+       grid (dead space beside it). It becomes a full-width horizontal
+       "feature card": photo on the left, name + availability + price on
+       the right — the same layout on phones and desktop, just a smaller
+       photo track and tighter padding on narrow screens. A second card
+       drops the :only-child match and the normal 2-col grid takes over.
+
+       This card is the only thing in its section, so it earns more polish
+       than a grid tile: a hairline border, a divider between photo and
+       copy, and the price row pinned low rather than split off by a rule
+       through the middle of the text. */
     #product-grid:has(> .p-card:only-child),
     .product-grid:has(> .p-card:only-child) { grid-template-columns: 1fr; }
 
-    @media (min-width: 560px) {
-      /* Enough width for the 220px photo AND a text column beside it —
-         flip the lone tile to the horizontal feature card. Photo stays
-         220px square (its base width:100% + aspect-ratio:1/1 inside the
-         fixed 220px track), so it doesn't change size across the switch.
+    .product-grid:has(> .p-card:only-child) > .p-card {
+      display: grid; grid-template-columns: 120px 1fr; align-items: stretch;
+      border-radius: 16px; border: 1px solid var(--line-soft);
+      box-shadow: 0 1px 2px rgba(36,23,18,.05), 0 12px 26px -16px rgba(36,23,18,.2);
+      transition: transform .16s ease, box-shadow .16s ease;
+    }
+    .product-grid:has(> .p-card:only-child) > .p-card .p-body {
+      display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden;
+      padding: 13px 15px; border-left: 1px solid var(--line-soft);
+    }
+    .product-grid:has(> .p-card:only-child) > .p-card .p-name {
+      font-size: 14.5px; line-height: 1.3;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .product-grid:has(> .p-card:only-child) > .p-card .p-meta { font-size: 11.5px; margin-top: 4px; }
+    /* Price row pinned to the bottom of the card — label up top, price
+       down low — rather than a small cluster floating mid-height. */
+    .product-grid:has(> .p-card:only-child) > .p-card .p-divider {
+      border-top: 0; margin-top: auto; padding-top: 0;
+    }
+    .product-grid:has(> .p-card:only-child) > .p-card .p-price-row { justify-content: flex-start; gap: 14px; }
 
-         This card is the only thing in its section, so it earns a little
-         more polish than a grid tile: softer rounding, a hairline border
-         + hover lift, a divider between photo and copy, a larger name and
-         price, and the price row pinned low instead of split off by a
-         rule through the middle of the text. */
+    @media (min-width: 560px) {
+      /* More room — a bigger photo track (photo stays square inside it),
+         more padding, a larger name and price, a hover lift, and a cap so
+         the card doesn't stretch the full content width. */
       #product-grid:has(> .p-card:only-child),
-      .product-grid:has(> .p-card:only-child) {
-        grid-template-columns: 1fr; max-width: 640px;
-      }
+      .product-grid:has(> .p-card:only-child) { max-width: 640px; }
       .product-grid:has(> .p-card:only-child) > .p-card {
-        display: grid; grid-template-columns: 220px 1fr; align-items: stretch;
-        border-radius: 20px; border: 1px solid var(--line-soft);
+        grid-template-columns: 220px 1fr; border-radius: 20px;
         box-shadow: 0 1px 2px rgba(36,23,18,.05), 0 14px 30px -14px rgba(36,23,18,.22);
-        transition: transform .16s ease, box-shadow .16s ease;
       }
       .product-grid:has(> .p-card:only-child) > .p-card:hover {
         transform: translateY(-2px);
         box-shadow: 0 3px 6px rgba(36,23,18,.06), 0 22px 42px -16px rgba(36,23,18,.3);
       }
-      .product-grid:has(> .p-card:only-child) > .p-card .p-body {
-        display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden;
-        padding: 24px; border-left: 1px solid var(--line-soft);
-      }
-      .product-grid:has(> .p-card:only-child) > .p-card .p-name {
-        font-size: 17px; line-height: 1.3;
-        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-      }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-body { padding: 24px; }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-name { font-size: 17px; }
       .product-grid:has(> .p-card:only-child) > .p-card .p-meta { font-size: 12.5px; margin-top: 6px; }
-      /* Price row pinned to the bottom of the card — label up top, price
-         down low — rather than a small cluster floating mid-height. */
-      .product-grid:has(> .p-card:only-child) > .p-card .p-divider {
-        border-top: 0; margin-top: auto; padding-top: 0;
-      }
-      .product-grid:has(> .p-card:only-child) > .p-card .p-price-row { justify-content: flex-start; gap: 16px; }
+      .product-grid:has(> .p-card:only-child) > .p-card .p-price-row { gap: 16px; }
       .product-grid:has(> .p-card:only-child) > .p-card .p-price { font-size: 16px; }
     }
 
