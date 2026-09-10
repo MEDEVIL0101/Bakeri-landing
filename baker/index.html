@@ -1179,6 +1179,31 @@
     if (!data || !data.profile) { showNotFound('Baker not found', 'No baker found at this link.'); return; }
     profile = data.profile;
     resolvedBakerId = profile.id;
+
+    // Custom-form storefront: the baker has marked one custom listing as her
+    // whole storefront (see profiles.storefront_listing_id). Hand off to the
+    // intake form page in storefront mode — header + About + one full-width
+    // form, no menu grid. Falls through to the normal render if the listing
+    // is missing or has no intake form attached (nothing to collect with).
+    if (profile.storefront_listing_id) {
+      var sfListing = (data.listings || []).filter(function (l) {
+        return l.id === profile.storefront_listing_id && l.intake_form_id;
+      })[0];
+      if (sfListing) {
+        window.location.replace(
+          '/baker/custom-order.html?storefront=1' +
+          '&slug=' + encodeURIComponent(slug || '') +
+          '&baker=' + encodeURIComponent(profile.id) +
+          '&item=' + encodeURIComponent(sfListing.id) +
+          '&form=' + encodeURIComponent(sfListing.intake_form_id) +
+          '&name=' + encodeURIComponent(sfListing.name || '') +
+          '&theme=' + encodeURIComponent(profile.selected_theme || '') +
+          '&pattern=' + encodeURIComponent(profile.background_pattern || '')
+        );
+        return;
+      }
+    }
+
     loadCart();
     if (window.BakeriTheme) window.BakeriTheme.apply(profile);
     render(profile, data.listings || [], data.faqs || [], data.links || []);
