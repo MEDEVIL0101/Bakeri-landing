@@ -148,6 +148,14 @@ ${GENERATED_MARKER}
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    // Real browsers jump to the interactive storefront before this
+    // crawler-only summary can paint. Inline and in <head> so it runs before
+    // first paint — the same redirect at the end of <body> flashed the beige
+    // summary + item list for a beat on every load. Bots that don't run JS
+    // keep the static content below for indexing and link previews.
+    location.replace(${JSON.stringify(storeHref + "&clean=1")});
+  </script>
   <title>${esc(title)}</title>
   <meta name="description" content="${attr(description)}" />
   <link rel="canonical" href="${attr(canonical)}" />
@@ -196,13 +204,6 @@ ${GENERATED_MARKER}
     <a class="cta" href="${attr(storeHref)}">View the full menu &amp; order online &rarr;</a>
     ${items ? `<h2>On the menu</h2>\n    <ul>\n        ${items}\n    </ul>` : ""}
   </main>
-
-  <script>
-    // Progressive enhancement: send real visitors straight into the interactive
-    // storefront. Crawlers and link-preview bots keep the static content + meta
-    // above. clean=1 makes baker/index.html restore this same clean URL.
-    location.replace(${JSON.stringify(storeHref + "&clean=1")});
-  </script>
 </body>
 </html>
 `;

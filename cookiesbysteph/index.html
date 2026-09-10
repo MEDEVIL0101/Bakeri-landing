@@ -4,6 +4,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    // Real browsers jump to the interactive storefront before this
+    // crawler-only summary can paint. Inline and in <head> so it runs before
+    // first paint — the same redirect at the end of <body> flashed the beige
+    // summary + item list for a beat on every load. Bots that don't run JS
+    // keep the static content below for indexing and link previews.
+    location.replace("/baker/?slug=cookiesbysteph&clean=1");
+  </script>
   <title>Cookiesbysteph — Order online · Show Low, AZ</title>
   <meta name="description" content="Hi, I’m Steph—the baker and creator behind Cookies by Steph! I’m a wife, mom and Arizona-based cookier who loves turning sweet ideas into custom cookies.…" />
   <link rel="canonical" href="https://bakeriapp.com/cookiesbysteph" />
@@ -84,12 +92,5 @@
         <li>Pokémon Mystery Cookie Bag Printable | Mystery Cookie Packaging | Printable Treat Bag Digital Download — $2.00</li>
     </ul>
   </main>
-
-  <script>
-    // Progressive enhancement: send real visitors straight into the interactive
-    // storefront. Crawlers and link-preview bots keep the static content + meta
-    // above. clean=1 makes baker/index.html restore this same clean URL.
-    location.replace("/baker/?slug=cookiesbysteph&clean=1");
-  </script>
 </body>
 </html>

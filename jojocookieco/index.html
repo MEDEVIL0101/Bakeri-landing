@@ -4,6 +4,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    // Real browsers jump to the interactive storefront before this
+    // crawler-only summary can paint. Inline and in <head> so it runs before
+    // first paint — the same redirect at the end of <body> flashed the beige
+    // summary + item list for a beat on every load. Bots that don't run JS
+    // keep the static content below for indexing and link previews.
+    location.replace("/baker/?slug=jojocookieco&clean=1");
+  </script>
   <title>Jojocookieco — Order online</title>
   <meta name="description" content="Order handmade baked goods from Jojocookieco on Bakeri." />
   <link rel="canonical" href="https://bakeriapp.com/jojocookieco" />
@@ -52,12 +60,5 @@
     <a class="cta" href="/baker/?slug=jojocookieco">View the full menu &amp; order online &rarr;</a>
     
   </main>
-
-  <script>
-    // Progressive enhancement: send real visitors straight into the interactive
-    // storefront. Crawlers and link-preview bots keep the static content + meta
-    // above. clean=1 makes baker/index.html restore this same clean URL.
-    location.replace("/baker/?slug=jojocookieco&clean=1");
-  </script>
 </body>
 </html>
