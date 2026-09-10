@@ -416,14 +416,14 @@
 
     /* ── Single-item Menu / category ──────────────────────────────────────
        When a grid holds exactly one card it is NOT a half-width tile in a
-       2-col grid (dead space beside it). It is a fixed 220px tile — the
-       SAME width the side-by-side feature card's photo uses — so the image
-       size is continuous when the layout switches to side-by-side at
-       >=560px, instead of the old "grow big while stacked, then snap to a
-       smaller side-by-side photo at 860px". A second card drops the
-       :only-child match and the normal grid takes over immediately. */
+       2-col grid (dead space beside it). On phones it spans the full width
+       as a normal stacked card (photo over body) — the same "fill the
+       space rather than leave it dead" call the >=560px feature card makes,
+       just without the room for a text column beside the photo. At >=560px
+       it flips to the horizontal feature card below. A second card drops
+       the :only-child match and the normal grid takes over immediately. */
     #product-grid:has(> .p-card:only-child),
-    .product-grid:has(> .p-card:only-child) { grid-template-columns: 220px; }
+    .product-grid:has(> .p-card:only-child) { grid-template-columns: 1fr; }
 
     @media (min-width: 560px) {
       /* Enough width for the 220px photo AND a text column beside it —
