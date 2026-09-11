@@ -151,9 +151,11 @@
       letter-spacing: .01em;
       padding: 10px 16px;
     }
-    /* A promotion's own banner (see updateAnnouncementBanner) — a sale
-       strip in the fixed red, not the baker's brand accent. */
-    #announcement-banner.promo { background: var(--sale); color: #fff; font-weight: 700; }
+    /* A promotion's own banner (see updateAnnouncementBanner) — same
+       accent/accent-fg pair as the plain shipping-notice banner above,
+       just bolder, so it follows the baker's theme instead of a fixed
+       red that could clash with (or vanish into) their own colours. */
+    #announcement-banner.promo { background: var(--accent); color: var(--accent-fg); font-weight: 700; }
 
     /* ══════════════════════ Site header bar ══════════════════════
        One shared bar: hamburger + centered brand + icons on mobile
@@ -538,15 +540,17 @@
     .p-price-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .p-price { font-size: 13.5px; font-weight: 700; color: var(--accent); }
     .p-price .from { font-size: 9.5px; font-weight: 400; color: var(--muted); display: block; }
-    /* ── Sale pricing ── struck original + red current, plus a red pill on
-       the photo. `.orig` is reused verbatim in the digital rows and the
-       item sheet. */
+    /* ── Sale pricing ── struck original + red current, plus a red pill
+       above the name in the text column (not on the photo — it used to
+       share the photo with .p-badge, and on the single-item feature
+       card's narrow 120px photo track the two pills collided). `.orig`
+       is reused verbatim in the digital rows and the item sheet. */
     .orig { text-decoration: line-through; color: var(--muted); font-weight: 400; margin-right: 6px; }
     .p-price:has(.orig), .digital-row .price:has(.orig), .digital-row .price.on-sale { color: var(--sale); }
     .p-sale-badge {
-      position: absolute; top: 8px; right: 8px;
+      display: inline-flex; align-items: center; align-self: flex-start;
       font-size: 10px; font-weight: 700; letter-spacing: .02em;
-      padding: 4px 10px; border-radius: 9999px;
+      padding: 3px 9px; border-radius: 9999px; margin-bottom: 6px;
       background: var(--sale); color: #fff;
     }
 
@@ -1989,15 +1993,20 @@
     badge.innerHTML = '<span class="dot"></span>' + kind.label;
     photo.appendChild(badge);
 
+    const body = document.createElement('div');
+    body.className = 'p-body';
+
+    // Sale label lives in the text column, not stacked on the photo with
+    // the kind badge — on the single-item feature card's narrow 120px
+    // photo track the two pills had nowhere to go but on top of each
+    // other (see .p-sale-badge).
     if (item.promo) {
       const saleBadge = document.createElement('div');
       saleBadge.className = 'p-sale-badge';
       saleBadge.textContent = item.promo.label;
-      photo.appendChild(saleBadge);
+      body.appendChild(saleBadge);
     }
 
-    const body = document.createElement('div');
-    body.className = 'p-body';
     const nameEl = document.createElement('div');
     nameEl.className = 'p-name';
     nameEl.textContent = item.name;

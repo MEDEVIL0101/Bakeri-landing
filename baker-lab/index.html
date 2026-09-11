@@ -161,9 +161,11 @@
       letter-spacing: .01em;
       padding: 10px 16px;
     }
-    /* A promotion's own banner (see updateAnnouncementBanner) — a sale
-       strip in the fixed red, not the baker's brand accent. */
-    #announcement-banner.promo { background: var(--sale); color: #fff; font-weight: 700; }
+    /* A promotion's own banner (see updateAnnouncementBanner) — same
+       accent/accent-fg pair as the plain shipping-notice banner above,
+       just bolder, so it follows the baker's theme instead of a fixed
+       red that could clash with (or vanish into) their own colours. */
+    #announcement-banner.promo { background: var(--accent); color: var(--accent-fg); font-weight: 700; }
 
     /* ══════════════════════ Site header bar ══════════════════════
        One shared bar: hamburger + centered brand + icons on mobile
