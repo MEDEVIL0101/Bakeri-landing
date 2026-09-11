@@ -1123,8 +1123,14 @@
   // short list doesn't need hiding. The Menu is deliberately NOT capped:
   // every ready_now/preorder/custom listing always shows in full.
   // See renderDigitalFeed / renderPhysicalFeed.
+  //
+  // Physical is a photo-card grid (5 wide on desktop, same component the
+  // Menu grid uses) — a cap of 6 left row 2 with a single stranded tile
+  // before "View all" kicked in. 10 fills two full 5-wide rows. Digital
+  // renders as plain list rows, not a grid, so 5-wide doesn't apply there —
+  // 6 stays right for it.
   const DIGITAL_PREVIEW_COUNT = 6;
-  const PHYSICAL_PREVIEW_COUNT = 6;
+  const PHYSICAL_PREVIEW_COUNT = 10;
   let digitalExpanded = false;
   let physicalExpanded = {}; // { [categorySlug]: true } once "View all" tapped
   // Digital downloads have their own tiny cart — just a set of item ids
