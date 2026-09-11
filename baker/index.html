@@ -17,6 +17,7 @@
   <link rel="icon" type="image/png" href="../assets/favicon.png" />
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
   <script src="theme.js"></script>
+  <script src="intake-form.js"></script>
 
   <style>
     :root {
@@ -413,6 +414,16 @@
        #theme-pattern-layer). */
     #feed { padding: 18px 20px 28px; }
     #product-grid, .product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+    /* Form-storefront — see renderFormStorefront. #sf-intro reuses
+       .section-band h2 for its title (already styled above); its own
+       padding matches #feed so the intro and the form share a left/right
+       margin. #sf-form-mount hosts BakeriIntakeForm — no bespoke width/
+       padding here, intake-form.js's own CSS (.bkform, .field-group, etc.)
+       handles that, matching custom-order.html exactly. */
+    #form-storefront { padding: 18px 20px 28px; }
+    #sf-intro { margin-bottom: 22px; }
+    #sf-intro-body { font-size: 13.5px; line-height: 1.65; color: var(--bio); white-space: pre-wrap; }
 
     /* ── Single-item Menu / category ──────────────────────────────────────
        A grid holding exactly one card is NOT a half-width tile in a 2-col
@@ -904,6 +915,20 @@
   <div id="product-grid" class="product-grid"></div>
 </section>
 
+<!-- Form-storefront: shown INSTEAD of #feed (never both) when the baker has
+     marked a custom listing as the whole storefront — see
+     profiles.storefront_listing_id / renderFormStorefront. #sf-intro is the
+     baker's own title + paragraph for THIS form (storefront_intro_title/
+     body on the listing); #sf-form-mount is where BakeriIntakeForm (shared
+     with custom-order.html — see intake-form.js) renders the actual form. -->
+<section id="form-storefront" class="section-band hidden">
+  <div id="sf-intro" class="hidden">
+    <h2 id="sf-intro-title"></h2>
+    <p id="sf-intro-body"></p>
+  </div>
+  <div id="sf-form-mount"></div>
+</section>
+
 <!-- Ships to You (physical goods) renders directly under the Menu grid and
      ABOVE Digital Downloads — shippable products are judged by their photo
      like the Menu is and belong with it, ahead of the digital file list;
@@ -1061,6 +1086,12 @@
   let allLinks = [];
   let resolvedBakerId = bakerID;
   let tab = 'all';
+  // Set in render() when profile.storefront_listing_id points at one of the
+  // baker's own listed custom listings with an intake form attached — see
+  // renderFormStorefront(). Non-null sfListing means the storefront IS that
+  // form (header + intro + form + About/Hours/Policies/Links/FAQ), not a
+  // menu grid — see 20260910000001/2's migrations.
+  let sfListing = null;
 
   // Storefront images (logo, header, about portrait) live at fixed Storage
   // paths with no version in the URL. On publish the bytes at that path are
@@ -1184,30 +1215,6 @@
     profile = data.profile;
     resolvedBakerId = profile.id;
 
-    // Custom-form storefront: the baker has marked one custom listing as her
-    // whole storefront (see profiles.storefront_listing_id). Hand off to the
-    // intake form page in storefront mode — header + About + one full-width
-    // form, no menu grid. Falls through to the normal render if the listing
-    // is missing or has no intake form attached (nothing to collect with).
-    if (profile.storefront_listing_id) {
-      var sfListing = (data.listings || []).filter(function (l) {
-        return l.id === profile.storefront_listing_id && l.intake_form_id;
-      })[0];
-      if (sfListing) {
-        window.location.replace(
-          '/baker/custom-order.html?storefront=1' +
-          '&slug=' + encodeURIComponent(slug || '') +
-          '&baker=' + encodeURIComponent(profile.id) +
-          '&item=' + encodeURIComponent(sfListing.id) +
-          '&form=' + encodeURIComponent(sfListing.intake_form_id) +
-          '&name=' + encodeURIComponent(sfListing.name || '') +
-          '&theme=' + encodeURIComponent(profile.selected_theme || '') +
-          '&pattern=' + encodeURIComponent(profile.background_pattern || '')
-        );
-        return;
-      }
-    }
-
     loadCart();
     if (window.BakeriTheme) window.BakeriTheme.apply(profile);
     render(profile, data.listings || [], data.faqs || [], data.links || []);
@@ -1270,6 +1277,14 @@
     allListings = listings.filter(function (l) { return l.listing_kind !== 'custom' || l.intake_form_id; });
     allListings.forEach(applyListingPromo);
     allLinks = links;
+    // A custom listing the baker has marked as the whole storefront (see
+    // profiles.storefront_listing_id) — resolved here once and read by both
+    // renderFormStorefront() and shopNavTabs(). Null falls through to the
+    // normal menu grid, including when the listing's been unlisted or had
+    // its form removed since being set.
+    sfListing = (profile.storefront_listing_id && allListings.find(function (l) {
+      return l.id === profile.storefront_listing_id && l.intake_form_id;
+    })) || null;
     updateAnnouncementBanner(profile, listings);
     const name = profile.business_name || profile.user_name || 'Baker';
     const location = profile.neighbourhood
@@ -1299,8 +1314,13 @@
     renderHours(profile.pickup_hours_json);
     renderAboutAndPolicies(profile, name);
     renderFAQ(faqs);
-    renderDigitalFeed();
-    renderPhysicalFeed();
+    // Commerce sections are meaningless once a form IS the storefront — the
+    // baker isn't selling a menu here, so skip populating (and thereby
+    // un-hiding) them at all rather than render-then-hide.
+    if (!sfListing) {
+      renderDigitalFeed();
+      renderPhysicalFeed();
+    }
     renderLinkSections();
     renderFooter(profile, name);
 
@@ -1321,9 +1341,13 @@
       }
     });
 
-    updateFeedVisibility();
-    renderFilterBar();
-    renderGrid();
+    if (sfListing) {
+      renderFormStorefront(sfListing);
+    } else {
+      updateFeedVisibility();
+      renderFilterBar();
+      renderGrid();
+    }
     renderSectionNav();
     updateCartUI();
     updateDigitalCartUI();
@@ -1526,6 +1550,9 @@
   // per the baker's request, since a wrapping nav (see #section-nav's
   // flex-wrap) handles any number of categories fine without a dropdown.
   function shopNavTabs() {
+    // Form-storefront: no Menu, no physical/digital categories — just a
+    // shortcut down to the form itself.
+    if (sfListing) return [{ id: 'form-storefront', label: 'Order' }];
     const tabs = [];
     if (menuListings().length > 0) tabs.push({ id: 'feed-heading', label: 'Menu' });
     groupByCategory(physicalListings(), 'Ships to You').forEach(function (g) {
@@ -1747,6 +1774,48 @@
     const noMenu = menuListings().length === 0;
     document.getElementById('feed').classList.toggle('hidden', noMenu);
     document.getElementById('feed-heading').classList.toggle('hidden', noMenu);
+  }
+
+  // The storefront IS a form — header, an optional intro (title + paragraph
+  // the baker writes for THIS form, see storefront_intro_title/body), then
+  // the form itself. Every other section (About, Store Hours, Store
+  // Policies, My Links, FAQ) renders exactly as it already does for a normal
+  // storefront via render()'s unconditional calls above — only the commerce
+  // sections (Menu, Ships to You, Digital Downloads) are hidden, since this
+  // baker isn't running a menu here. See profiles.storefront_listing_id.
+  function renderFormStorefront(listing) {
+    document.getElementById('feed-heading').classList.add('hidden');
+    document.getElementById('filter-strip').classList.add('hidden');
+    document.getElementById('feed').classList.add('hidden');
+    document.getElementById('form-storefront').classList.remove('hidden');
+
+    const introTitle = (listing.storefront_intro_title || '').trim();
+    const introBody = (listing.storefront_intro_body || '').trim();
+    const introEl = document.getElementById('sf-intro');
+    if (introTitle || introBody) {
+      const titleEl = document.getElementById('sf-intro-title');
+      titleEl.textContent = introTitle;
+      titleEl.classList.toggle('hidden', !introTitle);
+      const bodyEl = document.getElementById('sf-intro-body');
+      bodyEl.textContent = introBody;
+      bodyEl.classList.toggle('hidden', !introBody);
+      introEl.classList.remove('hidden');
+    } else {
+      introEl.classList.add('hidden');
+    }
+
+    if (window.BakeriIntakeForm) {
+      window.BakeriIntakeForm.mount({
+        container: document.getElementById('sf-form-mount'),
+        supabaseUrl: SUPABASE_URL,
+        anonKey: ANON_KEY,
+        bakerId: resolvedBakerId,
+        itemId: listing.id,
+        formId: listing.intake_form_id,
+        itemName: listing.name,
+        standalone: false
+      });
+    }
   }
 
   // Always-visible, below the Menu grid and the Ships to You blocks —
