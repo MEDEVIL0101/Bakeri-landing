@@ -1802,12 +1802,28 @@
     }).join('');
 
     // Product-target rows render as <button data-listing-id> above (no
-    // href, since they open the item sheet in place rather than
-    // navigating) — wire their click after the innerHTML assignment, same
-    // "template then attach" split every other addEventListener-based
-    // renderer in this file already uses. A listing that's since been
-    // unlisted/deleted renders disabled rather than broken.
+    // href, since they open the item sheet — or the capture form, for a
+    // lead-magnet target — in place rather than navigating) — wire their
+    // click after the innerHTML assignment, same "template then attach"
+    // split every other addEventListener-based renderer in this file
+    // already uses.
     wrap.querySelectorAll('.link-row[data-listing-id]').forEach(function (row) {
+      if (row.dataset.leadMagnet === 'true') {
+        // Lead magnets are deliberately excluded from allListings (never
+        // marketplace-listed), so there's nothing to cross-reference here —
+        // the row already carries everything needed. Opens the same
+        // capture form as the Email Capture block, but delivering THIS
+        // link's own listing rather than the block's configured one, with
+        // its own heading ("Get: <link label>") rather than the block's.
+        const label = row.querySelector('.label');
+        const heading = 'Get: ' + (label ? label.textContent : 'this download');
+        row.addEventListener('click', function () {
+          openCaptureSheet('inline', row.dataset.listingId, heading);
+        });
+        return;
+      }
+      // Normal product target — a listing that's since been unlisted/
+      // deleted renders disabled rather than broken.
       const item = allListings.find(function (x) { return x.id === row.dataset.listingId; });
       if (item) {
         row.addEventListener('click', function () { openItemSheet(item); });
@@ -1840,7 +1856,8 @@
 
     if (l.target_type === 'product' && l.linked_listing_id) {
       return '<button type="button" class="' + classes.join(' ') + '" data-listing-id="' +
-        escapeHtml(l.linked_listing_id) + '">' + inner + '</button>';
+        escapeHtml(l.linked_listing_id) + '" data-lead-magnet="' +
+        (l.target_listing_is_lead_magnet ? 'true' : 'false') + '">' + inner + '</button>';
     }
     return '<a class="' + classes.join(' ') + '" href="' + escapeHtml(l.url) +
       '" target="_blank" rel="noopener noreferrer">' + inner + '</a>';
@@ -1911,7 +1928,7 @@
     );
   }
 
-  function wireCaptureForm(formEl, source) {
+  function wireCaptureForm(formEl, source, deliverableListingId) {
     if (!formEl) return;
     formEl.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -1921,7 +1938,7 @@
       const submitBtn = formEl.querySelector('button[type="submit"]');
       submitBtn.disabled = true;
       statusEl.textContent = 'Joining…';
-      submitCapture(emailInput.value, source)
+      submitCapture(emailInput.value, source, deliverableListingId)
         .then(function (result) {
           if (result.ok) {
             statusEl.textContent = result.downloadUrl ? 'Check your email — your download is on its way!' : "You're on the list!";
@@ -1934,11 +1951,14 @@
     });
   }
 
-  function submitCapture(email, source) {
+  // deliverableListingId, when passed (a link card targeting a lead
+  // magnet), overrides the Email Capture block's own configured
+  // deliverable — a capture triggered from that specific link card should
+  // deliver THAT link's file, not whatever the block itself is set to.
+  function submitCapture(email, source, deliverableListingId) {
     const payload = { user_id: resolvedBakerId, email: email, source: source };
-    if (profile.email_capture_deliverable_listing_id) {
-      payload.deliverable_listing_id = profile.email_capture_deliverable_listing_id;
-    }
+    const listingId = deliverableListingId || profile.email_capture_deliverable_listing_id;
+    if (listingId) payload.deliverable_listing_id = listingId;
     return fetch(SUPABASE_URL + '/functions/v1/capture-storefront-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY },
@@ -1952,11 +1972,11 @@
       .catch(function () { return { ok: false, error: 'Network error — please try again.' }; });
   }
 
-  function openCaptureSheet(source) {
-    const heading = (profile.email_capture_heading || 'Join our list').trim() || 'Join our list';
-    const body = (profile.email_capture_body || '').trim();
+  function openCaptureSheet(source, deliverableListingId, headingOverride) {
+    const heading = (headingOverride || profile.email_capture_heading || 'Join our list').trim() || 'Join our list';
+    const body = headingOverride ? '' : (profile.email_capture_body || '').trim();
     document.getElementById('capture-sheet-body').innerHTML = captureFormHtml('popup-capture', heading, body);
-    wireCaptureForm(document.getElementById('popup-capture-form'), source);
+    wireCaptureForm(document.getElementById('popup-capture-form'), source, deliverableListingId);
     document.getElementById('capture-scrim').classList.add('open');
   }
   function closeCaptureSheet() { document.getElementById('capture-scrim').classList.remove('open'); }
