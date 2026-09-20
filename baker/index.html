@@ -1013,6 +1013,13 @@
   <div id="hours-rows"></div>
 </section>
 
+<!-- Email capture block — inline display_style renders the form directly
+     here; popup display_style renders a small tap-to-open card that opens
+     #capture-scrim (see renderEmailCapture). Hidden until a baker sets a
+     heading (see applyStorefrontBlockLayout's "absent block type = hidden"
+     fallback — this section has no entry in DEFAULT_BLOCK_LAYOUT at all). -->
+<section id="email-capture" class="section-band hidden"></section>
+
 <footer id="site-footer">
   <div id="footer-contact" class="hidden"></div>
   <div id="footer-credit">
@@ -1082,6 +1089,17 @@
       <button class="sheet-close" id="desc-sheet-close">✕</button>
     </div>
     <div id="desc-sheet-body"></div>
+  </div>
+</div>
+
+<!-- Shared by the popup-display email-capture block AND the persistent
+     header signup button — both just call openCaptureSheet(source). -->
+<div class="scrim" id="capture-scrim">
+  <div class="sheet" id="capture-sheet">
+    <div style="position:relative;">
+      <button class="sheet-close" id="capture-sheet-close">✕</button>
+    </div>
+    <div id="capture-sheet-body" style="padding:24px 20px 28px;"></div>
   </div>
 </div>
 
@@ -1366,6 +1384,8 @@
       renderPhysicalFeed();
     }
     renderLinkSections();
+    renderEmailCapture(profile);
+    renderHeaderSignupButton(profile);
     renderFooter(profile, name);
 
     document.getElementById('share-btn').addEventListener('click', shareLink);
@@ -1407,6 +1427,8 @@
     document.getElementById('item-scrim').addEventListener('click', function (e) { if (e.target === this) closeItemSheet(); });
     document.getElementById('cart-scrim').addEventListener('click', function (e) { if (e.target === this) closeCartSheet(); });
     document.getElementById('desc-scrim').addEventListener('click', function (e) { if (e.target === this) closeDescSheet(); });
+    document.getElementById('capture-sheet-close').addEventListener('click', closeCaptureSheet);
+    document.getElementById('capture-scrim').addEventListener('click', function (e) { if (e.target === this) closeCaptureSheet(); });
   }
 
   // ══════════════════════ Block layout (reorder/hide) ══════════════════════
@@ -1442,7 +1464,16 @@
     about:    ['pb-about'],
     faq:      ['faq-col'],
     policies: ['pb-policies'],
-    hours:    ['hours-card']
+    hours:    ['hours-card'],
+    // Added after the original 8 — deliberately absent from
+    // DEFAULT_BLOCK_LAYOUT (and from every existing baker's stored array):
+    // applyStorefrontBlockLayout only repositions types actually present in
+    // a baker's layout, so this one simply stays at its authored DOM
+    // position (right before the footer) and hidden (per its own
+    // renderEmailCapture empty-state check) until a baker's layout array
+    // explicitly includes it — which only happens once she configures it
+    // in the iOS builder.
+    emailCapture: ['email-capture']
   };
 
   // Runs once, at the very end of render(), after every section has already
@@ -1814,6 +1845,121 @@
     return '<a class="' + classes.join(' ') + '" href="' + escapeHtml(l.url) +
       '" target="_blank" rel="noopener noreferrer">' + inner + '</a>';
   }
+
+  // ══════════════════════ Email capture ══════════════════════
+  //
+  // Three presentation surfaces, one backend call (capture-storefront-email
+  // — see supabase/functions/capture-storefront-email). inline/popup are
+  // the #email-capture block (profiles.email_capture_*, display_style
+  // toggle mirrors the sibling BizInBio project's own inline/popup pattern
+  // on its quote/calendar blocks); header is the persistent signup button
+  // in the chrome bar, unrelated to block order.
+
+  function renderEmailCapture(profile) {
+    const wrap = document.getElementById('email-capture');
+    const heading = (profile.email_capture_heading || '').trim();
+    if (!heading) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+
+    wrap.classList.remove('hidden');
+    const body = (profile.email_capture_body || '').trim();
+
+    if (profile.email_capture_display_style === 'popup') {
+      wrap.innerHTML =
+        '<button type="button" id="email-capture-open" class="link-row rich-card" style="cursor:pointer;">' +
+          '<span class="circle">✉️</span>' +
+          '<span class="label" style="padding:14px;">' + escapeHtml(heading) + '</span>' +
+        '</button>';
+      document.getElementById('email-capture-open').addEventListener('click', function () {
+        openCaptureSheet('popup');
+      });
+      return;
+    }
+
+    // Inline: the real form renders directly in the page — no modal.
+    wrap.innerHTML = captureFormHtml('inline-capture', heading, body);
+    wireCaptureForm(document.getElementById('inline-capture-form'), 'inline');
+  }
+
+  function renderHeaderSignupButton(profile) {
+    if (!profile.header_signup_enabled) return;
+    const label = escapeHtml((profile.header_signup_label || 'Sign up').trim() || 'Sign up');
+    const makeBtn = function () {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'circle-btn';
+      btn.style.cssText = 'width:auto;padding:0 14px;';
+      btn.textContent = label;
+      btn.addEventListener('click', function () { openCaptureSheet('header'); });
+      return btn;
+    };
+    const mobileIcons = document.querySelector('#site-header-bar .nav-bar-icons');
+    if (mobileIcons) mobileIcons.appendChild(makeBtn());
+    const desktopHeader = document.getElementById('site-header-desktop');
+    if (desktopHeader) desktopHeader.appendChild(makeBtn());
+  }
+
+  function captureFormHtml(idPrefix, heading, body) {
+    return (
+      '<h2>' + escapeHtml(heading) + '</h2>' +
+      (body ? '<p style="font-size:13.5px;color:var(--bio);margin:-6px 0 14px;">' + escapeHtml(body) + '</p>' : '') +
+      '<form id="' + idPrefix + '-form" style="display:flex;flex-direction:column;gap:10px;">' +
+        '<input type="email" required placeholder="you@email.com" id="' + idPrefix + '-email" ' +
+          'style="height:48px;border-radius:12px;border:1.5px solid var(--line);padding:0 14px;font-size:15px;background:var(--surface);color:var(--ink);" />' +
+        '<button type="submit" class="btn-primary">Join</button>' +
+        '<div id="' + idPrefix + '-status" style="font-size:12.5px;color:var(--muted);min-height:16px;"></div>' +
+      '</form>'
+    );
+  }
+
+  function wireCaptureForm(formEl, source) {
+    if (!formEl) return;
+    formEl.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const idPrefix = formEl.id.replace(/-form$/, '');
+      const emailInput = document.getElementById(idPrefix + '-email');
+      const statusEl = document.getElementById(idPrefix + '-status');
+      const submitBtn = formEl.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      statusEl.textContent = 'Joining…';
+      submitCapture(emailInput.value, source)
+        .then(function (result) {
+          if (result.ok) {
+            statusEl.textContent = result.downloadUrl ? 'Check your email — your download is on its way!' : "You're on the list!";
+            emailInput.value = '';
+          } else {
+            statusEl.textContent = result.error || 'Something went wrong.';
+          }
+        })
+        .finally(function () { submitBtn.disabled = false; });
+    });
+  }
+
+  function submitCapture(email, source) {
+    const payload = { user_id: resolvedBakerId, email: email, source: source };
+    if (profile.email_capture_deliverable_listing_id) {
+      payload.deliverable_listing_id = profile.email_capture_deliverable_listing_id;
+    }
+    return fetch(SUPABASE_URL + '/functions/v1/capture-storefront-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json().then(function (data) { return { httpOk: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (!res.httpOk) return { ok: false, error: res.data.error };
+        return { ok: true, downloadUrl: res.data.download_url || null };
+      })
+      .catch(function () { return { ok: false, error: 'Network error — please try again.' }; });
+  }
+
+  function openCaptureSheet(source) {
+    const heading = (profile.email_capture_heading || 'Join our list').trim() || 'Join our list';
+    const body = (profile.email_capture_body || '').trim();
+    document.getElementById('capture-sheet-body').innerHTML = captureFormHtml('popup-capture', heading, body);
+    wireCaptureForm(document.getElementById('popup-capture-form'), source);
+    document.getElementById('capture-scrim').classList.add('open');
+  }
+  function closeCaptureSheet() { document.getElementById('capture-scrim').classList.remove('open'); }
 
   // Guesses the platform from the URL's hostname to pick each icon — the
   // baker only ever enters a plain URL (same "Social" section as any other
