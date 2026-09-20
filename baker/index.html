@@ -1362,6 +1362,7 @@
     updateCartUI();
     updateDigitalCartUI();
     updateShipCartUI();
+    applyStorefrontBlockLayout(profile);
 
     document.getElementById('cart-btn').addEventListener('click', openCartSheet);
     document.getElementById('desktop-cart-btn').addEventListener('click', openCartSheet);
@@ -1372,6 +1373,80 @@
     document.getElementById('item-scrim').addEventListener('click', function (e) { if (e.target === this) closeItemSheet(); });
     document.getElementById('cart-scrim').addEventListener('click', function (e) { if (e.target === this) closeCartSheet(); });
     document.getElementById('desc-scrim').addEventListener('click', function (e) { if (e.target === this) closeDescSheet(); });
+  }
+
+  // ══════════════════════ Block layout (reorder/hide) ══════════════════════
+  //
+  // Lets a baker reorder/hide the content sections below via the iOS block
+  // builder (profiles.storefront_block_layout — see migration
+  // 20260920000001_storefront_block_layout.sql + the 000002 order fix).
+  // DEFAULT_BLOCK_LAYOUT is a literal copy of the pre-block-builder
+  // hardcoded order (verified against this file's actual markup, NOT the
+  // design brief's section table, which turned out to have Digital and
+  // Ships-to-You swapped) — used whenever the column is missing/null/empty
+  // so any stale-cached or pre-migration profile still renders exactly as
+  // it always has. Hero/chrome and the footer are never part of this and
+  // always stay pinned first/last.
+  const DEFAULT_BLOCK_LAYOUT = [
+    { type: 'menu',     hidden: false },
+    { type: 'physical', hidden: false },
+    { type: 'digital',  hidden: false },
+    { type: 'links',    hidden: false },
+    { type: 'about',    hidden: false },
+    { type: 'faq',      hidden: false },
+    { type: 'policies', hidden: false },
+    { type: 'hours',    hidden: false }
+  ];
+
+  // Each block moves as one group — 'menu' is three separate sibling
+  // containers (heading/filter-strip/grid), everything else is one.
+  const BLOCK_CONTAINER_IDS = {
+    menu:     ['feed-heading', 'filter-strip', 'feed'],
+    physical: ['physical-feed'],
+    digital:  ['digital-feed'],
+    links:    ['links-feed'],
+    about:    ['pb-about'],
+    faq:      ['faq-col'],
+    policies: ['pb-policies'],
+    hours:    ['hours-card']
+  };
+
+  // Runs once, at the very end of render(), after every section has already
+  // been populated (renderDigitalFeed/renderPhysicalFeed/renderFAQ/etc. have
+  // all already run and set their own 'hidden' class based on content) —
+  // this only ever reorders/hides already-filled DOM nodes, it never
+  // re-renders their contents, and it never *unhides* a section that's
+  // legitimately empty.
+  function applyStorefrontBlockLayout(profile) {
+    // A form-takeover storefront replaces the whole content stack with one
+    // form — there's nothing meaningful to reorder, and #form-storefront
+    // must stay wherever it is relative to #feed (see the sfListing swap
+    // above), so leave the shell exactly as authored.
+    if (sfListing) return;
+
+    const shell = document.getElementById('page-shell');
+    if (!shell) return;
+
+    const layout = Array.isArray(profile.storefront_block_layout) && profile.storefront_block_layout.length
+      ? profile.storefront_block_layout
+      : DEFAULT_BLOCK_LAYOUT;
+
+    layout.forEach(function (block) {
+      const ids = BLOCK_CONTAINER_IDS[block.type];
+      if (!ids) return; // unknown/future block type — ignore rather than throw
+      ids.forEach(function (id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        // appendChild on a node already in the document MOVES it (no clone,
+        // no re-render) — purely a DOM-position change.
+        shell.appendChild(el);
+        if (block.hidden) el.classList.add('hidden');
+      });
+    });
+
+    // Footer always renders last, after every content block.
+    const footer = document.getElementById('site-footer');
+    if (footer) shell.appendChild(footer);
   }
 
   function renderAvatar(name) {
