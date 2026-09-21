@@ -1457,6 +1457,9 @@
     document.getElementById('desc-scrim').addEventListener('click', function (e) { if (e.target === this) closeDescSheet(); });
     document.getElementById('capture-sheet-close').addEventListener('click', closeCaptureSheet);
     document.getElementById('capture-scrim').addEventListener('click', function (e) { if (e.target === this) closeCaptureSheet(); });
+
+    wireBuilderTapTargets();
+    scheduleRectReport();
   }
 
   // ══════════════════════ Block layout (reorder/hide) ══════════════════════
@@ -1540,6 +1543,109 @@
     // Footer always renders last, after every content block.
     const footer = document.getElementById('site-footer');
     if (footer) shell.appendChild(footer);
+  }
+
+  // ══════════════════════ Builder tap-to-select bridge ══════════════════════
+  //
+  // Preview-mode only (every function here is a no-op otherwise — checked at
+  // the top of each one, not just at the call site, so there's no path that
+  // reaches a real visitor's page). Native builder canvas (StorefrontBuilderCanvas.swift)
+  // draws its own selection chrome and opens editor sheets; this file renders
+  // zero builder UI itself — it only reports which rendered block sits at
+  // which rect, and lets native know when one was tapped. Nothing here
+  // changes what a real visitor sees or can do; #item-scrim/#cart-scrim taps
+  // etc. are untouched.
+  let builderTapTargetsWired = false;
+  let rectReportScheduled = false;
+
+  function bakeriBridgePost(message) {
+    if (!isPreviewMode) return;
+    if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.bakeriBridge) return;
+    window.webkit.messageHandlers.bakeriBridge.postMessage(message);
+  }
+
+  function wireBuilderTapTargets() {
+    if (!isPreviewMode || builderTapTargetsWired) return;
+    builderTapTargetsWired = true;
+
+    Object.keys(BLOCK_CONTAINER_IDS).forEach(function (blockType) {
+      BLOCK_CONTAINER_IDS[blockType].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          bakeriBridgePost({ type: 'select', blockType: blockType });
+        }, { capture: true });
+      });
+    });
+
+    // Identity/hero area — logo, name, location, bio. Not a
+    // StorefrontBlockType (it's always-present, non-reorderable chrome —
+    // see BUILDER_DESIGN_BRIEF.md), so it's a separate pseudo-type the
+    // native side maps straight to BakeryProfileEditorSection.
+    const hero = document.getElementById('profile-block');
+    if (hero) {
+      hero.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        bakeriBridgePost({ type: 'select', blockType: 'identity' });
+      }, { capture: true });
+    }
+  }
+
+  function scheduleRectReport() {
+    if (!isPreviewMode || rectReportScheduled) return;
+    rectReportScheduled = true;
+    requestAnimationFrame(function () {
+      rectReportScheduled = false;
+      reportAllRects();
+    });
+  }
+
+  function unionRect(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+    return {
+      x: x, y: y,
+      width: Math.max(a.x + a.width, b.x + b.width) - x,
+      height: Math.max(a.y + a.height, b.y + b.height) - y,
+    };
+  }
+
+  // Reports every visible block's rect (viewport-relative, CSS px — matches
+  // WKWebView's own coordinate space 1:1 at the default zoom this page
+  // always loads at) in one message, rather than one message per block —
+  // native picks out whichever one it needs. A block spanning several DOM
+  // containers (e.g. menu = heading + filter strip + grid) reports the
+  // union of its visible pieces.
+  function reportAllRects() {
+    if (!isPreviewMode) return;
+    const rects = {};
+    Object.keys(BLOCK_CONTAINER_IDS).forEach(function (blockType) {
+      let r = null;
+      BLOCK_CONTAINER_IDS[blockType].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (!el || el.classList.contains('hidden')) return;
+        const b = el.getBoundingClientRect();
+        if (b.width === 0 && b.height === 0) return;
+        r = unionRect(r, { x: b.left, y: b.top, width: b.width, height: b.height });
+      });
+      if (r) rects[blockType] = r;
+    });
+    const hero = document.getElementById('profile-block');
+    if (hero) {
+      const b = hero.getBoundingClientRect();
+      rects['identity'] = { x: b.left, y: b.top, width: b.width, height: b.height };
+    }
+    bakeriBridgePost({ type: 'rects', rects: rects, scrollY: window.scrollY });
+  }
+
+  if (isPreviewMode) {
+    window.addEventListener('scroll', scheduleRectReport, { passive: true });
+    window.addEventListener('resize', scheduleRectReport);
   }
 
   function renderAvatar(name) {
