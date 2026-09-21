@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { calcPlatformFeeCents } from "../_shared/fees.ts";
+import { calcPlatformFeeCents, calcDirectChargeApplicationFee } from "../_shared/fees.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 
 // Creates a card_present PaymentIntent for an in-person Tap to Pay charge —
@@ -11,7 +11,9 @@ import { currencyForCountry } from "../_shared/currency.ts";
 // funds settle instantly, with Bakeri's 5% taken via application_fee_amount.
 // Unlike pay-quote-order, the baker (not a buyer) initiates this charge and
 // there's no checkout screen to disclose an added fee on, so the baker
-// absorbs the single 5% cut — no doubling.
+// absorbs the single 5% cut — no doubling. Fee model mirrors pay-invoice-order
+// exactly (application_fee_amount shrunk via calcDirectChargeApplicationFee so
+// Bakeri, not the baker, eats the percentage-based Stripe fee on its own cut).
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -102,7 +104,7 @@ Deno.serve(async (req: Request) => {
         currency: currencyForCountry(baker.country),
         payment_method_types: ["card_present"],
         capture_method: "automatic",
-        application_fee_amount: platformFeeCents,
+        application_fee_amount: calcDirectChargeApplicationFee(amount_cents, platformFeeCents),
         metadata,
       },
       { stripeAccount: connectedAccountId }

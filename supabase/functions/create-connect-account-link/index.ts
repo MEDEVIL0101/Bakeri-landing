@@ -7,8 +7,12 @@
 // own dispute/loss liability. The platform still takes its cut via
 // application_fee_amount on direct charges, but pays Stripe no per-account /
 // per-payout / volume Connect fees and is not the negative-balance backstop.
-// Tap to Pay (Stripe Terminal for Connect) needs Express/Custom and is paused
-// — see STRIPE_STANDARD_MIGRATION_PLAN.md.
+// Tap to Pay (Stripe Terminal for Connect) works fine on Standard — Stripe's
+// direct-charge Terminal pattern (Stripe-Account header, no on_behalf_of)
+// has no Express/Custom requirement, it just needs card_payments active,
+// same capability every direct-charge checkout here already requires. See
+// STRIPE_STANDARD_MIGRATION_PLAN.md for the correction; it was paused
+// 2026-09-01 on a since-disproven assumption, then re-enabled 2026-09-21.
 //
 // Onboarding completion is picked up by check-connect-account-status (the
 // app's "I've finished on Stripe — check status" button, and the

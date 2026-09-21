@@ -131,6 +131,32 @@ Banking screen `.task` and on the `bakeri://connect-return` deep link.
 
 ---
 
+## Correction (2026-09-21): Tap to Pay does NOT need Express/Custom
+
+The "Tap to Pay rollout paused ... Stripe Terminal for Connect needs
+Express/Custom" decision above was wrong. Checked against current Stripe docs
+(`/terminal/features/connect`, direct-charges variant): the direct-charge
+Terminal integration — submit every Terminal API call (locations, connection
+tokens, PaymentIntents) with the platform's own key plus a `Stripe-Account`
+header for the connected account — has no account-type restriction. It's
+exactly the pattern `create-terminal-connection-token` and
+`create-terminal-payment-intent` already implement. The only requirement
+called out is that the connected account has the `card_payments` capability
+active — which every onboarded Standard baker here already has, since it's
+required for their existing direct-charge checkout flows.
+
+Re-enabled: `TapToPayAvailability.tapToPayEnabled = true`, the
+`com.apple.developer.proximity-reader.payment.acceptance` entitlement is back
+in `Bakeri.entitlements`, and both `create-terminal-*` functions are deployed.
+Separately (unrelated to Standard vs Express), Apple's own Tap to Pay
+entitlement approval — granted 2026-08-19 — currently carries a "development
+distribution restriction": it only works on iPhones registered as test
+devices on the team's Apple Developer account, until the App Review
+Requirements Checklist + demo video are submitted and approved. That's the
+actual remaining gate on a full baker rollout, not the Connect account type.
+
+---
+
 ## Draft `SUPPORT_LOG.md` entry (add when the cutover runs)
 
 ```
