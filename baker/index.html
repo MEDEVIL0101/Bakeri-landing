@@ -1592,6 +1592,23 @@
         bakeriBridgePost({ type: 'select', blockType: 'identity' });
       }, { capture: true });
     }
+
+    // Custom-order-form takeover (profiles.storefront_listing_id) — when
+    // active this REPLACES the Menu block's position on the page (see
+    // renderFormStorefront, which hides #feed-heading/#filter-strip/#feed
+    // and shows this instead), so it needs its own tap target reported
+    // under its own pseudo-type rather than silently having nothing
+    // selectable where the baker's eye actually lands. Wired unconditionally
+    // (like every other target here) — reportAllRects below is what
+    // decides whether it's actually visible right now.
+    const formStorefront = document.getElementById('form-storefront');
+    if (formStorefront) {
+      formStorefront.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        bakeriBridgePost({ type: 'select', blockType: 'form' });
+      }, { capture: true });
+    }
   }
 
   function scheduleRectReport() {
@@ -1639,6 +1656,18 @@
     if (hero) {
       const b = hero.getBoundingClientRect();
       rects['identity'] = { x: b.left, y: b.top, width: b.width, height: b.height };
+    }
+    // Form-storefront takeover — only meaningfully "visible" (i.e. worth
+    // reporting) while it's actually the active mode; #form-storefront
+    // sits in the DOM at all times but stays .hidden otherwise, same as
+    // every other block here, so the existing hidden-check already does
+    // the right thing with no extra sfListing check needed.
+    const formStorefront = document.getElementById('form-storefront');
+    if (formStorefront && !formStorefront.classList.contains('hidden')) {
+      const b = formStorefront.getBoundingClientRect();
+      if (!(b.width === 0 && b.height === 0)) {
+        rects['form'] = { x: b.left, y: b.top, width: b.width, height: b.height };
+      }
     }
     bakeriBridgePost({ type: 'rects', rects: rects, scrollY: window.scrollY });
   }
