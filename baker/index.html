@@ -1258,6 +1258,32 @@
     } catch (e) {}
   }
 
+  // ══════════════════════ Preview mode ══════════════════════
+  //
+  // Used by the iOS block builder's live preview (StorefrontPreviewView) —
+  // loads this exact page (same CSS/JS, same rendering as the real public
+  // site — guaranteed no drift, since it IS the real site) but skips the
+  // network fetch entirely and waits for the native host to push the
+  // baker's in-progress DRAFT state instead of her last-published one.
+  // Everything below this block (render, renderFeed, etc.) is completely
+  // unchanged and unaware preview mode even exists — this only decides
+  // what calls render() and with what data.
+  const isPreviewMode = new URLSearchParams(location.search).get('preview') === '1';
+
+  window.__bakeriRenderPreview = function (payload) {
+    profile = payload.profile;
+    resolvedBakerId = profile.id || 'preview';
+    if (window.BakeriTheme) window.BakeriTheme.apply(profile);
+    render(profile, payload.listings || [], payload.faqs || [], payload.links || []);
+  };
+
+  if (isPreviewMode) {
+    loadCart();
+    // Native host calls window.__bakeriRenderPreview(...) once the WebView
+    // finishes loading, then again on every subsequent draft edit — no
+    // fetch, nothing left to do here until then.
+  } else {
+
   if (!slug && !bakerID) {
     showNotFound('No baker specified', 'This link appears to be invalid.');
     return;
@@ -1285,6 +1311,8 @@
     }
   })
   .catch(function () { showNotFound('Something went wrong', 'Could not load this profile. Try again later.'); });
+
+  } // end !isPreviewMode
 
   // ══════════════════════ Render ══════════════════════
 
@@ -1515,11 +1543,16 @@
   }
 
   function renderAvatar(name) {
-    const logoURL = assetURL('/business-logos/' + resolvedBakerId.toUpperCase() + '/logo.jpg');
+    // Preview mode (see __bakeriRenderPreview): a just-picked logo that
+    // hasn't been uploaded yet is passed as a data: URI override so the
+    // live preview reflects an in-progress edit, not last-published state.
+    const logoURL = (profile && profile.__preview_logo_data_url)
+      || assetURL('/business-logos/' + resolvedBakerId.toUpperCase() + '/logo.jpg');
     const initial = name.charAt(0).toUpperCase();
     const el = document.getElementById('pb-avatar');
     const letterEl = document.getElementById('pb-avatar-letter');
     letterEl.textContent = initial;
+    el.querySelectorAll('img').forEach(function (n) { n.remove(); }); // preview mode re-renders repeatedly
     const img = document.createElement('img');
     img.alt = name;
     img.onload = function () { img.style.display = 'block'; letterEl.style.display = 'none'; };
@@ -1540,7 +1573,8 @@
     img.alt = name;
     img.onerror = function () { header.classList.add('hidden'); hero.classList.remove('has-photo'); };
     img.onload = function () { header.classList.remove('hidden'); img.style.display = 'block'; hero.classList.add('has-photo'); };
-    img.src = assetURL('/storefront-headers/' + resolvedBakerId.toUpperCase() + '/header.jpg');
+    img.src = (profile && profile.__preview_header_data_url)
+      || assetURL('/storefront-headers/' + resolvedBakerId.toUpperCase() + '/header.jpg');
   }
 
   // Only renders if the baker has actually configured hours in the app (the
