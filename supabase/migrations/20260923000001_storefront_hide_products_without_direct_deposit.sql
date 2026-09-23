@@ -1,6 +1,13 @@
 -- Products only go live once the vendor has connected Direct Deposit
--- (Stripe Connect onboarding complete). Links, email capture and free
--- lead magnets don't depend on this — lead magnets are never
+-- (Stripe Connect onboarding complete) — for vendors who finished the new
+-- iOS setup flow (vendor_setup_completed_at after the 2026-09-23 00:00 UTC
+-- backfill marker, see 20260923000002). That flow is the only place a
+-- vendor is told Direct Deposit is required, so everyone else — existing
+-- shops, and anyone signing up on an older app build — keeps the previous
+-- behavior: products visible, ordering greyed out.
+--
+-- Links, email capture and free lead magnets don't depend on this — lead
+-- magnets are never
 -- is_listed_in_marketplace (see 20260920000007), so they're unaffected.
 --
 -- Money movement was already blocked pre-Stripe (see
@@ -14,7 +21,8 @@
 -- Direct Deposit is still pending.
 --
 -- Otherwise byte-identical to 20260921000001 — adds one condition to the
--- listings subquery of both RPCs, changes nothing else.
+-- listings subquery of both RPCs, changes nothing else. Must run after
+-- 20260923000002 (needs vendor_setup_completed_at).
 
 CREATE OR REPLACE FUNCTION public.get_baker_web_profile_by_slug(p_slug TEXT)
 RETURNS JSON
@@ -131,7 +139,11 @@ BEGIN
               OR EXISTS (
                   SELECT 1 FROM public.profiles sp
                   WHERE sp.id = m.user_id
-                    AND sp.stripe_connect_onboarding_complete
+                    AND (
+                        sp.stripe_connect_onboarding_complete
+                        OR sp.vendor_setup_completed_at IS NULL
+                        OR sp.vendor_setup_completed_at <= '2026-09-23 00:00:00+00'
+                    )
               )
           )
     ) l;
@@ -274,7 +286,11 @@ BEGIN
               OR EXISTS (
                   SELECT 1 FROM public.profiles sp
                   WHERE sp.id = m.user_id
-                    AND sp.stripe_connect_onboarding_complete
+                    AND (
+                        sp.stripe_connect_onboarding_complete
+                        OR sp.vendor_setup_completed_at IS NULL
+                        OR sp.vendor_setup_completed_at <= '2026-09-23 00:00:00+00'
+                    )
               )
           )
     ) l;
