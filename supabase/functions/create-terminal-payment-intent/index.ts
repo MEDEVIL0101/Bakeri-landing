@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { calcPlatformFeeCents, calcDirectChargeApplicationFee } from "../_shared/fees.ts";
+import { calcPlatformFeeCents, calcDirectChargeApplicationFee, STRIPE_FEE_ESTIMATE } from "../_shared/fees.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 
 // Creates a card_present PaymentIntent for an in-person Tap to Pay charge —
@@ -14,6 +14,15 @@ import { currencyForCountry } from "../_shared/currency.ts";
 // absorbs the single 5% cut — no doubling. Fee model mirrors pay-invoice-order
 // exactly (application_fee_amount shrunk via calcDirectChargeApplicationFee so
 // Bakeri, not the baker, eats the percentage-based Stripe fee on its own cut).
+//
+// Tips (2026-09-24): the baker keeps 100% of a tip. tip_cents is included in
+// amount_cents (it's one card charge) but excluded from the 5% platform-fee
+// base, and Bakeri also absorbs Stripe's estimated percentage fee on the tip
+// by shrinking application_fee_amount further — floored at 0, so on a tiny
+// sale with an outsized tip Bakeri's whole cut is the most it can cover.
+// Stripe's flat per-charge fee stays with the baker, same as every other
+// charge (see calcDirectChargeApplicationFee). The tip is capped at the
+// pre-tip sale amount so a sale can't be relabelled as a fee-free "tip".
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -22,6 +31,7 @@ const stripe = getStripeClient();
 
 interface RequestBody {
   amount_cents: number;
+  tip_cents?: number;
   order_id?: string;
   description?: string;
 }
@@ -58,10 +68,18 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { amount_cents, order_id, description }: RequestBody = await req.json();
+    const { amount_cents, tip_cents: rawTip, order_id, description }: RequestBody = await req.json();
 
-    if (!amount_cents || amount_cents <= 0) {
+    if (!amount_cents || amount_cents <= 0 || !Number.isInteger(amount_cents)) {
       throw new Error("Invalid amount");
+    }
+    const tip_cents = rawTip ?? 0;
+    if (!Number.isInteger(tip_cents) || tip_cents < 0) {
+      throw new Error("Invalid tip");
+    }
+    const saleCents = amount_cents - tip_cents;
+    if (saleCents <= 0 || tip_cents > saleCents) {
+      throw new Error("Tip can't be more than the sale amount");
     }
 
     const { data: baker } = await supabase
@@ -89,7 +107,12 @@ Deno.serve(async (req: Request) => {
       if (order.is_paid) throw new Error("This order is already paid");
     }
 
-    const platformFeeCents = calcPlatformFeeCents(amount_cents);
+    const platformFeeCents = calcPlatformFeeCents(saleCents);
+    const bakeriCoversTipStripeFee = Math.round(tip_cents * STRIPE_FEE_ESTIMATE.pct);
+    const applicationFeeCents = Math.max(
+      0,
+      calcDirectChargeApplicationFee(amount_cents, platformFeeCents) - bakeriCoversTipStripeFee,
+    );
 
     const metadata: Record<string, string> = {
       baker_id: user.id,
@@ -97,6 +120,7 @@ Deno.serve(async (req: Request) => {
     };
     if (order_id) metadata.order_id = order_id;
     if (description) metadata.description = description;
+    if (tip_cents > 0) metadata.tip_cents = String(tip_cents);
 
     const intent = await stripe.paymentIntents.create(
       {
@@ -104,7 +128,7 @@ Deno.serve(async (req: Request) => {
         currency: currencyForCountry(baker.country),
         payment_method_types: ["card_present"],
         capture_method: "automatic",
-        application_fee_amount: calcDirectChargeApplicationFee(amount_cents, platformFeeCents),
+        application_fee_amount: applicationFeeCents,
         metadata,
       },
       { stripeAccount: connectedAccountId }
@@ -115,6 +139,7 @@ Deno.serve(async (req: Request) => {
         payment_intent_id: intent.id,
         client_secret: intent.client_secret,
         amount_cents,
+        tip_cents,
         platform_fee_cents: platformFeeCents,
         stripe_connect_account_id: connectedAccountId,
       }),
