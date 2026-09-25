@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
     const { data: baker } = await supabase
       .from("profiles")
       .select(
-        "stripe_connect_account_id, stripe_connect_onboarding_complete, stripe_terminal_location_id, pickup_address, pickup_city, pickup_province, country, business_name"
+        "stripe_connect_account_id, stripe_connect_onboarding_complete, stripe_terminal_location_id, pickup_address, pickup_city, pickup_province, pickup_postal_code, country, business_name"
       )
       .eq("id", user.id)
       .single();
@@ -77,6 +77,7 @@ Deno.serve(async (req: Request) => {
             line1: baker.pickup_address || "",
             city: baker.pickup_city || "",
             state: baker.pickup_province || "",
+            postal_code: baker.pickup_postal_code || "",
             country: baker.country || "CA",
           },
         },
