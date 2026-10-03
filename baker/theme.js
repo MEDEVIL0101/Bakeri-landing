@@ -292,7 +292,10 @@ window.addEventListener('pageshow', function (event) {
     var themeName = (profile && profile.selected_theme) || 'Classic';
     var theme = THEMES[themeName] || THEMES['Classic'];
     var pattern = (profile && profile.background_pattern) || 'Standard';
-    var dark = isDarkMode();
+    // forceLight: the v2 storefront (next.html) has no dark mode — its
+    // cards are always white — so it pins the light palette regardless of
+    // the visitor's OS setting. Every other page omits it and is unchanged.
+    var dark = (opts && opts.forceLight) ? false : isDarkMode();
     var mode = dark ? 'dark' : 'light';
 
     var root = document.documentElement.style;
