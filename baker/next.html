@@ -166,6 +166,9 @@
       color: var(--head-ink); text-shadow: 0 1px 0 rgba(255,255,255,.6);
     }
     #sf-root.name-on-dark #shop-name { color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.45); }
+    /* A baker-chosen name colour (profile card → Titles) keeps a neutral
+       shadow so it stays legible on photos and patterns. */
+    #sf-root #shop-name.custom-color { text-shadow: 0 1px 2px rgba(0,0,0,.18), 0 0 18px rgba(255,255,255,.55) !important; }
     /* On a light PHOTO (not a flat theme colour) the handoff's 1px white
        shadow isn't enough against busy detail — a soft white halo is. */
     #sf-root.name-on-photo:not(.name-on-dark) #shop-name {
@@ -178,7 +181,7 @@
       border-radius: var(--r); box-shadow: var(--shadow-md);
       display: flex; flex-direction: column; gap: 12px;
     }
-    #shop-meta { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--card-title, var(--head-ink)); }
+    #shop-meta { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--card-text, var(--text)); }
     #shop-bio { margin: 0 0 6px; font-size: 16px; line-height: 1.55; text-wrap: pretty; white-space: pre-line; }
     #sf-nav { display: flex; flex-direction: column; gap: 10px; }
     #sf-nav:empty { display: none; }
@@ -307,23 +310,41 @@
     .sf-feature-buy .sf-price .from { font-size: 13px; margin-right: 6px; }
 
     /* ══════════════ 2. Lead magnet ══════════════ */
-    #sf-magnet {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 18px 24px; padding: var(--cpad2);
-      background: var(--card-bg, var(--tint)); border-radius: var(--r); box-shadow: var(--shadow-md); scroll-margin-top: 16px;
+    /* Rich capture card — shared by Free download (#sf-magnet) and the
+       mailing-list signup (#email-capture): optional picture, title, short
+       description, and the email form, side by side on wide screens and
+       stacked on phones. */
+    .sf-rich {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 18px 24px; padding: var(--cpad2) var(--cpad);
+      background: var(--card-bg, #fff); color: var(--card-text, var(--text));
+      border-radius: var(--r); box-shadow: var(--shadow-md); scroll-margin-top: 16px;
     }
-    #sf-magnet.hidden { display: none; }
-    #sf-magnet-thumb { width: 96px; height: 96px; border-radius: var(--rs); background: #fff; transform: rotate(-4deg); box-shadow: var(--shadow-md); overflow: hidden; flex: none; position: relative; }
-    #sf-magnet-thumb img { width: 100%; height: 100%; object-fit: cover; }
-    #sf-magnet-text { flex: 1 1 280px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-    #sf-magnet-text h3 { font-family: var(--display); font-weight: var(--dw); font-size: var(--h3m); line-height: 1.1; margin: 0; color: var(--card-title, var(--head-ink)); }
-    #sf-magnet-text p { margin: 0; font-size: 15px; line-height: 1.5; }
-    .sf-capture-form { flex: 1 1 320px; display: flex; gap: 8px; flex-wrap: wrap; }
+    #sf-magnet.sf-rich { background: var(--card-bg, var(--tint)); }
+    .sf-rich.hidden { display: none; }
+    .sf-rich-media {
+      width: 96px; height: 96px; border-radius: var(--rs); background: var(--n100); transform: rotate(-4deg);
+      box-shadow: var(--shadow-md); overflow: hidden; flex: none; position: relative;
+    }
+    .sf-rich-media:empty { display: none; }
+    .sf-rich-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .sf-rich-text { flex: 1 1 260px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .sf-rich-text h3 {
+      font-family: var(--display); font-weight: var(--dw); font-size: var(--h3m); line-height: 1.1; margin: 0;
+      color: var(--card-title, var(--head-ink)); overflow-wrap: anywhere;
+    }
+    .sf-rich-text p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--card-muted, var(--n800)); white-space: pre-line; }
+    .sf-rich-text p:empty { display: none; }
+    .sf-rich-action { flex: 1 1 300px; min-width: 0; display: flex; }
+    .sf-capture-form { width: 100%; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .sf-capture-form input {
-      flex: 1 1 180px; min-height: 50px; padding: 0 18px; background: #fff; border: 0; border-radius: var(--rp);
+      flex: 1 1 180px; min-width: 0; height: 50px; padding: 0 18px; background: #fff; border: 0; border-radius: var(--rp);
       font-size: 15px; color: var(--text); box-shadow: inset 0 0 0 1.5px var(--n300);
     }
     #sf-magnet .sf-capture-form input { box-shadow: none; }
-    .sf-capture-form .sf-btn { flex: 0 0 auto; min-height: 50px; padding: 0 20px; font-size: 15px; justify-content: center; }
+    /* Phones: email field and button each take the full width when stacked. */
+    #sf-root.compact .sf-capture-form input,
+    #sf-root.compact .sf-capture-form .sf-btn { flex: 1 1 100%; }
+    .sf-capture-form .sf-btn { flex: 0 0 auto; height: 50px; min-height: 0; padding: 0 22px; font-size: 15px; justify-content: center; }
     .sf-capture-status { flex-basis: 100%; font-size: 13px; color: var(--card-muted, var(--n800)); min-height: 0; }
     .sf-capture-status:empty { display: none; }
     .sf-capture-done {
@@ -371,7 +392,7 @@
     .sf-link-img { width: 96px; height: 72px; border-radius: var(--rs); background: var(--tint); background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 26px; }
     .sf-link-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .sf-link-title { font-size: 15px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
-    .sf-link-domain { font-size: 12px; color: var(--n700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sf-link-domain { font-size: 12px; color: var(--link-sub, var(--n700)); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sf-link.photo { display: flex; flex-direction: column; background: var(--n100); padding: 8px; gap: 10px; }
     .sf-link.photo .sf-link-img { width: 100%; height: auto; aspect-ratio: 16/10; font-size: 34px; }
     .sf-link.photo .sf-link-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 8px 6px; }
@@ -384,15 +405,14 @@
     .sf-link-label { min-width: 0; overflow-wrap: anywhere; }
     .sf-link.disabled { opacity: .45; pointer-events: none; }
     /* Stroke / glow / shake — on the link card itself, never the section card. */
-    .sf-link.outline-border { box-shadow: 0 0 0 2px var(--outline, var(--accent)); }
-    .sf-link.outline-glow { box-shadow: 0 0 0 2px var(--outline, var(--accent)), 0 0 18px 2px var(--outline-glow, var(--accent)); }
+    /* Border / glow are inline styles per link — see renderLinkRow. */
     @keyframes sf-shake {
       0%, 80%, 100% { transform: rotate(0); }
       83% { transform: rotate(-2deg); } 86% { transform: rotate(2deg); }
       89% { transform: rotate(-1.5deg); } 92% { transform: rotate(1.5deg); } 95% { transform: rotate(-.5deg); }
     }
-    .sf-link.shake { animation: sf-shake 3.2s ease-in-out infinite; }
-    @media (prefers-reduced-motion: reduce) { .sf-link.shake { animation: none; } }
+    .sf-link.shake, .sf-navbtn.shake { animation: sf-shake 3.2s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .sf-link.shake, .sf-navbtn.shake { animation: none; } }
 
     /* ══════════════ 6. About ══════════════ */
     #pb-about { display: flex; flex-wrap: wrap; }
@@ -428,8 +448,6 @@
     #sf-form-mount { padding: var(--cpad); }
 
     /* ══════════════ Email capture card ══════════════ */
-    #email-capture .sf-card-body { display: flex; flex-direction: column; gap: 14px; }
-    #email-capture .sf-card-body > p { font-size: 15px; line-height: 1.55; max-width: 64ch; }
 
     /* ══════════════ 8. Footer ══════════════ */
     #site-footer {
@@ -609,14 +627,14 @@
      (BuilderEditHints.containerIDs / tap-to-select) keep working when this
      page replaces it. Don't rename them without shipping the builder. -->
 
-<section id="sf-magnet" class="hidden" data-block="leadMagnet">
-  <div id="sf-magnet-thumb"></div>
-  <div id="sf-magnet-text">
+<section id="sf-magnet" class="sf-rich hidden" data-block="leadMagnet">
+  <div class="sf-rich-media" id="sf-magnet-thumb"></div>
+  <div class="sf-rich-text">
     <span class="sf-kicker">Free download</span>
     <h3 id="sf-magnet-title"></h3>
-    <p id="sf-magnet-body" class="hidden"></p>
+    <p id="sf-magnet-body"></p>
   </div>
-  <div id="sf-magnet-action" style="flex:1 1 320px;display:flex;"></div>
+  <div class="sf-rich-action" id="sf-magnet-action"></div>
 </section>
 
 <section id="feed" class="sf-card hidden" data-block="menu">
@@ -673,11 +691,13 @@
   </div>
 </section>
 
-<section id="email-capture" class="sf-card hidden" data-block="emailCapture">
-  <div class="sf-card-head">
-    <div class="titles"><h2 id="sf-capture-title"></h2></div>
+<section id="email-capture" class="sf-rich hidden" data-block="emailCapture">
+  <div class="sf-rich-media" id="sf-capture-media"></div>
+  <div class="sf-rich-text">
+    <h3 id="sf-capture-title"></h3>
+    <p id="sf-capture-desc"></p>
   </div>
-  <div class="sf-card-body" id="sf-capture-body"></div>
+  <div class="sf-rich-action" id="sf-capture-body"></div>
 </section>
 
 <footer id="site-footer">
@@ -1055,7 +1075,17 @@
     const bioEl = document.getElementById('shop-bio');
     bioEl.textContent = p.bio || '';
     bioEl.classList.toggle('hidden', !p.bio);
-    applyCardColors(document.getElementById('sf-intro-card'), design.identity && design.identity.colors);
+    // Profile card colours: background + buttons apply to the intro card;
+    // its TITLE colour is the shop name above it (the location line keeps
+    // the site's title colour).
+    const identityColors = (design.identity && design.identity.colors) || null;
+    const introCard = document.getElementById('sf-intro-card');
+    applyCardColors(introCard, identityColors);
+    introCard.style.removeProperty('--card-title');
+    const nameColor = identityColors && validHex(identityColors.title);
+    const nameEl = document.getElementById('shop-name');
+    nameEl.style.color = nameColor || '';
+    nameEl.classList.toggle('custom-color', !!nameColor);
     renderSocialIcons();
 
     renderLeadMagnet(p);
@@ -1288,6 +1318,22 @@
       const btn = document.createElement('a');
       btn.href = '#' + el.id;
       btn.className = 'sf-navbtn' + (first ? ' primary' : '');
+      // Each menu button: own fill, text colour, border (with its own
+      // colour) and shake — entry.nav_color / nav_text_color /
+      // nav_border + nav_border_color / nav_shake.
+      const navColor = validHex(c.nav_color);
+      const navText = validHex(c.nav_text_color);
+      if (navColor) {
+        btn.style.background = navColor;
+        btn.style.borderColor = navColor;
+      }
+      if (navText || navColor) btn.style.color = navText || readableOn(navColor);
+      if (c.nav_border === true) {
+        btn.style.borderColor = validHex(c.nav_border_color) || navText || 'currentColor';
+      } else if (c.nav_border === false && !navColor) {
+        btn.style.borderColor = 'transparent';
+      }
+      if (c.nav_shake === true) btn.classList.add('shake');
       btn.innerHTML = '<span>' + escapeHtml(label) + '</span>' + ARROW_SVG;
       btn.addEventListener('click', function (e) { e.preventDefault(); scrollToSection(el.id); });
       nav.appendChild(btn);
@@ -1404,6 +1450,12 @@
       el.style.setProperty('--card-text', darkBg ? '#ffffff' : '#201e1d');
       el.style.setProperty('--card-muted', darkBg ? 'rgba(255,255,255,.78)' : '#444141');
       el.style.setProperty('--card-line', darkBg ? 'rgba(255,255,255,.18)' : 'rgba(32,30,29,.12)');
+    }
+    const text = validHex(colors.text);
+    if (text) {
+      el.style.setProperty('--card-text', text);
+      const rgb = hexRgb(text);
+      el.style.setProperty('--card-muted', 'rgba(' + rgb.join(',') + ',.82)');
     }
     const title = validHex(colors.title);
     if (title) el.style.setProperty('--card-title', title);
@@ -1778,28 +1830,33 @@
     return { listingId: listingId, heading: heading, body: body };
   }
 
+  // The optional picture on a rich capture card (entry.image_url, uploaded
+  // from the builder); the Free download card falls back to its file's
+  // listing photo.
+  function fillRichMedia(box, url, fallbackUrl) {
+    box.innerHTML = '';
+    const src = url || fallbackUrl;
+    if (!src) return;
+    const img = document.createElement('img');
+    img.alt = '';
+    img.onload = function () { focusImage(img, null); };
+    img.onerror = function () {
+      if (fallbackUrl && img.src !== fallbackUrl && src !== fallbackUrl) { img.src = fallbackUrl; return; }
+      box.innerHTML = '';
+    };
+    img.src = src;
+    box.appendChild(img);
+  }
+
   function renderLeadMagnet() {
     const card = document.getElementById('sf-magnet');
     const cfg = leadMagnetConfig();
     if (!cfg.listingId) { card.classList.add('hidden'); return; }
     card.classList.remove('hidden');
     document.getElementById('sf-magnet-title').textContent = cfg.heading;
-    const bodyEl = document.getElementById('sf-magnet-body');
-    bodyEl.textContent = cfg.body;
-    bodyEl.classList.toggle('hidden', !cfg.body);
-
-    const thumb = document.getElementById('sf-magnet-thumb');
-    thumb.innerHTML = '';
-    const ph = photoFallback({ listing_kind: 'digital' });
-    thumb.appendChild(ph);
-    const img = document.createElement('img');
-    img.alt = '';
-    img.style.display = 'none';
-    img.style.position = 'absolute';
-    img.style.inset = '0';
-    img.onload = function () { focusImage(img, null); img.style.display = 'block'; ph.style.display = 'none'; };
-    img.src = itemImgURL({ id: String(cfg.listingId) });
-    thumb.appendChild(img);
+    document.getElementById('sf-magnet-body').textContent = cfg.body;
+    fillRichMedia(document.getElementById('sf-magnet-thumb'),
+      (blockCfg.leadMagnet || {}).image_url, itemImgURL({ id: String(cfg.listingId) }));
 
     const action = document.getElementById('sf-magnet-action');
     action.innerHTML = captureFormMarkup('magnet', 'Send it to me');
@@ -2145,11 +2202,34 @@
   function renderLinkRow(l) {
     const kind = l.style === 'photoCard' ? 'rich' : (l.style === 'richCard' ? 'photo' : 'pill');
     const classes = ['sf-link', kind];
-    if (l.outline_style === 'border') classes.push('outline-border');
-    if (l.outline_style === 'glow') classes.push('outline-glow');
     if (l.shake) classes.push('shake');
-    const oc = validHex(linkDesign(l).outline_color) || validHex(l.outline_color);
-    const style = oc ? ' style="--outline:' + oc + ';--outline-glow:' + oc + '99"' : '';
+    const ld = linkDesign(l);
+    // Border and glow are independent — either, both or neither — each with
+    // its own colour (storefront_design.links[id].border / .glow). Without
+    // a v2 setting, fall back to baker_links.outline_style (one or the other).
+    const legacyColor = validHex(ld.outline_color) || validHex(l.outline_color);
+    const hasBorder = typeof ld.border === 'boolean' ? ld.border : l.outline_style === 'border';
+    const hasGlow = typeof ld.glow === 'boolean' ? ld.glow : l.outline_style === 'glow';
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#201e1d';
+    const borderColor = validHex(ld.border_color) || legacyColor || validHex(accent) || '#201e1d';
+    const glowColor = validHex(ld.glow_color) || legacyColor || validHex(accent) || '#201e1d';
+    const fill = validHex(ld.background);
+    const ink = validHex(ld.text) || (fill ? readableOn(fill) : null);
+    const css = [];
+    const shadows = [];
+    if (hasBorder) {
+      if (kind === 'pill') css.push('border-color:' + borderColor);
+      else shadows.push('0 0 0 2px ' + borderColor);
+    }
+    if (hasGlow) {
+      const rgb = hexRgb(glowColor);
+      shadows.push('0 0 16px 3px rgba(' + rgb.join(',') + ',.65)');
+    }
+    if (shadows.length) css.push('box-shadow:' + shadows.join(','));
+    if (fill) css.push('background:' + fill);
+    if (fill && !hasBorder) css.push('border-color:' + fill);
+    if (ink) css.push('color:' + ink, '--link-sub:' + ink);
+    const style = css.length ? ' style="' + css.join(';') + '"' : '';
 
     const isFile = l.target_type === 'file' && l.url;
     const icon = isFile ? DOWNLOAD_SVG : (l.target_type === 'product' ? ARROW_SVG : ARROW_UR_SVG);
@@ -2215,8 +2295,8 @@
     return !!(hoursJSON && WEEKDAY_ORDER.some(function (k) { return hoursJSON[k] && hoursJSON[k].closed === false; }));
   }
 
-  function accordionHTML(title, body) {
-    return '<details class="sf-acc"><summary>' + escapeHtml(title) + PLUS_SVG + '</summary>' +
+  function accordionHTML(title, body, open) {
+    return '<details class="sf-acc"' + (open ? ' open' : '') + '><summary>' + escapeHtml(title) + PLUS_SVG + '</summary>' +
       '<div class="sf-acc-body">' + escapeHtml(body) + '</div></details>';
   }
 
@@ -2236,7 +2316,7 @@
 
     const pol = document.getElementById('pb-policies');
     pol.classList.toggle('hidden', !hasPol);
-    pol.innerHTML = hasPol ? accordionHTML('Store policies', p.store_policies) : '';
+    pol.innerHTML = hasPol ? accordionHTML('Store policies', p.store_policies, true) : '';
 
     const faq = document.getElementById('faq-col');
     faq.classList.toggle('hidden', !hasFaq);
@@ -2321,16 +2401,18 @@
     if (!heading || leadFromCapture) { card.classList.add('hidden'); return; }
     card.classList.remove('hidden');
     document.getElementById('sf-capture-title').textContent = cardTitle('emailCapture');
-    const body = (p.email_capture_body || '').trim();
+    document.getElementById('sf-capture-desc').textContent = (p.email_capture_body || '').trim();
+    fillRichMedia(document.getElementById('sf-capture-media'), (blockCfg.emailCapture || {}).image_url, null);
     const wrap = document.getElementById('sf-capture-body');
     if (p.email_capture_display_style === 'popup') {
-      wrap.innerHTML = (body ? '<p>' + escapeHtml(body) + '</p>' : '') +
-        '<div><button type="button" class="sf-btn" id="email-capture-open" style="display:inline-flex;gap:14px;">Join the list ' + ARROW_SVG + '</button></div>';
+      wrap.innerHTML = '<button type="button" class="sf-btn" id="email-capture-open" style="gap:14px;">Join the list ' + ARROW_SVG + '</button>';
       document.getElementById('email-capture-open').addEventListener('click', function () { openCaptureSheet('popup'); });
       return;
     }
-    wrap.innerHTML = (body ? '<p>' + escapeHtml(body) + '</p>' : '') + captureFormMarkup('inline-capture', 'Join');
-    wireCaptureForm(document.getElementById('inline-capture-form'), 'inline');
+    wrap.innerHTML = captureFormMarkup('inline-capture', 'Join');
+    wireCaptureForm(document.getElementById('inline-capture-form'), 'inline', null, function () {
+      wrap.innerHTML = '<div class="sf-capture-done">' + CHECK_SVG + '<span>You\'re on the list — thank you!</span></div>';
+    });
   }
 
   function renderHeaderSignupButton(p) {
