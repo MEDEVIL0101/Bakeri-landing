@@ -265,7 +265,7 @@
     .sf-tile-name { font-size: 15px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .sf-tile-meta { font-size: 12px; color: var(--card-muted, var(--n700)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .sf-price-row { margin-top: auto; padding-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .sf-price { font-size: 18px; font-weight: 800; color: var(--card-text, var(--text)); }
+    .sf-price { font-size: 18px; font-weight: 800; color: var(--card-title, var(--head-ink)); }
     .sf-price .from { font-size: 12px; font-weight: 600; margin-right: 4px; color: var(--card-muted, var(--n700)); }
     .sf-price:has(.orig) { color: var(--sale); }
     .orig { text-decoration: line-through; color: var(--n700); font-weight: 400; margin-right: 6px; font-size: .8em; }
@@ -381,6 +381,9 @@
     .sf-dl-add.added { background: var(--tint); border-color: var(--tint); color: var(--head-ink); }
 
     /* ══════════════ 5. Links ══════════════ */
+    /* A link's glow may spill past the card edge rather than being cut off. */
+    #links-feed { overflow: visible; }
+    #links-feed .sf-card-head { border-radius: var(--r) var(--r) 0 0; }
     .sf-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--ggap); align-items: start; }
     .sf-link { position: relative; border-radius: var(--r); text-decoration: none; color: var(--text); font: inherit; text-align: left; border: 0; cursor: pointer; }
     .sf-link.pill { border-radius: var(--rp); }
@@ -1075,14 +1078,15 @@
     const bioEl = document.getElementById('shop-bio');
     bioEl.textContent = p.bio || '';
     bioEl.classList.toggle('hidden', !p.bio);
-    // Profile card colours: background + buttons apply to the intro card;
-    // its TITLE colour is the shop name above it (the location line keeps
-    // the site's title colour).
+    // Profile card colours (background, text, buttons) apply to the intro
+    // card. The shop name above it uses the site-wide Titles & prices colour
+    // (design.colors.ink) — when the baker has set one it wins even over a
+    // dark photo, otherwise the name adapts to the background.
     const identityColors = (design.identity && design.identity.colors) || null;
     const introCard = document.getElementById('sf-intro-card');
     applyCardColors(introCard, identityColors);
     introCard.style.removeProperty('--card-title');
-    const nameColor = identityColors && validHex(identityColors.title);
+    const nameColor = validHex(design.colors && design.colors.ink);
     const nameEl = document.getElementById('shop-name');
     nameEl.style.color = nameColor || '';
     nameEl.classList.toggle('custom-color', !!nameColor);
@@ -1655,6 +1659,21 @@
         bakeriBridgePost({ type: 'select', blockType: builderTypeFor(card, e.target) });
       }, { capture: true });
     });
+    if (isBuilderV2) {
+      // The profile is the logo, shop name and intro card; a tap anywhere
+      // else that isn't a card (the page background, the gaps between
+      // cards) opens the site-wide Design sheet.
+      document.addEventListener('click', function (e) {
+        const t = e.target;
+        if (!t || !t.closest) return;
+        if (t.closest('[data-block]') || t.closest('.scrim') || t.closest('#bk-layer, .bk-box, .bk-pill')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const isProfile = t.closest('#sf-intro-card, #pb-avatar, #shop-name');
+        bakeriBridgePost({ type: 'select', blockType: isProfile ? 'identity' : 'design' });
+      }, { capture: true });
+      return;
+    }
     const hero = document.getElementById('profile-block');
     if (hero) {
       hero.addEventListener('click', function (e) {
@@ -2223,7 +2242,9 @@
     }
     if (hasGlow) {
       const rgb = hexRgb(glowColor);
-      shadows.push('0 0 16px 3px rgba(' + rgb.join(',') + ',.65)');
+      // Two layers: a tight bright halo plus a wide soft one, so the glow
+      // reads on any card colour.
+      shadows.push('0 0 6px 2px rgba(' + rgb.join(',') + ',.9)', '0 0 22px 6px rgba(' + rgb.join(',') + ',.6)');
     }
     if (shadows.length) css.push('box-shadow:' + shadows.join(','));
     if (fill) css.push('background:' + fill);
@@ -2450,23 +2471,30 @@
     box.appendChild(ph);
     const img = document.createElement('img');
     img.alt = item.name || '';
-    img.loading = 'lazy';
+    // No loading="lazy": the img stays display:none until it loads, and
+    // Safari/WKWebView never lazy-loads an image that isn't laid out — the
+    // photo would never appear in the iOS builder.
     img.onload = function () { focusImage(img, itemFocus(item)); img.style.display = 'block'; ph.style.display = 'none'; };
     img.src = itemImgURL(item);
     box.appendChild(img);
   }
 
+  // Only stock status gets a badge. The kind (Ships, Pre-order, Custom…)
+  // isn't labelled: the cards already group items by kind.
   function tileBadge(item) {
-    if (item.listing_kind === 'physical') {
-      if (isSoldOut(item)) return 'Sold out';
-      const n = item.lead_days || 3;
-      return 'Ships in ' + n + ' day' + (n === 1 ? '' : 's');
-    }
-    if (item.listing_kind === 'digital') return 'Instant download';
-    if (item.listing_kind === 'preorder') return 'Pre-order';
-    if (item.listing_kind === 'custom') return 'Custom';
-    if (isSoldOut(item)) return 'Sold out today';
-    return 'Ready now';
+    if (!isSoldOut(item)) return null;
+    if (item.listing_kind === 'preorder') return 'Ordering closed';
+    if (item.listing_kind === 'ready_now') return 'Sold out today';
+    return 'Sold out';
+  }
+
+  function appendTileBadge(photo, item) {
+    const text = tileBadge(item);
+    if (!text) return;
+    const badge = document.createElement('span');
+    badge.className = 'sf-badge';
+    badge.textContent = text;
+    photo.appendChild(badge);
   }
 
   function buildTile(item) {
@@ -2477,10 +2505,7 @@
     const photo = document.createElement('div');
     photo.className = 'sf-tile-img';
     appendPhoto(photo, item);
-    const badge = document.createElement('span');
-    badge.className = 'sf-badge';
-    badge.textContent = tileBadge(item);
-    photo.appendChild(badge);
+    appendTileBadge(photo, item);
 
     const body = document.createElement('div');
     body.className = 'sf-tile-body';
@@ -2540,10 +2565,7 @@
     const photo = document.createElement('div');
     photo.className = 'sf-feature-img';
     appendPhoto(photo, item);
-    const badge = document.createElement('span');
-    badge.className = 'sf-badge';
-    badge.textContent = tileBadge(item);
-    photo.appendChild(badge);
+    appendTileBadge(photo, item);
     photo.addEventListener('click', function () { openItemSheet(item); });
 
     const info = document.createElement('div');
