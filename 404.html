@@ -21,6 +21,13 @@
   <script>
     (function () {
       var path = window.location.pathname.replace(/^\/+|\/+$/g, '');
+      // Vendor web app (bakeriapp.com/app/…, a client-side-routed React
+      // app built from webapp/): bounce any deep link to its index with
+      // the original path + query in ?r=, which app/index.html restores.
+      if (path.indexOf('app/') === 0) {
+        window.location.replace('/app/?r=' + encodeURIComponent(window.location.pathname.slice(4) + window.location.search) + window.location.hash);
+        return;
+      }
       // Case-insensitive on purpose — profile_slug lookups are always
       // lowercased (see baker/index.html), but this plausibility check used
       // to reject any path with an uppercase letter outright, so a link
