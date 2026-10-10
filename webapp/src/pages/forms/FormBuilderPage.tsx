@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IPhoneFrame } from '../../components/IPhoneFrame';
+import { SortableList } from '../../components/Sortable';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
 import { Button, ConfirmModal, ErrorBanner, Input, Modal, Select, Spinner, Textarea, useLoad, useToast } from '../../components/ui';
@@ -32,7 +33,6 @@ function Builder({ initial, menu, userId }: { initial: { id: string; title: stri
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
   const baseline = useRef(JSON.stringify({ title: initial?.title ?? '', fields: initial?.fields ?? starterFields() }));
   const dirty = JSON.stringify({ title, fields }) !== baseline.current || !initial;
 
@@ -44,13 +44,6 @@ function Builder({ initial, menu, userId }: { initial: { id: string; title: stri
   }, [dirty]);
 
   const update = (fid: string, p: Partial<FormField>) => setFields((fs) => fs.map((f) => (f.id === fid ? { ...f, ...p } : f)));
-  const move = (from: number, to: number) => setFields((fs) => {
-    if (to < 0 || to >= fs.length || from === to) return fs;
-    const next = [...fs];
-    const [x] = next.splice(from, 1);
-    next.splice(to, 0, x);
-    return next;
-  });
 
   function insert(type: FieldType, at: number) {
     const f = blankField(type);
@@ -94,29 +87,27 @@ function Builder({ initial, menu, userId }: { initial: { id: string; title: stri
           </div>
 
           <AddBar onClick={() => setAdding(0)} />
-          {fields.map((f, i) => (
-            <div key={f.id}
-              className={`fb-drop ${dragFrom !== null && dragFrom !== i ? 'droppable' : ''}`}
-              onDragOver={(e) => { if (dragFrom !== null) e.preventDefault(); }}
-              onDrop={() => { if (dragFrom !== null) move(dragFrom, i); setDragFrom(null); }}>
-              <FieldCard
-                field={f} index={i} all={fields} menu={menu}
-                open={selected === f.id}
-                onOpen={() => setSelected(selected === f.id ? null : f.id)}
-                onChange={(p) => update(f.id, p)}
-                onMove={(dir) => move(i, i + dir)}
-                onDuplicate={() => {
-                  const copy = { ...structuredClone(f), id: newId(), product_options: f.product_options.map((p) => ({ ...p, id: swiftUUID() })) };
-                  setFields((fs) => [...fs.slice(0, i + 1), copy, ...fs.slice(i + 1)]);
-                  setSelected(copy.id);
-                }}
-                onDelete={() => setFields((fs) => fs.filter((x) => x.id !== f.id).map((x) => (x.condition_field_id === f.id ? { ...x, condition_field_id: null, condition_values: [] } : x)))}
-                onDragStart={() => setDragFrom(i)}
-                onDragEnd={() => setDragFrom(null)}
-              />
-              <AddBar onClick={() => setAdding(i + 1)} />
-            </div>
-          ))}
+          <SortableList items={fields} keyOf={(f) => f.id} onReorder={setFields} className="fb-list"
+            renderRow={(f, handle) => {
+              const i = fields.indexOf(f);
+              return (
+                <>
+                  <FieldCard
+                    field={f} index={i} all={fields} menu={menu} handle={handle}
+                    open={selected === f.id}
+                    onOpen={() => setSelected(selected === f.id ? null : f.id)}
+                    onChange={(p) => update(f.id, p)}
+                    onDuplicate={() => {
+                      const copy = { ...structuredClone(f), id: newId(), product_options: f.product_options.map((p) => ({ ...p, id: swiftUUID() })) };
+                      setFields((fs) => [...fs.slice(0, i + 1), copy, ...fs.slice(i + 1)]);
+                      setSelected(copy.id);
+                    }}
+                    onDelete={() => setFields((fs) => fs.filter((x) => x.id !== f.id).map((x) => (x.condition_field_id === f.id ? { ...x, condition_field_id: null, condition_values: [] } : x)))}
+                  />
+                  <AddBar onClick={() => setAdding(i + 1)} />
+                </>
+              );
+            }} />
           {!fields.length && <p className="muted center small">No questions yet — add one above.</p>}
         </div>
 
@@ -155,11 +146,10 @@ function AddBar({ onClick }: { onClick: () => void }) {
 }
 
 function FieldCard({
-  field: f, index, all, menu, open, onOpen, onChange, onMove, onDuplicate, onDelete, onDragStart, onDragEnd,
+  field: f, index, all, menu, handle, open, onOpen, onChange, onDuplicate, onDelete,
 }: {
-  field: FormField; index: number; all: FormField[]; menu: MenuItemFull[]; open: boolean; onOpen: () => void;
-  onChange: (p: Partial<FormField>) => void; onMove: (dir: -1 | 1) => void; onDuplicate: () => void; onDelete: () => void;
-  onDragStart: () => void; onDragEnd: () => void;
+  field: FormField; index: number; all: FormField[]; menu: MenuItemFull[]; handle: ReactNode; open: boolean; onOpen: () => void;
+  onChange: (p: Partial<FormField>) => void; onDuplicate: () => void; onDelete: () => void;
 }) {
   const triggers = useMemo(() => all.slice(0, index).filter((x) => isTriggerType(x.field_type)), [all, index]);
   const trigger = triggers.find((t) => t.id === f.condition_field_id);
@@ -169,7 +159,7 @@ function FieldCard({
   return (
     <div className={`fb-card ${open ? 'open' : ''}`}>
       <div className="fb-card-head" onClick={onOpen}>
-        <span className="drag-handle" draggable onDragStart={(e) => { e.stopPropagation(); onDragStart(); }} onDragEnd={onDragEnd} title="Drag to reorder" aria-hidden>⋮⋮</span>
+        {handle}
         <span className="type-chip">{fieldTypeLabel(f.field_type)}</span>
         <span className="grow ellipsis fb-card-label">{f.label || <span className="muted">Untitled</span>}</span>
         {f.is_required && isAnswerField(f.field_type) && <span className="req-dot" title="Required">Required</span>}
@@ -232,8 +222,6 @@ function FieldCard({
           )}
 
           <div className="fb-card-actions">
-            <button type="button" className="link-btn small" onClick={() => onMove(-1)}>Move up</button>
-            <button type="button" className="link-btn small" onClick={() => onMove(1)}>Move down</button>
             <button type="button" className="link-btn small" onClick={onDuplicate}>Duplicate</button>
             <button type="button" className="link-btn small danger-text" onClick={onDelete}>Delete</button>
           </div>

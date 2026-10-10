@@ -5,12 +5,13 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode
  * (not HTML5 drag-and-drop) so it works the same with a mouse and with a
  * finger on iOS; arrow keys on a focused handle move the row too.
  */
-export function SortableList<T>({ items, keyOf, onReorder, renderRow, className }: {
+export function SortableList<T>({ items, keyOf, onReorder, renderRow, className, itemClassName }: {
   items: T[];
   keyOf: (item: T) => string;
   onReorder: (next: T[]) => void;
   renderRow: (item: T, handle: ReactNode) => ReactNode;
   className?: string;
+  itemClassName?: (item: T) => string;
 }) {
   const listRef = useRef<HTMLUListElement>(null);
   const drag = useRef<{ from: number; startY: number; mids: number[]; tops: number[]; heights: number[] } | null>(null);
@@ -39,9 +40,12 @@ export function SortableList<T>({ items, keyOf, onReorder, renderRow, className 
     if (!d) return;
     const dy = e.clientY - d.startY;
     const center = d.mids[d.from] + dy;
+    // Swap once the dragged row is halfway past a neighbour's near edge, not
+    // its middle, so a tall (expanded) neighbour doesn't need a long drag.
+    const reach = (k: number) => Math.min(d.heights[k], d.heights[d.from]) / 2;
     let to = d.from;
-    while (to < d.mids.length - 1 && center > d.mids[to + 1]) to++;
-    while (to > 0 && center < d.mids[to - 1]) to--;
+    while (to < d.mids.length - 1 && center > d.tops[to + 1] + reach(to + 1)) to++;
+    while (to > 0 && center < d.tops[to - 1] + d.heights[to - 1] - reach(to - 1)) to--;
     setState({ from: d.from, to, dy });
   }
 
@@ -68,6 +72,7 @@ export function SortableList<T>({ items, keyOf, onReorder, renderRow, className 
         const dragging = state?.from === i;
         const handle = (
           <button type="button" className="drag-handle" aria-label="Drag to reorder (or use arrow keys)"
+            onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => onPointerDown(i, e)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
             onKeyDown={(e: KeyboardEvent) => {
               if (e.key === 'ArrowUp') { e.preventDefault(); move(i, i - 1); }
@@ -77,7 +82,7 @@ export function SortableList<T>({ items, keyOf, onReorder, renderRow, className 
           </button>
         );
         return (
-          <li key={keyOf(item)} className={dragging ? 'is-dragging' : ''}
+          <li key={keyOf(item)} className={`${itemClassName?.(item) ?? ''} ${dragging ? 'is-dragging' : ''}`}
             style={{ transform: `translateY(${dragging ? state!.dy : shiftFor(i)}px)` }}>
             {renderRow(item, handle)}
           </li>

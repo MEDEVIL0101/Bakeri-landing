@@ -89,38 +89,6 @@ function CardColorFields({ value, onChange }: { value: CardColors; onChange: (c:
 
 // ── Cards list ────────────────────────────────────────────────────────────
 
-export function CardsEditor(props: EditorProps & { onOpen: (t: V2CardType) => void }) {
-  const { design, setDesign } = useDesign(props);
-  const blocks = design.blocks ?? [];
-  function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= blocks.length) return;
-    const next = [...blocks];
-    [next[i], next[j]] = [next[j], next[i]];
-    setDesign({ blocks: next });
-  }
-  return (
-    <Section title="Cards" hint="Your profile card always comes first. Reorder, hide, or click a card to edit it.">
-      <ul className="block-list">
-        {blocks.map((b, i) => (
-          <li key={b.type} className={b.hidden ? 'is-hidden' : ''}>
-            <span className="reorder">
-              <button type="button" className="icon-btn sm" aria-label="Move up" onClick={() => move(i, -1)}>↑</button>
-              <button type="button" className="icon-btn sm" aria-label="Move down" onClick={() => move(i, 1)}>↓</button>
-            </span>
-            <button type="button" className="grow link-btn left" onClick={() => props.onOpen(b.type)}>
-              <span className="row-title">{b.title || v2DefaultTitle(b.type, props.data.firstName)}</span>
-              <span className="row-sub">{V2_CARDS.find((c) => c.type === b.type)?.label}</span>
-            </button>
-            <input type="checkbox" className="switch" aria-label="Show card" checked={!b.hidden}
-              onChange={(e) => setDesign({ blocks: blocks.map((x, j) => (j === i ? { ...x, hidden: !e.target.checked } : x)) })} />
-          </li>
-        ))}
-      </ul>
-    </Section>
-  );
-}
-
 // ── One card's settings ───────────────────────────────────────────────────
 
 export function CardSettings(props: EditorProps & { type: V2CardType }) {

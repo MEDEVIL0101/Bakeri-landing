@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import { SortableList } from '../../components/Sortable';
 import { Button, ErrorBanner, Field, Input, Select, Textarea, Toggle } from '../../components/ui';
 import { compressImage } from '../../lib/menu';
 import { STORAGE_PUBLIC_URL } from '../../lib/supabase';
 import { up } from '../../lib/format';
 import {
   BLOCK_LABELS, PATTERNS, SOCIAL_PLATFORMS, THEMES, WEEK_DAYS, blobToDataURL, newFAQ, newLink, uploadBuilderImage,
-  type BlockType, type Link, type LinkDesign, type StorefrontData, type StorefrontDraft,
+  type Link, type LinkDesign, type StorefrontData, type StorefrontDraft,
 } from '../../lib/storefront';
 
 export interface EditorProps {
@@ -121,46 +122,6 @@ export function ThemeEditor({ draft, set }: EditorProps) {
   );
 }
 
-// ── Layout (v1 block order / visibility) ──────────────────────────────────
-
-export function LayoutEditor({ draft, set, onOpen }: EditorProps & { onOpen: (t: BlockType) => void }) {
-  const blocks = draft.storefront_block_layout;
-  const hasEmailCapture = blocks.some((b) => b.type === 'emailCapture');
-  function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= blocks.length) return;
-    const next = [...blocks];
-    [next[i], next[j]] = [next[j], next[i]];
-    set({ storefront_block_layout: next });
-  }
-  return (
-    <Section title="Sections" hint="Your profile always comes first. Reorder, hide, or click a section to edit it.">
-      <ul className="block-list">
-        {blocks.map((b, i) => (
-          <li key={b.type} className={b.hidden ? 'is-hidden' : ''}>
-            <span className="reorder">
-              <button type="button" className="icon-btn sm" aria-label="Move up" onClick={() => move(i, -1)}>↑</button>
-              <button type="button" className="icon-btn sm" aria-label="Move down" onClick={() => move(i, 1)}>↓</button>
-            </span>
-            <button type="button" className="grow link-btn left" onClick={() => onOpen(b.type)}>
-              <span className="row-title">{BLOCK_LABELS[b.type]}</span>
-            </button>
-            <label className="small muted eye">
-              <input type="checkbox" className="switch" checked={!b.hidden}
-                onChange={(e) => set({ storefront_block_layout: blocks.map((x, j) => (j === i ? { ...x, hidden: !e.target.checked } : x)) })} />
-            </label>
-          </li>
-        ))}
-      </ul>
-      {!hasEmailCapture && (
-        <Button type="button" variant="secondary" onClick={() => set({ storefront_block_layout: [...blocks, { type: 'emailCapture', hidden: false }] })}>
-          + Add a mailing list signup
-        </Button>
-      )}
-    </Section>
-  );
-}
-
 export function ListingsInfo({ kind }: { kind: 'menu' | 'physical' | 'digital' | 'form' }) {
   const text = {
     menu: 'Your menu shows every food item listed on your storefront.',
@@ -186,14 +147,8 @@ export function LinksEditor({ draft, set, data, userId, v2 }: EditorProps) {
   function update(id: string, patch: Partial<Link>) {
     set({ links: draft.links.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
   }
-  function move(id: string, dir: -1 | 1) {
-    const ids = others.map((l) => l.id);
-    const i = ids.indexOf(id);
-    const j = i + dir;
-    if (j < 0 || j >= ids.length) return;
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    const byId = new Map(draft.links.map((l) => [l.id, l]));
-    set({ links: [...draft.links.filter(isSocial), ...ids.map((x) => byId.get(x)!)] });
+  function reorder(next: Link[]) {
+    set({ links: [...draft.links.filter(isSocial), ...next] });
   }
   function add() {
     const l = newLink(sections[0] ?? 'My Links');
@@ -204,14 +159,11 @@ export function LinksEditor({ draft, set, data, userId, v2 }: EditorProps) {
   return (
     <Section title="Links" hint="Buttons and cards linking to your other pages, products or anything else. Social icons live under Profile.">
       {others.length === 0 && <p className="small muted">No links yet.</p>}
-      <ul className="block-list">
-        {others.map((l) => (
-          <li key={l.id} className="link-item">
+      <SortableList items={others} keyOf={(l) => l.id} onReorder={reorder} className="block-list" itemClassName={() => 'link-item'}
+        renderRow={(l, handle) => (
+          <>
             <div className="link-head">
-              <span className="reorder">
-                <button type="button" className="icon-btn sm" aria-label="Move up" onClick={() => move(l.id, -1)}>↑</button>
-                <button type="button" className="icon-btn sm" aria-label="Move down" onClick={() => move(l.id, 1)}>↓</button>
-              </span>
+              {handle}
               <button type="button" className="grow link-btn left" onClick={() => setOpen(open === l.id ? null : l.id)}>
                 <span className="row-title">{l.label || 'Untitled link'}</span>
                 <span className="row-sub">{l.target_type === 'product' ? `Product · ${data.menuItems.find((m) => m.id === l.linked_listing_id)?.name ?? 'choose one'}` : l.url || 'No link yet'}</span>
@@ -219,9 +171,8 @@ export function LinksEditor({ draft, set, data, userId, v2 }: EditorProps) {
               <button type="button" className="icon-btn sm" aria-label="Remove link" onClick={() => set({ links: draft.links.filter((x) => x.id !== l.id) })}>×</button>
             </div>
             {open === l.id && <LinkForm link={l} sections={sections} update={(p) => update(l.id, p)} data={data} userId={userId} v2={v2} draft={draft} set={set} />}
-          </li>
-        ))}
-      </ul>
+          </>
+        )} />
       <Button type="button" variant="secondary" onClick={add}>+ Add a link</Button>
     </Section>
   );

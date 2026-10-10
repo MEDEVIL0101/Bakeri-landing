@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
 import { Badge, EmptyState, ErrorBanner, Input, PageHeader, Spinner, useLoad, useToast } from '../../components/ui';
+import { SortableList } from '../../components/Sortable';
 import { kindLabel, listMenuItems, menuImageURL, reorderMenu, setListed, setStock, type MenuItemFull } from '../../lib/menu';
 import { formatMoney } from '../../lib/format';
 
@@ -25,6 +26,8 @@ export function MenuPage() {
       .filter((m) => filter === 'all' || (filter === 'listed' ? m.is_listed_in_marketplace : !m.is_listed_in_marketplace))
       .filter((m) => !term || m.name.toLowerCase().includes(term) || m.category.toLowerCase().includes(term));
   }, [data, filter, q]);
+  // Reorder only on the full, unfiltered list (a filtered view would scramble hidden rows).
+  const canReorder = filter === 'all' && !q.trim();
 
   async function toggleListed(m: MenuItemFull) {
     const next = !m.is_listed_in_marketplace;
@@ -53,12 +56,7 @@ export function MenuPage() {
     try { await setStock(m, qty); toast('Stock updated'); reload(); } catch (e: any) { toast(e.message, 'error'); }
   }
 
-  async function move(m: MenuItemFull, dir: -1 | 1) {
-    const list = [...(data ?? [])];
-    const i = list.findIndex((x) => x.id === m.id);
-    const j = i + dir;
-    if (j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j], list[i]];
+  async function reorder(list: MenuItemFull[]) {
     setData(list.map((x, idx) => ({ ...x, sort_order: idx })));
     try { await reorderMenu(list); } catch (e: any) { toast(e.message, 'error'); reload(); }
   }
@@ -93,15 +91,10 @@ export function MenuPage() {
           <EmptyState title={q ? 'No listings match' : 'No listings yet'} body={!q ? 'Add what you sell — baked goods, pre-orders, custom orders, products and downloads.' : undefined}
             action={!q && <Link to="/menu/new" className="btn btn-primary">New listing</Link>} />
         ) : (
-          <ul className="list">
-            {rows.map((m) => (
-              <li key={m.id} className="list-row menu-row">
-                {filter === 'all' && !q && (
-                  <span className="reorder">
-                    <button className="icon-btn sm" aria-label="Move up" onClick={() => move(m, -1)}>↑</button>
-                    <button className="icon-btn sm" aria-label="Move down" onClick={() => move(m, 1)}>↓</button>
-                  </span>
-                )}
+          <SortableList items={rows} keyOf={(m) => m.id} onReorder={reorder} className="list" itemClassName={() => 'list-row menu-row'}
+            renderRow={(m, handle) => (
+              <>
+                {canReorder && handle}
                 <Link to={`/menu/${m.id}`} className="thumb">
                   {m.has_image ? <img src={menuImageURL(m)} alt="" loading="lazy" /> : <span className="thumb-empty">{m.name.slice(0, 1)}</span>}
                 </Link>
@@ -123,9 +116,8 @@ export function MenuPage() {
                   <span className="small muted">{m.is_listed_in_marketplace ? 'Listed' : 'Hidden'}</span>
                   <input type="checkbox" className="switch" checked={m.is_listed_in_marketplace} onChange={() => toggleListed(m)} />
                 </label>
-              </li>
-            ))}
-          </ul>
+              </>
+            )} />
         )}
       </div>
     </div>

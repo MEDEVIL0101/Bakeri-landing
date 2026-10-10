@@ -3,19 +3,19 @@ import { useUserId } from '../../auth/AuthProvider';
 import { Button, ConfirmModal, ErrorBanner, Spinner, useLoad, useToast } from '../../components/ui';
 import {
   changedSections, clearLocalDraft, loadLocalDraft, loadStorefront, previewPayload, publishStorefront, saveLocalDraft,
-  type BlockType, type StorefrontData, type StorefrontDraft, type V2CardType,
+  type StorefrontData, type StorefrontDraft, type V2CardType,
 } from '../../lib/storefront';
 import { PreviewFrame } from './PreviewFrame';
 import { HomeSections } from './HomeSections';
 import {
-  AboutEditor, FAQEditor, HoursEditor, LayoutEditor, LinksEditor, ListingsInfo, MailingEditor, PoliciesEditor,
+  AboutEditor, FAQEditor, HoursEditor, LinksEditor, ListingsInfo, MailingEditor, PoliciesEditor,
   ProfileEditor, ThemeEditor, type EditorProps,
 } from './Editors';
-import { CardSettings, CardsEditor, DesignEditor } from './V2Editors';
+import { CardSettings, DesignEditor } from './V2Editors';
 
 type Panel =
-  | 'home' | 'profile' | 'theme' | 'layout' | 'links' | 'about' | 'faq' | 'policies' | 'hours' | 'mailing'
-  | 'menu' | 'physical' | 'digital' | 'form' | 'design' | 'cards' | `card:${V2CardType}`;
+  | 'home' | 'profile' | 'theme' | 'links' | 'about' | 'faq' | 'policies' | 'hours' | 'mailing'
+  | 'menu' | 'physical' | 'digital' | 'form' | 'design' | `card:${V2CardType}`;
 
 /** Where a tap in the preview should land in the editor. */
 function panelForTap(blockType: string, v2: boolean): Panel {
@@ -94,7 +94,6 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
   switch (panel) {
     case 'profile': editor = <ProfileEditor {...props} />; break;
     case 'theme': editor = <ThemeEditor {...props} />; break;
-    case 'layout': editor = <LayoutEditor {...props} onOpen={(t: BlockType) => setPanel(panelForTap(t, false))} />; break;
     case 'links': editor = <LinksEditor {...props} />; break;
     case 'about': editor = <AboutEditor {...props} />; break;
     case 'faq': editor = <FAQEditor {...props} />; break;
@@ -103,7 +102,6 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
     case 'mailing': editor = <MailingEditor {...props} />; break;
     case 'menu': case 'physical': case 'digital': case 'form': editor = <ListingsInfo kind={panel} />; break;
     case 'design': editor = <DesignEditor {...props} />; break;
-    case 'cards': editor = <CardsEditor {...props} onOpen={(t) => setPanel(`card:${t}`)} />; break;
     case 'home': editor = null; break;
     default: {
       const t = panel.slice(5) as V2CardType;
