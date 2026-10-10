@@ -354,7 +354,7 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .preview-toolbar { display: flex; justify-content: center; padding: 10px; }
 .preview-stage { position: relative; flex: 1; min-height: 0; display: flex; justify-content: center; padding: 0 16px 16px; }
 .preview-frame { border: 0; background: #fff; width: 100%; height: 100%; border-radius: 12px; box-shadow: var(--shadow); }
-.preview-stage.phone .preview-frame { max-width: 390px; border-radius: 28px; border: 8px solid #1a130f; }
+.preview-stage.phone .preview-frame { border-radius: 0; box-shadow: none; }
 .preview-loading { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
 
 .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; gap: 2px; }
@@ -510,11 +510,11 @@ textarea.input { resize: vertical; line-height: 1.5; }
 
 .fb-preview { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 8px; }
 .fb-preview-label { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: center; }
-.fb-phone { border-radius: 32px; border: 10px solid #1a130f; background: #fff; height: min(760px, calc(100vh - 120px)); overflow: auto; box-shadow: 0 20px 50px rgba(26,19,15,.18); }
+.fb-phone { height: min(880px, calc(100vh - 160px)); }
 @media (max-width: 1080px) {
   .form-builder { grid-template-columns: 1fr; }
   .fb-preview { position: static; }
-  .fb-phone { height: auto; max-height: 640px; }
+  .fb-phone { height: min(720px, 85vh); }
 }
 .pv { padding: 22px 18px 28px; display: flex; flex-direction: column; gap: 14px; font-size: 14px; }
 .pv-title { font-size: 20px; font-weight: 700; text-align: center; }
@@ -832,3 +832,25 @@ img, svg, video { max-width: 100%; }
   .stepper input { font-size: 16px; }
 }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* ── iPhone 18 Pro preview frame (components/IPhoneFrame.tsx) ── */
+.iphone-fit { width: 100%; height: 100%; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.iphone-slot { position: relative; flex: none; }
+.iphone { position: absolute; top: 0; left: 0; transform-origin: 0 0; box-sizing: border-box; padding: 12px; border-radius: 70px;
+  background: linear-gradient(145deg, #4a4643, #1c1a19 40%, #2b2826 70%, #4d4946);
+  box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.18), inset 0 0 0 4px #0c0b0b, 0 30px 60px rgba(26,19,15,.22), 0 6px 16px rgba(26,19,15,.14); }
+.iphone-btn { position: absolute; width: 4px; border-radius: 2px; background: #3a3634; }
+.iphone-btn.action { left: -3px; top: 170px; height: 34px; }
+.iphone-btn.vol-up { left: -3px; top: 228px; height: 62px; }
+.iphone-btn.vol-down { left: -3px; top: 304px; height: 62px; }
+.iphone-btn.power { right: -3px; top: 260px; height: 98px; }
+.iphone-btn.camera { right: -2px; top: 560px; height: 70px; width: 3px; background: #2b2826; }
+.iphone-screen { position: relative; overflow: hidden; border-radius: 58px; background: #fff; display: flex; flex-direction: column; isolation: isolate; }
+.iphone-status { flex: none; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 6px 34px 0 46px; color: #000; background: #fff; font: 600 17px/1 -apple-system, "SF Pro Text", system-ui, sans-serif; letter-spacing: -.01em; }
+.iphone-icons { display: flex; align-items: center; gap: 6px; }
+.iphone-icons svg { fill: currentColor; display: block; }
+.iphone-island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 96px; height: 30px; border-radius: 15px; background: #000; }
+.iphone-content { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.iphone-content::-webkit-scrollbar { display: none; }
+.iphone-content > iframe { display: block; width: 100%; height: 100%; border: 0; }
+.iphone-home { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 140px; height: 5px; border-radius: 3px; background: rgba(0,0,0,.82); pointer-events: none; z-index: 2; }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Spinner } from '../../components/ui';
+import { IPhoneFrame } from '../../components/IPhoneFrame';
 
 /**
  * The real public storefront page in preview mode (?preview=1), fed the
@@ -67,7 +68,9 @@ export function PreviewFrame({ src, payload, onSelect, device }: {
   return (
     <div className={`preview-stage ${device}`}>
       {!ready && <div className="preview-loading"><Spinner label="Loading preview…" /></div>}
-      <iframe key={src} ref={ref} src={src} title="Storefront preview" onLoad={onLoad} className="preview-frame" />
+      {device === 'phone'
+        ? <IPhoneFrame><iframe key={src} ref={ref} src={src} title="Storefront preview" onLoad={onLoad} className="preview-frame" /></IPhoneFrame>
+        : <iframe key={src} ref={ref} src={src} title="Storefront preview" onLoad={onLoad} className="preview-frame" />}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { IPhoneFrame } from '../../components/IPhoneFrame';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
 import { Button, ConfirmModal, ErrorBanner, Input, Modal, Select, Spinner, Textarea, useLoad, useToast } from '../../components/ui';
@@ -122,7 +123,7 @@ function Builder({ initial, menu, userId }: { initial: { id: string; title: stri
         <aside className="fb-preview">
           <div className="fb-preview-label">Customer view</div>
           <div className="fb-phone">
-            <FormPreview title={title} fields={fields} highlight={selected} onSelect={setSelected} />
+            <IPhoneFrame><FormPreview title={title} fields={fields} highlight={selected} onSelect={setSelected} /></IPhoneFrame>
           </div>
         </aside>
       </div>
