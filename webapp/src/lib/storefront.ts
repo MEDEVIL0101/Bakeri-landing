@@ -381,7 +381,16 @@ export function seedV2Blocks(v1: LayoutBlock[], deliverableListingId: string | n
 }
 
 export function ensureDesign(d: StorefrontDraft): StorefrontDesign {
-  if (d.storefront_design?.blocks?.length) return d.storefront_design;
+  const stored = d.storefront_design?.blocks;
+  if (stored?.length) {
+    // next.html appends any card type the saved list omits, visible, at the
+    // end (resolveDesignBlocks) — list them the same way so the builder
+    // matches the page.
+    const missing = V2_DEFAULT_ORDER.filter((t) => !stored.some((b) => b.type === t));
+    return missing.length
+      ? { ...d.storefront_design, blocks: [...stored, ...missing.map((type) => ({ type, hidden: false }))] }
+      : d.storefront_design!;
+  }
   return {
     ...(d.storefront_design ?? {}),
     blocks: seedV2Blocks(d.storefront_block_layout, d.email_capture_deliverable_listing_id, d.email_capture_heading, d.email_capture_body),

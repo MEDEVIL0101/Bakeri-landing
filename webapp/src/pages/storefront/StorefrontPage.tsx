@@ -6,6 +6,7 @@ import {
   type BlockType, type StorefrontData, type StorefrontDraft, type V2CardType,
 } from '../../lib/storefront';
 import { PreviewFrame } from './PreviewFrame';
+import { HomeSections } from './HomeSections';
 import {
   AboutEditor, FAQEditor, HoursEditor, LayoutEditor, LinksEditor, ListingsInfo, MailingEditor, PoliciesEditor,
   ProfileEditor, ThemeEditor, type EditorProps,
@@ -15,31 +16,6 @@ import { CardSettings, CardsEditor, DesignEditor } from './V2Editors';
 type Panel =
   | 'home' | 'profile' | 'theme' | 'layout' | 'links' | 'about' | 'faq' | 'policies' | 'hours' | 'mailing'
   | 'menu' | 'physical' | 'digital' | 'form' | 'design' | 'cards' | `card:${V2CardType}`;
-
-const V1_SECTIONS: { panel: Panel; label: string; sub: string }[] = [
-  { panel: 'profile', label: 'Profile', sub: 'Logo, header photo, name, bio, social links' },
-  { panel: 'theme', label: 'Theme', sub: 'Colours and background pattern' },
-  { panel: 'layout', label: 'Sections', sub: 'Order and visibility' },
-  { panel: 'links', label: 'Links', sub: 'Buttons and link cards' },
-  { panel: 'about', label: 'About', sub: 'Your story and portrait' },
-  { panel: 'faq', label: 'FAQ', sub: 'Questions and answers' },
-  { panel: 'policies', label: 'Store policies', sub: 'What customers should know' },
-  { panel: 'hours', label: 'Pickup hours', sub: 'When customers can collect' },
-  { panel: 'mailing', label: 'Mailing list', sub: 'Email signup and free download' },
-];
-
-const V2_SECTIONS: { panel: Panel; label: string; sub: string }[] = [
-  { panel: 'design', label: 'Design', sub: 'Colours, font, corners, background' },
-  { panel: 'profile', label: 'Profile card', sub: 'Logo, header photo, name, bio, social links' },
-  { panel: 'theme', label: 'Theme', sub: 'Base colours and pattern' },
-  { panel: 'cards', label: 'Cards', sub: 'Order, visibility, titles, menu buttons' },
-  { panel: 'links', label: 'Links', sub: 'Buttons and link cards' },
-  { panel: 'about', label: 'About', sub: 'Your story and portrait' },
-  { panel: 'faq', label: 'FAQ', sub: 'Questions and answers' },
-  { panel: 'policies', label: 'Store policies', sub: 'What customers should know' },
-  { panel: 'hours', label: 'Pickup hours', sub: 'When customers can collect' },
-  { panel: 'mailing', label: 'Mailing list', sub: 'Email signup settings' },
-];
 
 /** Where a tap in the preview should land in the editor. */
 function panelForTap(blockType: string, v2: boolean): Panel {
@@ -140,8 +116,6 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
     }
   }
 
-  const sections = v2 ? V2_SECTIONS : V1_SECTIONS;
-
   return (
     <div className="builder">
       <header className="builder-bar">
@@ -175,17 +149,8 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
         <aside className="builder-panel">
           {panel === 'home' ? (
             <>
-              <p className="small muted">Click anything in the preview to edit it, or pick a section.</p>
-              <ul className="section-list">
-                {sections.map((s) => (
-                  <li key={s.panel}>
-                    <button className="section-btn" onClick={() => setPanel(s.panel)}>
-                      <span className="row-title">{s.label}{changes.includes(sectionChangeName(s.panel)) ? <span className="dot-dirty" aria-label="unpublished changes" /> : null}</span>
-                      <span className="row-sub">{s.sub}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <p className="small muted">{narrow ? 'Tap a section to edit it.' : 'Click a section here or in the preview to edit it.'} Drag ⠿ to reorder.</p>
+              <HomeSections v2={v2} props={props} changes={changes} open={(p) => setPanel(p as Panel)} />
             </>
           ) : (
             <>
@@ -230,9 +195,3 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
   );
 }
 
-function sectionChangeName(p: Panel): string {
-  return ({
-    profile: 'Profile', theme: 'Theme', layout: 'Layout', links: 'Links', about: 'About', faq: 'FAQ', policies: 'Policies',
-    hours: 'Pickup hours', mailing: 'Mailing list', design: 'New design', cards: 'New design',
-  } as Record<string, string>)[p] ?? '';
-}

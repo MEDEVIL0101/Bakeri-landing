@@ -866,3 +866,29 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .iphone-content::-webkit-scrollbar { display: none; }
 .iphone-content > iframe { display: block; width: 100%; height: 100%; border: 0; }
 .iphone-home { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 140px; height: 5px; border-radius: 3px; background: rgba(0,0,0,.82); pointer-events: none; z-index: 2; }
+
+/* ── Builder home: page blocks in live order (pages/storefront/HomeSections.tsx) ── */
+.home-sections { display: flex; flex-direction: column; gap: 22px; }
+.home-group { display: flex; flex-direction: column; gap: 6px; }
+.home-group-title { margin: 0 0 4px; font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.sortable { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sortable > li { position: relative; transition: transform .18s ease; }
+.sortable.is-sorting { user-select: none; -webkit-user-select: none; }
+.sortable > li.is-dragging { transition: none; z-index: 2; }
+.sortable > li.is-dragging .block-row { box-shadow: 0 10px 28px rgba(26,19,15,.16); border-color: var(--ink); }
+.block-row { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 58px; padding: 6px 12px 6px 4px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); text-align: left; font: inherit; color: inherit; }
+button.block-row { cursor: pointer; padding-left: 12px; }
+button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink); }
+.block-row .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.block-open { border: 0; background: none; padding: 6px 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.block-open:hover .row-title { text-decoration: underline; text-underline-offset: 3px; }
+.block-row.is-hidden .row-title, .block-row.is-hidden .drag-handle { opacity: .5; }
+.block-row.is-hidden .row-sub { font-style: italic; }
+.block-row.pinned { background: var(--surface-2); border-style: dashed; }
+.block-row .pin { width: 28px; display: grid; place-items: center; color: var(--muted); margin-left: -8px; }
+.drag-handle { flex: none; width: 32px; height: 44px; display: grid; place-items: center; border: 0; background: none; color: var(--muted); cursor: grab; touch-action: none; border-radius: 8px; }
+.drag-handle:hover, .drag-handle:focus-visible { color: var(--ink); background: var(--surface-2); }
+.is-sorting .drag-handle { cursor: grabbing; }
+.chev { flex: none; color: var(--muted); }
+.add-block { margin-top: 2px; padding: 12px; border: 1.5px dashed var(--line); border-radius: var(--radius-sm); background: none; font: inherit; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.add-block:hover { border-color: var(--ink); color: var(--ink); }
