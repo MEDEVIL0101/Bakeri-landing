@@ -162,8 +162,15 @@ export async function loadStorefront(userId: string): Promise<StorefrontData> {
   const faqs = check(faqsRes) as FAQ[];
   const rpc = (rpcRes.data ?? {}) as any;
 
-  const layout: LayoutBlock[] = Array.isArray(p.storefront_block_layout) && p.storefront_block_layout.length
+  let layout: LayoutBlock[] = Array.isArray(p.storefront_block_layout) && p.storefront_block_layout.length
     ? p.storefront_block_layout : DEFAULT_LAYOUT;
+  // The live page shows the signup whenever it has a heading, even when the
+  // layout array doesn't list it — and since every listed block is moved
+  // after it, it ends up first. Mirror that so the builder shows what
+  // visitors see (and saving pins it there explicitly).
+  if ((p.email_capture_heading ?? '').trim() && !layout.some((b) => b.type === 'emailCapture')) {
+    layout = [{ type: 'emailCapture', hidden: false }, ...layout];
+  }
 
   const draft: StorefrontDraft = {
     business_name: p.business_name ?? '',

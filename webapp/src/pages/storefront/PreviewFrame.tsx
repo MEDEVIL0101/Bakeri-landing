@@ -48,6 +48,11 @@ export function PreviewFrame({ src, payload, onSelect, device }: {
           },
         },
       };
+      // Keep scrolling inside the preview — without this, reaching its top or
+      // bottom hands the gesture to the builder page and the whole UI lurches.
+      const st = w.document.createElement('style');
+      st.textContent = 'html, body { overscroll-behavior: contain; }';
+      w.document.head.appendChild(st);
     } catch {
       // Cross-origin (shouldn't happen on bakeriapp.com) — preview still renders, taps just don't select.
     }

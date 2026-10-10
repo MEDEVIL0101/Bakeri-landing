@@ -393,11 +393,23 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .hours-times { display: flex; align-items: center; gap: 6px; }
 .hours-times .input { width: 112px; }
 
+.builder-mobile-switch { display: none; }
 @media (max-width: 1000px) {
   .builder { height: auto; }
   .builder-body { grid-template-columns: 1fr; }
-  .builder-panel { border-right: 0; border-bottom: 1px solid var(--line); }
-  .builder-preview { height: 80vh; }
+  .builder-panel { border-right: 0; overflow: visible; }
+  .builder-mobile-switch { display: flex; align-self: center; margin: 10px auto 0; }
+  .builder-mobile-switch button { min-width: 96px; }
+  .builder-body.show-edit .builder-preview { display: none; }
+  /* Preview: fill exactly the space between the top bar and the tab bar, so
+     only the storefront scrolls — never the page around it. */
+  .builder:has(.show-preview) { height: calc(100dvh - 52px - 72px - env(safe-area-inset-bottom)); min-height: 0; }
+  .builder-body.show-preview { flex: 1; min-height: 0; }
+  .builder-body.show-preview .builder-panel { display: none; }
+  .builder-body.show-preview .builder-preview { height: 100%; }
+  .builder-preview .preview-toolbar { display: none; }
+  .builder-preview .preview-stage { padding: 10px 0 0; }
+  .builder-preview .preview-frame { border-radius: 0; box-shadow: none; }
 }
 @media (max-width: 900px) {
   .builder { min-height: calc(100vh - 57px); }

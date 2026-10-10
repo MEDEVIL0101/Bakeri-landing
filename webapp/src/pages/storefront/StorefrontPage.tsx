@@ -68,6 +68,18 @@ export function StorefrontPage() {
   return <Builder key={data.updatedAt} data={data} userId={userId} reload={reload} />;
 }
 
+const NARROW_QUERY = '(max-width: 1000px)';
+function useNarrow() {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_QUERY);
+    const h = () => setNarrow(mq.matches);
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+  }, []);
+  return narrow;
+}
+
 function Builder({ data, userId, reload }: { data: StorefrontData; userId: string; reload: () => void }) {
   const toast = useToast();
   const [draft, setDraft] = useState<StorefrontDraft>(() => loadLocalDraft(userId, data.updatedAt) ?? data.draft);
@@ -76,6 +88,10 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
   const [device, setDevice] = useState<'phone' | 'desktop'>(() => (readPref('bakeri.builder.device', 'phone') === 'desktop' ? 'desktop' : 'phone'));
   const [confirming, setConfirming] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  // Phone-width screens: edit and preview take turns full-screen instead of
+  // stacking (an iframe scrolling inside a scrolling page is clunky on iOS).
+  const narrow = useNarrow();
+  const [mobileView, setMobileView] = useState<'edit' | 'preview'>('edit');
 
   const set = useCallback((patch: Partial<StorefrontDraft>) => setDraft((d) => ({ ...d, ...patch })), []);
   const changes = useMemo(() => changedSections(draft, data.published), [draft, data.published]);
@@ -150,7 +166,12 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
         </div>
       )}
 
-      <div className="builder-body">
+      <div className="seg builder-mobile-switch" role="tablist" aria-label="View">
+        <button role="tab" aria-selected={mobileView === 'edit'} className={mobileView === 'edit' ? 'active' : ''} onClick={() => setMobileView('edit')}>Edit</button>
+        <button role="tab" aria-selected={mobileView === 'preview'} className={mobileView === 'preview' ? 'active' : ''} onClick={() => setMobileView('preview')}>Preview</button>
+      </div>
+
+      <div className={`builder-body show-${mobileView}`}>
         <aside className="builder-panel">
           {panel === 'home' ? (
             <>
@@ -181,7 +202,8 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
               <button className={device === 'desktop' ? 'active' : ''} onClick={() => { setDevice('desktop'); writePref('bakeri.builder.device', 'desktop'); }}>Desktop</button>
             </div>
           </div>
-          <PreviewFrame src={src} payload={payload} device={device} onSelect={(bt) => setPanel(panelForTap(bt, v2))} />
+          <PreviewFrame src={src} payload={payload} device={narrow ? 'desktop' : device}
+            onSelect={(bt) => { setPanel(panelForTap(bt, v2)); if (narrow) setMobileView('edit'); }} />
         </section>
       </div>
 
