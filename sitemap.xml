@@ -16,6 +16,11 @@
     <priority>0.3</priority>
   </url>
   <url>
+    <loc>https://bakeriapp.com/vendor-terms.html</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://bakeriapp.com/accessibility.html</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
