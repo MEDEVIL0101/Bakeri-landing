@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Field, Input, Select, Textarea, Toggle, ErrorBanner } from '../../components/ui';
+import { useRef, useState } from 'react';
+import { Button, Field, Input, Modal, Select, Textarea, Toggle, ErrorBanner } from '../../components/ui';
+import { menuImageURL } from '../../lib/menu';
 import {
   V2_CARDS, V2_FONTS, ensureDesign, uploadBuilderImage, v2DefaultTitle,
-  type CardColors, type StorefrontDesign, type V2Block, type V2CardType,
+  type CardColors, type FocusPoint, type StorefrontData, type StorefrontDesign, type V2Block, type V2CardType,
 } from '../../lib/storefront';
 import { ColorField, PhotoPicker, Section, type EditorProps } from './Editors';
 
@@ -168,7 +169,92 @@ export function CardSettings(props: EditorProps & { type: V2CardType }) {
       <Section title="Card colours">
         <CardColorFields value={block.colors ?? {}} onChange={(c) => upd({ colors: c })} />
       </Section>
+      {(props.type === 'menu' || props.type === 'products') && <PhotoFocusSection {...props} type={props.type} />}
       {err && <ErrorBanner message={err} />}
     </>
+  );
+}
+
+// ── Photo focus ───────────────────────────────────────────────────────────
+
+type BuilderItem = StorefrontData['menuItems'][number];
+
+/**
+ * "Tap the subject" for each listing photo this card shows, like the app's
+ * PHOTO FOCUS section. Stored in storefront_design.focus.items[listingId]
+ * (lowercased id); next.html crops every tile/photo around it.
+ */
+function PhotoFocusSection(props: EditorProps & { type: 'menu' | 'products' }) {
+  const { design, setDesign } = useDesign(props);
+  const [editing, setEditing] = useState<BuilderItem | null>(null);
+  const items = props.data.menuItems.filter((m) => m.has_image && (props.type === 'menu'
+    ? m.is_listed_in_marketplace && ['ready_now', 'preorder', 'custom'].includes(m.listing_kind)
+    : ['physical', 'digital'].includes(m.listing_kind) && !m.is_lead_magnet));
+  if (!items.length) return null;
+  const all = design.focus?.items ?? {};
+  const setPoint = (item: BuilderItem, p: FocusPoint | null) => {
+    const next = { ...all };
+    if (p) next[item.id.toLowerCase()] = p; else delete next[item.id.toLowerCase()];
+    const focus = { ...(design.focus ?? {}), items: Object.keys(next).length ? next : undefined };
+    if (!focus.items) delete focus.items;
+    setDesign({ focus: Object.keys(focus).length ? focus : undefined });
+  };
+  return (
+    <Section title="Photo focus" hint="Photos are cropped to fit. Tap the subject so it stays in frame on every screen size.">
+      <ul className="focus-list">
+        {items.map((m) => (
+          <li key={m.id}>
+            <button type="button" className="focus-row" onClick={() => setEditing(m)}>
+              <img src={menuImageURL(m)} alt="" />
+              <span className="grow ellipsis">{m.name}</span>
+              <span className="small muted">{all[m.id.toLowerCase()] ? 'Set' : 'Automatic'}</span>
+              <span className="chev" aria-hidden>›</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {editing && (
+        <FocalPointModal title={editing.name} src={menuImageURL(editing)} point={all[editing.id.toLowerCase()] ?? null}
+          onSave={(p) => { setPoint(editing, p); setEditing(null); }} onClose={() => setEditing(null)} />
+      )}
+    </Section>
+  );
+}
+
+const round1 = (v: number) => Math.round(Math.max(0, Math.min(100, v)) * 10) / 10;
+
+/** Tap or drag on the photo to place the focal point; previews show how tiles crop around it. */
+export function FocalPointModal({ title, src, point, onSave, onClose }: {
+  title: string; src: string; point: FocusPoint | null; onSave: (p: FocusPoint | null) => void; onClose: () => void;
+}) {
+  const [p, setP] = useState<FocusPoint | null>(point);
+  const box = useRef<HTMLDivElement>(null);
+  const place = (e: React.PointerEvent) => {
+    const r = box.current!.getBoundingClientRect();
+    setP({ x: round1(((e.clientX - r.left) / r.width) * 100), y: round1(((e.clientY - r.top) / r.height) * 100) });
+  };
+  const pos = p ? `${p.x}% ${p.y}%` : '50% 50%';
+  return (
+    <Modal title="Photo focus" wide onClose={onClose}
+      footer={<>
+        <Button variant="ghost" className="mr-auto" onClick={() => onSave(null)} disabled={!point && !p}>Use automatic</Button>
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={() => onSave(p)} disabled={!p}>Save</Button>
+      </>}>
+      <p className="small muted">Tap the subject of <strong>{title}</strong> — it stays in frame however the photo is cropped.</p>
+      <div className="focal-stage">
+        <div className="focal-photo" ref={box}
+          onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); place(e); }}
+          onPointerMove={(e) => { if (e.buttons) place(e); }}>
+          <img src={src} alt="" draggable={false} />
+          {p && <span className="focal-dot" style={{ left: `${p.x}%`, top: `${p.y}%` }} />}
+        </div>
+      </div>
+      <div className="focal-previews" aria-label="Crop previews">
+        <figure><div className="focal-crop sq"><img src={src} alt="" style={{ objectPosition: pos }} /></div><figcaption>Tile</figcaption></figure>
+        <figure><div className="focal-crop wide"><img src={src} alt="" style={{ objectPosition: pos }} /></div><figcaption>Wide</figcaption></figure>
+        <figure><div className="focal-crop tall"><img src={src} alt="" style={{ objectPosition: pos }} /></div><figcaption>Tall</figcaption></figure>
+      </div>
+    </Modal>
   );
 }

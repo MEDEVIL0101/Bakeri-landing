@@ -60,6 +60,7 @@ export interface V2Block {
   heading?: string;
   body?: string;
 }
+export interface FocusPoint { x: number; y: number }
 export interface LinkDesign { background?: string; text?: string; border?: boolean; border_color?: string; glow?: boolean; glow_color?: string }
 export interface StorefrontDesign {
   blocks?: V2Block[];
@@ -68,7 +69,8 @@ export interface StorefrontDesign {
   corners?: string;
   background?: { mode?: 'theme' | 'image_top' | 'image_full'; color?: string; image_url?: string; focus?: { x: number; y: number } };
   identity?: { colors?: CardColors };
-  focus?: unknown;
+  /** Photo focal points, {x, y} in % — read by next.html focusPosition(). items is keyed by lowercased listing id. */
+  focus?: { about?: FocusPoint; logo?: FocusPoint; items?: Record<string, FocusPoint>; [k: string]: unknown };
   links?: Record<string, LinkDesign>;
 }
 
@@ -123,7 +125,7 @@ export interface StorefrontData {
   /** Public profile as the storefront page receives it (promo banner etc.). */
   publicProfile: Record<string, unknown>;
   listings: any[];
-  menuItems: { id: string; name: string; listing_kind: string; is_listed_in_marketplace: boolean; is_lead_magnet: boolean }[];
+  menuItems: { id: string; user_id: string; name: string; listing_kind: string; is_listed_in_marketplace: boolean; is_lead_magnet: boolean; has_image: boolean; updated_at: string }[];
   slug: string | null;
   firstName: string;
   updatedAt: string;
@@ -153,7 +155,7 @@ export async function loadStorefront(userId: string): Promise<StorefrontData> {
       .eq('user_id', userId).is('deleted_at', null).order('sort_order'),
     supabase.from('baker_faqs').select('id, question, answer').eq('user_id', userId).is('deleted_at', null).order('sort_order'),
     supabase.rpc('get_baker_web_profile_by_id', { p_user_id: userId }),
-    supabase.from('menu_items').select('id, name, listing_kind, is_listed_in_marketplace, is_lead_magnet').eq('user_id', userId).is('deleted_at', null).order('sort_order'),
+    supabase.from('menu_items').select('id, user_id, name, listing_kind, is_listed_in_marketplace, is_lead_magnet, has_image, updated_at').eq('user_id', userId).is('deleted_at', null).order('sort_order'),
   ]);
   const p = check(profileRes) as any;
   const links = (check(linksRes) as any[]).map((l) => ({

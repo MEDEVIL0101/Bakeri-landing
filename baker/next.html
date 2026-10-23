@@ -296,18 +296,18 @@
       font: 700 14px var(--body); color: var(--text); cursor: pointer;
     }
 
-    /* ── Single-item feature layout (any card with exactly one item) ── */
-    .sf-feature { display: flex; flex-wrap: wrap; gap: var(--cpad); }
-    .sf-feature-img { flex: 1 1 340px; min-height: 300px; position: relative; border-radius: var(--rs); overflow: hidden; background: var(--tint); cursor: pointer; }
-    .sf-feature-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
-    .sf-feature-info { flex: 1 1 280px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-    .sf-feature-info h3 { font-size: var(--h3); line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
-    .sf-feature-meta { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--card-muted, var(--n800)); }
-    .sf-feature-desc { font-size: 15px; line-height: 1.55; color: var(--card-muted, var(--n800)); white-space: pre-line;
-      display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; overflow: hidden; }
-    .sf-feature-buy { margin-top: auto; padding-top: 12px; display: flex; flex-direction: column; gap: 12px; }
-    .sf-feature-buy .sf-price { font-size: 30px; letter-spacing: -.02em; }
-    .sf-feature-buy .sf-price .from { font-size: 13px; margin-right: 6px; }
+    /* ── Single item: the regular tile laid out side by side (photo left,
+       details right), like the current storefront's product row. ── */
+    .sf-tile-wide { flex-direction: row; align-items: stretch; gap: 16px; }
+    .sf-tile-wide .sf-tile-img { flex: 0 0 42%; max-width: 300px; align-self: flex-start; }
+    .sf-tile-wide .sf-tile-body { gap: 6px; padding: 2px 0; }
+    .sf-tile-wide .sf-tile-name { font-size: 18px; }
+    .sf-tile-wide .sf-tile-meta { font-size: 13px; }
+    .sf-tile-desc { font-size: 13.5px; line-height: 1.45; color: var(--card-muted, var(--n700)); white-space: pre-line;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .sf-tile-wide .sf-price-row { padding-top: 10px; justify-content: flex-start; gap: 16px; }
+    .sf-tile-wide .sf-price { font-size: 18px; }
+    @media (min-width: 560px) { .sf-tile-wide .sf-tile-name { font-size: 20px; } .sf-tile-desc { -webkit-line-clamp: 5; } }
 
     /* ══════════════ 2. Lead magnet ══════════════ */
     /* Rich capture card — shared by Free download (#sf-magnet) and the
@@ -993,7 +993,7 @@
 
   // ══════════════════════ Render (storefront v2) ══════════════════════
   //
-  // Everything from here to buildTile/buildFeature is the v2 "Profile
+  // Everything from here to buildTile/buildWideTile is the v2 "Profile
   // layout" — see STOREFRONT_V2_SPEC.md and the Claude Design handoff. The
   // cart / item sheet / pickers / checkout code below it is carried over
   // from index.html unchanged.
@@ -1299,7 +1299,6 @@
   const ARROW_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>';
   const ARROW_UR_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>';
   const DOWNLOAD_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';
-  const CLOCK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
   const PLUS_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="flex:none"><path d="M12 5v14M5 12h14"/></svg>';
   const CHECK_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><polyline points="20 6 9 17 4 12"/></svg>';
 
@@ -1934,7 +1933,7 @@
       document.getElementById('filter-strip').innerHTML = '';
       const body = document.getElementById('product-grid');
       body.innerHTML = '';
-      body.appendChild(buildFeature(items[0]));
+      body.appendChild(buildWideTile(items[0]));
       return;
     }
     renderFilterBar();
@@ -2041,7 +2040,7 @@
     chips.innerHTML = '';
     if (!physicalShown()) { wrap.classList.add('hidden'); return; }
     wrap.classList.remove('hidden');
-    if (items.length === 1) { wrap.appendChild(buildFeature(items[0])); return; }
+    if (items.length === 1) { wrap.appendChild(buildWideTile(items[0])); return; }
 
     const groups = groupByCategory(items, 'Ships to You');
     if (groups.length > 1) {
@@ -2096,7 +2095,7 @@
     if (!physOn && items.length === 1) {
       const body = document.createElement('div');
       body.className = 'sf-card-body';
-      body.appendChild(buildFeature(items[0]));
+      body.appendChild(buildWideTile(items[0]));
       wrap.appendChild(body);
       return;
     }
@@ -2540,78 +2539,21 @@
     return art;
   }
 
-  // The one big button on a single-item feature card. Everything except a
-  // custom quote goes through the item sheet, which already owns dates,
-  // options, boxes and stock.
-  function featureCTA(item) {
-    const k = item.listing_kind;
-    if (k === 'custom') {
-      return { label: 'Request a quote', go: function () { window.location.href = customOrderURL(item); } };
-    }
-    const open = function () { openItemSheet(item); };
-    if (k === 'digital') return { label: 'Get the download', go: open };
-    if (!stripeReady) return { label: 'Ordering opens soon', disabled: true };
-    if (isSoldOut(item)) return { label: k === 'preorder' ? 'Ordering closed' : 'Sold out', disabled: true };
-    if (item.is_assorted_box) return { label: 'Build your box', go: open };
-    if (k === 'preorder') return { label: 'Pre-order now', go: open };
-    if (k === 'physical') return { label: 'Add to cart', go: open };
-    return { label: 'Order now', go: open };
-  }
-
-  function buildFeature(item) {
-    const wrap = document.createElement('div');
-    wrap.className = 'sf-feature';
-
-    const photo = document.createElement('div');
-    photo.className = 'sf-feature-img';
-    appendPhoto(photo, item);
-    appendTileBadge(photo, item);
-    photo.addEventListener('click', function () { openItemSheet(item); });
-
-    const info = document.createElement('div');
-    info.className = 'sf-feature-info';
-    if (item.promo) {
-      const sale = document.createElement('span');
-      sale.className = 'p-sale-badge';
-      sale.textContent = item.promo.label;
-      info.appendChild(sale);
-    }
-    const h3 = document.createElement('h3');
-    h3.textContent = item.name;
-    info.appendChild(h3);
+  // A card holding just one item shows it as the regular tile laid out
+  // side by side — photo left; name, details, a short description, price
+  // and the add control right — rather than a full-width hero.
+  function buildWideTile(item) {
+    const art = buildTile(item);
+    art.classList.add('sf-tile-wide');
     const desc = (item.item_description || '').trim();
-    const meta = subtitleFor(item);
-    if (meta && meta !== desc) {
-      const metaEl = document.createElement('span');
-      metaEl.className = 'sf-feature-meta';
-      metaEl.innerHTML = CLOCK_SVG + '<span>' + escapeHtml(meta) + '</span>';
-      info.appendChild(metaEl);
-    }
-    if (desc) {
+    if (desc && desc !== subtitleFor(item)) {
       const d = document.createElement('p');
-      d.className = 'sf-feature-desc';
+      d.className = 'sf-tile-desc';
       d.textContent = desc;
-      info.appendChild(d);
+      const body = art.querySelector('.sf-tile-body');
+      body.insertBefore(d, body.querySelector('.sf-price-row'));
     }
-    const buy = document.createElement('div');
-    buy.className = 'sf-feature-buy';
-    const price = document.createElement('span');
-    price.className = 'sf-price tabular';
-    price.innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
-    buy.appendChild(price);
-    const cta = featureCTA(item);
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'sf-btn';
-    btn.innerHTML = '<span>' + escapeHtml(cta.label) + '</span>' + (cta.disabled ? '' : ARROW_SVG);
-    if (cta.disabled) btn.disabled = true;
-    else btn.addEventListener('click', cta.go);
-    buy.appendChild(btn);
-    info.appendChild(buy);
-
-    wrap.appendChild(photo);
-    wrap.appendChild(info);
-    return wrap;
+    return art;
   }
 
   function buildAddControl(item) {
