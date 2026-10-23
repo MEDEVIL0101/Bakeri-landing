@@ -72,7 +72,7 @@ export function ProfileEditor({ draft, set, data, userId }: EditorProps) {
       </Section>
       <Section title="Your business">
         <Field label="Business name"><Input value={draft.business_name} onChange={(e) => set({ business_name: e.target.value })} /></Field>
-        <Field label="Location" hint="Shown under your name, e.g. “Calgary, AB”."><Input value={draft.location} onChange={(e) => set({ location: e.target.value })} /></Field>
+        <Field label="Location" hint="Shown under your name, e.g. “Calgary, AB”. Leave blank to show your pickup neighbourhood or city."><Input value={draft.location} onChange={(e) => set({ location: e.target.value })} /></Field>
         <Field label="Short bio"><Textarea rows={3} value={draft.bio} onChange={(e) => set({ bio: e.target.value })} /></Field>
       </Section>
       <SocialEditor draft={draft} set={set} />

@@ -1063,9 +1063,11 @@
     const place = p.neighbourhood || p.pickup_city || '';
     // Skip the province when the place already ends with it ("Bay Minette, AL").
     const prov = (p.pickup_province || '').trim();
-    const location = place
+    // The Location the baker typed in the header editor wins; without one
+    // the page falls back to her pickup neighbourhood / city.
+    const location = String(p.location || '').trim() || (place
       ? (prov && !new RegExp('(^|[ ,])' + prov.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i').test(place.trim()) ? place + ', ' + prov : place)
-      : (p.location || '');
+      : '');
 
     document.title = name + ' on Bakeri';
     document.querySelector('meta[name="description"]').content = name + ' — handcrafted bakes on Bakeri. ' + (p.bio || '');
