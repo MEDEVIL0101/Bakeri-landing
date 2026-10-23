@@ -80,14 +80,33 @@ export function ProfileEditor({ draft, set, data, userId }: EditorProps) {
   );
 }
 
+/** SocialPlatform.detect / next.html socialPlatform(): the network a URL points at. */
+function platformFromURL(raw: string): string | null {
+  let host: string;
+  try { host = new URL(/^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`).hostname.toLowerCase(); } catch { return null; }
+  const h = host.replace(/^www\./, '');
+  if (h.includes('instagram')) return 'Instagram';
+  if (h.includes('tiktok')) return 'TikTok';
+  if (h.includes('facebook')) return 'Facebook';
+  if (h === 'x.com' || h.includes('twitter')) return 'X';
+  if (h.includes('pinterest')) return 'Pinterest';
+  if (h.includes('linkedin')) return 'LinkedIn';
+  if (h.includes('whatsapp') || h === 'wa.me') return 'WhatsApp';
+  return null;
+}
+
 function SocialEditor({ draft, set }: Pick<EditorProps, 'draft' | 'set'>) {
   const isSocial = (l: Link) => l.section.trim().toLowerCase() === 'social';
-  const urlFor = (p: string) => draft.links.find((l) => isSocial(l) && l.label.toLowerCase() === p.toLowerCase())?.url ?? '';
+  // By label or by the URL's host, like the app (WebShopSheet matchesPlatform)
+  // — a link added in the app can carry any label, and the site picks its
+  // icon from the URL alone.
+  const matches = (l: Link, p: string) => isSocial(l) && (l.label.trim().toLowerCase() === p.toLowerCase() || platformFromURL(l.url) === p);
+  const urlFor = (p: string) => draft.links.find((l) => matches(l, p))?.url ?? '';
   function setURL(platform: string, url: string) {
     const links = [...draft.links];
-    const i = links.findIndex((l) => isSocial(l) && l.label.toLowerCase() === platform.toLowerCase());
+    const i = links.findIndex((l) => matches(l, platform));
     if (i >= 0) {
-      if (url.trim()) links[i] = { ...links[i], url };
+      if (url.trim()) links[i] = { ...links[i], url, label: platform };
       else links.splice(i, 1);
     } else if (url.trim()) {
       links.push({ ...newLink('Social'), label: platform, url });
