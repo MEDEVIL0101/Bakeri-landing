@@ -73,7 +73,7 @@ export function RecipeEditorPage() {
   return (
     <form className="page" onSubmit={submit}>
       <PageHeader
-        back={<Link to={id ? `/recipes/${id}` : '/recipes'} className="back-link">← {id ? 'Recipe' : 'Recipes'}</Link>}
+        back={<Link to={id ? `/recipes/${id}` : '/recipes'} className="back-link">{id ? 'Recipe' : 'Recipes'}</Link>}
         title={id ? 'Edit recipe' : 'New recipe'}
         actions={<Button type="submit" loading={busy}>Save</Button>}
       />

@@ -84,7 +84,7 @@ export function OrderEditorPage() {
   return (
     <form className="page" onSubmit={submit}>
       <PageHeader
-        back={<Link to={id ? `/orders/${id}` : '/orders'} className="back-link">← {id ? 'Order' : 'Orders'}</Link>}
+        back={<Link to={id ? `/orders/${id}` : '/orders'} className="back-link">{id ? 'Order' : 'Orders'}</Link>}
         title={id ? 'Edit order' : 'New order'}
         actions={<Button type="submit" loading={busy}>{id ? 'Save' : 'Create order'}</Button>}
       />

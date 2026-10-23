@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
 import { passwordRules } from '../../auth/AuthPages';
 import { Button, ErrorBanner, Field, Input, Modal, PageHeader, Select, Textarea, useLoad, useToast } from '../../components/ui';
@@ -17,14 +17,21 @@ export function SettingsPage() {
   const [name, setName] = useState(profile?.user_name ?? '');
   const [savingName, setSavingName] = useState(false);
   const [units, setUnits] = useUnitSystem();
+  const [params, setParams] = useSearchParams();
+  // The phone side menu's "Help Center" row links here with ?help=1.
   const [modal, setModal] = useState<null | 'password' | 'help' | 'feedback' | 'delete'>(null);
+  useEffect(() => {
+    if (!params.get('help')) return;
+    setModal('help');
+    setParams({}, { replace: true });
+  }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const r = referral.data;
   const referralSub = !r
-    ? 'Earn about 1% of every sale from bakers you invite'
+    ? 'Earn about 1% of every sale from vendors you invite'
     : !r.eligible ? 'Connect Direct Deposit to unlock'
       : r.referred_count === 0 ? 'Share your code and earn about 1% of their sales'
-        : `${r.referred_count === 1 ? '1 baker' : `${r.referred_count} bakers`} referred · ${formatCents(r.available_cents + r.pending_cents + r.paid_cents, r.currency)} earned`;
+        : `${r.referred_count === 1 ? '1 vendor' : `${r.referred_count} vendors`} referred · ${formatCents(r.available_cents + r.pending_cents + r.paid_cents, r.currency)} earned`;
 
   return (
     <div className="page page-narrow">
@@ -35,7 +42,7 @@ export function SettingsPage() {
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" /></svg>
         </span>
         <span className="grow">
-          <span className="row-title">Refer a Baker</span>
+          <span className="row-title">Refer a Vendor</span>
           <span className="row-sub">{referralSub}</span>
         </span>
         <span className="chev" aria-hidden>›</span>

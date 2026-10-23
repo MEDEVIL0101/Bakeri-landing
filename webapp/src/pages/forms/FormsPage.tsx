@@ -19,7 +19,7 @@ export function FormsPage() {
   return (
     <div className="page">
       <PageHeader title="Order forms" subtitle="Questions customers answer when they request a custom order."
-        actions={<Link to="/forms/new" className="btn btn-primary">New form</Link>} />
+        actions={<Link to="/forms/new" className="btn btn-primary" data-icon="plus">New form</Link>} />
       {forms.error && <ErrorBanner message={forms.error} onRetry={forms.reload} />}
       {forms.loading && !forms.data ? <Spinner /> : !forms.data?.length ? (
         <Card>

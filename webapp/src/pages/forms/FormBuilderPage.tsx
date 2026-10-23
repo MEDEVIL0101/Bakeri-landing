@@ -69,7 +69,7 @@ function Builder({ initial, menu, userId }: { initial: { id: string; title: stri
     <div className="page page-wide">
       <div className="page-header">
         <div className="grow">
-          <Link to="/forms" className="back-link">← Order forms</Link>
+          <Link to="/forms" className="back-link">Order forms</Link>
           <input className="title-input" value={title} placeholder="Name your form, e.g. Wedding Cake Request" onChange={(e) => setTitle(e.target.value)} aria-label="Form name" />
         </div>
         <div className="page-actions">

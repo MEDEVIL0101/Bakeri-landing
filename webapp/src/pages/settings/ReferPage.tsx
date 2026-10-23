@@ -18,10 +18,10 @@ export function ReferPage() {
 
   return (
     <div className="page page-narrow">
-      <PageHeader back={<Link to="/settings" className="back-link">← Settings</Link>} title="Refer a Baker" />
+      <PageHeader back={<Link to="/settings" className="back-link">Settings</Link>} title="Refer a Vendor" />
       <Card className="hero-card">
-        <h2 className="hero-title">Earn 20% of Bakeri’s service fees — about 1% of every sale — from bakers you bring to Bakeri.</h2>
-        <p className="muted">Share your code or link. When a new baker enters it as they apply to join and starts selling, your earnings add up automatically and pay out on the 1st of each month to your Stripe account.</p>
+        <h2 className="hero-title">Earn 20% of Bakeri’s service fees — about 1% of every sale — from vendors you bring to Bakeri.</h2>
+        <p className="muted">Share your code or link. When a new vendor enters it as they apply to join and starts selling, your earnings add up automatically and pay out on the 1st of each month to your Stripe account.</p>
       </Card>
 
       {dash.loading && !d ? <Spinner /> : dash.error ? <ErrorBanner message="Couldn’t load your referrals right now. Try again shortly." onRetry={dash.reload} /> : d && !d.eligible ? (
@@ -62,11 +62,11 @@ export function ReferPage() {
             <div className="stat"><span className="stat-label">Paid to date</span><span className="stat-value">{formatCents(d.paid_cents, d.currency)}</span></div>
           </div>
           <p className="small muted">
-            Earnings clear 14 days after each sale, and once a referred baker has made $100 in sales. Paid on the 1st of each month.
+            Earnings clear 14 days after each sale, and once a referred vendor has made $100 in sales. Paid on the 1st of each month.
             {d.next_payout_date ? ` Next payout: ${formatDate(`${d.next_payout_date.slice(0, 10)}T12:00`)}.` : ''}
           </p>
 
-          <Card title="Bakers you’ve referred">
+          <Card title="Vendors you’ve referred">
             {!d.referred_bakers.length ? <p className="muted small">No one yet. Share your code to get started.</p> : (
               <ul className="list">
                 {d.referred_bakers.map((b) => (

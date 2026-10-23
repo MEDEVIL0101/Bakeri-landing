@@ -19,7 +19,7 @@ export function RecipesPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Recipes" actions={<Link to="/recipes/new" className="btn btn-primary">New recipe</Link>} />
+      <PageHeader title="Recipes" actions={<Link to="/recipes/new" className="btn btn-primary" data-icon="plus">New recipe</Link>} />
       <div className="toolbar">
         <div className="pills">
           <button className={`pill ${!favs ? 'active' : ''}`} onClick={() => setFavs(false)}>All</button>

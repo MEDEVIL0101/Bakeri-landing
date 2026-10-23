@@ -27,7 +27,7 @@ export function PromotionsPage() {
   return (
     <div className="page">
       <PageHeader title="Promotions" subtitle="Run a percent-off sale on your whole shop or a few items."
-        actions={<Button onClick={() => setEditing(blankPromotion())}>New promotion</Button>} />
+        actions={<Button data-icon="plus" onClick={() => setEditing(blankPromotion())}>New promotion</Button>} />
       {promos.error && <ErrorBanner message={promos.error} onRetry={promos.reload} />}
       {promos.loading && !promos.data ? <Spinner /> : !promos.data?.length ? (
         <Card>

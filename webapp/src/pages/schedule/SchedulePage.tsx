@@ -54,7 +54,7 @@ export function SchedulePage() {
     <div className="page">
       <PageHeader
         title="Schedule"
-        actions={<Button onClick={() => setEditing({ due_date: atNine(selected) })}>Add task</Button>}
+        actions={<Button data-icon="plus" onClick={() => setEditing({ due_date: atNine(selected) })}>Add task</Button>}
       />
       {(orders.error || tasks.error) && <ErrorBanner message={(orders.error || tasks.error)!} onRetry={() => { orders.reload(); tasks.reload(); }} />}
       <div className="schedule">

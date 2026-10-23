@@ -22,7 +22,7 @@ export function CampaignsPage() {
       <PageHeader
         title="Email Campaigns"
         subtitle={contacts.data ? `Send an email to your ${subscriberCount} subscriber${subscriberCount === 1 ? '' : 's'}.` : undefined}
-        actions={<Button onClick={() => setEditing({})}>New campaign</Button>}
+        actions={<Button data-icon="plus" onClick={() => setEditing({})}>New campaign</Button>}
       />
       {campaigns.error && <ErrorBanner message={campaigns.error} onRetry={campaigns.reload} />}
       <div className="card">

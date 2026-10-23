@@ -41,11 +41,11 @@ export function RecipeDetailPage() {
   return (
     <div className="page">
       <PageHeader
-        back={<Link to="/recipes" className="back-link">← Recipes</Link>}
+        back={<Link to="/recipes" className="back-link">Recipes</Link>}
         title={recipe.name}
         subtitle={`Makes ${amount(recipe.yield_quantity * scale)} ${recipe.yield_unit}${recipe.prep_time_minutes ? ` · Prep ${recipe.prep_time_minutes} min` : ''}${recipe.bake_time_minutes ? ` · Bake ${recipe.bake_time_minutes} min` : ''}`}
         actions={<>
-          <Button variant="ghost" onClick={() => setDeleting(true)}>Delete</Button>
+          <Button variant="ghost" data-role="destructive" onClick={() => setDeleting(true)}>Delete</Button>
           <Button variant="secondary" onClick={() => window.print()}>Print</Button>
           <Link to={`/recipes/${recipe.id}/edit`} className="btn btn-primary">Edit</Link>
         </>}

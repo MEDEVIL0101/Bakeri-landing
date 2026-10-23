@@ -1,4 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { createPortal } from 'react-dom';
+import { NavActions, useNavSlots } from '../layout/NavBar';
+import { useIsPhone } from '../lib/useMedia';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -62,7 +65,24 @@ export function Card({ title, actions, children, className = '' }: { title?: Rea
   );
 }
 
-export function PageHeader({ title, subtitle, actions, back }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
+export function PageHeader({ title, phoneTitle, subtitle, actions, back }: { title: ReactNode; /** Nav-bar title on phones, when the app names the screen differently. */ phoneTitle?: ReactNode; subtitle?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
+  const slots = useNavSlots();
+  const phone = useIsPhone();
+  const anchor = useRef<HTMLSpanElement>(null);
+  if (phone && slots?.title) {
+    // Phones: title/back/actions live in the iOS-style nav bar (layout/NavBar).
+    // Root screens drop their explanatory subtitle like the app does; pushed
+    // screens keep it, since there it carries status (badges, dates).
+    return (
+      <>
+        <span ref={anchor} hidden />
+        {back && subtitle && <p className="page-subtitle">{subtitle}</p>}
+        {createPortal(<span className="nav-page-title ellipsis">{phoneTitle ?? title}</span>, slots.title)}
+        {back && slots.leading && createPortal(back, slots.leading)}
+        {actions && slots.trailing && createPortal(<NavActions anchor={anchor}>{actions}</NavActions>, slots.trailing)}
+      </>
+    );
+  }
   return (
     <div className="page-header">
       <div>

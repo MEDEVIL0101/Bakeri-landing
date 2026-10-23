@@ -42,7 +42,7 @@ export function CustomersPage() {
         subtitle={data ? `${data.length} contacts · ${subscribed} on your mailing list` : 'Everyone who ordered or signed up on your storefront.'}
         actions={<>
           <Button variant="secondary" onClick={exportCSV} disabled={!rows.length}>Export CSV</Button>
-          <Button onClick={() => setAdding(true)}>Add contact</Button>
+          <Button data-icon="plus" onClick={() => setAdding(true)}>Add contact</Button>
         </>}
       />
       <div className="toolbar">

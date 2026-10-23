@@ -55,9 +55,9 @@ export function OrdersPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Orders" actions={<Link to="/orders/new" className="btn btn-primary">New order</Link>} />
+      <PageHeader title="Orders" actions={<Link to="/orders/new" className="btn btn-primary" data-icon="plus">New order</Link>} />
       <div className="toolbar">
-        <div className="pills" role="tablist">
+        <div className="pills pills-underline" role="tablist">
           {FILTERS.map((f) => (
             <button
               key={f.key}

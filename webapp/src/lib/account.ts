@@ -192,7 +192,7 @@ export async function slugSuggestions(userId: string, base: string, city: string
   if (c) out.push(`${base}-${c}`);
   if (p) out.push(`${base}-${p}`);
   if (c && p) out.push(`${base}-${c}-${p}`);
-  out.push(`${base}2`, `${base}3`, `${base}-bakery`, `${base}-bakes`, `the-${base}`);
+  out.push(`${base}2`, `${base}3`, `${base}-shop`, `the-${base}`);
   const taken = check(await supabase.from('profiles').select('profile_slug').in('profile_slug', out).neq('id', userId)) as { profile_slug: string }[];
   const set = new Set(taken.map((t) => t.profile_slug));
   return out.filter((s) => !set.has(s)).slice(0, 4);

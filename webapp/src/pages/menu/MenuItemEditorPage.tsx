@@ -84,7 +84,7 @@ export function MenuItemEditorPage() {
   if (!draft) {
     return (
       <div className="page">
-        <PageHeader back={<Link to="/menu" className="back-link">← Menu</Link>} title="What are you listing?" />
+        <PageHeader back={<Link to="/menu" className="back-link">Products</Link>} title="What are you listing?" />
         <div className="kind-grid">
           {LISTING_KINDS.map((k) => (
             <button key={k.kind} className="kind-card" onClick={() => setDraft(emptyDraft(k.kind))}>
@@ -164,11 +164,11 @@ export function MenuItemEditorPage() {
 
   const header = (
     <PageHeader
-      back={<Link to="/menu" className="back-link">← Menu & Listings</Link>}
+      back={<Link to="/menu" className="back-link">Products</Link>}
       title={id ? d.name || 'Edit listing' : formListing ? 'New custom order form' : `New ${kindLabel.toLowerCase()} listing`}
       subtitle={<span className="kind-pill">{formListing ? 'Custom order form' : kindLabel}</span>}
       actions={<>
-        {id && <Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)}>Delete</Button>}
+        {id && <Button type="button" variant="ghost" data-role="destructive" onClick={() => setConfirmDelete(true)}>Delete</Button>}
         <Button type="submit" loading={busy}>Save</Button>
       </>}
     />

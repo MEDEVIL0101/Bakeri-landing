@@ -68,8 +68,9 @@ export function MenuPage() {
     <div className="page">
       <PageHeader
         title="Menu & Listings"
+        phoneTitle="Products"
         subtitle="Everything you sell. Listed items appear on your storefront straight away."
-        actions={<Link to="/menu/new" className="btn btn-primary">New listing</Link>}
+        actions={<Link to="/menu/new" className="btn btn-primary" data-icon="plus">New listing</Link>}
       />
       {profile && !profile.stripe_connect_onboarding_complete && (
         <div className="banner banner-info">Listed products stay hidden from customers until Direct Deposit is connected (Bakeri app → Settings → Banking &amp; Payments).</div>
@@ -89,7 +90,7 @@ export function MenuPage() {
       <div className="card">
         {loading ? <Spinner /> : rows.length === 0 ? (
           <EmptyState title={q ? 'No listings match' : 'No listings yet'} body={!q ? 'Add what you sell — baked goods, pre-orders, custom orders, products and downloads.' : undefined}
-            action={!q && <Link to="/menu/new" className="btn btn-primary">New listing</Link>} />
+            action={!q && <Link to="/menu/new" className="btn btn-primary" data-icon="plus">New listing</Link>} />
         ) : (
           <SortableList items={rows} keyOf={(m) => m.id} onReorder={reorder} className="list" itemClassName={() => 'list-row menu-row'}
             renderRow={(m, handle) => (

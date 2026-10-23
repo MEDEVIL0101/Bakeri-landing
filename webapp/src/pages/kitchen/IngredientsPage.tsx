@@ -55,7 +55,7 @@ export function IngredientsPage() {
       <PageHeader title="Ingredients" subtitle="Set what you pay for ingredients — it becomes cost of goods and profit on every order."
         actions={<>
           <Button variant="secondary" onClick={() => setAddingCustom(true)}>Custom ingredient</Button>
-          <Button onClick={() => setEditing({ name: '' })}>Add a price</Button>
+          <Button data-icon="plus" onClick={() => setEditing({ name: '' })}>Add a price</Button>
         </>} />
       <div className="toolbar">
         <div className="seg">

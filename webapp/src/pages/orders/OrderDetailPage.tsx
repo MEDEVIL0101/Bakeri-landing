@@ -29,13 +29,13 @@ export function OrderDetailPage() {
   return (
     <div className="page">
       <PageHeader
-        back={<Link to="/orders" className="back-link">← Orders</Link>}
+        back={<Link to="/orders" className="back-link">Orders</Link>}
         title={title}
         subtitle={<><Badge tone={statusTone(order)}>{statusLabel(order)}</Badge>{' '}<span className="muted">Due {formatDate(order.due_date, { weekday: 'long', month: 'long', day: 'numeric' })}</span></>}
         actions={!storefront && (
           <>
             <Link to={`/orders/${order.id}/edit`} className="btn btn-secondary">Edit</Link>
-            <Button variant="ghost" onClick={() => setConfirmDelete(true)}>Delete</Button>
+            <Button variant="ghost" data-role="destructive" onClick={() => setConfirmDelete(true)}>Delete</Button>
           </>
         )}
       />

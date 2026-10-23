@@ -18,7 +18,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 const PROFILE_COLUMNS =
-  'id, user_name, business_name, business_slogan, email, profile_slug, country, pickup_address, delivery_enabled, stripe_connect_onboarding_complete, vendor_setup_completed_at, terms_accepted_at, storefront_listing_id';
+  'id, user_name, business_name, business_slogan, email, profile_slug, country, pickup_address, delivery_enabled, stripe_connect_onboarding_complete, vendor_setup_completed_at, terms_accepted_at, storefront_listing_id, selected_theme, background_pattern';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);

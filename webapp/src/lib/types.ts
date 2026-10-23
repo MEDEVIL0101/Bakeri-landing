@@ -15,6 +15,10 @@ export interface Profile {
   vendor_setup_completed_at: string | null;
   terms_accepted_at: string | null;
   storefront_listing_id: string | null;
+  /** AppTheme rawValue (lib/theme.ts). */
+  selected_theme: string | null;
+  /** BackgroundPattern rawValue. */
+  background_pattern: string | null;
 }
 
 export type OrderStatus =

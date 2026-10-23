@@ -152,7 +152,7 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
             </>
           ) : (
             <>
-              <button className="back-link link-btn" onClick={() => setPanel('home')}>← All sections</button>
+              <button className="back-link link-btn" onClick={() => setPanel('home')}>All sections</button>
               <div className="stack-lg">{editor}</div>
             </>
           )}
