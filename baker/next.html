@@ -89,7 +89,10 @@
     #sf-root { position: relative; }
     #sf-frame {
       position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%);
-      width: min(100%, 1180px); z-index: -1; pointer-events: none; overflow: hidden;
+      width: min(100%, 1180px); z-index: -1; pointer-events: none;
+      /* clip, not hidden: hidden makes the frame a scroll container, which
+         stops #sf-bg-full sticking to the screen (the photo scrolled away). */
+      overflow: hidden; overflow: clip;
       background: var(--fade-base, var(--theme-bg));
       box-shadow: 0 0 0 1px rgba(45,43,43,.04), 0 10px 40px rgba(45,43,43,.14);
     }
@@ -111,7 +114,7 @@
        while it scrolls, so the photo is sized to the screen, not to the
        (very tall) page. */
     #sf-bg-full {
-      position: sticky; top: 0; height: 100vh; z-index: 1;
+      position: sticky; top: 0; height: 100vh; height: 100lvh; z-index: 1;
       background-position: center; background-size: cover; background-repeat: no-repeat;
     }
 
