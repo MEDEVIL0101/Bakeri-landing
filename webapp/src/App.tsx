@@ -30,14 +30,29 @@ import { IngredientsPage } from './pages/kitchen/IngredientsPage';
 import { CalculatorPage } from './pages/kitchen/CalculatorPage';
 import { TimerProvider } from './pages/kitchen/Timers';
 import { PromotionsPage } from './pages/promotions/PromotionsPage';
+import { PlanPage, WelcomePage } from './auth/PlanPages';
 
-function RequireVendor() {
-  const { session, profile, profileLoading, recovering } = useAuth();
+/** Signed in, nothing else — the plan picker and welcome page sit here. */
+function RequireSession() {
+  const { session, recovering } = useAuth();
   const location = useLocation();
   if (session === undefined) return <div className="full-center"><Spinner /></div>;
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   if (recovering) return <Navigate to="/reset-password" replace />;
-  if (profileLoading && !profile) return <div className="full-center"><Spinner /></div>;
+  return <Outlet />;
+}
+
+function RequireVendor() {
+  const { session, profile, profileLoading, recovering, plan, planLoading } = useAuth();
+  const location = useLocation();
+  if (session === undefined) return <div className="full-center"><Spinner /></div>;
+  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  if (recovering) return <Navigate to="/reset-password" replace />;
+  if ((profileLoading && !profile) || (planLoading && plan === undefined)) return <div className="full-center"><Spinner /></div>;
+  // A new account picks a plan first (accounts that existed before plans
+  // were backfilled as Free). plan === undefined means it couldn't be read —
+  // never block on that.
+  if (plan === null || (plan && !plan.chosen_at)) return <Navigate to="/plan" replace />;
   if (!profile || !profile.business_name?.trim()) return <SetupPage />;
   return <TimerProvider><AppShell><Outlet /></AppShell></TimerProvider>;
 }
@@ -53,6 +68,10 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            <Route element={<RequireSession />}>
+              <Route path="/plan" element={<PlanPage />} />
+              <Route path="/welcome" element={<WelcomePage />} />
+            </Route>
             <Route element={<RequireVendor />}>
               <Route index element={<DashboardPage />} />
               <Route path="storefront" element={<StorefrontPage />} />

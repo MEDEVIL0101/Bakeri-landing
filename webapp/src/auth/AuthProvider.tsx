@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/types';
+import { loadPlan, type VendorPlan } from '../lib/plans';
 
 interface AuthState {
   /** undefined while the stored session is still being restored. */
@@ -12,6 +13,10 @@ interface AuthState {
   recovering: boolean;
   setRecovering: (v: boolean) => void;
   refreshProfile: () => Promise<void>;
+  /** The vendor's plan row: null = hasn't picked one; undefined = loading or unknown (never block on it). */
+  plan: VendorPlan | null | undefined;
+  planLoading: boolean;
+  refreshPlan: () => Promise<VendorPlan | null | undefined>;
   signOut: () => Promise<void>;
 }
 
@@ -25,6 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [recovering, setRecovering] = useState(false);
+  const [plan, setPlan] = useState<VendorPlan | null | undefined>(undefined);
+  const [planLoading, setPlanLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -54,14 +61,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
 
+  const refreshPlan = useCallback(async () => {
+    if (!userId) { setPlan(undefined); return undefined; }
+    setPlanLoading(true);
+    const p = await loadPlan(userId);
+    setPlan(p);
+    setPlanLoading(false);
+    return p;
+  }, [userId]);
+
+  useEffect(() => { refreshPlan(); }, [refreshPlan]);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setProfile(null);
+    setPlan(undefined);
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, profileLoading, recovering, setRecovering, refreshProfile: loadProfile, signOut }}
+      value={{ session, profile, profileLoading, recovering, setRecovering, refreshProfile: loadProfile, plan, planLoading, refreshPlan, signOut }}
     >
       {children}
     </AuthContext.Provider>

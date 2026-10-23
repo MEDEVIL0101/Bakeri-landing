@@ -332,6 +332,26 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .auth-card h1 { font-size: 24px; }
 .auth-card p { margin: 0; }
 .auth-footer { font-size: 14px; color: var(--muted); }
+.plan-page { justify-content: flex-start; padding-top: 40px; }
+.plan-head { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 560px; }
+.plan-head h1 { font-size: 28px; }
+.plan-head p { margin: 0; }
+.plan-interval { margin-top: 6px; }
+.plan-error { width: 100%; max-width: 980px; }
+.plan-grid { width: 100%; max-width: 980px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: stretch; }
+.plan-card { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 24px; display: flex; flex-direction: column; gap: 10px; }
+.plan-card.featured { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink), var(--shadow-lg); }
+.plan-card h2 { font-size: 20px; margin: 0; }
+.plan-card p { margin: 0; }
+.plan-flag { position: absolute; top: -11px; left: 24px; background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.plan-price { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
+.plan-amount { font-size: 34px; font-weight: 800; letter-spacing: -.02em; }
+.plan-fee { font-size: 14px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
+.plan-perks { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 7px; font-size: 14px; flex: 1; }
+.plan-perks li { padding-left: 22px; position: relative; }
+.plan-perks li::before { content: '✓'; position: absolute; left: 0; font-weight: 800; }
+.plan-footer { display: flex; gap: 6px; align-items: center; }
+.welcome-app { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
 .pw-rules { list-style: none; margin: -4px 0 0; padding: 0; font-size: 13px; color: var(--muted); display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
 .pw-rules .met { color: var(--green); }
 
