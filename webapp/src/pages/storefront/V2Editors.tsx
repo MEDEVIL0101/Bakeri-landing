@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Field, Input, Modal, Select, Textarea, Toggle, ErrorBanner } from '../../components/ui';
 import { menuImageURL } from '../../lib/menu';
 import {
-  V2_CARDS, V2_FONTS, ensureDesign, uploadBuilderImage, v2DefaultTitle,
+  V2_CARDS, V2_FONT_DEFS, V2_FONT_GROUPS, ensureDesign, loadV2FontPreviews, uploadBuilderImage, v2DefaultTitle,
   type CardColors, type FocusPoint, type StorefrontData, type StorefrontDesign, type V2Block, type V2CardType,
 } from '../../lib/storefront';
 import { ColorField, PhotoPicker, Section, type EditorProps } from './Editors';
@@ -40,11 +40,16 @@ export function DesignEditor(props: EditorProps) {
           <ColorField label="Soft tint" value={colors.tint} onChange={(v) => setColors({ tint: v })} />
         </div>
       </Section>
+      <ShopNameSection name={props.draft.business_name} design={design} setDesign={setDesign} />
       <Section title="Text & shape">
-        <Field label="Heading font">
+        <Field label="Card heading font" hint="Card titles — and your shop name, unless you pick a font for it above.">
           <Select value={design.display_font ?? ''} onChange={(e) => setDesign({ display_font: e.target.value || undefined })}>
             <option value="">Theme default</option>
-            {V2_FONTS.map((f) => <option key={f}>{f}</option>)}
+            {V2_FONT_GROUPS.map((g) => (
+              <optgroup key={g} label={g}>
+                {V2_FONT_DEFS.filter((f) => f.group === g).map((f) => <option key={f.name}>{f.name}</option>)}
+              </optgroup>
+            ))}
           </Select>
         </Field>
         <Field label="Corners">
@@ -73,6 +78,48 @@ export function DesignEditor(props: EditorProps) {
         <CardColorFields value={identity} onChange={(c) => setDesign({ identity: c ? { colors: c } : undefined })} />
       </Section>
     </>
+  );
+}
+
+/** The shop name's own font (shown in that font) and size. It always stays on one line. */
+function ShopNameSection({ name, design, setDesign }: { name: string; design: StorefrontDesign; setDesign: (p: Partial<StorefrontDesign>) => void }) {
+  useEffect(loadV2FontPreviews, []);
+  const sample = name.trim() || 'Your shop';
+  const headingFont = V2_FONT_DEFS.find((f) => f.name === design.display_font) ?? V2_FONT_DEFS[0];
+  const size = design.title_size ?? 100;
+  const tile = (value: string | undefined, f: (typeof V2_FONT_DEFS)[number], label?: string) => (
+    <button key={value ?? '_same'} type="button" className={`font-tile ${design.title_font === value ? 'on' : ''}`} aria-pressed={design.title_font === value}
+      onClick={() => setDesign({ title_font: value })}>
+      <span className="font-tile-sample ellipsis" style={{ fontFamily: `"${f.name}", system-ui`, fontWeight: f.w }}>{sample}</span>
+      <span className="font-tile-name">{label ?? f.name}</span>
+    </button>
+  );
+  return (
+    <Section title="Shop name" hint="Your name stays on one line — a long name shrinks to fit.">
+      <div className="stack">
+        <span className="field-label">Font</span>
+        <div className="font-tiles">
+          {tile(undefined, headingFont, 'Same as card headings')}
+          {V2_FONT_GROUPS.map((g) => (
+            <div key={g} className="font-tile-group">
+              <span className="font-tile-group-label">{g}</span>
+              {V2_FONT_DEFS.filter((f) => f.group === g).map((f) => tile(f.name, f))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="stack">
+        <span className="field-label">Size</span>
+        <div className="pct-row">
+          <span className="small muted" aria-hidden>A</span>
+          <input type="range" min={50} max={200} step={5} value={size} aria-label="Shop name size"
+            onChange={(e) => { const v = Number(e.target.value); setDesign({ title_size: v === 100 ? undefined : v }); }} />
+          <span style={{ fontSize: 20, fontWeight: 700 }} aria-hidden>A</span>
+          <span className="small tabular" style={{ minWidth: 40, textAlign: 'right' }}>{size}%</span>
+        </div>
+        {size !== 100 && <button type="button" className="link-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setDesign({ title_size: undefined })}>Reset size</button>}
+      </div>
+    </Section>
   );
 }
 

@@ -66,6 +66,10 @@ export interface StorefrontDesign {
   blocks?: V2Block[];
   colors?: { accent?: string; ink?: string; tint?: string };
   display_font?: string;
+  /** Shop-name font; unset = the heading font. */
+  title_font?: string;
+  /** Shop-name size, % of the default (50–200). It always stays on one line. */
+  title_size?: number;
   corners?: string;
   background?: { mode?: 'theme' | 'image_top' | 'image_full'; color?: string; image_url?: string; focus?: { x: number; y: number } };
   identity?: { colors?: CardColors };
@@ -83,7 +87,51 @@ export const V2_CARDS: { type: V2CardType; label: string; navByDefault: boolean;
   { type: 'info', label: 'Before You Order', navByDefault: true, parts: [{ key: 'policies', label: 'Store policies' }, { key: 'faq', label: 'FAQ' }, { key: 'hours', label: 'Pickup hours' }] },
   { type: 'emailCapture', label: 'Mailing List Signup', navByDefault: false },
 ];
-export const V2_FONTS = ['Archivo', 'Shrikhand', 'Cormorant Garamond', 'Fraunces', 'Playfair Display', 'DM Serif Display', 'Abril Fatface', 'Lilita One', 'Pacifico', 'Baloo 2'];
+/** Same names, weights and Google Fonts specs as next.html DISPLAY_FONTS. */
+export const V2_FONT_DEFS: { name: string; w: number; gf: string | null; group: 'Classic' | 'Clean' | 'Fun' | 'Script' }[] = [
+  { name: 'Archivo', w: 800, gf: 'Archivo:wght@800', group: 'Clean' },
+  { name: 'Montserrat', w: 700, gf: 'Montserrat:wght@700', group: 'Clean' },
+  { name: 'Poppins', w: 700, gf: 'Poppins:wght@700', group: 'Clean' },
+  { name: 'Josefin Sans', w: 600, gf: 'Josefin+Sans:wght@600', group: 'Clean' },
+  { name: 'Quicksand', w: 700, gf: 'Quicksand:wght@700', group: 'Clean' },
+  { name: 'Baloo 2', w: 800, gf: 'Baloo+2:wght@800', group: 'Clean' },
+  { name: 'EB Garamond', w: 500, gf: 'EB+Garamond:wght@500', group: 'Classic' },
+  { name: 'Cormorant Garamond', w: 700, gf: 'Cormorant+Garamond:wght@700', group: 'Classic' },
+  { name: 'Libre Baskerville', w: 400, gf: 'Libre+Baskerville', group: 'Classic' },
+  { name: 'Playfair Display', w: 700, gf: 'Playfair+Display:wght@700', group: 'Classic' },
+  { name: 'Bodoni Moda', w: 600, gf: 'Bodoni+Moda:opsz,wght@6..96,600', group: 'Classic' },
+  { name: 'Lora', w: 600, gf: 'Lora:wght@600', group: 'Classic' },
+  { name: 'Fraunces', w: 700, gf: 'Fraunces:opsz,wght@9..144,700', group: 'Classic' },
+  { name: 'DM Serif Display', w: 400, gf: 'DM+Serif+Display', group: 'Classic' },
+  { name: 'Yeseva One', w: 400, gf: 'Yeseva+One', group: 'Classic' },
+  { name: 'Gloock', w: 400, gf: 'Gloock', group: 'Classic' },
+  { name: 'Abril Fatface', w: 400, gf: 'Abril+Fatface', group: 'Fun' },
+  { name: 'Shrikhand', w: 400, gf: 'Shrikhand', group: 'Fun' },
+  { name: 'Lilita One', w: 400, gf: 'Lilita+One', group: 'Fun' },
+  { name: 'Fredoka', w: 600, gf: 'Fredoka:wght@600', group: 'Fun' },
+  { name: 'Chewy', w: 400, gf: 'Chewy', group: 'Fun' },
+  { name: 'Righteous', w: 400, gf: 'Righteous', group: 'Fun' },
+  { name: 'Bungee', w: 400, gf: 'Bungee', group: 'Fun' },
+  { name: 'Cherry Bomb One', w: 400, gf: 'Cherry+Bomb+One', group: 'Fun' },
+  { name: 'Pacifico', w: 400, gf: 'Pacifico', group: 'Script' },
+  { name: 'Dancing Script', w: 700, gf: 'Dancing+Script:wght@700', group: 'Script' },
+  { name: 'Great Vibes', w: 400, gf: 'Great+Vibes', group: 'Script' },
+  { name: 'Satisfy', w: 400, gf: 'Satisfy', group: 'Script' },
+  { name: 'Caveat', w: 700, gf: 'Caveat:wght@700', group: 'Script' },
+];
+export const V2_FONTS = V2_FONT_DEFS.map((f) => f.name);
+export const V2_FONT_GROUPS = ['Classic', 'Clean', 'Fun', 'Script'] as const;
+
+let fontSheetLoaded = false;
+/** Loads every storefront font once, so the builder can show each in its own face. */
+export function loadV2FontPreviews() {
+  if (fontSheetLoaded) return;
+  fontSheetLoaded = true;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?${V2_FONT_DEFS.map((f) => `family=${f.gf}`).join('&')}&display=swap`;
+  document.head.appendChild(link);
+}
 
 export function v2DefaultTitle(t: V2CardType, firstName: string): string {
   return {

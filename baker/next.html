@@ -161,8 +161,10 @@
     }
     #pb-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; background: #fff; }
     #shop-name {
-      font-family: var(--display); font-weight: var(--dw); font-size: var(--h1); line-height: 1.05; letter-spacing: 0;
-      margin: 4px 0 0; max-width: 100%; text-wrap: balance; overflow-wrap: anywhere;
+      font-family: var(--title-font, var(--display)); font-weight: var(--title-w, var(--dw));
+      font-size: calc(var(--h1) * var(--title-scale, 1)); line-height: 1.2; letter-spacing: 0;
+      /* Always one line — fitShopName() shrinks a name that won't fit. */
+      margin: 4px 0 0; max-width: 100%; white-space: nowrap;
       color: var(--head-ink); text-shadow: 0 1px 0 rgba(255,255,255,.6);
     }
     #sf-root.name-on-dark #shop-name { color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.45); }
@@ -1090,6 +1092,7 @@
     const nameEl = document.getElementById('shop-name');
     nameEl.style.color = nameColor || '';
     nameEl.classList.toggle('custom-color', !!nameColor);
+    fitShopName();
     renderSocialIcons();
 
     renderLeadMagnet(p);
@@ -1135,10 +1138,12 @@
     const onResize = function () {
       root.classList.toggle('compact', root.clientWidth < 640);
       sizeTopBackground();
+      fitShopName();
     };
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(onResize).observe(root);
     else window.addEventListener('resize', onResize);
     onResize();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitShopName);
   }
 
   // ══════════════════════ Blocks: order, titles, nav ══════════════════════
@@ -1356,7 +1361,26 @@
     'Abril Fatface':      { w: 400, gf: 'Abril+Fatface' },
     'Lilita One':         { w: 400, gf: 'Lilita+One' },
     'Pacifico':           { w: 400, gf: 'Pacifico' },
-    'Baloo 2':            { w: 800, gf: 'Baloo+2:wght@800' }
+    'Baloo 2':            { w: 800, gf: 'Baloo+2:wght@800' },
+    'EB Garamond':        { w: 500, gf: 'EB+Garamond:wght@500' },
+    'Libre Baskerville':  { w: 400, gf: 'Libre+Baskerville' },
+    'Bodoni Moda':        { w: 600, gf: 'Bodoni+Moda:opsz,wght@6..96,600' },
+    'Lora':               { w: 600, gf: 'Lora:wght@600' },
+    'Yeseva One':         { w: 400, gf: 'Yeseva+One' },
+    'Gloock':             { w: 400, gf: 'Gloock' },
+    'Montserrat':         { w: 700, gf: 'Montserrat:wght@700' },
+    'Poppins':            { w: 700, gf: 'Poppins:wght@700' },
+    'Josefin Sans':       { w: 600, gf: 'Josefin+Sans:wght@600' },
+    'Quicksand':          { w: 700, gf: 'Quicksand:wght@700' },
+    'Fredoka':            { w: 600, gf: 'Fredoka:wght@600' },
+    'Chewy':              { w: 400, gf: 'Chewy' },
+    'Righteous':          { w: 400, gf: 'Righteous' },
+    'Bungee':             { w: 400, gf: 'Bungee' },
+    'Cherry Bomb One':    { w: 400, gf: 'Cherry+Bomb+One' },
+    'Dancing Script':     { w: 700, gf: 'Dancing+Script:wght@700' },
+    'Great Vibes':        { w: 400, gf: 'Great+Vibes' },
+    'Satisfy':            { w: 400, gf: 'Satisfy' },
+    'Caveat':             { w: 700, gf: 'Caveat:wght@700' }
   };
   const loadedFonts = {};
   function loadDisplayFont(name) {
@@ -1366,7 +1390,22 @@
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://fonts.googleapis.com/css2?family=' + f.gf + '&display=swap';
+    // The shop name is measured to fit one line — re-fit once the real font arrives.
+    link.onload = function () {
+      if (document.fonts && document.fonts.load) document.fonts.load(f.w + ' 40px "' + name + '"').then(fitShopName, fitShopName);
+    };
     document.head.appendChild(link);
+  }
+
+  // The shop name stays on one line: at the baker's chosen size when it
+  // fits, otherwise scaled down to the column width.
+  function fitShopName() {
+    const el = document.getElementById('shop-name');
+    if (!el) return;
+    el.style.fontSize = '';
+    if (el.scrollWidth <= el.clientWidth + 1) return;
+    const size = parseFloat(getComputedStyle(el).fontSize);
+    el.style.fontSize = Math.max(12, Math.floor(size * el.clientWidth / el.scrollWidth * 0.94)) + 'px';
   }
 
   function validHex(v) {
@@ -1433,6 +1472,13 @@
     loadDisplayFont(fontName);
     root.setProperty('--display', '"' + fontName + '", "Archivo", -apple-system, system-ui, sans-serif');
     root.setProperty('--dw', String(DISPLAY_FONTS[fontName].w));
+    // Shop name: its own font (default: the heading font) and size (% of the default).
+    const titleName = DISPLAY_FONTS[design.title_font] ? design.title_font : fontName;
+    loadDisplayFont(titleName);
+    root.setProperty('--title-font', '"' + titleName + '", "Archivo", -apple-system, system-ui, sans-serif');
+    root.setProperty('--title-w', String(DISPLAY_FONTS[titleName].w));
+    const titleSize = Number(design.title_size);
+    root.setProperty('--title-scale', String(titleSize >= 50 && titleSize <= 200 ? titleSize / 100 : 1));
     document.getElementById('sf-root').classList.toggle('square', design.corners === 'square');
   }
 
