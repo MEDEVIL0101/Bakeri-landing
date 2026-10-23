@@ -119,7 +119,38 @@ function ShopNameSection({ name, design, setDesign }: { name: string; design: St
         </div>
         {size !== 100 && <button type="button" className="link-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setDesign({ title_size: undefined })}>Reset size</button>}
       </div>
+      <TitleEffects design={design} setDesign={setDesign} />
     </Section>
+  );
+}
+
+/** Outline, drop shadow and glow on the shop name, to lift it off a busy background. */
+function TitleEffects({ design, setDesign }: { design: StorefrontDesign; setDesign: (p: Partial<StorefrontDesign>) => void }) {
+  const fx = design.title_effect ?? {};
+  const upd = (p: Partial<typeof fx>) => setDesign({ title_effect: clean({ ...fx, ...p }) });
+  const width = fx.stroke_width ?? 2;
+  return (
+    <div className="stack">
+      <span className="field-label">Make it stand out</span>
+      <Toggle checked={!!fx.stroke} onChange={(v) => upd({ stroke: v ? '#FFFFFF' : undefined, stroke_width: undefined })} label="Outline" />
+      {fx.stroke && (
+        <div className="grid-2">
+          <ColorField label="Outline colour" value={fx.stroke} onChange={(v) => upd({ stroke: v ?? '#FFFFFF' })} />
+          <div className="field">
+            <span className="field-label">Thickness</span>
+            <div className="pct-row">
+              <input type="range" min={1} max={8} step={1} value={width} aria-label="Outline thickness"
+                onChange={(e) => { const v = Number(e.target.value); upd({ stroke_width: v === 2 ? undefined : v }); }} />
+              <span className="small tabular">{width}px</span>
+            </div>
+          </div>
+        </div>
+      )}
+      <Toggle checked={!!fx.shadow} onChange={(v) => upd({ shadow: v ? '#000000' : undefined })} label="Drop shadow" />
+      {fx.shadow && <ColorField label="Shadow colour" value={fx.shadow} onChange={(v) => upd({ shadow: v ?? '#000000' })} />}
+      <Toggle checked={!!fx.glow} onChange={(v) => upd({ glow: v ? '#FFFFFF' : undefined })} label="Glow" />
+      {fx.glow && <ColorField label="Glow colour" value={fx.glow} onChange={(v) => upd({ glow: v ?? '#FFFFFF' })} />}
+    </div>
   );
 }
 

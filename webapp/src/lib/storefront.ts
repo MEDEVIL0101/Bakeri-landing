@@ -70,6 +70,8 @@ export interface StorefrontDesign {
   title_font?: string;
   /** Shop-name size, % of the default (50–200). It always stays on one line. */
   title_size?: number;
+  /** Shop-name effects; a colour set = that effect on. stroke_width is px (1–8). */
+  title_effect?: { stroke?: string; stroke_width?: number; shadow?: string; glow?: string };
   corners?: string;
   background?: { mode?: 'theme' | 'image_top' | 'image_full'; color?: string; image_url?: string; focus?: { x: number; y: number } };
   identity?: { colors?: CardColors };

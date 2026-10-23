@@ -1095,6 +1095,7 @@
     const nameEl = document.getElementById('shop-name');
     nameEl.style.color = nameColor || '';
     nameEl.classList.toggle('custom-color', !!nameColor);
+    applyTitleEffect(nameEl);
     fitShopName();
     renderSocialIcons();
 
@@ -1398,6 +1399,28 @@
       if (document.fonts && document.fonts.load) document.fonts.load(f.w + ' 40px "' + name + '"').then(fitShopName, fitShopName);
     };
     document.head.appendChild(link);
+  }
+
+  // Baker-chosen outline / drop shadow / glow on the shop name
+  // (design.title_effect). Any of them replaces the automatic legibility
+  // shadow, so what she picks is exactly what shows.
+  function applyTitleEffect(el) {
+    const fx = (design.title_effect && typeof design.title_effect === 'object') ? design.title_effect : {};
+    const stroke = validHex(fx.stroke), shadow = validHex(fx.shadow), glow = validHex(fx.glow);
+    const w = Math.min(8, Math.max(1, Number(fx.stroke_width) || 2));
+    // The stroke straddles the glyph edge and the fill covers its inner
+    // half (paint-order), so double it for the visible width.
+    el.style.webkitTextStroke = stroke ? (w * 2) + 'px ' + stroke : '';
+    el.style.paintOrder = stroke ? 'stroke fill' : '';
+    const shadows = [];
+    if (shadow) shadows.push('0 3px 2px ' + hexAlpha(shadow, 0.45), '0 6px 16px ' + hexAlpha(shadow, 0.5));
+    if (glow) shadows.push('0 0 3px ' + glow, '0 0 8px ' + glow, '0 0 16px ' + glow, '0 0 30px ' + hexAlpha(glow, 0.9));
+    if (stroke || shadow || glow) el.style.setProperty('text-shadow', shadows.length ? shadows.join(', ') : 'none', 'important');
+    else el.style.removeProperty('text-shadow');
+  }
+  function hexAlpha(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
 
   // The shop name stays on one line: at the baker's chosen size when it
