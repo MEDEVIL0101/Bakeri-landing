@@ -28,7 +28,7 @@ import { billingSecretKey, tierForPriceId } from "../_shared/plans.ts";
 const stripe = new Stripe(billingSecretKey(), { apiVersion: "2023-10-16", httpClient: Stripe.createFetchHttpClient() });
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 const WEBHOOK_SECRET = Deno.env.get("STRIPE_BILLING_WEBHOOK_SECRET") ?? "";
-const LIVE_STATUSES = ["active", "trialing", "past_due"];
+const LIVE_STATUSES = ["trialing", "active", "past_due"];
 
 serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
@@ -74,7 +74,7 @@ async function syncSubscription(id: string) {
   if (!userId) throw new Error(`No vendor for customer ${customerId}`);
 
   const { data: current, error: readErr } = await db.from("vendor_plans")
-    .select("stripe_subscription_id, status, chosen_at").eq("user_id", userId).maybeSingle();
+    .select("stripe_subscription_id, status, trial_used_at").eq("user_id", userId).maybeSingle();
   if (readErr) throw readErr;
 
   const live = LIVE_STATUSES.includes(sub.status);
@@ -90,13 +90,13 @@ async function syncSubscription(id: string) {
     stripe_customer_id: customerId,
     stripe_subscription_id: sub.id,
     stripe_price_id: item?.price?.id ?? null,
-    tier: live && match ? match.tier : "free",
+    tier: live && match ? match.tier : "none",
     billing_interval: match?.interval ?? null,
     status: sub.status,
     current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+    trial_end: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
     cancel_at_period_end: !!sub.cancel_at_period_end,
-    // Paying counts as having picked a plan.
-    chosen_at: current?.chosen_at ?? (live ? new Date().toISOString() : null),
+    trial_used_at: current?.trial_used_at ?? (sub.trial_start ? new Date(sub.trial_start * 1000).toISOString() : null),
     updated_at: new Date().toISOString(),
   };
   const { error } = await db.from("vendor_plans").upsert(row, { onConflict: "user_id" });

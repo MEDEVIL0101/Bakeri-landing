@@ -2,32 +2,38 @@
 // exist, what each costs in Stripe, and the platform fee each pays on sales.
 // Mirrored for display by webapp/src/lib/plans.ts (names, prices, perks).
 //
-// PLACEHOLDER tiers/prices/fees (2026-10-23) until Harvey and Diana settle
-// them. Billing is web-only through Stripe Billing on Bakeri's platform
-// account — never Apple in-app purchase.
+// Tiers (Harvey 2026-10-23): a free trial (PLAN_TRIAL_DAYS, once per
+// vendor) on the plan they pick, then Starter $5.99/mo + 5% Bakeri fee per
+// sale, or Pro $19.99/mo with no Bakeri fee; Stripe card fees are the
+// vendor's on both. Trial length is still a placeholder. Billing is web-only
+// through Stripe Billing on Bakeri's platform account — never Apple IAP.
 //
 // Stripe Price ids come from secrets so test mode and live mode can differ:
-//   STRIPE_PRICE_PRO_MONTH, STRIPE_PRICE_PRO_YEAR,
-//   STRIPE_PRICE_BUSINESS_MONTH, STRIPE_PRICE_BUSINESS_YEAR
+//   STRIPE_PRICE_STARTER_MONTH, STRIPE_PRICE_PRO_MONTH
+// (…_YEAR variants are supported if yearly billing is ever offered)
 // and the Billing calls use STRIPE_BILLING_SECRET_KEY only — deliberately no
 // fallback to the live STRIPE_SECRET_KEY, so plans are built against a test
 // key while vendor payments keep using the live one. Going live = set this
 // secret (and the price ids) to live values.
 
-export type PlanTier = "free" | "pro" | "business";
+export type PlanTier = "starter" | "pro";
 export type BillingInterval = "month" | "year";
 
-export const PAID_TIERS: PlanTier[] = ["pro", "business"];
+export const PAID_TIERS: PlanTier[] = ["starter", "pro"];
 
 /** Platform fee on storefront sales, by tier. Not wired into charges yet. */
 export const PLAN_FEE_RATE: Record<PlanTier, number> = {
-  free: 0.05,
-  pro: 0.02,
-  business: 0,
+  starter: 0.05,
+  pro: 0,
 };
 
+/** Free trial on a vendor's first subscription. Placeholder length. */
+export function trialDays(): number {
+  const n = Number(Deno.env.get("PLAN_TRIAL_DAYS") ?? 30);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+}
+
 export function priceIdFor(tier: PlanTier, interval: BillingInterval): string | null {
-  if (tier === "free") return null;
   return Deno.env.get(`STRIPE_PRICE_${tier.toUpperCase()}_${interval.toUpperCase()}`) || null;
 }
 

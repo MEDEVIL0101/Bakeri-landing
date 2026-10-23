@@ -31,6 +31,7 @@ import { CalculatorPage } from './pages/kitchen/CalculatorPage';
 import { TimerProvider } from './pages/kitchen/Timers';
 import { PromotionsPage } from './pages/promotions/PromotionsPage';
 import { PlanPage, WelcomePage } from './auth/PlanPages';
+import { effectiveTier } from './lib/plans';
 
 /** Signed in, nothing else — the plan picker and welcome page sit here. */
 function RequireSession() {
@@ -49,10 +50,10 @@ function RequireVendor() {
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   if (recovering) return <Navigate to="/reset-password" replace />;
   if ((profileLoading && !profile) || (planLoading && plan === undefined)) return <div className="full-center"><Spinner /></div>;
-  // A new account picks a plan first (accounts that existed before plans
-  // were backfilled as Free). plan === undefined means it couldn't be read —
-  // never block on that.
-  if (plan === null || (plan && !plan.chosen_at)) return <Navigate to="/plan" replace />;
+  // No live plan (a new account, or a trial/subscription that ended) →
+  // the plan picker. Accounts from before plans are 'legacy' Starter.
+  // plan === undefined means it couldn't be read — never block on that.
+  if (plan !== undefined && effectiveTier(plan) === 'none') return <Navigate to="/plan" replace />;
   if (!profile || !profile.business_name?.trim()) return <SetupPage />;
   return <TimerProvider><AppShell><Outlet /></AppShell></TimerProvider>;
 }

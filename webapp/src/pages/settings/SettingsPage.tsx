@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PLANS, effectiveTier } from '../../lib/plans';
+import { planSummary } from '../../lib/plans';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
 import { passwordRules } from '../../auth/AuthPages';
@@ -67,7 +67,7 @@ export function SettingsPage() {
 
       <SettingsGroup heading="Business">
         {plan !== undefined && (
-          <NavRow title="Plan & billing" sub={`${PLANS.find((p) => p.tier === effectiveTier(plan))?.name ?? 'Free'} plan`} to="/plan" />
+          <NavRow title="Plan & billing" sub={planSummary(plan)} to="/plan" />
         )}
         <NavRow title="Direct Deposit" sub={profile?.stripe_connect_onboarding_complete ? 'Stripe connected' : 'Connect to get paid'} to="/payouts" />
         <NavRow title="Shop settings" sub="Your link, pickup address, shipping" to="/shop-settings" />

@@ -4,7 +4,11 @@
 // never from the iOS app (no prices or buy links in the app — App Store
 // anti-steering rules).
 //
-// Body: { tier: "pro" | "business", interval?: "month" | "year" }
+// Body: { tier: "starter" | "pro", interval?: "month" | "year" }
+//
+// A vendor's first subscription starts with the free trial (card taken up
+// front, first charge when the trial ends); vendor_plans.trial_used_at
+// stops a second one.
 //
 // A vendor who already has a live paid subscription gets a billing-portal
 // URL instead ({ url, portal: true }) — switching between paid plans,
@@ -15,9 +19,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@13.11.0?target=deno";
 import { adminClient, corsHeaders, json, requireUser } from "../_shared/billingAuth.ts";
-import { PAID_TIERS, appURL, billingSecretKey, priceIdFor, type BillingInterval, type PlanTier } from "../_shared/plans.ts";
+import { PAID_TIERS, appURL, billingSecretKey, priceIdFor, trialDays, type BillingInterval, type PlanTier } from "../_shared/plans.ts";
 
-const LIVE_STATUSES = ["active", "trialing", "past_due"];
+const LIVE_STATUSES = ["trialing", "active", "past_due"];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -38,12 +42,15 @@ serve(async (req) => {
     const db = adminClient();
     const { data: plan, error: planErr } = await db
       .from("vendor_plans")
-      .select("tier, status, stripe_customer_id, stripe_subscription_id")
+      .select("tier, status, stripe_customer_id, stripe_subscription_id, trial_used_at, grandfathered_starter")
       .eq("user_id", user.id)
       .maybeSingle();
     if (planErr) throw planErr;
 
-    if (plan?.stripe_customer_id && plan.stripe_subscription_id && plan.tier !== "free" && LIVE_STATUSES.includes(plan.status)) {
+    // Grandfathered vendors already have Starter free, forever.
+    if (tier === "starter" && plan?.grandfathered_starter) return json({ error: "Starter is already free for you." }, 400);
+
+    if (plan?.stripe_customer_id && plan.stripe_subscription_id && plan.tier !== "none" && LIVE_STATUSES.includes(plan.status)) {
       const portal = await stripe.billingPortal.sessions.create({ customer: plan.stripe_customer_id, return_url: appURL("plan") });
       return json({ url: portal.url, portal: true });
     }
@@ -64,7 +71,10 @@ serve(async (req) => {
       line_items: [{ price, quantity: 1 }],
       allow_promotion_codes: true,
       metadata: { user_id: user.id, tier, interval },
-      subscription_data: { metadata: { user_id: user.id } },
+      subscription_data: {
+        metadata: { user_id: user.id },
+        ...(!plan?.trial_used_at && trialDays() ? { trial_period_days: trialDays() } : {}),
+      },
       // Sales tax on plans waits for Stripe Tax (paused, see
       // project notes) — add automatic_tax here when it's finished.
       success_url: appURL("welcome?checkout={CHECKOUT_SESSION_ID}"),

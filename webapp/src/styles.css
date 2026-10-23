@@ -350,6 +350,8 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .plan-perks { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 7px; font-size: 14px; flex: 1; }
 .plan-perks li { padding-left: 22px; position: relative; }
 .plan-perks li::before { content: '✓'; position: absolute; left: 0; font-weight: 800; }
+.plan-grid.two { max-width: 720px; }
+.plan-note { max-width: 560px; text-align: center; margin: 0; }
 .plan-footer { display: flex; gap: 6px; align-items: center; }
 .welcome-app { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
 .pw-rules { list-style: none; margin: -4px 0 0; padding: 0; font-size: 13px; color: var(--muted); display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
