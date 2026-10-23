@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { vendorPlanPaused } from "../_shared/vendorPlan.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
@@ -191,6 +192,10 @@ Deno.serve(async (req: Request) => {
   // No Stripe check here (2026-10-25): a request takes no payment. Vendors
   // without Direct Deposit still get requests; the app and web app grey out
   // Send Quote until Direct Deposit is connected.
+  if (await vendorPlanPaused(db, baker_id)) {
+    const bakerDisplayName = bakerProfile.business_name?.trim() || bakerProfile.user_name?.trim() || "This vendor";
+    return json({ error: `${bakerDisplayName} isn't taking orders right now.` }, 400);
+  }
 
   const { data: fields, error: fieldsErr } = await db
     .from("intake_form_fields")

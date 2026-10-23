@@ -44,12 +44,14 @@ export interface ReferralDashboard {
   code: string | null;
   currency: string;
   referred_count: number;
+  /** Referred vendors who have paid for a plan. */
   selling_count: number;
   pending_cents: number;
   available_cents: number;
   paid_cents: number;
   next_payout_date: string | null;
-  referred_bakers: { name: string; joined_at: string; status: string; lifetime_commission_cents: number }[];
+  // Totals only — no per-vendor money (20261023000002_referrals_from_plans).
+  referred_bakers: { name: string; joined_at: string; status: string }[];
 }
 
 export async function referralDashboard(): Promise<ReferralDashboard> {

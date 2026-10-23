@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE, calcDirectChargeApplicationFee, parseTipCents, tipStripeFeeCoverCents } from "../_shared/fees.ts";
+import { vendorFeeRate } from "../_shared/vendorPlan.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 import { resolveItemImageUrl } from "../_shared/receiptEmailStyle.ts";
 
@@ -90,7 +91,7 @@ Deno.serve(async (req: Request) => {
     // is never added to what they pay, it comes out of the baker's cut only,
     // same policy as create-guest-quote-payment-intent/charge-balance-payment
     // — see _shared/fees.ts.
-    const platformFeeCents = Math.round(baseAmountCents * PLATFORM_FEE_RATE);
+    const platformFeeCents = Math.round(baseAmountCents * await vendorFeeRate(supabase, order.user_id));
 
     const { data: baker } = await supabase
       .from("profiles")

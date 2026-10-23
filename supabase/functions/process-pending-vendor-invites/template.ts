@@ -1,6 +1,6 @@
 // Mirrors beta_invite_email.html (repo root) — kept in sync manually, same
-// as send-vendor-ack-email/template.ts does for its own email. {{name}} is
-// the only placeholder, substituted with the applicant's first name.
+// as send-vendor-ack-email/template.ts does for its own email. {{name}} and {{signup_url}} are
+// the placeholders: the applicant's first name and their web sign-up link.
 export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -115,15 +115,15 @@ export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
     <!-- Body -->
     <div class="body">
 
+      <!-- DRAFT copy (2026-10-23) for the web-first sign-up + plans flow —
+           Harvey and Diana to finalise wording before this deploys. -->
       <p>
         We are pleased to inform you that your Bakerï Vendor Application has been accepted.
-        This email will provide you instant access to the application for all users on iOS
-        — iPhone and iPad. For all Android users, the Bakerï Android app is expected to be
-        released in the coming weeks. You will receive an email notification when that occurs.
+        You can get started right away — on iPhone, Android, or any computer.
       </p>
 
       <p>
-        Getting set up takes about 60 seconds — just follow the three steps below.
+        Getting set up takes about two minutes — just follow the three steps below.
       </p>
 
       <!-- Steps -->
@@ -133,9 +133,9 @@ export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
           <tr>
             <td class="step-number-cell"><span class="step-number">1</span></td>
             <td>
-              <div class="step-title">Download TestFlight</div>
-              <p class="step-desc">TestFlight is Apple's free app used to install Bakerï before it's on the App Store. You'll need it installed before you can access Bakerï.</p>
-              <a class="step-link" href="https://apps.apple.com/app/testflight/id899247664">Download TestFlight from the App Store →</a>
+              <div class="step-title">Create your Bakerï account</div>
+              <p class="step-desc">Use the button below — it's already set up with your email address.</p>
+              <a class="step-link" href="{{signup_url}}">Create my account →</a>
             </td>
           </tr>
         </table>
@@ -144,9 +144,8 @@ export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
           <tr>
             <td class="step-number-cell"><span class="step-number">2</span></td>
             <td>
-              <div class="step-title">Unlock Your Bakerï Access</div>
-              <p class="step-desc">Once TestFlight is installed, tap the link below. Bakerï will install just like a regular app.</p>
-              <a class="step-link" href="https://testflight.apple.com/join/Vbvma852">Get Bakerï →</a>
+              <div class="step-title">Pick your plan — free for 14 days</div>
+              <p class="step-desc">Starter is $5.99 a month plus a 5% Bakerï fee per sale. Pro is $19.99 a month with no Bakerï fee. Either one is free for your first 14 days, and you can switch or cancel any time.</p>
             </td>
           </tr>
         </table>
@@ -155,9 +154,9 @@ export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
           <tr>
             <td class="step-number-cell"><span class="step-number">3</span></td>
             <td>
-              <div class="step-title">Sign up and start using Bakerï</div>
-              <p class="step-desc">Manage your schedule and your orders, set up your personal Bakerï storefront website, and start making Bakerï work for you.</p>
-              <p class="step-desc">If you run into a problem or issue, find an existing feature confusing, or want to recommend a feature you'd like to see in the app, reply to this email or find us at @joinbakeri on Instagram.</p>
+              <div class="step-title">Get the iPhone app, or use Bakerï on the web</div>
+              <p class="step-desc">On iPhone, install Apple's free <a href="https://apps.apple.com/app/testflight/id899247664">TestFlight</a> app, then <a href="https://testflight.apple.com/join/Vbvma852">get Bakerï</a> and sign in with the account you just made. On Android or a computer, Bakerï works right in your browser at bakeriapp.com/app.</p>
+              <p class="step-desc">If you run into a problem, find something confusing, or want to suggest a feature, reply to this email or find us at @joinbakeri on Instagram.</p>
             </td>
           </tr>
         </table>
@@ -167,19 +166,11 @@ export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
       <!-- CTA -->
       <div class="cta-section">
         <h2>Ready to start using Bakerï?</h2>
-        <p>Tap below once TestFlight is installed — you'll have full access immediately.</p>
-        <a class="cta-button" href="https://testflight.apple.com/join/Vbvma852">
-          Get Bakerï →
+        <p>Create your account to start your 14-day free trial.</p>
+        <a class="cta-button" href="{{signup_url}}">
+          Create my account →
         </a>
-        <p class="cta-note">Requires iPhone · iOS 16 or later · Free via TestFlight · Full access today</p>
-      </div>
-
-      <!-- Note -->
-      <div class="highlight-box">
-        <p>
-          Please note — once Bakerï launches on the App Store, your TestFlight app
-          will automatically switch over.
-        </p>
+        <p class="cta-note">iPhone, Android or computer · 14 days free · No charge until your trial ends</p>
       </div>
 
       <hr class="divider"/>

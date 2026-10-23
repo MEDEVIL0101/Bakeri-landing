@@ -57,7 +57,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: pending, error: fetchErr } = await db
     .from("vendor_applications")
-    .select("id, email, first_name, bakery_name, created_at")
+    .select("id, email, first_name, bakery_name, referral_code, created_at")
     .eq("status", "pending")
     .lte("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString());
 
@@ -71,7 +71,16 @@ Deno.serve(async (req: Request) => {
 
   for (const app of pending ?? []) {
     try {
-      const html = VENDOR_INVITE_EMAIL_TEMPLATE.replace(/\{\{name\}\}/g, escapeHtml(app.first_name || "there"));
+      // Accounts are created on the web (then plan picker → TestFlight). The
+      // application id is the invite token; email + referral code prefill
+      // the sign-up form.
+      const signup = new URL("https://bakeriapp.com/app/signup");
+      signup.searchParams.set("invite", app.id);
+      if (app.email) signup.searchParams.set("email", app.email);
+      if (app.referral_code) signup.searchParams.set("ref", app.referral_code);
+      const html = VENDOR_INVITE_EMAIL_TEMPLATE
+        .replace(/\{\{name\}\}/g, escapeHtml(app.first_name || "there"))
+        .replace(/\{\{signup_url\}\}/g, escapeHtml(signup.toString()));
 
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",

@@ -23,6 +23,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { vendorFeeRate } from "../_shared/vendorPlan.ts";
 import { readDirectChargeSettlement } from "../_shared/settlement.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
@@ -277,7 +278,7 @@ Deno.serve(async (req: Request) => {
   const subtotalCents = digitalLines.reduce((sum, l) => sum + l.unitPriceCents, 0);
   // Guest checkout: buyer pays exactly the item price(s) — Bakeri's service
   // charge comes out of the baker's cut instead (see create-payment-intent).
-  const platformFeeCents = Math.round(subtotalCents * PLATFORM_FEE_RATE);
+  const platformFeeCents = Math.round(subtotalCents * await vendorFeeRate(db, bakerId));
   const totalCents = subtotalCents;
 
   // Already settled instantly if direct — record the real Stripe fee now so

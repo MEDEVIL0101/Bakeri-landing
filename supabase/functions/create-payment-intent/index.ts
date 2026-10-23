@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE, parseTipCents, tipStripeFeeCoverCents } from "../_shared/fees.ts";
+import { vendorFeeRate, vendorPlanPaused } from "../_shared/vendorPlan.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 import { resolvePromotions, type BaseLine } from "../_shared/promotions.ts";
@@ -399,7 +400,11 @@ Deno.serve(async (req: Request) => {
     // collects platformFeeCents twice: once already embedded in chargeCents
     // via the customer's added fee, once more carved out of the baker's own
     // base price. See _shared/fees.ts.
-    const platformFeeCents = Math.round((depositAmountCents ?? itemsTotalCents) * PLATFORM_FEE_RATE);
+    // Rate by the vendor's plan (Starter 5%, Pro 0%); multi-vendor carts
+    // (dormant marketplace path) keep the standard rate.
+    const feeVendorIDs = [...new Set(items.map((i) => i.baker_id))];
+    const feeRate = feeVendorIDs.length === 1 ? await vendorFeeRate(getSupabaseClient(), feeVendorIDs[0]) : PLATFORM_FEE_RATE;
+    const platformFeeCents = Math.round((depositAmountCents ?? itemsTotalCents) * feeRate);
 
     // Tip (storefront pickup carts only): the vendor keeps all of it — not in
     // the platform-fee base above, and Bakeri covers Stripe's % on it via a
@@ -459,6 +464,19 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: `${bakerLabel} hasn't finished setting up payments yet. Check back soon!` }),
         { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
       );
+    }
+
+    // A shop whose Bakeri plan has lapsed takes no new orders (its
+    // storefront already shows ordering off). Checked before any card hold.
+    for (const id of bakerIDs) {
+      if (await vendorPlanPaused(getSupabaseClient(), id)) {
+        const row = bakerRows.find((r) => r.id === id);
+        const name = row?.business_name?.trim() || row?.user_name?.trim() || "This vendor";
+        return new Response(
+          JSON.stringify({ error: `${name} isn't taking orders right now.` }),
+          { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
+        );
+      }
     }
 
     const metadata: Record<string, string> = {

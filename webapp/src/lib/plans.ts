@@ -5,7 +5,7 @@
 // Tiers (Harvey 2026-10-23): a free trial on the plan they pick, then
 // Starter $5.99/mo + 5% Bakeri fee per sale, or Pro $19.99/mo with no Bakeri
 // fee; Stripe card fees are the vendor's on both. TRIAL_DAYS must match the
-// PLAN_TRIAL_DAYS secret (placeholder). Plans are bought here on the web
+// PLAN_TRIAL_DAYS secret (14). Plans are bought here on the web
 // only — the iOS app never shows prices or links to buy (App Store
 // anti-steering rules).
 
@@ -44,7 +44,7 @@ export const PLANS: PlanDef[] = [
     perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Best value once you sell about $280 a month'] },
 ];
 
-export const TRIAL_DAYS = 30;
+export const TRIAL_DAYS = 14;
 
 /** One line for Settings: "Pro · trial ends Nov 22" etc. */
 export function planSummary(plan: VendorPlan | null | undefined): string {

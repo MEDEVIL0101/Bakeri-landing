@@ -95,7 +95,9 @@ export function SignupPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [business, setBusiness] = useState('');
-  const [email, setEmail] = useState('');
+  // The invite email links here with the applicant's email (and referral
+  // code) filled in; invite = their vendor_applications id.
+  const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [referral, setReferral] = useState(params.get('ref') ?? '');
   const [busy, setBusy] = useState(false);
@@ -120,6 +122,8 @@ export function SignupPage() {
     if (firstName.trim()) data.first_name = firstName.trim();
     if (lastName.trim()) data.last_name = lastName.trim();
     if (referral.trim()) data.referral_code = referral.trim().toUpperCase();
+    const invite = params.get('invite');
+    if (invite) data.vendor_application_id = invite;
     const { data: res, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,

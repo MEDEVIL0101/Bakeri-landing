@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE, parseTipCents, tipStripeFeeCoverCents } from "../_shared/fees.ts";
+import { vendorFeeRate } from "../_shared/vendorPlan.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 
@@ -94,7 +95,7 @@ Deno.serve(async (req: Request) => {
   // effectively quoted full payment through the deposit field.
   const isPartialDeposit = depositCents > 0 && depositCents < fullCents;
   const saleCents = isPartialDeposit ? depositCents : fullCents;
-  const platformFeeCents = Math.round(saleCents * PLATFORM_FEE_RATE);
+  const platformFeeCents = Math.round(saleCents * await vendorFeeRate(db, order.user_id));
 
   // Tip — only when the quote is paid in full (never on a deposit; a split
   // quote's balance is tipped on its final invoice instead) and the vendor

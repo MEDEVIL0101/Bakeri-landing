@@ -28,6 +28,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { vendorFeeRate } from "../_shared/vendorPlan.ts";
 import { readDirectChargeSettlement } from "../_shared/settlement.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
@@ -363,7 +364,7 @@ Deno.serve(async (req: Request) => {
   // in proportion to each leg's own subtotal share, purely for each row's
   // own record-keeping — the real, single application_fee already collected
   // on the PaymentIntent doesn't change either way.
-  const combinedPlatformFeeCents = Math.round(combinedSubtotalCents * PLATFORM_FEE_RATE);
+  const combinedPlatformFeeCents = Math.round(combinedSubtotalCents * await vendorFeeRate(db, bakerId));
   const digitalPlatformFeeCents = combinedSubtotalCents > 0 ? Math.round(combinedPlatformFeeCents * digitalSubtotalCents / combinedSubtotalCents) : 0;
   const physicalPlatformFeeCents = combinedPlatformFeeCents - digitalPlatformFeeCents;
 

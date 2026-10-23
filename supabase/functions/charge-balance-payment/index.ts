@@ -25,6 +25,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { vendorFeeRate } from "../_shared/vendorPlan.ts";
 import { readDirectChargeSettlement } from "../_shared/settlement.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 
@@ -103,7 +104,7 @@ Deno.serve(async (req: Request) => {
     // why that means application_fee_amount must be doubled, not just
     // "not shrunk").
     const isGuest = order.buyer_profile_id === null && order.lead_channel === "website";
-    const platformFeeCents = Math.round(baseBalanceCents * PLATFORM_FEE_RATE);
+    const platformFeeCents = Math.round(baseBalanceCents * await vendorFeeRate(admin, order.user_id));
     const balanceCents = baseBalanceCents + (isGuest ? 0 : platformFeeCents);
     // The actual total taken from the baker's side via application_fee_amount
     // — one fee-worth for a guest order, two for an app order — also what

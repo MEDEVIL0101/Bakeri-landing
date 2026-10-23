@@ -9,7 +9,12 @@
 // with its signing secret in STRIPE_BILLING_WEBHOOK_SECRET. Deploy with
 // --no-verify-jwt (Stripe sends no Supabase JWT). Events:
 //   checkout.session.completed, customer.subscription.created,
-//   customer.subscription.updated, customer.subscription.deleted
+//   customer.subscription.updated, customer.subscription.deleted,
+//   invoice.paid, charge.refunded
+//
+// invoice.paid / charge.refunded drive Refer a Vendor: 20% of each paid
+// plan invoice (before tax) accrues to the vendor's referrer, and a fully
+// refunded invoice reverses it (20261023000002_referrals_from_plans.sql).
 //
 // Every event is handled the same way: re-fetch the subscription from
 // Stripe and write its current state. That makes delivery order and
@@ -40,6 +45,20 @@ serve(async (req) => {
   } catch (e) {
     console.error("Signature check failed:", e instanceof Error ? e.message : e);
     return new Response("Bad signature", { status: 400 });
+  }
+
+  try {
+    if (event.type === "invoice.paid") {
+      await accrueReferral((event.data.object as Stripe.Invoice).id);
+      return new Response("ok", { status: 200 });
+    }
+    if (event.type === "charge.refunded") {
+      await reverseReferral((event.data.object as Stripe.Charge).id);
+      return new Response("ok", { status: 200 });
+    }
+  } catch (e) {
+    console.error(`${event.type} ${event.id} failed:`, e instanceof Error ? e.message : e);
+    return new Response("failed", { status: 500 });
   }
 
   let subscriptionId: string | null = null;
@@ -100,5 +119,36 @@ async function syncSubscription(id: string) {
     updated_at: new Date().toISOString(),
   };
   const { error } = await db.from("vendor_plans").upsert(row, { onConflict: "user_id" });
+  if (error) throw error;
+}
+
+/** The vendor a Stripe customer belongs to (metadata first, then vendor_plans). */
+async function vendorForCustomer(customerId: string, metadataUserId?: string | null): Promise<string | null> {
+  if (metadataUserId) return metadataUserId;
+  const { data } = await adminClient().from("vendor_plans").select("user_id").eq("stripe_customer_id", customerId).maybeSingle();
+  return data?.user_id ?? null;
+}
+
+async function accrueReferral(invoiceId: string) {
+  const invoice = await stripe.invoices.retrieve(invoiceId);
+  if (!invoice.subscription) return; // only plan invoices
+  const amount = (invoice.amount_paid ?? 0) - (invoice.tax ?? 0);
+  if (amount <= 0) return; // trials and $0 invoices earn nothing
+  const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+  if (!customerId) return;
+  const userId = await vendorForCustomer(customerId, invoice.subscription_details?.metadata?.user_id);
+  if (!userId) throw new Error(`No vendor for customer ${customerId}`);
+  const { error } = await adminClient().rpc("accrue_referral_plan_earning", {
+    p_referred_baker_id: userId, p_invoice_id: invoice.id, p_amount_cents: amount, p_currency: invoice.currency,
+  });
+  if (error) throw error;
+}
+
+async function reverseReferral(chargeId: string) {
+  const charge = await stripe.charges.retrieve(chargeId);
+  const invoiceId = typeof charge.invoice === "string" ? charge.invoice : charge.invoice?.id;
+  // Only a full refund undoes the plan payment the commission came from.
+  if (!invoiceId || !charge.refunded) return;
+  const { error } = await adminClient().rpc("reverse_referral_plan_earning", { p_invoice_id: invoiceId, p_reason: "refunded" });
   if (error) throw error;
 }

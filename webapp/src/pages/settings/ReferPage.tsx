@@ -20,8 +20,8 @@ export function ReferPage() {
     <div className="page page-narrow">
       <PageHeader back={<Link to="/settings" className="back-link">Settings</Link>} title="Refer a Vendor" />
       <Card className="hero-card">
-        <h2 className="hero-title">Earn 20% of Bakeri’s service fees — about 1% of every sale — from vendors you bring to Bakeri.</h2>
-        <p className="muted">Share your code or link. When a new vendor enters it as they apply to join and starts selling, your earnings add up automatically and pay out on the 1st of each month to your Stripe account.</p>
+        <h2 className="hero-title">Earn 20% of every plan payment from vendors you bring to Bakeri — for their whole first year.</h2>
+        <p className="muted">Share your code or link. When a new vendor uses it to join, you earn 20% of what they pay for their Bakeri plan each month once their free trial ends. Earnings pay out on the 1st of each month to your Stripe account.</p>
       </Card>
 
       {dash.loading && !d ? <Spinner /> : dash.error ? <ErrorBanner message="Couldn’t load your referrals right now. Try again shortly." onRetry={dash.reload} /> : d && !d.eligible ? (
@@ -62,7 +62,7 @@ export function ReferPage() {
             <div className="stat"><span className="stat-label">Paid to date</span><span className="stat-value">{formatCents(d.paid_cents, d.currency)}</span></div>
           </div>
           <p className="small muted">
-            Earnings clear 14 days after each sale, and once a referred vendor has made $100 in sales. Paid on the 1st of each month.
+            Earnings clear 14 days after each plan payment and are paid on the 1st of each month. To keep everyone’s business private, we only show your totals.
             {d.next_payout_date ? ` Next payout: ${formatDate(`${d.next_payout_date.slice(0, 10)}T12:00`)}.` : ''}
           </p>
 
@@ -76,7 +76,6 @@ export function ReferPage() {
                       <span className="row-sub">Joined {formatDate(b.joined_at.length === 10 ? `${b.joined_at}T12:00` : b.joined_at)}</span>
                     </span>
                     <span className="row-end">
-                      <span className="row-amount">{formatCents(b.lifetime_commission_cents, d.currency)}</span>
                       <Badge tone={b.status === 'selling' ? 'green' : 'neutral'}>{b.status.replace(/_/g, ' ')}</Badge>
                     </span>
                   </li>
