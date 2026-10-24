@@ -31,7 +31,7 @@ export function OrderDetailPage() {
       <PageHeader
         back={<Link to="/orders" className="back-link">Orders</Link>}
         title={title}
-        subtitle={<><Badge tone={statusTone(order)}>{statusLabel(order)}</Badge>{' '}<span className="muted">Due {formatDate(order.due_date, { weekday: 'long', month: 'long', day: 'numeric' })}</span></>}
+        subtitle={<><Badge tone={statusTone(order)}>{statusLabel(order)}</Badge>{' '}<span className="muted">Due {formatDate(order.due_date, { weekday: 'long', month: 'long', day: 'numeric' })} · Received {formatDateTime(order.created_at)}</span></>}
         actions={!storefront && (
           <>
             <Link to={`/orders/${order.id}/edit`} className="btn btn-secondary">Edit</Link>
@@ -87,7 +87,6 @@ export function OrderDetailPage() {
               {order.delivery_window_start && <><dt>Delivery window</dt><dd>{order.delivery_window_start}–{order.delivery_window_end}</dd></>}
               {order.shipping_address && <><dt>Ship to</dt><dd className="prewrap">{formatAddress(order.shipping_address)}</dd></>}
               {order.delivery_details && <><dt>Details</dt><dd className="prewrap">{order.delivery_details}</dd></>}
-              <dt>Placed</dt><dd>{formatDateTime(order.created_at)}</dd>
             </dl>
           </Card>
           <PaymentCard order={order} />
