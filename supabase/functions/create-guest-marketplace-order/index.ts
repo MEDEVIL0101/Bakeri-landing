@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { vendorFeeRate } from "../_shared/vendorPlan.ts";
 import { sendBakerOrderEmail } from "../_shared/bakerOrderEmail.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
@@ -559,7 +560,7 @@ Deno.serve(async (req: Request) => {
   const subtotalCents = lines.reduce((sum, l) => sum + Math.round(l.pricePerUnit * l.quantity * 100), 0);
   // Fee is on the pre-tax item subtotal — comes out of the baker's cut, not
   // added to what the customer was actually charged (subtotal + tax only).
-  const platformFeeCents = Math.round(subtotalCents * PLATFORM_FEE_RATE);
+  const platformFeeCents = Math.round(subtotalCents * await vendorFeeRate(db, baker_id));
   // Tip — set by create-payment-intent in the PI metadata (never trusted from
   // this request). 100% the vendor's; recorded as its own "Tip" line, the
   // same way a Tap to Pay tip is.

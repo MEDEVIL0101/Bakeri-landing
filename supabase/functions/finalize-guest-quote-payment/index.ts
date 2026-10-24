@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE, tipStripeFeeCoverCents } from "../_shared/fees.ts";
+import { vendorFeeRate } from "../_shared/vendorPlan.ts";
 import { readDirectChargeSettlement, toDepositSettlementFields } from "../_shared/settlement.ts";
 import { sendGuestPaymentReceiptEmail } from "../_shared/guestReceiptEmail.ts";
 
@@ -108,7 +109,8 @@ Deno.serve(async (req: Request) => {
   const depositCents = order.deposit_amount_cents ?? 0;
   const fullCents = Math.round(Number(order.quoted_price ?? 0) * 100);
   const baseCents = isDepositLeg ? depositCents : fullCents;
-  const platformFeeCents = Math.round(baseCents * PLATFORM_FEE_RATE);
+  // Same plan-based rate create-guest-quote-payment-intent charged.
+  const platformFeeCents = Math.round(baseCents * await vendorFeeRate(db, order.user_id));
   // Tip on a full payment (create-guest-quote-payment-intent's metadata, never the
   // request). The vendor keeps it all; Bakeri's actual application fee was
   // reduced by Stripe's % on it, so the payout is worked out from that.
