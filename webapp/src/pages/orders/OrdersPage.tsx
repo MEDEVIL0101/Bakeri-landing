@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
 import { EmptyState, ErrorBanner, Input, PageHeader, Spinner, useLoad } from '../../components/ui';
-import { isClosed, isStorefrontOrder, isUnacceptedQuote, listOrders, needsAction } from '../../lib/orders';
+import { isClosed, isStorefrontOrder, isUnacceptedQuote, listOrders, needsAction, effectiveDue } from '../../lib/orders';
 import { OrderRow } from '../Dashboard';
 import type { Order } from '../../lib/types';
 
@@ -43,8 +43,8 @@ export function OrdersPage() {
     });
     // Closed orders read newest first; everything else by due date.
     return filter === 'closed' || filter === 'all'
-      ? list.sort((a, b) => b.due_date.localeCompare(a.due_date))
-      : list.sort((a, b) => a.due_date.localeCompare(b.due_date));
+      ? list.sort((a, b) => effectiveDue(b).localeCompare(effectiveDue(a)))
+      : list.sort((a, b) => effectiveDue(a).localeCompare(effectiveDue(b)));
   }, [data, filter, q]);
 
   const counts = useMemo(() => {

@@ -4,10 +4,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, PageHeader, Select, Spinner, useLoad, useToast } from '../../components/ui';
 import {
   MANUAL_STATUS_FLOW, createInvoice, deleteOrder, effectiveTotal, emailInvoice, getOrder, invoiceURL, isStorefrontOrder,
-  itemsTotal, setManualStatus, setPaid, statusLabel, statusTone,
+  itemsTotal, setManualStatus, setPaid, statusLabel, statusTone, dueText, effectiveDue, setDueDate,
 } from '../../lib/orders';
 import { STORAGE_PUBLIC_URL } from '../../lib/supabase';
-import { formatDate, formatDateTime, formatMoney, parseNumber } from '../../lib/format';
+import { formatDate, formatDateTime, formatMoney, fromLocalInput, parseNumber, toDateInput } from '../../lib/format';
 import type { Order } from '../../lib/types';
 import { StorefrontActions } from './StorefrontActions';
 import { FormAnswers } from './FormAnswers';
@@ -31,7 +31,7 @@ export function OrderDetailPage() {
       <PageHeader
         back={<Link to="/orders" className="back-link">Orders</Link>}
         title={title}
-        subtitle={<><Badge tone={statusTone(order)}>{statusLabel(order)}</Badge>{' '}<span className="muted">Due {formatDate(order.due_date, { weekday: 'long', month: 'long', day: 'numeric' })} · Received {formatDateTime(order.created_at)}</span></>}
+        subtitle={<><Badge tone={statusTone(order)}>{statusLabel(order)}</Badge>{' '}<span className="muted">Due {dueText(order, { weekday: 'long', month: 'long', day: 'numeric' })} · Received {formatDateTime(order.created_at)}</span></>}
         actions={!storefront && (
           <>
             <Link to={`/orders/${order.id}/edit`} className="btn btn-secondary">Edit</Link>
@@ -83,6 +83,7 @@ export function OrderDetailPage() {
               {order.customer_email && <><dt>Email</dt><dd><a href={`mailto:${order.customer_email}`}>{order.customer_email}</a></dd></>}
               {order.customer_phone && <><dt>Phone</dt><dd><a href={`tel:${order.customer_phone}`}>{order.customer_phone}</a></dd></>}
               <dt>Fulfillment</dt><dd>{order.fulfillment_type}</dd>
+              {storefront && order.marketplace_status !== 'pending_quote' && <><dt>Due</dt><dd><DueDateInput order={order} onSaved={reload} /></dd></>}
               {order.delivery_address && <><dt>Deliver to</dt><dd>{order.delivery_address}</dd></>}
               {order.delivery_window_start && <><dt>Delivery window</dt><dd>{order.delivery_window_start}–{order.delivery_window_end}</dd></>}
               {order.shipping_address && <><dt>Ship to</dt><dd className="prewrap">{formatAddress(order.shipping_address)}</dd></>}
@@ -303,5 +304,24 @@ function InspirationPhotos({ order }: { order: Order }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Storefront orders: change the due date in place (manual orders use Edit). */
+function DueDateInput({ order, onSaved }: { order: Order; onSaved: () => void }) {
+  const toast = useToast();
+  const [value, setValue] = useState(toDateInput(effectiveDue(order)));
+  const [saving, setSaving] = useState(false);
+  return (
+    <input type="date" className="input input-inline" value={value} disabled={saving} aria-label="Due date"
+      onChange={async (e) => {
+        const next = e.target.value;
+        if (!next) return;
+        const prev = value;
+        setValue(next); setSaving(true);
+        try { await setDueDate(order, fromLocalInput(next)); toast('Due date updated'); onSaved(); }
+        catch (err: any) { setValue(prev); toast(err?.message ?? 'Couldn’t change the due date.', 'error'); }
+        setSaving(false);
+      }} />
   );
 }

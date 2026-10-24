@@ -4,8 +4,9 @@ import {
   acceptOrder, cancelOrRefund, completeOrder, declineOrder, effectiveTotal, markDelivered, markOutForDelivery,
   markQuotePaidManually, markReadyForPickup, markShipped, resendDigitalDownload, resendQuoteEmail,
   resendReadyNotification, retractQuote, setShippingStatus, shortTime, submitQuote, undoCompletion,
+  effectiveDue, requestedDate,
 } from '../../lib/orders';
-import { formatDate, formatMoney, parseNumber, toDateInput } from '../../lib/format';
+import { formatDate, formatMoney, fromLocalInput, parseNumber, toDateInput } from '../../lib/format';
 import type { Order } from '../../lib/types';
 
 type Dialog =
@@ -257,11 +258,13 @@ function QuoteDialog({ order, onClose, onDone }: { order: Order; onClose: () => 
   const [note, setNote] = useState(order.quote_note ?? '');
   const [delivery, setDelivery] = useState(order.is_delivery);
   const [address, setAddress] = useState(order.delivery_address ?? '');
+  // Starts on the customer's requested date (their request form).
+  const [due, setDue] = useState(toDateInput(effectiveDue(order)));
   const total = parseNumber(deposit) + parseNumber(balance);
   return (
     <ConfirmModal title="Send a quote" confirmLabel={`Send ${formatMoney(total)} quote`} onClose={onClose}
       onConfirm={async () => {
-        await submitQuote(order, { deposit: parseNumber(deposit), balance: parseNumber(balance), note, isDelivery: delivery, deliveryAddress: address });
+        await submitQuote(order, { deposit: parseNumber(deposit), balance: parseNumber(balance), note, isDelivery: delivery, deliveryAddress: address, dueDate: due ? fromLocalInput(due) : '' });
         onDone();
       }}
     >
@@ -274,6 +277,9 @@ function QuoteDialog({ order, onClose, onDone }: { order: Order; onClose: () => 
           <Input inputMode="decimal" placeholder="0.00" value={balance} onChange={(e) => setBalance(e.target.value)} />
         </Field>
       </div>
+      <Field label="Due date" hint={requestedDate(order) ? 'From their request — change it if you agreed on a different day.' : undefined}>
+        <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+      </Field>
       <Field label="Note to the customer (optional)">
         <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>

@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth, useUserId } from '../auth/AuthProvider';
 import { Badge, Card, EmptyState, ErrorBanner, Spinner, useLoad, useToast } from '../components/ui';
 import {
-  listOrders, effectiveTotal, isClosed, isStorefrontOrder, isUnacceptedQuote, needsAction, revenueReceived, statusLabel, statusTone,
-} from '../lib/orders';
+  listOrders, effectiveTotal, isClosed, isStorefrontOrder, isUnacceptedQuote, needsAction, revenueReceived, statusLabel, statusTone, dueText } from '../lib/orders';
 import { listTasks, listUnavailableDates } from '../lib/data';
 import { listMenuItems, menuImageURL, type MenuItemFull } from '../lib/menu';
 import { formatDate, formatMoney, sameDay } from '../lib/format';
@@ -302,7 +301,7 @@ export function OrderRow({ o }: { o: Order }) {
         <span className="grow">
           <span className="row-title">{name}</span>
           <span className="row-sub">
-            {o.order_name && o.customer_name ? `${o.customer_name} · ` : ''}Due {formatDate(o.due_date, { weekday: 'short', month: 'short', day: 'numeric' })}
+            {o.order_name && o.customer_name ? `${o.customer_name} · ` : ''}Due {dueText(o, { weekday: 'short', month: 'short', day: 'numeric' })}
           </span>
         </span>
         <span className="row-end">

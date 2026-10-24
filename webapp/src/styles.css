@@ -1113,3 +1113,5 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .focal-crop.sq { width: 96px; height: 96px; }
 .focal-crop.wide { width: 150px; height: 84px; }
 .focal-crop.tall { width: 72px; height: 110px; }
+
+.kv .input-inline { width: auto; min-height: 0; padding: 4px 8px; font-size: 14px; }

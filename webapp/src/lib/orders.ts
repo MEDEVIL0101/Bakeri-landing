@@ -41,6 +41,41 @@ export function isStorefrontOrder(o: Order): boolean {
   return o.order_source === 'marketplace';
 }
 
+// ── Due dates on storefront quotes (mirror Order.requestedDate /
+// effectiveDueDate in the app) ──────────────────────────────────────────
+
+/** The date the customer asked for on their request form (first Date answer), as ISO. */
+export function requestedDate(o: Order): string | null {
+  const answers = Array.isArray(o.form_responses) ? o.form_responses : [];
+  const raw = answers.find((a: any) => a?.fieldType === 'date' && typeof a.textValue === 'string' && a.textValue.trim())?.textValue?.trim();
+  if (!raw) return null;
+  // Storefront forms send YYYY-MM-DD (a local day, not UTC midnight).
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T12:00`) : new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** submit-custom-order-inquiry stamps a quote request due 7 days after it arrives. */
+export function hasPlaceholderDue(o: Order): boolean {
+  if (!isStorefrontOrder(o)) return false;
+  const gap = new Date(o.due_date).getTime() - new Date(o.created_at).getTime();
+  return Math.abs(gap - 7 * 86400000) < 600000;
+}
+
+/** The due date to show: the requested date while the stored one is that placeholder. */
+export function effectiveDue(o: Order): string {
+  return hasPlaceholderDue(o) ? requestedDate(o) ?? o.due_date : o.due_date;
+}
+
+/** "ASAP" until a quote request has been answered; otherwise the due date. */
+export function dueText(o: Order, opts: Intl.DateTimeFormatOptions): string {
+  if (isStorefrontOrder(o) && o.marketplace_status === 'pending_quote') return 'ASAP';
+  return new Date(effectiveDue(o)).toLocaleDateString(undefined, opts);
+}
+
+export async function setDueDate(o: Order, iso: string): Promise<void> {
+  await patchOrder(o, { due_date: iso });
+}
+
 export function isOverdue(o: Order): boolean {
   return new Date(o.due_date) < new Date() && !['Delivered', 'Completed', 'Cancelled'].includes(o.status);
 }
@@ -258,7 +293,7 @@ export async function declineOrder(o: Order, message: string): Promise<void> {
 
 export async function submitQuote(
   o: Order,
-  q: { deposit: number; balance: number; note: string; isDelivery: boolean; deliveryAddress: string },
+  q: { deposit: number; balance: number; note: string; isDelivery: boolean; deliveryAddress: string; dueDate: string },
 ): Promise<void> {
   const total = q.deposit + q.balance;
   if (total <= 0) throw new ApiError('Enter a price for this quote.');
@@ -274,6 +309,7 @@ export async function submitQuote(
     is_delivery: q.isDelivery,
     delivery_address: q.isDelivery && q.deliveryAddress.trim() ? q.deliveryAddress.trim() : null,
     payment_flow: isPartialDeposit ? 'deposit_and_save' : 'auth_hold',
+    ...(q.dueDate ? { due_date: q.dueDate } : {}),
   });
 }
 
