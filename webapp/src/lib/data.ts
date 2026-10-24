@@ -35,6 +35,10 @@ export async function addContact(userId: string, c: { email: string; name: strin
   );
 }
 
+export async function getContact(id: string): Promise<Contact | null> {
+  return check(await supabase.from('baker_contacts').select('*').eq('id', id).maybeSingle()) as Contact | null;
+}
+
 export async function setSubscribed(contact: Contact, subscribed: boolean): Promise<void> {
   check(
     await supabase

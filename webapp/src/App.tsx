@@ -11,6 +11,7 @@ import { OrderEditorPage } from './pages/orders/OrderEditorPage';
 import { MenuPage } from './pages/menu/MenuPage';
 import { MenuItemEditorPage } from './pages/menu/MenuItemEditorPage';
 import { CustomersPage } from './pages/customers/CustomersPage';
+import { CustomerProfilePage } from './pages/customers/CustomerProfilePage';
 import { CampaignsPage } from './pages/customers/CampaignsPage';
 import { SchedulePage } from './pages/schedule/SchedulePage';
 import { RecipesPage } from './pages/recipes/RecipesPage';
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="menu/new" element={<MenuItemEditorPage />} />
               <Route path="menu/:id" element={<MenuItemEditorPage />} />
               <Route path="customers" element={<CustomersPage />} />
+              <Route path="customers/:id" element={<CustomerProfilePage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
               <Route path="schedule" element={<SchedulePage />} />
               <Route path="recipes" element={<RecipesPage />} />

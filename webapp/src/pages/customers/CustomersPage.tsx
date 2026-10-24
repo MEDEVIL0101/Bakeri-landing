@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
 import { Badge, Button, ConfirmModal, EmptyState, ErrorBanner, Field, Input, Modal, PageHeader, Spinner, useLoad, useToast } from '../../components/ui';
 import { CONTACT_SOURCES, addContact, deleteContact, listContacts, setSubscribed } from '../../lib/data';
@@ -9,6 +9,7 @@ import type { Contact } from '../../lib/types';
 export function CustomersPage() {
   const userId = useUserId();
   const toast = useToast();
+  const navigate = useNavigate();
   const { data, loading, error, reload } = useLoad(() => listContacts(userId), [userId]);
   const [q, setQ] = useState('');
   const [show, setShow] = useState<'all' | 'subscribed' | 'unsubscribed'>('all');
@@ -62,21 +63,21 @@ export function CustomersPage() {
             <thead><tr><th>Customer</th><th className="hide-sm">Source</th><th className="hide-sm">Added</th><th>Mailing list</th><th /></tr></thead>
             <tbody>
               {rows.map((c) => (
-                <tr key={c.id}>
+                // The whole row opens the customer's profile; the controls in it stop the click.
+                <tr key={c.id} className="row-link" onClick={() => navigate(`/customers/${c.id}`)}>
                   <td>
-                    <div className="row-title">{c.name || c.email}</div>
+                    <Link className="row-title" to={`/customers/${c.id}`} onClick={(e) => e.stopPropagation()}>{c.name || c.email}</Link>
                     {c.name && <div className="small muted">{c.email}</div>}
                     {c.phone && <div className="small muted">{c.phone}</div>}
-                    {c.first_order_id && <Link className="small" to={`/orders/${c.first_order_id}`}>First order</Link>}
                   </td>
                   <td className="hide-sm">{CONTACT_SOURCES[c.source] ?? c.source}</td>
                   <td className="hide-sm">{formatDate(c.created_at)}</td>
                   <td>
-                    <button className="link-btn" onClick={() => toggle(c)} title={c.unsubscribed_at ? 'Resubscribe' : 'Unsubscribe'}>
+                    <button className="link-btn" onClick={(e) => { e.stopPropagation(); toggle(c); }} title={c.unsubscribed_at ? 'Resubscribe' : 'Unsubscribe'}>
                       {c.unsubscribed_at ? <Badge>Unsubscribed</Badge> : <Badge tone="blue">Subscribed</Badge>}
                     </button>
                   </td>
-                  <td className="num"><button className="icon-btn sm" aria-label="Remove contact" onClick={() => setRemoving(c)}>×</button></td>
+                  <td className="num"><button className="icon-btn sm" aria-label="Remove contact" onClick={(e) => { e.stopPropagation(); setRemoving(c); }}>×</button></td>
                 </tr>
               ))}
             </tbody>
