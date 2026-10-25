@@ -188,6 +188,18 @@
     }
     #shop-meta { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--card-text, var(--text)); }
     #shop-bio { margin: 0 0 6px; font-size: 16px; line-height: 1.55; text-wrap: pretty; white-space: pre-line; }
+    /* Wide pages (desktop, ≥ 860px of column): logo + name on the left,
+       the menu card on the right, instead of all stacked. #sf-root.wide is
+       set from the column's own width, like .compact. */
+    #sf-root.wide #profile-block {
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      grid-template-areas: "avatar card" "name card";
+      column-gap: 48px; row-gap: 16px; align-items: center;
+      padding-top: calc(var(--proftop) + 52px); /* clear the share/cart pills */
+    }
+    #sf-root.wide #pb-avatar { grid-area: avatar; justify-self: center; align-self: end; }
+    #sf-root.wide #shop-name { grid-area: name; justify-self: center; align-self: start; margin: 0; }
+    #sf-root.wide #sf-intro-card { grid-area: card; max-width: none; margin-top: 0; align-self: center; }
     #sf-nav { display: flex; flex-direction: column; gap: 10px; }
     #sf-nav:empty { display: none; }
     /* Nav buttons + plain-pill links share one look. */
@@ -1153,6 +1165,7 @@
     const root = document.getElementById('sf-root');
     const onResize = function () {
       root.classList.toggle('compact', root.clientWidth < 640);
+      root.classList.toggle('wide', root.clientWidth >= 860);
       sizeTopBackground();
       fitShopName();
     };
