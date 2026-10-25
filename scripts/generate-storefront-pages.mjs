@@ -154,7 +154,8 @@ ${GENERATED_MARKER}
     // first paint — the same redirect at the end of <body> flashed the beige
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
-    location.replace(${JSON.stringify(storeHref + "&clean=1")});
+    // Any query (e.g. ?item=… on a shared product link) carries through.
+    location.replace(${JSON.stringify(storeHref + "&clean=1")} + (location.search ? "&" + location.search.slice(1) : ""));
   </script>
   <title>${esc(title)}</title>
   <meta name="description" content="${attr(description)}" />
