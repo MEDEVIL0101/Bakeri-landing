@@ -187,7 +187,8 @@ export function CardSettings(props: EditorProps & { type: V2CardType }) {
   return (
     <>
       <Section title={`${meta.label} card`}>
-        <Toggle checked={!block.hidden} onChange={(v) => upd({ hidden: !v })} label="Show this card" />
+        <Toggle checked={!block.hidden} onChange={(v) => upd({ hidden: !v })} label="Show this card"
+          hint={block.hidden ? 'Hidden — this card and its menu button don’t appear on your page.' : undefined} />
         <Field label="Card title"><Input value={block.title ?? ''} placeholder={v2DefaultTitle(props.type, props.data.firstName)} onChange={(e) => upd({ title: e.target.value || undefined })} /></Field>
         {meta.parts && (
           <div className="stack">
@@ -228,6 +229,8 @@ export function CardSettings(props: EditorProps & { type: V2CardType }) {
         </Section>
       )}
 
+      {/* A hidden card has no menu button to set up. */}
+      {!block.hidden && (
       <Section title="Menu button" hint="A button for this card in the menu on your profile card.">
         <Toggle checked={nav} onChange={(v) => upd({ nav: v === meta.navByDefault ? undefined : v })} label="Show in the menu" />
         {nav && (
@@ -243,6 +246,7 @@ export function CardSettings(props: EditorProps & { type: V2CardType }) {
           </>
         )}
       </Section>
+      )}
 
       <Section title="Card colours">
         <CardColorFields value={block.colors ?? {}} onChange={(c) => upd({ colors: c })} />

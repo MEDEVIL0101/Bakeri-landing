@@ -1336,6 +1336,8 @@
       const el = cardElement(t);
       if (!el || el.classList.contains('hidden')) return;
       const c = blockCfg[t] || {};
+      // A section the vendor hid never gets a menu button.
+      if (c.hidden) return;
       const show = typeof c.nav === 'boolean' ? c.nav : NAV_DEFAULT[key];
       if (!show) return;
       const label = (c.nav_label || '').trim() || cardTitle(key);
