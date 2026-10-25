@@ -10,7 +10,8 @@
     // first paint — the same redirect at the end of <body> flashed the beige
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
-    location.replace("/baker/?slug=sugar-d-notes-cookie-co&clean=1");
+    // Any query (e.g. ?item=… on a shared product link) carries through.
+    location.replace("/baker/?slug=sugar-d-notes-cookie-co&clean=1" + (location.search ? "&" + location.search.slice(1) : ""));
   </script>
   <title>Sugar’d Notes Cookie Co — Order online · Mount Joy, PA</title>
   <meta name="description" content="Every cookie is baked fresh, hand-decorated, and customized to bring your vision to life! From simple elegance to fun themes, we make every celebration…" />

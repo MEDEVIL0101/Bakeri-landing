@@ -10,7 +10,8 @@
     // first paint — the same redirect at the end of <body> flashed the beige
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
-    location.replace("/baker/?slug=sarahs-treats&clean=1");
+    // Any query (e.g. ?item=… on a shared product link) carries through.
+    location.replace("/baker/?slug=sarahs-treats&clean=1" + (location.search ? "&" + location.search.slice(1) : ""));
   </script>
   <title>Sarahs treats — Order online · Salem, MA</title>
   <meta name="description" content="Treat business 💕" />
@@ -76,9 +77,9 @@
         <li>“Falling for you” national bf berries — $50.00</li>
         <li>“happy national bf day” berries — $55.00</li>
         <li>“i love you boo” national bf day — $60.00</li>
+        <li>“i love you” national bf day — $40.00</li>
         <li>“i love you” national bf day — $30.00</li>
         <li>“i love you” national bf day — $50.00</li>
-        <li>“i love you” national bf day — $40.00</li>
         <li>“i love you” national bf day — $45.00</li>
         <li>“taquero mucho” national bf day — $50.00</li>
         <li>“te amo mi morenito” national bf day — $45.00</li>

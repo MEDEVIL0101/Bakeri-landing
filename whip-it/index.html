@@ -10,7 +10,8 @@
     // first paint — the same redirect at the end of <body> flashed the beige
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
-    location.replace("/baker/?slug=whip-it&clean=1");
+    // Any query (e.g. ?item=… on a shared product link) carries through.
+    location.replace("/baker/?slug=whip-it&clean=1" + (location.search ? "&" + location.search.slice(1) : ""));
   </script>
   <title>Whip It — Order online</title>
   <meta name="description" content="Order handmade baked goods from Whip It on Bakeri." />
