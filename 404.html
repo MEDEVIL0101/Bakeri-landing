@@ -36,7 +36,9 @@
       var isPlausibleSlug = path.length > 0 && !path.includes('/') && !path.includes('.') &&
         /^[a-z0-9-]+$/i.test(path);
       if (isPlausibleSlug) {
-        window.location.replace('/baker/index.html?slug=' + encodeURIComponent(path.toLowerCase()) + '&clean=1');
+        // Any query (e.g. ?item=… on a shared product link) carries through.
+        var extra = window.location.search ? '&' + window.location.search.slice(1) : '';
+        window.location.replace('/baker/index.html?slug=' + encodeURIComponent(path.toLowerCase()) + '&clean=1' + extra);
       }
     })();
   </script>

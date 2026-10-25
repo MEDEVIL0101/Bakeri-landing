@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { listingShareURL } from '../../lib/sections';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
 import { Button, Card, ConfirmModal, ErrorBanner, Field, Input, PageHeader, Select, Spinner, Textarea, Toggle, useLoad, useToast } from '../../components/ui';
@@ -55,6 +56,11 @@ export function MenuItemEditorPage() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
+  // A link straight to this product on the storefront (opens its item sheet).
+  async function copyLink(url: string) {
+    try { await navigator.clipboard.writeText(url); toast('Link copied — paste it anywhere to share this product'); }
+    catch { window.prompt('Copy this link:', url); }
+  }
   const items = useLoad(() => listMenuItems(userId), [userId]);
   const forms = useLoad(() => listIntakeForms(userId), [userId]);
   const recipes = useLoad(() => listRecipes(userId), [userId]);
@@ -168,6 +174,9 @@ export function MenuItemEditorPage() {
       title={id ? d.name || 'Edit listing' : formListing ? 'New custom order form' : `New ${kindLabel.toLowerCase()} listing`}
       subtitle={<span className="kind-pill">{formListing ? 'Custom order form' : kindLabel}</span>}
       actions={<>
+        {id && existing?.is_listed_in_marketplace && profile?.profile_slug && (
+          <Button type="button" variant="secondary" onClick={() => copyLink(listingShareURL(profile.profile_slug!, existing.id))}>Copy link</Button>
+        )}
         {id && <Button type="button" variant="ghost" data-role="destructive" onClick={() => setConfirmDelete(true)}>Delete</Button>}
         <Button type="submit" loading={busy}>Save</Button>
       </>}

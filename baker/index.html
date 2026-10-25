@@ -675,6 +675,7 @@
       animation: riseIn .22s ease-out;
     }
     @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .sheet-share { right: 56px !important; }
     .sheet-close {
       position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%;
       background: rgba(20,15,10,.5); color: #fff; border: none; cursor: pointer; font-size: 15px;
@@ -1056,6 +1057,7 @@
         <img id="item-sheet-img" alt="" />
         <div class="p-badge" id="item-sheet-badge" style="top:12px;left:12px;"></div>
         <button class="sheet-close" id="item-sheet-close">✕</button>
+        <button class="sheet-close sheet-share" id="item-sheet-share" aria-label="Share this item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
       </div>
       <div id="item-sheet-body">
         <div id="item-sheet-fixed">
@@ -1310,8 +1312,10 @@
     loadCart();
     if (window.BakeriTheme) window.BakeriTheme.apply(profile);
     render(profile, data.listings || [], data.faqs || [], data.links || []);
+    openSharedItemFromURL();
     if (isCleanRedirect && slug && window.history && window.history.replaceState) {
-      window.history.replaceState(null, '', '/' + slug);
+      // Keep a shared product's ?item= on the clean URL.
+      window.history.replaceState(null, '', '/' + slug + (params.get('item') ? '?item=' + encodeURIComponent(params.get('item')) : ''));
     }
   })
   .catch(function () { showNotFound('Something went wrong', 'Could not load this profile. Try again later.'); });
@@ -1454,6 +1458,7 @@
     document.getElementById('desktop-cart-btn').addEventListener('click', openCartSheet);
     document.getElementById('action-bar-cart').addEventListener('click', openCartSheet);
     document.getElementById('item-sheet-close').addEventListener('click', closeItemSheet);
+    document.getElementById('item-sheet-share').addEventListener('click', function (e) { e.stopPropagation(); shareItem(sheetItem); });
     document.getElementById('cart-sheet-close').addEventListener('click', closeCartSheet);
     document.getElementById('desc-sheet-close').addEventListener('click', closeDescSheet);
     document.getElementById('item-scrim').addEventListener('click', function (e) { if (e.target === this) closeItemSheet(); });
@@ -3106,7 +3111,56 @@
 
   // ══════════════════════ Item Sheet ══════════════════════
 
+
+  // ══════════════════════ Product share links ══════════════════════
+  //
+  // bakeriapp.com/<slug>?item=<first 8 hex of the listing id> opens the
+  // storefront straight onto that product (404.html forwards ?item= through
+  // the clean-URL redirect). The open item sheet keeps the address bar on
+  // that link, and its Share button hands it to the phone's share sheet (or
+  // copies it). Same block in index.html and next.html.
+  let sheetItem = null;
+  function itemShareCode(item) { return String(item.id).toLowerCase().replace(/-/g, '').slice(0, 8); }
+  function itemShareURL(item) {
+    const s = (profile && profile.profile_slug) || slug;
+    return 'https://bakeriapp.com/' + encodeURIComponent(s) + '?item=' + itemShareCode(item);
+  }
+  function findItemByShareCode(code) {
+    const c = String(code || '').toLowerCase().replace(/[^0-9a-f]/g, '');
+    if (c.length < 6) return null;
+    return allListings.find(function (l) { return String(l.id).toLowerCase().replace(/-/g, '').indexOf(c) === 0; }) || null;
+  }
+  function setItemInAddressBar(item) {
+    if (isPreviewMode || !window.history || !window.history.replaceState) return;
+    try {
+      const u = new URL(window.location.href);
+      if (item) u.searchParams.set('item', itemShareCode(item)); else u.searchParams.delete('item');
+      window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash);
+    } catch (e) { /* older browsers: the link still works from the Share button */ }
+  }
+  function shareItem(item) {
+    if (!item) return;
+    const url = itemShareURL(item);
+    const shop = (profile && (profile.business_name || profile.user_name)) || 'Bakeri';
+    if (navigator.share) {
+      navigator.share({ title: item.name, text: item.name + ' from ' + shop, url: url }).catch(function () {});
+      return;
+    }
+    const done = function () { showToast('Link copied'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { window.prompt('Copy this link:', url); });
+    else window.prompt('Copy this link:', url);
+  }
+  function openSharedItemFromURL() {
+    const code = params.get('item');
+    if (!code || isPreviewMode) return;
+    const item = findItemByShareCode(code);
+    if (item) openItemSheet(item);
+    else { setItemInAddressBar(null); showToast('That item isn’t available right now.'); }
+  }
+
   function openItemSheet(item) {
+    sheetItem = item;
+    setItemInAddressBar(item);
     document.getElementById('item-sheet-name').textContent = item.name;
     document.getElementById('item-sheet-price').innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
     const descEl = document.getElementById('item-sheet-desc');
@@ -3232,7 +3286,7 @@
     descEl.classList.toggle('tappable', descOverflows);
     if (!descOverflows) descEl.onclick = null;
   }
-  function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); }
+  function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); sheetItem = null; setItemInAddressBar(null); }
 
   // ══════════════════════ Swipe down to dismiss ══════════════════════
   //

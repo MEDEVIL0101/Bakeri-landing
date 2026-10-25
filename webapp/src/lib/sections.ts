@@ -9,6 +9,11 @@ import { supabase } from './supabase';
 import { check } from './api';
 import { nowISO } from './format';
 
+/** bakeriapp.com/<slug>?item=<first 8 hex of the id> — opens the storefront on this product (baker/*.html). */
+export function listingShareURL(slug: string, listingId: string): string {
+  return `https://bakeriapp.com/${encodeURIComponent(slug)}?item=${listingId.toLowerCase().replace(/-/g, '').slice(0, 8)}`;
+}
+
 export function sectionKey(name: string): string {
   return name.trim().toLowerCase();
 }
