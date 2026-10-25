@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
-import { Badge, EmptyState, ErrorBanner, Input, PageHeader, Spinner, useLoad, useToast } from '../../components/ui';
+import { Badge, Button, EmptyState, ErrorBanner, Input, Modal, PageHeader, Spinner, useLoad, useToast } from '../../components/ui';
+import { loadSectionOrder, orderedSections, renameSection, saveSectionOrder, sectionKey } from '../../lib/sections';
 import { SortableList } from '../../components/Sortable';
 import { kindLabel, listMenuItems, menuImageURL, reorderMenu, setListed, setStock, type MenuItemFull } from '../../lib/menu';
 import { formatMoney } from '../../lib/format';
@@ -19,6 +20,7 @@ export function MenuPage() {
   const { data, loading, error, reload, setData } = useLoad(() => listMenuItems(userId), [userId]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
   const [q, setQ] = useState('');
+  const [editingSections, setEditingSections] = useState(false);
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -66,11 +68,17 @@ export function MenuPage() {
 
   return (
     <div className="page">
+      {editingSections && data && (
+        <SectionsModal userId={userId} items={data} onClose={() => setEditingSections(false)} onSaved={() => { toast('Sections saved'); reload(); }} />
+      )}
       <PageHeader
         title="Menu & Listings"
         phoneTitle="Products"
         subtitle="Everything you sell. Listed items appear on your storefront straight away."
-        actions={<Link to="/menu/new" className="btn btn-primary" data-icon="plus">New listing</Link>}
+        actions={<>
+          <Button variant="secondary" onClick={() => setEditingSections(true)} disabled={!data}>Sections</Button>
+          <Link to="/menu/new" className="btn btn-primary" data-icon="plus">New listing</Link>
+        </>}
       />
       {profile && !profile.stripe_connect_onboarding_complete && (
         <div className="banner banner-info">Listed products stay hidden from customers until Direct Deposit is connected (Bakeri app → Settings → Banking &amp; Payments).</div>
@@ -122,5 +130,59 @@ export function MenuPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Listing sections (each listing's Section field): put them in the order the
+ * storefront shows them, and rename one across every listing that uses it.
+ */
+function SectionsModal({ userId, items, onClose, onSaved }: { userId: string; items: MenuItemFull[]; onClose: () => void; onSaved: () => void }) {
+  const { data: order, error } = useLoad(() => loadSectionOrder(userId), [userId]);
+  const [rows, setRows] = useState<{ id: string; from: string; name: string }[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (order && !rows) {
+    setRows(orderedSections(items.map((m) => m.category ?? ''), order).map((n) => ({ id: sectionKey(n), from: n, name: n })));
+  }
+  const count = (name: string) => items.filter((m) => sectionKey(m.category ?? '') === sectionKey(name)).length;
+  const unsorted = items.filter((m) => !(m.category ?? '').trim()).length;
+
+  async function save() {
+    if (!rows) return;
+    setBusy(true); setErr(null);
+    try {
+      for (const r of rows) {
+        if (r.name.trim() && r.name.trim() !== r.from) await renameSection(userId, r.from, r.name);
+      }
+      await saveSectionOrder(userId, rows.map((r) => (r.name.trim() || r.from)));
+      onSaved(); onClose();
+    } catch (e: any) { setErr(e?.message ?? 'Something went wrong.'); setBusy(false); }
+  }
+
+  return (
+    <Modal title="Sections" onClose={onClose}
+      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!rows?.length} onClick={save}>Save</Button></>}>
+      <p className="muted small">
+        Sections group your listings on your storefront — Halloween, Christmas, Gift boxes, anything you like.
+        Set a listing’s section when you edit it. Drag to change the order; rename one and every listing in it moves too.
+      </p>
+      {error && <ErrorBanner message={error} />}
+      {!rows ? <Spinner /> : rows.length === 0 ? (
+        <p className="muted small">No sections yet. Open a listing and type a name in its Section field.</p>
+      ) : (
+        <SortableList items={rows} keyOf={(r) => r.id} onReorder={setRows} className="list" itemClassName={() => 'list-row'}
+          renderRow={(r, handle) => (
+            <>
+              {handle}
+              <Input className="grow" value={r.name} aria-label="Section name"
+                onChange={(e) => setRows(rows.map((x) => (x.id === r.id ? { ...x, name: e.target.value } : x)))} />
+              <span className="small muted">{count(r.from)} listing{count(r.from) === 1 ? '' : 's'}</span>
+            </>
+          )} />
+      )}
+      {unsorted > 0 && rows && rows.length > 0 && <p className="small muted">{unsorted} listing{unsorted === 1 ? ' has' : 's have'} no section and show{unsorted === 1 ? 's' : ''} after these.</p>}
+      {err && <ErrorBanner message={err} />}
+    </Modal>
   );
 }

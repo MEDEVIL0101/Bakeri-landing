@@ -312,6 +312,11 @@
       display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .sf-tile-wide .sf-price-row { padding-top: 10px; justify-content: flex-start; gap: 16px; }
     .sf-tile-wide .sf-price { font-size: 18px; }
+    /* Listing section headings (Halloween, Gift boxes…) inside a card. */
+    .sf-group-title { font-size: 15px; font-weight: 800; margin: 22px 0 10px; color: var(--card-title, var(--head-ink)); letter-spacing: .01em; }
+    .sf-group-title:first-child { margin-top: 0; }
+    .sf-dl-list .sf-group-title { margin: 16px 0 6px; padding: 0 var(--cpad2, 18px); }
+    .sf-dl-list .sf-group-title:first-child { margin-top: 4px; }
     @media (min-width: 560px) { .sf-tile-wide .sf-tile-name { font-size: 20px; } .sf-tile-desc { -webkit-line-clamp: 5; } }
 
     /* ══════════════ 2. Lead magnet ══════════════ */
@@ -1969,15 +1974,35 @@
   function titleCase(str) {
     return (str || '').toLowerCase().replace(/\b([a-z])/g, function (m, c) { return c.toUpperCase(); });
   }
+  // Listing sections: each listing's free-text category ("Halloween", "Gift
+  // boxes"), in the order the vendor set (storefront_design.section_order,
+  // matched case-insensitively), then alphabetically. Listings with no
+  // section form the last group.
+  function sectionRank(name) {
+    const order = (design && Array.isArray(design.section_order)) ? design.section_order : [];
+    const i = order.findIndex(function (n) { return String(n).trim().toLowerCase() === name.trim().toLowerCase(); });
+    return i === -1 ? Infinity : i;
+  }
   function groupByCategory(items, fallbackName) {
-    const map = {};
+    const map = {}, names = {};
     items.forEach(function (item) {
-      const cat = (item.category || '').trim() || fallbackName;
-      if (!map[cat]) map[cat] = [];
-      map[cat].push(item);
+      const raw = (item.category || '').trim();
+      const key = raw ? raw.toLowerCase() : '\u0000none';
+      if (!map[key]) { map[key] = []; names[key] = raw || fallbackName; }
+      map[key].push(item);
     });
-    return Object.keys(map).sort(function (a, b) { return a.localeCompare(b); })
-      .map(function (cat) { return { category: cat, slug: slugify(cat), items: map[cat] }; });
+    return Object.keys(map).sort(function (a, b) {
+      if (a === '\u0000none' || b === '\u0000none') return a === '\u0000none' ? 1 : -1;
+      const ra = sectionRank(names[a]), rb = sectionRank(names[b]);
+      return ra !== rb ? ra - rb : names[a].localeCompare(names[b]);
+    }).map(function (key) {
+      return { category: names[key], slug: slugify(names[key]), items: map[key], unsectioned: key === '\u0000none' };
+    });
+  }
+  // Groups worth a heading: 2+ groups (one lone section, or none, reads as before).
+  function sectionGroups(items, fallbackName) {
+    const groups = groupByCategory(items, fallbackName);
+    return groups.length >= 2 ? groups : null;
   }
 
   function listingsForTab(t) {
@@ -2043,10 +2068,19 @@
       body.innerHTML = '<div class="empty-state">No items in this category.</div>';
       return;
     }
-    const grid = document.createElement('div');
-    grid.className = 'sf-grid';
-    listings.forEach(function (item) { grid.appendChild(buildTile(item)); });
-    body.appendChild(grid);
+    const groups = sectionGroups(listings, 'More');
+    (groups || [{ items: listings }]).forEach(function (g) {
+      if (groups) {
+        const h = document.createElement('h3');
+        h.className = 'sf-group-title';
+        h.textContent = g.category;
+        body.appendChild(h);
+      }
+      const grid = document.createElement('div');
+      grid.className = 'sf-grid';
+      g.items.forEach(function (item) { grid.appendChild(buildTile(item)); });
+      body.appendChild(grid);
+    });
   }
 
   // ══════════════════════ Form takeover ══════════════════════
@@ -2199,8 +2233,25 @@
     const list = document.createElement('div');
     list.className = 'sf-dl-list';
     if (!physOn && !collapsible) list.style.paddingTop = 'var(--cpad2)';
-    const shown = (collapsible && !digitalExpanded) ? items.slice(0, DIGITAL_PREVIEW_COUNT) : items;
-    shown.forEach(function (item) { list.appendChild(buildDigitalRow(item)); });
+    // In section order (with a heading per section once there are 2+);
+    // the collapsed preview is the first few of that order.
+    const groups = sectionGroups(items, 'More');
+    const ordered = groups ? [].concat.apply([], groups.map(function (g) { return g.items; })) : items;
+    const shown = (collapsible && !digitalExpanded) ? ordered.slice(0, DIGITAL_PREVIEW_COUNT) : ordered;
+    let lastGroup = null;
+    shown.forEach(function (item) {
+      if (groups) {
+        const g = groups.find(function (x) { return x.items.indexOf(item) !== -1; });
+        if (g !== lastGroup) {
+          lastGroup = g;
+          const h = document.createElement('h4');
+          h.className = 'sf-group-title sf-dl-group';
+          h.textContent = g.category;
+          list.appendChild(h);
+        }
+      }
+      list.appendChild(buildDigitalRow(item));
+    });
     wrap.appendChild(list);
   }
 

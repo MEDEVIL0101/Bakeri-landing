@@ -231,8 +231,8 @@ export function MenuItemEditorPage() {
             <Field label="Name"><Input required value={d.name} onChange={(e) => set('name', e.target.value)} placeholder={kind === 'digital' ? 'Holiday cookie decorating guide' : 'Brown butter chocolate chip cookies'} /></Field>
             <Field label="Description"><Textarea rows={4} value={d.item_description} onChange={(e) => set('item_description', e.target.value)} placeholder="What makes it special, what’s included, how it’s packaged…" /></Field>
             <div className="grid-2">
-              <Field label="Category">
-                <Input list="cats" value={d.category} onChange={(e) => set('category', e.target.value)} placeholder="Cookies, Cakes…" />
+              <Field label="Section" hint="Groups listings on your storefront — e.g. Halloween, Gift boxes. Order them under Menu → Sections.">
+                <Input list="cats" value={d.category} onChange={(e) => set('category', e.target.value)} placeholder="Cookies, Christmas…" />
                 <datalist id="cats">{categories.map((c) => <option key={c} value={c} />)}</datalist>
               </Field>
               {priced && (

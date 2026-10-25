@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { loadSectionOrder } from './sections';
 import { check, ApiError } from './api';
 import { newId, nowISO, up } from './format';
 
@@ -78,6 +79,8 @@ export interface StorefrontDesign {
   /** Photo focal points, {x, y} in % — read by next.html focusPosition(). items is keyed by lowercased listing id. */
   focus?: { about?: FocusPoint; logo?: FocusPoint; items?: Record<string, FocusPoint>; [k: string]: unknown };
   links?: Record<string, LinkDesign>;
+  /** Listing section order (menu_items.category names) — see lib/sections.ts. */
+  section_order?: string[];
 }
 
 export const V2_CARDS: { type: V2CardType; label: string; navByDefault: boolean; parts?: { key: string; label: string }[] }[] = [
@@ -332,7 +335,10 @@ export async function publishStorefront(userId: string, d: StorefrontDraft, p: S
       header_signup_enabled: d.header_signup_enabled,
       header_signup_label: d.header_signup_label,
       storefront_block_layout: d.storefront_block_layout,
-      ...(JSON.stringify(d.storefront_design) !== JSON.stringify(p.storefront_design) ? { storefront_design: d.storefront_design } : {}),
+      // section_order is edited outside the builder (Menu → Sections), so
+      // always keep the stored value rather than this draft's older copy.
+      ...(JSON.stringify(d.storefront_design) !== JSON.stringify(p.storefront_design)
+        ? { storefront_design: { ...d.storefront_design, section_order: await loadSectionOrder(userId) } } : {}),
       updated_at: nowISO(),
     }).eq('id', userId),
   );
