@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthProvider';
 import { Button, ConfirmModal, ErrorBanner, Field, Input, Modal, Textarea, Toggle, useToast } from '../../components/ui';
 import {
   acceptOrder, cancelOrRefund, completeOrder, declineOrder, effectiveTotal, markDelivered, markOutForDelivery,
@@ -18,6 +20,10 @@ type Dialog =
  * — the same transitions MarketplaceOrderSheet.swift offers.
  */
 export function StorefrontActions({ order, onChanged }: { order: Order; onChanged: () => void }) {
+  // Requests arrive without Stripe; a quote takes payment, so sending one
+  // needs Direct Deposit (same as MarketplaceOrderSheet's quote card).
+  const { profile } = useAuth();
+  const canQuote = !!profile?.stripe_connect_onboarding_complete;
   const toast = useToast();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -62,9 +68,10 @@ export function StorefrontActions({ order, onChanged }: { order: Order; onChange
         <>
           <p className="muted">This customer is asking for a quote. Send a price, or decline with a short note.</p>
           <div className="btn-row">
-            <Button onClick={() => setDialog('quote')}>Send quote</Button>
+            <Button onClick={() => setDialog('quote')} disabled={!canQuote} title={canQuote ? undefined : 'Finish Direct Deposit setup to unlock quotes'}>Send quote</Button>
             <Button variant="danger" onClick={() => setDialog('decline')}>Decline</Button>
           </div>
+          {!canQuote && <p className="small"><Link to="/payouts">Finish Direct Deposit setup to unlock quotes →</Link></p>}
         </>
       );
       break;
