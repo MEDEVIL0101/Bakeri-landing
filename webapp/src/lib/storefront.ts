@@ -283,7 +283,7 @@ export function changedSections(d: StorefrontDraft, p: StorefrontDraft): string[
     || d.email_capture_display_style !== p.email_capture_display_style || d.email_capture_deliverable_listing_id !== p.email_capture_deliverable_listing_id
     || d.header_signup_enabled !== p.header_signup_enabled || d.header_signup_label !== p.header_signup_label) out.push('Mailing list');
   if (!same(d.storefront_block_layout, p.storefront_block_layout)) out.push('Layout');
-  if (!same(d.storefront_design, p.storefront_design)) out.push('New design');
+  if (!same(d.storefront_design, p.storefront_design)) out.push('Design');
   if (!same(d.links, p.links)) out.push('Links');
   if (!same(d.faqs, p.faqs)) out.push('FAQ');
   return out;

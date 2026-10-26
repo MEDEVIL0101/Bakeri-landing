@@ -91,7 +91,7 @@ export function HomeSections({ v2, props, changes, open }: {
         <h3 className="home-group-title">Look &amp; feel</h3>
         {v2 && (
           <button type="button" className="block-row" onClick={() => open('design')}>
-            <span className="grow"><span className="row-title">Design{dot('New design')}</span><span className="row-sub">Colours, font, corners, background photo</span></span>
+            <span className="grow"><span className="row-title">Design{dot('Design')}</span><span className="row-sub">Colours, font, corners, background photo</span></span>
             <Chevron />
           </button>
         )}

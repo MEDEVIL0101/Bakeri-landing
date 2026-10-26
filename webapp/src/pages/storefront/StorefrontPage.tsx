@@ -60,7 +60,9 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
   const toast = useToast();
   const [draft, setDraft] = useState<StorefrontDraft>(() => loadLocalDraft(userId, data.updatedAt) ?? data.draft);
   const [panel, setPanel] = useState<Panel>('home');
-  const [v2, setV2] = useState(() => readPref('bakeri.builder.v2', '0') === '1');
+  // The builder only edits the new site (2026-10-26) — no current/new
+  // design switch; shops' public pages move over on release day.
+  const v2 = true;
   const [device, setDevice] = useState<'phone' | 'desktop'>(() => (readPref('bakeri.builder.device', 'phone') === 'desktop' ? 'desktop' : 'phone'));
   const [confirming, setConfirming] = useState(false);
   const [discarding, setDiscarding] = useState(false);
@@ -119,10 +121,6 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
       <header className="builder-bar">
         <div className="builder-title">
           <h1>Storefront</h1>
-          <div className="seg" role="tablist" aria-label="Design">
-            <button role="tab" aria-selected={!v2} className={!v2 ? 'active' : ''} onClick={() => { setV2(false); writePref('bakeri.builder.v2', '0'); setPanel('home'); }}>Current design</button>
-            <button role="tab" aria-selected={v2} className={v2 ? 'active' : ''} onClick={() => { setV2(true); writePref('bakeri.builder.v2', '1'); setPanel('home'); }}>New design (preview)</button>
-          </div>
         </div>
         <div className="btn-row">
           {liveURL && <a href={liveURL} target="_blank" rel="noreferrer" className="btn btn-ghost">View live ↗</a>}
@@ -132,11 +130,6 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
           </Button>
         </div>
       </header>
-      {v2 && (
-        <div className="banner banner-info builder-note">
-          The new design isn’t live yet — customers still see your current design. Design settings you publish here are saved and go live when Bakeri switches over.
-        </div>
-      )}
 
       <div className="seg builder-mobile-switch" role="tablist" aria-label="View">
         <button role="tab" aria-selected={mobileView === 'edit'} className={mobileView === 'edit' ? 'active' : ''} onClick={() => setMobileView('edit')}>Edit</button>

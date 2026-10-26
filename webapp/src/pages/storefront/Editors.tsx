@@ -252,7 +252,7 @@ function LinkForm({ link, sections, update, data, userId, v2, draft, set }: {
       <Toggle checked={link.shake} onChange={(v) => update({ shake: v })} label="Shake to draw attention" />
       {v2 && (
         <>
-          <p className="small muted">New design styling (border and glow work independently here):</p>
+          <p className="small muted">Styling (border and glow work independently):</p>
           <div className="grid-2">
             <ColorField label="Button colour" value={ld.background} onChange={(v) => setLd({ background: v })} />
             <ColorField label="Text colour" value={ld.text} onChange={(v) => setLd({ text: v })} />
