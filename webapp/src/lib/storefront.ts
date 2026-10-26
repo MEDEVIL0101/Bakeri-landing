@@ -36,7 +36,7 @@ export interface Link {
 }
 export interface FAQ { id: string; question: string; answer: string }
 
-export const SOCIAL_PLATFORMS = ['Instagram', 'TikTok', 'Facebook', 'X', 'Pinterest', 'LinkedIn', 'WhatsApp'];
+export const SOCIAL_PLATFORMS = ['Instagram', 'TikTok', 'Facebook', 'X', 'Pinterest', 'LinkedIn', 'WhatsApp', 'Email'];
 export const THEMES = ['Classic', 'Macaron', 'Birthday', 'Tart', 'Sprinkle', 'Ember', 'Sage', 'Blueberry', 'Honey', 'Fall'];
 export const PATTERNS = ['Standard', 'Polka Dot', 'Stripes', 'Gingham', 'Pumpkins'];
 
@@ -297,7 +297,7 @@ async function dataURLToBlob(url: string): Promise<Blob> {
 
 function normalisedURL(raw: string): string {
   const s = raw.trim();
-  if (!s || /^https?:\/\//i.test(s)) return s;
+  if (!s || /^(https?:\/\/|mailto:)/i.test(s)) return s;
   return `https://${s}`;
 }
 

@@ -14,3 +14,6 @@ solid instead of cut out) wouldn't pick up the theme color at all.
 To add a platform: crop/export the same way (black circle, logo cut out
 transparent, square canvas, circle touching all four edges) and wire it
 into socialPlatform() in baker/index.html.
+
+email.png (2026-10-26): drawn to the same convention (envelope cut out of a 240x240
+black circle) for mailto: social links — not from the downloaded set.

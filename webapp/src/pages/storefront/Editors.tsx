@@ -82,6 +82,7 @@ export function ProfileEditor({ draft, set, data, userId }: EditorProps) {
 
 /** SocialPlatform.detect / next.html socialPlatform(): the network a URL points at. */
 function platformFromURL(raw: string): string | null {
+  if (/^mailto:/i.test(raw.trim())) return 'Email';
   let host: string;
   try { host = new URL(/^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`).hostname.toLowerCase(); } catch { return null; }
   const h = host.replace(/^www\./, '');
@@ -101,8 +102,14 @@ function SocialEditor({ draft, set }: Pick<EditorProps, 'draft' | 'set'>) {
   // — a link added in the app can carry any label, and the site picks its
   // icon from the URL alone.
   const matches = (l: Link, p: string) => isSocial(l) && (l.label.trim().toLowerCase() === p.toLowerCase() || platformFromURL(l.url) === p);
-  const urlFor = (p: string) => draft.links.find((l) => matches(l, p))?.url ?? '';
-  function setURL(platform: string, url: string) {
+  // Email is typed as a plain address and saved as mailto: — the site shows
+  // it as an envelope that opens the customer's mail app.
+  const urlFor = (p: string) => {
+    const url = draft.links.find((l) => matches(l, p))?.url ?? '';
+    return p === 'Email' ? url.replace(/^mailto:/i, '') : url;
+  };
+  function setURL(platform: string, typed: string) {
+    const url = platform === 'Email' && typed.trim() && !/^mailto:/i.test(typed.trim()) ? `mailto:${typed.trim()}` : typed;
     const links = [...draft.links];
     const i = links.findIndex((l) => matches(l, platform));
     if (i >= 0) {
@@ -114,9 +121,11 @@ function SocialEditor({ draft, set }: Pick<EditorProps, 'draft' | 'set'>) {
     set({ links });
   }
   return (
-    <Section title="Social links" hint="Shown as icons under your name. Paste a link to show it.">
+    <Section title="Social links" hint="Shown as icons under your name. Paste a link (or your email address) to show it.">
       {SOCIAL_PLATFORMS.map((p) => (
-        <Field key={p} label={p}><Input type="url" placeholder="https://" value={urlFor(p)} onChange={(e) => setURL(p, e.target.value)} /></Field>
+        <Field key={p} label={p}>{p === 'Email'
+          ? <Input type="email" placeholder="you@example.com" value={urlFor(p)} onChange={(e) => setURL(p, e.target.value)} />
+          : <Input type="url" placeholder="https://" value={urlFor(p)} onChange={(e) => setURL(p, e.target.value)} />}</Field>
       ))}
     </Section>
   );

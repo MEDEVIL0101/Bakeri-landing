@@ -1981,6 +1981,8 @@
   // plain URL in her "Social" link section. Shown as text links under the
   // nav (handoff), not icons.
   function socialPlatform(url) {
+    // Email (mailto:) — a customer taps the envelope to write to the vendor.
+    if (/^mailto:/i.test(String(url || '').trim())) return { label: 'Email', icon: 'email' };
     let host = '';
     try { host = new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch (e) { /* generic */ }
     if (host.indexOf('instagram') !== -1) return { label: 'Instagram', icon: 'instagram' };
@@ -2011,7 +2013,9 @@
       const inner = platform.icon
         ? '<span class="social-icon-mask" style="-webkit-mask-image:url(../assets/social/' + platform.icon + '.png);mask-image:url(../assets/social/' + platform.icon + '.png)"></span>'
         : '<span class="social-icon-fallback">' + ARROW_UR_SVG + '</span>';
-      return '<a class="social-icon" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener noreferrer" ' +
+      // mailto: opens the mail app — a new tab would just be left blank.
+      const newTab = platform.icon === 'email' ? '' : ' target="_blank" rel="noopener noreferrer"';
+      return '<a class="social-icon" href="' + escapeHtml(l.url) + '"' + newTab + ' ' +
         'title="' + escapeHtml(platform.label) + '" aria-label="' + escapeHtml(platform.label) + '">' + inner + '</a>';
     }).join('');
   }
