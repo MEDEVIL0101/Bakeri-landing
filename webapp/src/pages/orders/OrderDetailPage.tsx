@@ -11,6 +11,7 @@ import { formatDate, formatDateTime, formatMoney, fromLocalInput, parseNumber, t
 import type { Order } from '../../lib/types';
 import { StorefrontActions } from './StorefrontActions';
 import { FormAnswers } from './FormAnswers';
+import { OrderPackagingCard } from './OrderPackagingCard';
 
 export function OrderDetailPage() {
   const { id } = useParams();
@@ -91,6 +92,7 @@ export function OrderDetailPage() {
             </dl>
           </Card>
           <PaymentCard order={order} />
+          {order.fulfillment_type !== 'Digital' && <OrderPackagingCard userId={order.user_id} orderId={order.id} />}
           {!storefront && <InvoiceCard order={order} onChanged={reload} />}
         </div>
       </div>

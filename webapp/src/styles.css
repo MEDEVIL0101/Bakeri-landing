@@ -1125,3 +1125,10 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .nav-soon { opacity: .45; cursor: default; }
 .nav-soon:hover { background: none; color: var(--ink-2); }
 .nav-soon-tag { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+
+/* Packaging on an order (OrderPackagingCard) */
+.packaging-line { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.qty-stepper { display: flex; align-items: center; gap: 8px; }
+.qty-stepper .num { min-width: 28px; text-align: center; }
+.packaging-pick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.packaging-pick:hover { background: var(--surface-2); }

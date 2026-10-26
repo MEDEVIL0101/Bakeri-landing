@@ -10,6 +10,7 @@ import {
 import { useUnitSystem } from '../../lib/prefs';
 import type { Order } from '../../lib/types';
 import { BarChart } from './BarChart';
+import { listOrderPackaging, packagingCostByOrder } from '../../lib/packaging';
 
 type Period = 'week' | 'month' | 'year' | 'custom';
 type Metric = 'revenue' | 'costs' | 'profit' | 'orders';
@@ -67,8 +68,10 @@ function segmentsFor(period: Period, [s, e]: [Date, Date]): { label: string; sta
 export function FinancesPage() {
   const userId = useUserId();
   const data = useLoad(async () => {
-    const [orders, recipes, costs] = await Promise.all([listOrders(userId), listCostingRecipes(userId), listIngredientCosts(userId)]);
-    return { orders, recipes, costs };
+    const [orders, recipes, costs, packaging] = await Promise.all([
+      listOrders(userId), listCostingRecipes(userId), listIngredientCosts(userId), listOrderPackaging(userId),
+    ]);
+    return { orders, recipes, costs, packaging: packagingCostByOrder(packaging) };
   }, [userId]);
 
   if (data.loading && !data.data) return <div className="page"><Spinner label="Crunching your numbers…" /></div>;
@@ -76,7 +79,7 @@ export function FinancesPage() {
   return <Report {...data.data} />;
 }
 
-function Report({ orders, recipes, costs }: { orders: Order[]; recipes: CostingRecipe[]; costs: IngredientCostRow[] }) {
+function Report({ orders, recipes, costs, packaging }: { orders: Order[]; recipes: CostingRecipe[]; costs: IngredientCostRow[]; packaging: Map<string, number> }) {
   const [period, setPeriod] = useState<Period>('month');
   const [offset, setOffset] = useState(0);
   const [metric, setMetric] = useState<Metric>('revenue');
@@ -93,9 +96,14 @@ function Report({ orders, recipes, costs }: { orders: Order[]; recipes: CostingR
     };
   }, [recipes, costs]);
 
+  // Cost of goods = ingredients (from recipes) + packaging (attached by hand), like iOS.
+  const packagingOf = (o: Order) => packaging.get(o.id.toLowerCase()) ?? 0;
+  const totalCost = (o: Order) => ingredientCost(costOf(o)) + packagingOf(o);
+  const hasCosts = costs.length > 0 || packaging.size > 0;
+
   const inPeriod = orders.filter((o) => { const d = new Date(o.due_date); return d >= s && d < e; });
   const revenue = orders.reduce((t, o) => t + revenueReceived(o, s, e), 0);
-  const cost = inPeriod.reduce((t, o) => t + ingredientCost(costOf(o)), 0);
+  const cost = inPeriod.reduce((t, o) => t + totalCost(o), 0);
   const profit = revenue - cost;
   const pending = inPeriod.filter((o) => !o.is_paid && !['Cancelled', 'Completed'].includes(o.status)).reduce((t, o) => t + effectiveTotal(o), 0);
   const paidCount = inPeriod.filter((o) => o.is_paid).length;
@@ -103,12 +111,12 @@ function Report({ orders, recipes, costs }: { orders: Order[]; recipes: CostingR
   const segments = segmentsFor(period, range).map((seg) => {
     const segOrders = inPeriod.filter((o) => { const d = new Date(o.due_date); return d >= seg.start && d < seg.end; });
     const rev = orders.reduce((t, o) => t + revenueReceived(o, seg.start, seg.end), 0);
-    const c = segOrders.reduce((t, o) => t + ingredientCost(costOf(o)), 0);
+    const c = segOrders.reduce((t, o) => t + totalCost(o), 0);
     return { label: seg.label, revenue: rev, costs: c, profit: rev - c, orders: segOrders.length };
   });
 
   const series = metric === 'revenue'
-    ? [{ key: 'revenue', label: 'Revenue', color: 'var(--chart-1)' }, ...(costs.length ? [{ key: 'costs', label: 'Costs', color: 'var(--chart-2)' }] : [])]
+    ? [{ key: 'revenue', label: 'Revenue', color: 'var(--chart-1)' }, ...(hasCosts ? [{ key: 'costs', label: 'Costs', color: 'var(--chart-2)' }] : [])]
     : metric === 'costs' ? [{ key: 'costs', label: 'Costs', color: 'var(--chart-2)' }]
       : metric === 'profit' ? [{ key: 'profit', label: 'Profit', color: 'var(--chart-3)' }]
         : [{ key: 'orders', label: 'Orders', color: 'var(--chart-4)' }];
@@ -126,8 +134,8 @@ function Report({ orders, recipes, costs }: { orders: Order[]; recipes: CostingR
   }, [inPeriod, costOf]);
 
   const listOrdersSorted = [...inPeriod].sort((a, b) => {
-    if (metric === 'costs') return ingredientCost(costOf(b)) - ingredientCost(costOf(a));
-    if (metric === 'profit') return (effectiveTotal(b) - ingredientCost(costOf(b))) - (effectiveTotal(a) - ingredientCost(costOf(a)));
+    if (metric === 'costs') return totalCost(b) - totalCost(a);
+    if (metric === 'profit') return (effectiveTotal(b) - totalCost(b)) - (effectiveTotal(a) - totalCost(a));
     if (metric === 'orders') return Date.parse(a.due_date) - Date.parse(b.due_date);
     return effectiveTotal(b) - effectiveTotal(a);
   });
@@ -136,11 +144,11 @@ function Report({ orders, recipes, costs }: { orders: Order[]; recipes: CostingR
     const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
     const lines = [
       `Bakeri financial report,${esc(rangeLabel(period, range))}`,
-      `Revenue received,${revenue.toFixed(2)}`, `Ingredient costs,${cost.toFixed(2)}`, `Profit,${profit.toFixed(2)}`, `Pending,${pending.toFixed(2)}`, '',
-      'Order,Customer,Due date,Status,Total,Paid,Ingredient cost,Profit,Source',
+      `Revenue received,${revenue.toFixed(2)}`, `Costs (ingredients + packaging),${cost.toFixed(2)}`, `Profit,${profit.toFixed(2)}`, `Pending,${pending.toFixed(2)}`, '',
+      'Order,Customer,Due date,Status,Total,Paid,Ingredient cost,Packaging cost,Profit,Source',
       ...listOrdersSorted.map((o) => {
-        const c = ingredientCost(costOf(o));
-        return [o.order_name || 'Order', o.customer_name || o.buyer_display_name || '', toDateInput(o.due_date), statusLabel(o), effectiveTotal(o).toFixed(2), o.is_paid ? 'Yes' : 'No', c.toFixed(2), (effectiveTotal(o) - c).toFixed(2), isStorefrontOrder(o) ? 'Storefront' : 'Manual'].map((x) => esc(String(x))).join(',');
+        const c = totalCost(o);
+        return [o.order_name || 'Order', o.customer_name || o.buyer_display_name || '', toDateInput(o.due_date), statusLabel(o), effectiveTotal(o).toFixed(2), o.is_paid ? 'Yes' : 'No', (c - packagingOf(o)).toFixed(2), packagingOf(o).toFixed(2), (effectiveTotal(o) - c).toFixed(2), isStorefrontOrder(o) ? 'Storefront' : 'Manual'].map((x) => esc(String(x))).join(',');
       }),
     ];
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -153,7 +161,7 @@ function Report({ orders, recipes, costs }: { orders: Order[]; recipes: CostingR
 
   return (
     <div className="page">
-      <PageHeader title="Finances" subtitle="Money in, ingredient costs, and profit."
+      <PageHeader title="Finances" subtitle="Money in, costs (ingredients + packaging), and profit."
         actions={<Button variant="secondary" onClick={exportCSV}>Export CSV</Button>} />
 
       <div className="toolbar">
@@ -179,12 +187,12 @@ function Report({ orders, recipes, costs }: { orders: Order[]; recipes: CostingR
 
       <div className="metric-grid">
         <MetricTile active={metric === 'revenue'} onClick={() => setMetric('revenue')} label="Revenue received" value={formatMoney(revenue)} sub={`${paidCount} paid order${paidCount === 1 ? '' : 's'}${pending > 0 ? ` · ${formatMoney(pending)} pending` : ''}`} tone="1" />
-        <MetricTile active={metric === 'costs'} onClick={() => setMetric('costs')} label="Ingredient costs" value={costs.length ? formatMoney(cost) : '—'} sub={costs.length ? 'From your ingredient prices' : 'Add ingredient prices to see costs'} tone="2" />
-        <MetricTile active={metric === 'profit'} onClick={() => setMetric('profit')} label="Profit" value={formatMoney(profit)} sub={revenue > 0 ? `${Math.round((profit / revenue) * 100)}% margin` : 'Revenue minus ingredient costs'} tone="3" />
+        <MetricTile active={metric === 'costs'} onClick={() => setMetric('costs')} label="Costs" value={hasCosts ? formatMoney(cost) : '—'} sub={hasCosts ? 'Ingredients + packaging' : 'Add ingredient prices or packaging to see costs'} tone="2" />
+        <MetricTile active={metric === 'profit'} onClick={() => setMetric('profit')} label="Profit" value={formatMoney(profit)} sub={revenue > 0 ? `${Math.round((profit / revenue) * 100)}% margin` : 'Revenue minus costs'} tone="3" />
         <MetricTile active={metric === 'orders'} onClick={() => setMetric('orders')} label="Orders" value={String(inPeriod.length)} sub="Due in this period" tone="4" />
       </div>
 
-      <Card title={{ revenue: 'Overview', costs: 'Ingredient costs', profit: 'Profit', orders: 'Order count' }[metric]}
+      <Card title={{ revenue: 'Overview', costs: 'Costs (ingredients + packaging)', profit: 'Profit', orders: 'Order count' }[metric]}
         actions={<div className="legend">{series.map((x) => <span key={x.key}><i style={{ background: x.color }} />{x.label}</span>)}</div>}>
         <BarChart data={segments} series={series} format={metric === 'orders' ? (n) => String(Math.round(n)) : (n) => formatMoney(n)} />
       </Card>
@@ -194,7 +202,7 @@ function Report({ orders, recipes, costs }: { orders: Order[]; recipes: CostingR
           {!listOrdersSorted.length ? <EmptyState title="No orders in this period" /> : (
             <ul className="list">
               {listOrdersSorted.map((o) => {
-                const c = ingredientCost(costOf(o));
+                const c = totalCost(o);
                 return (
                   <li key={o.id}>
                     <Link to={`/orders/${o.id}`} className="list-row link-row">

@@ -25,6 +25,7 @@ import { ReferPage } from './pages/settings/ReferPage';
 import { FormsPage } from './pages/forms/FormsPage';
 import { FormBuilderPage } from './pages/forms/FormBuilderPage';
 import { FinancesPage } from './pages/finances/FinancesPage';
+import { PackagingPage } from './pages/kitchen/PackagingPage';
 import { IngredientsPage } from './pages/kitchen/IngredientsPage';
 import { CalculatorPage } from './pages/kitchen/CalculatorPage';
 import { TimerProvider } from './pages/kitchen/Timers';
@@ -80,6 +81,7 @@ export default function App() {
               <Route path="finances" element={<FinancesPage />} />
               <Route path="promotions" element={<PromotionsPage />} />
               <Route path="ingredients" element={<IngredientsPage />} />
+              <Route path="packaging" element={<PackagingPage />} />
               <Route path="calculator" element={<CalculatorPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

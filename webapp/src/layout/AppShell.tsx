@@ -32,8 +32,11 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
   { heading: 'Kitchen', items: [
     { to: '/schedule', label: 'Schedule', icon: <path d="M4 5h16v15H4zM4 10h16M8 3v4M16 3v4" /> },
     { to: '/recipes', label: 'Recipes', icon: <path d="M6 3h11a1 1 0 0 1 1 1v17l-6-3-6 3V4a1 1 0 0 1 1-1z" /> },
-    { to: '/ingredients', label: 'Ingredients', icon: <path d="M12 3c3 2.5 4.5 5 4.5 8.5a4.5 4.5 0 0 1-9 0C7.5 8 9 5.5 12 3zM12 16v5M8 21h8" /> },
     { to: '/calculator', label: 'Calculator', icon: <path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" /> },
+  ] },
+  { heading: 'Costs', items: [
+    { to: '/ingredients', label: 'Ingredients', icon: <path d="M12 3c3 2.5 4.5 5 4.5 8.5a4.5 4.5 0 0 1-9 0C7.5 8 9 5.5 12 3zM12 16v5M8 21h8" /> },
+    { to: '/packaging', label: 'Packaging', icon: <path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8" /> },
   ] },
   { heading: 'Money', items: [
     { to: '/finances', label: 'Finances', icon: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /> },
@@ -59,6 +62,7 @@ const PHONE_MENU: NavItem[] = [
   { to: '/orders?filter=closed', label: 'Past Orders', icon: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12.2l2.7 2.7L16 9.6" /> },
   { to: '/finances', label: 'Financial Overview', icon: <path fill="currentColor" stroke="none" d="M4 13h3.5v8H4zM10.25 4h3.5v17h-3.5zM16.5 9H20v12h-3.5z" /> },
   { to: '/ingredients', label: 'Ingredients', icon: <path d="M14.5 9.5 4 20M14.5 9.5c1.5-1.5 4-1.5 5 0s0 3.5-1.5 5L8.5 20H4v-4.5zM15 4c0 2 1 3.5 3 4M20 4c-2 0-3.5 1-4 3" /> },
+  { to: '/packaging', label: 'Packaging', icon: <path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8" /> },
   { to: '/payouts', label: 'Direct Deposit', icon: <path fill="currentColor" stroke="none" fillRule="evenodd" d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1H2zm0 3.5h20V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM5 15h5v1.5H5z" /> },
 ];
 const PHONE_MENU_MORE: NavItem[] = [
@@ -147,7 +151,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const seg = location.pathname.split('/').filter(Boolean)[0] ?? '';
   const titles: Record<string, string> = {
     '': 'Home', storefront: 'Storefront', orders: 'Orders', menu: 'Menu & Listings', promotions: 'Promotions', forms: 'Order Forms',
-    customers: 'Customers', campaigns: 'Email Campaigns', schedule: 'Schedule', recipes: 'Recipes', ingredients: 'Ingredients',
+    customers: 'Customers', campaigns: 'Email Campaigns', schedule: 'Schedule', recipes: 'Recipes', ingredients: 'Ingredients', packaging: 'Packaging',
     calculator: 'Calculator', finances: 'Finances', payouts: 'Direct Deposit', settings: 'Settings', 'shop-settings': 'Shop settings', refer: 'Refer a Vendor',
   };
   useEffect(() => setOpen(false), [location.pathname, location.search]);
