@@ -1952,11 +1952,20 @@
     const el = document.getElementById('pb-avatar');
     const letterEl = document.getElementById('pb-avatar-letter');
     letterEl.textContent = name.charAt(0).toUpperCase();
+    // Every builder re-render (each edit, autosave, sync) runs this — keep the
+    // logo that's already showing when it's the same image, instead of
+    // swapping back to the letter and reloading it (the logo flashed).
+    const existing = el.querySelector('img');
+    if (existing && existing.dataset.src === logoURL) {
+      focusImage(existing, designFocus('logo'));
+      return;
+    }
     letterEl.style.display = '';
     el.querySelectorAll('img').forEach(function (n) { n.remove(); });
     const img = document.createElement('img');
     img.alt = name;
     img.onload = function () { focusImage(img, designFocus('logo')); img.style.display = 'block'; letterEl.style.display = 'none'; };
+    img.dataset.src = logoURL;
     img.src = logoURL;
     el.appendChild(img);
   }
