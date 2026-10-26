@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IPhoneFrame } from '../../components/IPhoneFrame';
 import { SortableList } from '../../components/Sortable';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
 import { Button, ConfirmModal, ErrorBanner, Input, Modal, Select, Spinner, Textarea, useLoad, useToast } from '../../components/ui';
 import {
@@ -11,23 +11,26 @@ import {
 import { listMenuItems, type MenuItemFull } from '../../lib/menu';
 import { formatMoney, newId, parseNumber } from '../../lib/format';
 import { FormPreview } from './FormPreview';
+import type { ImportedForm } from '../../lib/formImport';
 
 export function FormBuilderPage() {
   const { id } = useParams();
   const userId = useUserId();
   const existing = useLoad(() => (id ? getForm(id) : Promise.resolve(null)), [id]);
   const menu = useLoad(() => listMenuItems(userId), [userId]);
+  // A Google Form / JotForm import (FormsPage) opens here as an unsaved new form.
+  const imported = (useLocation().state as { imported?: ImportedForm } | null)?.imported;
   if (id && existing.loading) return <div className="page"><Spinner /></div>;
   if (id && !existing.data) return <div className="page"><ErrorBanner message={existing.error ?? 'Form not found.'} /></div>;
-  return <Builder key={id ?? 'new'} initial={existing.data ?? null} menu={menu.data ?? []} userId={userId} />;
+  return <Builder key={id ?? 'new'} initial={existing.data ?? null} imported={id ? undefined : imported} menu={menu.data ?? []} userId={userId} />;
 }
 
-function Builder({ initial, menu, userId }: { initial: { id: string; title: string; fields: FormField[] } | null; menu: MenuItemFull[]; userId: string }) {
+function Builder({ initial, imported, menu, userId }: { initial: { id: string; title: string; fields: FormField[] } | null; imported?: ImportedForm; menu: MenuItemFull[]; userId: string }) {
   const navigate = useNavigate();
   const toast = useToast();
   const [formId] = useState(() => initial?.id ?? newId());
-  const [title, setTitle] = useState(initial?.title ?? '');
-  const [fields, setFields] = useState<FormField[]>(() => initial?.fields ?? starterFields());
+  const [title, setTitle] = useState(initial?.title ?? imported?.title ?? '');
+  const [fields, setFields] = useState<FormField[]>(() => initial?.fields ?? imported?.fields ?? starterFields());
   const [selected, setSelected] = useState<string | null>(null);
   const [adding, setAdding] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
