@@ -66,7 +66,7 @@ export interface V2Block {
   forms_order?: string[];
 }
 export interface FocusPoint { x: number; y: number }
-export interface LinkDesign { background?: string; text?: string; border?: boolean; border_color?: string; glow?: boolean; glow_color?: string }
+export interface LinkDesign { background?: string; text?: string; border?: boolean; border_color?: string; glow?: boolean; glow_color?: string; /** Order-form cards only. */ shake?: boolean }
 export interface StorefrontDesign {
   blocks?: V2Block[];
   colors?: { accent?: string; ink?: string; tint?: string };
@@ -83,6 +83,8 @@ export interface StorefrontDesign {
   /** Photo focal points, {x, y} in % — read by next.html focusPosition(). items is keyed by lowercased listing id. */
   focus?: { about?: FocusPoint; logo?: FocusPoint; items?: Record<string, FocusPoint>; [k: string]: unknown };
   links?: Record<string, LinkDesign>;
+  /** Order-form listing id (lowercased) → that form card's look when several forms stack. */
+  forms?: Record<string, LinkDesign>;
   /** Listing section order (menu_items.category names) — see lib/sections.ts. */
   section_order?: string[];
 }

@@ -489,21 +489,14 @@
     #sf-form-mount { padding: var(--cpad); }
     /* More than one form on the site: each is a collapsible row in the one
        form card, so the block stays a reasonable size (renderFormStorefront). */
-    .sf-formrow { border-bottom: 1px solid var(--card-line, var(--n200)); scroll-margin-top: 16px; }
-    .sf-formrow:last-child { border-bottom: 0; }
-    .sf-formrow-head {
-      display: flex; align-items: center; gap: 12px; width: 100%; padding: 18px var(--cpad);
-      background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
-    }
-    .sf-formrow-head .t { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
-    .sf-formrow-head .t strong { font-size: 18px; font-weight: 800; line-height: 1.2; }
-    .sf-formrow-head .t span { font-size: 14px; opacity: .7; }
+    #sf-form-mount.sf-formrows { display: flex; flex-direction: column; gap: var(--ggap); }
+    .sf-formrow { scroll-margin-top: 16px; }
+    .sf-formrow-head { width: 100%; }
     .sf-formrow-head svg { flex: none; transition: transform .2s; }
     .sf-formrow.open .sf-formrow-head svg { transform: rotate(45deg); }
-    .sf-formrow-body { display: none; }
+    .sf-formrow-body { display: none; padding-top: 14px; }
     .sf-formrow.open .sf-formrow-body { display: block; }
-    .sf-formrow-body .sf-formrow-intro { padding: 0 var(--cpad); font-size: 15px; line-height: 1.6; white-space: pre-wrap; max-width: 70ch; }
-    .sf-formrow-body .sf-formrow-mount { padding: var(--cpad); padding-top: 12px; }
+    .sf-formrow-body .sf-formrow-intro { font-size: 15px; line-height: 1.6; white-space: pre-wrap; max-width: 70ch; margin: 0 0 8px; }
 
     /* ══════════════ Email capture card ══════════════ */
 
@@ -1423,14 +1416,9 @@
       if (c.hidden) return;
       const show = typeof c.nav === 'boolean' ? c.nav : NAV_DEFAULT[key];
       if (!show) return;
-      // Several forms on the site: a button per form, each opening its own row.
-      const targets = (key === 'form' && sfForms.length > 1)
-        ? sfForms.map(function (f) { return { id: formRowId(f), label: formTitle(f), formId: formRowId(f) }; })
-        : [{ id: el.id, label: (c.nav_label || '').trim() || cardTitle(key), formId: null }];
-      targets.forEach(function (target) {
-      const label = target.label;
+      const label = (c.nav_label || '').trim() || cardTitle(key);
       const btn = document.createElement('a');
-      btn.href = '#' + target.id;
+      btn.href = '#' + el.id;
       btn.className = 'sf-navbtn' + (first ? ' primary' : '');
       // Each menu button: own fill, text colour, border (with its own
       // colour) and shake — entry.nav_color / nav_text_color /
@@ -1449,14 +1437,9 @@
       }
       if (c.nav_shake === true) btn.classList.add('shake');
       btn.innerHTML = '<span>' + escapeHtml(label) + '</span>' + ARROW_SVG;
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        if (target.formId) openFormRow(target.formId);
-        scrollToSection(target.id);
-      });
+      btn.addEventListener('click', function (e) { e.preventDefault(); scrollToSection(el.id); });
       nav.appendChild(btn);
       first = false;
-      });
     });
   }
 
@@ -2217,6 +2200,11 @@
   function formTitle(listing) {
     return (listing.storefront_intro_title || '').trim() || listing.name || 'Order';
   }
+  function formDesign(listing) {
+    const all = design && design.forms;
+    if (!all || typeof all !== 'object' || !listing) return {};
+    return all[String(listing.id).toLowerCase()] || all[String(listing.id).toUpperCase()] || {};
+  }
   function formRowId(listing) { return 'sf-formrow-' + String(listing.id).toLowerCase(); }
   function formLeadText(listing) {
     return listing.lead_time_note ? ('Lead time: ' + listing.lead_time_note) : 'Request a quote';
@@ -2286,6 +2274,8 @@
     const intro = document.getElementById('sf-form-intro');
     const mount = document.getElementById('sf-form-mount');
     const expanded = expandedFormId();
+    const asCards = !(sfForms.length === 1 && expanded);
+    mount.classList.toggle('sf-formrows', asCards);
 
     if (sfForms.length === 1 && expanded) {
       const listing = sfForms[0];
@@ -2320,8 +2310,9 @@
         row.className = 'sf-formrow';
         row.id = formRowId(listing);
         row.innerHTML =
-          '<button type="button" class="sf-formrow-head" aria-expanded="false">' +
-            '<span class="t"><strong></strong><span></span></span>' + PLUS_SVG +
+          '<button type="button" class="sf-link rich sf-formrow-head" aria-expanded="false">' +
+            '<span class="sf-link-img">📝</span>' +
+            '<span class="sf-link-text"><span class="sf-link-title"></span><span class="sf-link-domain"></span></span>' + PLUS_SVG +
           '</button>' +
           '<div class="sf-formrow-body"><p class="sf-formrow-intro"></p><div class="sf-formrow-mount"></div></div>';
         row.querySelector('.sf-formrow-head').addEventListener('click', function () {
@@ -2336,8 +2327,16 @@
     sfForms.forEach(function (listing) {
       const row = document.getElementById(formRowId(listing));
       if (!row) return;
-      row.querySelector('.t strong').textContent = formTitle(listing);
-      row.querySelector('.t span').textContent = formLeadText(listing);
+      row.querySelector('.sf-link-title').textContent = formTitle(listing);
+      row.querySelector('.sf-link-domain').textContent = formLeadText(listing);
+      // Each form card has its own look, like a link card:
+      // storefront_design.forms[listingId] = { border, border_color, glow,
+      // glow_color, background, text, shake }.
+      const fd = formDesign(listing);
+      const head = row.querySelector('.sf-formrow-head');
+      const styleAttr = cardLookStyle('rich', fd, null);
+      head.setAttribute('style', styleAttr ? styleAttr.slice(8, -1) : '');
+      head.classList.toggle('shake', fd.shake === true);
       const introBody = (listing.storefront_intro_body || '').trim();
       const p = row.querySelector('.sf-formrow-intro');
       p.textContent = introBody;
@@ -2572,17 +2571,14 @@
   //   'richCard'        → big image on top, title below
   // outline_style 'border' | 'glow' (+ optional outline_color) and shake
   // decorate the LINK CARD itself, never the section card.
-  function renderLinkRow(l) {
-    const kind = l.style === 'photoCard' ? 'rich' : (l.style === 'richCard' ? 'photo' : 'pill');
-    const classes = ['sf-link', kind];
-    if (l.shake) classes.push('shake');
-    const ld = linkDesign(l);
-    // Border and glow are independent — either, both or neither — each with
-    // its own colour (storefront_design.links[id].border / .glow). Without
-    // a v2 setting, fall back to baker_links.outline_style (one or the other).
-    const legacyColor = validHex(ld.outline_color) || validHex(l.outline_color);
-    const hasBorder = typeof ld.border === 'boolean' ? ld.border : l.outline_style === 'border';
-    const hasGlow = typeof ld.glow === 'boolean' ? ld.glow : l.outline_style === 'glow';
+  // Border, glow, fill and text colour for a link-style card (links and
+  // order-form cards). ld = the card's design entry; legacy = baker_links'
+  // own outline_style / outline_color, used when ld doesn't say.
+  function cardLookStyle(kind, ld, legacy) {
+    legacy = legacy || {};
+    const legacyColor = validHex(ld.outline_color) || validHex(legacy.color);
+    const hasBorder = typeof ld.border === 'boolean' ? ld.border : legacy.style === 'border';
+    const hasGlow = typeof ld.glow === 'boolean' ? ld.glow : legacy.style === 'glow';
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#201e1d';
     const borderColor = validHex(ld.border_color) || legacyColor || validHex(accent) || '#201e1d';
     const glowColor = validHex(ld.glow_color) || legacyColor || validHex(accent) || '#201e1d';
@@ -2603,7 +2599,17 @@
     if (fill) css.push('background:' + fill);
     if (fill && !hasBorder) css.push('border-color:' + fill);
     if (ink) css.push('color:' + ink, '--link-sub:' + ink);
-    const style = css.length ? ' style="' + css.join(';') + '"' : '';
+    return css.length ? ' style="' + css.join(';') + '"' : '';
+  }
+
+  function renderLinkRow(l) {
+    const kind = l.style === 'photoCard' ? 'rich' : (l.style === 'richCard' ? 'photo' : 'pill');
+    const classes = ['sf-link', kind];
+    if (l.shake) classes.push('shake');
+    // Border and glow are independent — either, both or neither — each with
+    // its own colour (storefront_design.links[id].border / .glow). Without
+    // a v2 setting, fall back to baker_links.outline_style (one or the other).
+    const style = cardLookStyle(kind, linkDesign(l), { style: l.outline_style, color: l.outline_color });
 
     const isFile = l.target_type === 'file' && l.url;
     const icon = isFile ? DOWNLOAD_SVG : (l.target_type === 'product' ? ARROW_SVG : ARROW_UR_SVG);

@@ -3,7 +3,7 @@ import { Button, Field, Input, Modal, Select, Textarea, Toggle, ErrorBanner } fr
 import { menuImageURL } from '../../lib/menu';
 import {
   V2_CARDS, V2_FONT_DEFS, V2_FONT_GROUPS, ensureDesign, loadV2FontPreviews, uploadBuilderImage, v2DefaultTitle,
-  type CardColors, type FocusPoint, type StorefrontData, type StorefrontDesign, type V2Block, type V2CardType,
+  type CardColors, type FocusPoint, type LinkDesign, type StorefrontData, type StorefrontDesign, type V2Block, type V2CardType,
 } from '../../lib/storefront';
 import { ColorField, PhotoPicker, Section, type EditorProps } from './Editors';
 
@@ -171,7 +171,18 @@ function CardColorFields({ value, onChange }: { value: CardColors; onChange: (c:
 // ── Forms on the site (form takeover with one or more forms) ──────────────
 // Mirrors iOS V2CardSheet.siteFormsSection and next.html's sfForms.
 
-function SiteFormsSection({ data, block, upd }: { data: EditorProps['data']; block: V2Block; upd: (p: Partial<V2Block>) => void }) {
+function SiteFormsSection({ data, block, upd, looks, setLooks }: {
+  data: EditorProps['data']; block: V2Block; upd: (p: Partial<V2Block>) => void;
+  looks: Record<string, LinkDesign>; setLooks: (forms: Record<string, LinkDesign>) => void;
+}) {
+  const [styling, setStyling] = useState<string | null>(null);
+  const setLook = (id: string, p: Partial<LinkDesign>) => {
+    const next: LinkDesign = { ...(looks[id] ?? {}), ...p };
+    (Object.keys(next) as (keyof LinkDesign)[]).forEach((k) => { if (next[k] === undefined || next[k] === false) delete next[k]; });
+    const all = { ...looks };
+    if (Object.keys(next).length) all[id] = next; else delete all[id];
+    setLooks(all);
+  };
   const primary = String((data.publicProfile as any)?.storefront_listing_id ?? '').toLowerCase();
   const order = block.forms_order ?? [];
   const forms = data.menuItems
@@ -194,7 +205,7 @@ function SiteFormsSection({ data, block, upd }: { data: EditorProps['data']; blo
   return (
     <Section title="Forms on your site"
       hint={forms.length > 1
-        ? 'Your forms stack as cards in this section, each with its own menu button. Customers tap one to open it. Turn more forms on from your listings.'
+        ? 'Your forms stack as cards in this section, like link cards — give each its own colours, border, glow or shake. Customers tap one to open it. Turn more forms on from your listings.'
         : 'Collapsed shows a card customers tap to open the form. Turn on another form from your listings to stack them.'}>
       <Field label={forms.length > 1 ? 'Show open' : 'Show the form'}>
         <Select value={pick} onChange={(e) => upd({ forms_expanded: e.target.value })}>
@@ -202,19 +213,39 @@ function SiteFormsSection({ data, block, upd }: { data: EditorProps['data']; blo
           {forms.map((f) => <option key={f.id} value={f.id.toLowerCase()}>{forms.length > 1 ? f.name : 'Expanded'}</option>)}
         </Select>
       </Field>
-      {forms.length > 1 && (
-        <div className="stack">
-          {forms.map((f, i) => (
-            <div key={f.id} className="row-between">
-              <span className="ellipsis">{f.name}</span>
-              <span>
-                <button type="button" className="icon-btn sm" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
-                <button type="button" className="icon-btn sm" aria-label="Move down" disabled={i === forms.length - 1} onClick={() => move(i, 1)}>↓</button>
-              </span>
+      <div className="stack">
+        {forms.map((f, i) => {
+          const id = f.id.toLowerCase();
+          const look = looks[id] ?? {};
+          return (
+            <div key={f.id} className="stack">
+              <div className="row-between">
+                <span className="ellipsis">{f.name}</span>
+                <span>
+                  <button type="button" className="link-btn small" onClick={() => setStyling(styling === id ? null : id)}>{styling === id ? 'Done' : 'Card look'}</button>
+                  {forms.length > 1 && <>
+                    <button type="button" className="icon-btn sm" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                    <button type="button" className="icon-btn sm" aria-label="Move down" disabled={i === forms.length - 1} onClick={() => move(i, 1)}>↓</button>
+                  </>}
+                </span>
+              </div>
+              {styling === id && (
+                <div className="stack">
+                  <div className="grid-2">
+                    <ColorField label="Card colour" value={look.background} onChange={(v) => setLook(id, { background: v })} />
+                    <ColorField label="Text colour" value={look.text} onChange={(v) => setLook(id, { text: v })} />
+                  </div>
+                  <Toggle checked={!!look.border} onChange={(v) => setLook(id, { border: v || undefined })} label="Border" />
+                  {look.border && <ColorField label="Border colour" value={look.border_color} onChange={(v) => setLook(id, { border_color: v })} />}
+                  <Toggle checked={!!look.glow} onChange={(v) => setLook(id, { glow: v || undefined })} label="Glow" />
+                  {look.glow && <ColorField label="Glow colour" value={look.glow_color} onChange={(v) => setLook(id, { glow_color: v })} />}
+                  <Toggle checked={!!look.shake} onChange={(v) => setLook(id, { shake: v || undefined })} label="Shake to draw attention" />
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </Section>
   );
 }
@@ -235,11 +266,37 @@ export function CardSettings(props: EditorProps & { type: V2CardType }) {
   const nav = block.nav ?? meta.navByDefault;
   const downloads = props.data.menuItems.filter((m) => m.listing_kind === 'digital');
 
+  // Same order as the page reads (and the app's card sheet): whether the
+  // card shows, its button in the navigation menu at the top, then the card
+  // itself (title, colours), then what's in it.
   return (
     <>
       <Section title={`${meta.label} card`}>
         <Toggle checked={!block.hidden} onChange={(v) => upd({ hidden: !v })} label="Show this card"
           hint={block.hidden ? 'Hidden — this card and its menu button don’t appear on your page.' : undefined} />
+      </Section>
+
+      {/* A hidden card has no menu button to set up. */}
+      {!block.hidden && (
+      <Section title="Navigation menu button" hint="This card’s button in the menu at the top of your page.">
+        <Toggle checked={nav} onChange={(v) => upd({ nav: v === meta.navByDefault ? undefined : v })} label="Show in the menu" />
+        {nav && (
+          <>
+            <Field label="Button text"><Input value={block.nav_label ?? ''} placeholder={block.title || v2DefaultTitle(props.type, props.data.firstName)} onChange={(e) => upd({ nav_label: e.target.value || undefined })} /></Field>
+            <div className="grid-2">
+              <ColorField label="Button colour" value={block.nav_color} onChange={(v) => upd({ nav_color: v })} />
+              <ColorField label="Text colour" value={block.nav_text_color} onChange={(v) => upd({ nav_text_color: v })} />
+            </div>
+            <Toggle checked={!!block.nav_border} onChange={(v) => upd({ nav_border: v || undefined })} label="Border" />
+            {block.nav_border && <ColorField label="Border colour" value={block.nav_border_color} onChange={(v) => upd({ nav_border_color: v })} />}
+            <Toggle checked={!!block.nav_shake} onChange={(v) => upd({ nav_shake: v || undefined })} label="Shake to draw attention" />
+          </>
+        )}
+      </Section>
+      )}
+
+      {!block.hidden && (
+      <Section title="The card" hint="Its title and colours on your page.">
         <Field label="Card title"><Input value={block.title ?? ''} placeholder={v2DefaultTitle(props.type, props.data.firstName)} onChange={(e) => upd({ title: e.target.value || undefined })} /></Field>
         {meta.parts && (
           <div className="stack">
@@ -257,9 +314,14 @@ export function CardSettings(props: EditorProps & { type: V2CardType }) {
             ))}
           </div>
         )}
+        <CardColorFields value={block.colors ?? {}} onChange={(c) => upd({ colors: c })} />
       </Section>
+      )}
 
-      {props.type === 'menu' && <SiteFormsSection data={props.data} block={block} upd={upd} />}
+      {props.type === 'menu' && !block.hidden && (
+        <SiteFormsSection data={props.data} block={block} upd={upd}
+          looks={design.forms ?? {}} setLooks={(forms) => setDesign({ forms: Object.keys(forms).length ? forms : undefined })} />
+      )}
 
       {props.type === 'leadMagnet' && (
         <Section title="Free download" hint="Visitors enter their email and get this file. They’re added to your mailing list.">
@@ -282,28 +344,6 @@ export function CardSettings(props: EditorProps & { type: V2CardType }) {
         </Section>
       )}
 
-      {/* A hidden card has no menu button to set up. */}
-      {!block.hidden && (
-      <Section title="Menu button" hint="A button for this card in the menu on your profile card.">
-        <Toggle checked={nav} onChange={(v) => upd({ nav: v === meta.navByDefault ? undefined : v })} label="Show in the menu" />
-        {nav && (
-          <>
-            <Field label="Button text"><Input value={block.nav_label ?? ''} placeholder={block.title || v2DefaultTitle(props.type, props.data.firstName)} onChange={(e) => upd({ nav_label: e.target.value || undefined })} /></Field>
-            <div className="grid-2">
-              <ColorField label="Button colour" value={block.nav_color} onChange={(v) => upd({ nav_color: v })} />
-              <ColorField label="Text colour" value={block.nav_text_color} onChange={(v) => upd({ nav_text_color: v })} />
-            </div>
-            <Toggle checked={!!block.nav_border} onChange={(v) => upd({ nav_border: v || undefined })} label="Border" />
-            {block.nav_border && <ColorField label="Border colour" value={block.nav_border_color} onChange={(v) => upd({ nav_border_color: v })} />}
-            <Toggle checked={!!block.nav_shake} onChange={(v) => upd({ nav_shake: v || undefined })} label="Shake to draw attention" />
-          </>
-        )}
-      </Section>
-      )}
-
-      <Section title="Card colours">
-        <CardColorFields value={block.colors ?? {}} onChange={(c) => upd({ colors: c })} />
-      </Section>
       {(props.type === 'menu' || props.type === 'products') && <PhotoFocusSection {...props} type={props.type} />}
       {err && <ErrorBanner message={err} />}
     </>
