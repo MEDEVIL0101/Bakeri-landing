@@ -489,6 +489,7 @@
     #sf-form-mount { padding: var(--cpad); }
     /* More than one form on the site: each is a collapsible row in the one
        form card, so the block stays a reasonable size (renderFormStorefront). */
+    .sf-link.rich.noimg { grid-template-columns: minmax(0, 1fr) auto; padding: 16px 18px 16px 20px; }
     #sf-form-mount.sf-formrows { display: flex; flex-direction: column; gap: var(--ggap); }
     .sf-formrow { scroll-margin-top: 16px; }
     .sf-formrow-head { width: 100%; }
@@ -2310,8 +2311,7 @@
         row.className = 'sf-formrow';
         row.id = formRowId(listing);
         row.innerHTML =
-          '<button type="button" class="sf-link rich sf-formrow-head" aria-expanded="false">' +
-            '<span class="sf-link-img">📝</span>' +
+          '<button type="button" class="sf-link rich noimg sf-formrow-head" aria-expanded="false">' +
             '<span class="sf-link-text"><span class="sf-link-title"></span><span class="sf-link-domain"></span></span>' + PLUS_SVG +
           '</button>' +
           '<div class="sf-formrow-body"><p class="sf-formrow-intro"></p><div class="sf-formrow-mount"></div></div>';
@@ -2321,6 +2321,20 @@
           this.setAttribute('aria-expanded', row.classList.contains('open') ? 'true' : 'false');
         });
         mount.appendChild(row);
+        // The listing's photo, if it has one — otherwise the card stays
+        // text only (no placeholder). Same storage path as product tiles.
+        const probe = new Image();
+        probe.onload = function () {
+          const head = row.querySelector('.sf-formrow-head');
+          if (!head || head.querySelector('.sf-link-img')) return;
+          const img = document.createElement('span');
+          img.className = 'sf-link-img';
+          img.style.backgroundImage = 'url(' + probe.src + ')';
+          focusBackground(img, probe.src, itemFocus(listing));
+          head.insertBefore(img, head.firstChild);
+          head.classList.remove('noimg');
+        };
+        probe.src = itemImgURL(listing);
       });
       if (expanded) openFormRow('sf-formrow-' + expanded);
     }

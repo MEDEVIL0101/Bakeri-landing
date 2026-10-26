@@ -214,13 +214,24 @@ export function MenuItemEditorPage() {
               <Field label="Title (optional)"><Input value={d.storefront_intro_title} onChange={(e) => set('storefront_intro_title', e.target.value)} placeholder="Let’s make something special" /></Field>
               <Field label="Text shown above the form (optional)"><Textarea rows={4} value={d.storefront_intro_body} onChange={(e) => set('storefront_intro_body', e.target.value)} placeholder="Fill this out at least 2 weeks before your event date." /></Field>
             </Card>
-            <p className="small muted">This is a Custom Order Form — price, availability, allergens and fulfillment don’t apply. It’s either your whole storefront or hidden; there’s nothing in between.</p>
+            <p className="small muted">This is a Custom Order Form — price, availability, allergens and fulfillment don’t apply. Turned on, it shows as a card in your order forms section; turned off, it’s hidden.</p>
           </div>
           <div className="stack-lg">
             <Card title="Storefront">
               <Toggle checked={d.use_as_site_body} onChange={(v) => setDraft({ ...d, use_as_site_body: v, is_listed: v })}
-                label="Set as storefront"
-                hint={d.use_as_site_body ? 'Your storefront shows only this form — other listings are hidden.' : 'Hidden — turn on to make this your whole storefront.'} />
+                label="Show on storefront"
+                hint={d.use_as_site_body ? 'Your storefront becomes your order forms — other listings are hidden, and any other forms you’ve turned on stack alongside this one.' : 'Hidden — turn on to show this form on your storefront.'} />
+            </Card>
+            {/* The form's card on the storefront: a thumbnail with a photo,
+                text only without one. */}
+            <Card title="Card photo (optional)">
+              <label className="photo-drop"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); pickImage(e.dataTransfer.files?.[0]); }}>
+                {imgSrc ? <img src={imgSrc} alt="" /> : <span className="photo-empty"><strong>Add a photo</strong><span className="small muted">Click or drop an image here</span></span>}
+                <input type="file" accept="image/*" hidden onChange={(e) => pickImage(e.target.files?.[0])} />
+              </label>
+              <p className="small muted">Shown on this form’s card on your storefront. Without one, the card is text only.</p>
             </Card>
           </div>
         </div>
