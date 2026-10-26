@@ -96,7 +96,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invalid request." }, 400);
   }
 
-  const payment_intent_id = String(body.payment_intent_id ?? "").trim();
+  // A promo code that takes the cart to $0 has no PaymentIntent at all —
+  // create-payment-intent answers `free_order: true` and the page comes
+  // straight here with the code. Nothing from the client is trusted: the
+  // promo is re-resolved below and the order is only recorded if it still
+  // comes to $0 and the code still has a redemption left.
+  const freeOrder = body.free_order === true;
+  const freePromoCode = freeOrder ? String(body.promo_code ?? "").trim() : "";
+  const payment_intent_id = freeOrder ? "" : String(body.payment_intent_id ?? "").trim();
   // menu_item_id (singular) kept for back-compat with any cached copy of the
   // storefront page still sending the old single-item shape. The richer
   // `items` shape (each with its own optional variant_id) is preferred when
@@ -116,7 +123,7 @@ Deno.serve(async (req: Request) => {
   const customer_name = String(body.customer_name ?? "").trim();
   const customer_email = String(body.customer_email ?? "").trim().toLowerCase();
 
-  if (!payment_intent_id || requestedLines.length === 0) return json({ error: "Invalid request." }, 400);
+  if ((!payment_intent_id && !freePromoCode) || requestedLines.length === 0) return json({ error: "Invalid request." }, 400);
   if (!customer_name) return json({ error: "Please enter your name." }, 400);
   if (!EMAIL_RE.test(customer_email)) return json({ error: "Please enter a valid email address." }, 400);
 
@@ -194,8 +201,8 @@ Deno.serve(async (req: Request) => {
   // create-payment-intent made for this was a direct charge on that baker's
   // own connected account — verification must target the same account.
   // Never trust the client alone on payment success.
-  let intent;
-  try {
+  let intent: { status: string; metadata?: Record<string, string> } = { status: "succeeded", metadata: {} };
+  if (!freeOrder) try {
     intent = connectedAccountId
       ? await stripe.paymentIntents.retrieve(payment_intent_id, { stripeAccount: connectedAccountId })
       : await stripe.paymentIntents.retrieve(payment_intent_id);
@@ -215,6 +222,7 @@ Deno.serve(async (req: Request) => {
   // genuinely undeliverable file (never attached, or storage can't sign it)
   // falls back to a refund, since there's nothing left to hand over.
   async function refundAndFail(errorMessage: string) {
+    if (freeOrder) return json({ error: errorMessage + " Please try again or contact the vendor." }, 400);
     let refunded = false;
     try {
       await stripe.refunds.create(
@@ -232,6 +240,8 @@ Deno.serve(async (req: Request) => {
     }, 400);
   }
 
+  const orderId = crypto.randomUUID();
+
   const missingFile = digitalLines.find((l) => !l.digitalFilePath);
   if (missingFile) return refundAndFail(`"${missingFile.name}" has no file attached.`);
 
@@ -247,10 +257,21 @@ Deno.serve(async (req: Request) => {
         menu_item_id: l.menuItemId, listing_kind: "digital",
         unit_price_cents: l.unitPriceCents, quantity: 1,
       })),
-      (intent.metadata?.promo_code as string) ?? null,
+      freeOrder ? freePromoCode : ((intent.metadata?.promo_code as string) ?? null),
     );
     promo.lines.forEach((rl, i) => { digitalLines[i].unitPriceCents = rl.effective_unit_price_cents; });
-    await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null, payment_intent_id);
+    if (freeOrder) {
+      if (promo.codeStatus !== "valid" || digitalLines.some((l) => l.unitPriceCents > 0)) {
+        return json({ error: "This code no longer covers the full price — please go back and try again." }, 400);
+      }
+      // Claims the redemption before recording anything, so a code with a
+      // use limit can't be stretched by firing this repeatedly.
+      if (!(await redeemPromoCode(promo.codePromotionId, `free:${orderId}`))) {
+        return json({ error: "This code has already been used up." }, 400);
+      }
+    } else {
+      await redeemPromoCode(promo.codeStatus === "valid" ? promo.codePromotionId : null, payment_intent_id);
+    }
   }
 
   const subtotalCents = digitalLines.reduce((sum, l) => sum + l.unitPriceCents, 0);
@@ -262,7 +283,7 @@ Deno.serve(async (req: Request) => {
   // Already settled instantly if direct — record the real Stripe fee now so
   // this closes the payout loop immediately instead of waiting on
   // release-baker-payouts (whose sweep only runs for platform_custody orders).
-  const settlement = connectedAccountId
+  const settlement = connectedAccountId && !freeOrder
     ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, platformFeeCents)
     : null;
 
@@ -301,7 +322,6 @@ Deno.serve(async (req: Request) => {
   const orderName = digitalLines.length === 1 ? digitalLines[0].name : `${digitalLines[0].name} + ${digitalLines.length - 1} more`;
 
   const clientIp = getClientIp(req);
-  const orderId = crypto.randomUUID();
   const now = new Date().toISOString();
 
   const { error: orderErr } = await db.from("orders").insert({
@@ -316,7 +336,9 @@ Deno.serve(async (req: Request) => {
     status: "Confirmed",
     notes: "",
     is_paid: true,
-    payment_note: `Total charged: $${(totalCents / 100).toFixed(2)} (Bakeri service charge: $${(platformFeeCents / 100).toFixed(2)}, deducted from your payout)`,
+    payment_note: freeOrder
+      ? `Free — promo code ${freePromoCode.toUpperCase()} covered the full price`
+      : `Total charged: $${(totalCents / 100).toFixed(2)} (Bakeri service charge: $${(platformFeeCents / 100).toFixed(2)}, deducted from your payout)`,
     platform_fee_cents: platformFeeCents,
     deposit_amount: 0,
     deposit_note: "",
@@ -333,8 +355,8 @@ Deno.serve(async (req: Request) => {
     buyer_profile_id: null,
     buyer_display_name: customer_name,
     scheduled_pickup_date: null,
-    payment_intent_id,
-    payment_status: "captured",
+    payment_intent_id: freeOrder ? null : payment_intent_id,
+    payment_status: freeOrder ? null : "captured",
     payment_model: connectedAccountId ? "direct" : "platform_custody",
     reference_photo_count: 0,
     lead_channel: "website",

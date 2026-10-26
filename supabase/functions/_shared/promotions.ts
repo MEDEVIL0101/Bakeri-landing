@@ -110,18 +110,23 @@ export async function resolvePromotions(
 
 // Bump a coded promo's redemption count once an order is finalized. No-op
 // for automatic sales (promotionId null). Idempotent per PaymentIntent —
-// pass paymentIntentId so a finalize retry doesn't double-count.
+// pass paymentIntentId so a finalize retry doesn't double-count. Returns
+// whether a redemption was actually counted (false once the code is used up)
+// — paid callers ignore it, the free-order path needs it as its only gate.
 export async function redeemPromoCode(
   promotionId: string | null,
   paymentIntentId?: string | null,
-): Promise<void> {
-  if (!promotionId) return;
+): Promise<boolean> {
+  if (!promotionId) return false;
   try {
-    await serviceClient().rpc("redeem_promo_code", {
+    const { data, error } = await serviceClient().rpc("redeem_promo_code", {
       p_promotion_id: promotionId,
       p_payment_intent_id: paymentIntentId ?? null,
     });
+    if (error) throw error;
+    return data === true;
   } catch (err) {
     console.error("redeemPromoCode failed:", err instanceof Error ? err.message : err);
+    return false;
   }
 }

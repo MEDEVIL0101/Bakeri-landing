@@ -400,6 +400,29 @@ Deno.serve(async (req: Request) => {
     const chargeCents = (depositAmountCents ?? fullTotalCents) + (isApp ? platformFeeCents : 0);
     const applicationFeeCents = isApp ? platformFeeCents * 2 : platformFeeCents;
 
+    // A promo code can take the whole order to $0 (a giveaway "WINNER"
+    // code). Stripe can't create a $0 PaymentIntent, and the rejection used
+    // to surface as the generic "payment setup needs attention" error — the
+    // vendor's setup was fine (cookiesbysteph, 2026-10-25). A free
+    // download-only cart skips Stripe entirely: digital-checkout.html sends
+    // it straight to finalize-guest-digital-order, which re-resolves the
+    // promo itself and only records it if it's still $0. Anything that
+    // needs a pickup/shipping handoff still goes through a card hold, so a
+    // free one of those can't be placed online.
+    if (chargeCents === 0) {
+      if (hasDigital && !hasPhysical && isInstantCaptureCart && promo.totalDiscountCents > 0) {
+        return new Response(
+          JSON.stringify({ free_order: true, amount_cents: 0, tax_cents: 0 }),
+          { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
+        );
+      }
+      throw new ValidationError("This discount covers the whole order, so it can't be paid online. Please contact the vendor directly to claim it.");
+    }
+    // Stripe's card minimum (50¢ in CAD/USD).
+    if (chargeCents < 50) {
+      throw new ValidationError("Card payments must be at least $0.50 — please contact the vendor directly to complete this order.");
+    }
+
     const bakerIDs = [...new Set(items.map((i) => i.baker_id))];
 
     const bakerRows = await fetchBakerConnectRows(bakerIDs);
