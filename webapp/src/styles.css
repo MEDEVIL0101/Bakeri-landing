@@ -1120,3 +1120,8 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .table tr.row-link { cursor: pointer; }
 .table tr.row-link:hover td { background: var(--surface-2); }
 .table tr.row-link .row-title { color: inherit; text-decoration: none; }
+
+/* Nav rows for features that aren't available yet (AppShell `soon`). */
+.nav-soon { opacity: .45; cursor: default; }
+.nav-soon:hover { background: none; color: var(--ink-2); }
+.nav-soon-tag { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }

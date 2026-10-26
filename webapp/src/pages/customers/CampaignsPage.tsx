@@ -6,7 +6,23 @@ import { listMenuItems } from '../../lib/menu';
 import { formatDateTime } from '../../lib/format';
 import type { Campaign } from '../../lib/types';
 
+// Greyed out "Coming soon" (2026-10-25, Harvey) — the nav rows are disabled
+// too (AppShell `soon`). Set to false to bring campaigns back.
+const CAMPAIGNS_COMING_SOON = true;
+
 export function CampaignsPage() {
+  if (CAMPAIGNS_COMING_SOON) {
+    return (
+      <div className="page">
+        <PageHeader title="Email Campaigns" />
+        <Card><EmptyState title="Coming soon" body="Email campaigns to your mailing list are on the way. Your customers and mailing list are still collected in the meantime." /></Card>
+      </div>
+    );
+  }
+  return <CampaignsPageContent />;
+}
+
+function CampaignsPageContent() {
   const userId = useUserId();
   const toast = useToast();
   const campaigns = useLoad(() => listCampaigns(userId), [userId]);
