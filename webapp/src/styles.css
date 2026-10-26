@@ -1132,3 +1132,6 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .qty-stepper .num { min-width: 28px; text-align: center; }
 .packaging-pick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .packaging-pick:hover { background: var(--surface-2); }
+
+/* Forms on your site (builder): name + up/down buttons */
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

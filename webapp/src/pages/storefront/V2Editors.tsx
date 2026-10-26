@@ -168,6 +168,57 @@ function CardColorFields({ value, onChange }: { value: CardColors; onChange: (c:
 
 // ── Cards list ────────────────────────────────────────────────────────────
 
+// ── Forms on the site (form takeover with one or more forms) ──────────────
+// Mirrors iOS V2CardSheet.siteFormsSection and next.html's sfForms.
+
+function SiteFormsSection({ data, block, upd }: { data: EditorProps['data']; block: V2Block; upd: (p: Partial<V2Block>) => void }) {
+  const primary = String((data.publicProfile as any)?.storefront_listing_id ?? '').toLowerCase();
+  const order = block.forms_order ?? [];
+  const forms = data.menuItems
+    .filter((m) => m.is_listed_in_marketplace && m.intake_form_id && (m.is_storefront_form || m.id.toLowerCase() === primary))
+    .sort((a, b) => {
+      const ia = order.indexOf(a.id.toLowerCase()), ib = order.indexOf(b.id.toLowerCase());
+      if (ia !== ib) return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
+      const pa = a.id.toLowerCase() === primary, pb = b.id.toLowerCase() === primary;
+      if (pa !== pb) return pa ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  if (!primary || !forms.some((f) => f.id.toLowerCase() === primary)) return null;
+  const valid = block.forms_expanded === 'none' || forms.some((f) => f.id.toLowerCase() === block.forms_expanded);
+  const pick = valid && block.forms_expanded ? block.forms_expanded : (forms.length === 1 ? forms[0].id.toLowerCase() : 'none');
+  const move = (i: number, d: number) => {
+    const ids = forms.map((f) => f.id.toLowerCase());
+    [ids[i], ids[i + d]] = [ids[i + d], ids[i]];
+    upd({ forms_order: ids });
+  };
+  return (
+    <Section title="Forms on your site"
+      hint={forms.length > 1
+        ? 'Your forms stack as cards in this section, each with its own menu button. Customers tap one to open it. Turn more forms on from your listings.'
+        : 'Collapsed shows a card customers tap to open the form. Turn on another form from your listings to stack them.'}>
+      <Field label={forms.length > 1 ? 'Show open' : 'Show the form'}>
+        <Select value={pick} onChange={(e) => upd({ forms_expanded: e.target.value })}>
+          <option value="none">{forms.length > 1 ? 'All collapsed' : 'Collapsed'}</option>
+          {forms.map((f) => <option key={f.id} value={f.id.toLowerCase()}>{forms.length > 1 ? f.name : 'Expanded'}</option>)}
+        </Select>
+      </Field>
+      {forms.length > 1 && (
+        <div className="stack">
+          {forms.map((f, i) => (
+            <div key={f.id} className="row-between">
+              <span className="ellipsis">{f.name}</span>
+              <span>
+                <button type="button" className="icon-btn sm" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                <button type="button" className="icon-btn sm" aria-label="Move down" disabled={i === forms.length - 1} onClick={() => move(i, 1)}>↓</button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 // ── One card's settings ───────────────────────────────────────────────────
 
 export function CardSettings(props: EditorProps & { type: V2CardType }) {
@@ -207,6 +258,8 @@ export function CardSettings(props: EditorProps & { type: V2CardType }) {
           </div>
         )}
       </Section>
+
+      {props.type === 'menu' && <SiteFormsSection data={props.data} block={block} upd={upd} />}
 
       {props.type === 'leadMagnet' && (
         <Section title="Free download" hint="Visitors enter their email and get this file. They’re added to your mailing list.">

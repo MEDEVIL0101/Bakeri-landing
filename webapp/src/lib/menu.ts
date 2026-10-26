@@ -284,18 +284,25 @@ export async function saveMenuItem(
     if (error) throw new ApiError(`Saved, but an option photo didn’t upload: ${error.message || 'please try again'}`);
   }
 
-  // Custom Order Form as the whole storefront: point the profile at it and
-  // hide every other listed item (iOS claimSiteBody), or release it.
+  // Custom Order Form as the storefront (iOS activateStorefrontForm): hide
+  // the non-form listings but keep any other forms on — several forms stack
+  // on the site. The first form on stays the primary storefront_listing_id;
+  // turning the primary off hands it to another form that's still on.
   let hidOthers = 0;
+  const primary = (profile?.storefront_listing_id ?? '').toLowerCase();
+  const otherForms = allItems.filter((m) => m.id.toLowerCase() !== id.toLowerCase() && m.is_storefront_form && m.is_listed_in_marketplace && m.intake_form_id);
   if (kind === 'custom' && draft.is_storefront_form && draft.use_as_site_body && isListed) {
-    check(await supabase.from('profiles').update({ storefront_listing_id: id, updated_at: ts }).eq('id', userId));
-    const others = allItems.filter((m) => m.id !== id && m.is_listed_in_marketplace);
+    if (!otherForms.some((m) => m.id.toLowerCase() === primary)) {
+      check(await supabase.from('profiles').update({ storefront_listing_id: id, updated_at: ts }).eq('id', userId));
+    }
+    const others = allItems.filter((m) => m.id !== id && m.is_listed_in_marketplace && !m.is_storefront_form);
     if (others.length) {
       check(await supabase.from('menu_items').update({ is_listed_in_marketplace: false, updated_at: ts }).in('id', others.map((m) => m.id)));
       hidOthers = others.length;
     }
-  } else if (profile?.storefront_listing_id && profile.storefront_listing_id.toLowerCase() === id.toLowerCase()) {
-    check(await supabase.from('profiles').update({ storefront_listing_id: null, updated_at: ts }).eq('id', userId));
+  } else if (primary && primary === id.toLowerCase()) {
+    const next = otherForms.sort((a, b) => a.name.localeCompare(b.name))[0];
+    check(await supabase.from('profiles').update({ storefront_listing_id: next ? next.id : null, updated_at: ts }).eq('id', userId));
   }
 
   if (image) {
