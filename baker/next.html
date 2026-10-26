@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bakeri</title>
-  <meta name="description" content="View this baker's storefront on Bakeri." />
+  <meta name="description" content="View this shop's storefront on Bakerï." />
   <!-- Storefront v2 ("Profile layout") — see STOREFRONT_V2_SPEC.md. Not
        linked from anywhere and not indexed until it replaces index.html at
        launch. DELETE this robots tag at cutover. -->
@@ -487,6 +487,23 @@
     #sf-form-intro { padding: var(--cpad) var(--cpad) 0; }
     #sf-form-intro p { font-size: 15px; line-height: 1.6; white-space: pre-wrap; max-width: 70ch; }
     #sf-form-mount { padding: var(--cpad); }
+    /* More than one form on the site: each is a collapsible row in the one
+       form card, so the block stays a reasonable size (renderFormStorefront). */
+    .sf-formrow { border-bottom: 1px solid var(--card-line, var(--n200)); scroll-margin-top: 16px; }
+    .sf-formrow:last-child { border-bottom: 0; }
+    .sf-formrow-head {
+      display: flex; align-items: center; gap: 12px; width: 100%; padding: 18px var(--cpad);
+      background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+    }
+    .sf-formrow-head .t { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
+    .sf-formrow-head .t strong { font-size: 18px; font-weight: 800; line-height: 1.2; }
+    .sf-formrow-head .t span { font-size: 14px; opacity: .7; }
+    .sf-formrow-head svg { flex: none; transition: transform .2s; }
+    .sf-formrow.open .sf-formrow-head svg { transform: rotate(45deg); }
+    .sf-formrow-body { display: none; }
+    .sf-formrow.open .sf-formrow-body { display: block; }
+    .sf-formrow-body .sf-formrow-intro { padding: 0 var(--cpad); font-size: 15px; line-height: 1.6; white-space: pre-wrap; max-width: 70ch; }
+    .sf-formrow-body .sf-formrow-mount { padding: var(--cpad); padding-top: 12px; }
 
     /* ══════════════ Email capture card ══════════════ */
 
@@ -714,7 +731,7 @@
 <section id="pb-about" class="sf-card hidden" data-block="about">
   <div id="pb-about-photo" class="hidden"><img id="pb-about-portrait" alt="" /></div>
   <div id="pb-about-body">
-    <span class="sf-kicker" id="pb-about-kicker">About the baker</span>
+    <span class="sf-kicker" id="pb-about-kicker">About</span>
     <h2 id="pb-about-heading"></h2>
     <div id="pb-about-text"></div>
   </div>
@@ -864,6 +881,12 @@
   // form (header + intro + form + About/Hours/Policies/Links/FAQ), not a
   // menu grid — see 20260910000001/2's migrations.
   let sfListing = null;
+  // Every form on the site, in display order — sfListing is the first.
+  // A form listing is on the site when it's listed and either marked as a
+  // form (menu_items.is_storefront_form) or is profiles.storefront_listing_id
+  // (the only signal older app builds set). One form shows open; with more
+  // than one they stack as collapsible rows (renderFormStorefront).
+  let sfForms = [];
 
   // Storefront images (logo, header, about portrait) live at fixed Storage
   // paths with no version in the URL. On publish the bytes at that path are
@@ -929,6 +952,9 @@
   // time (submit-custom-order-inquiry lands a pending_quote lead), so those
   // stay open even before onboarding finishes.
   let stripeReady = false;
+  // Plan lapsed (see the profile fetch) — ordering off, worded as paused.
+  let ordersPaused = false;
+  const VENDOR_PLANS_ENABLED = false;
 
   // ── Cart persistence — keyed per baker so a visitor's cart from one
   // storefront never bleeds into another's. ──
@@ -1003,7 +1029,7 @@
   } else {
 
   if (!slug && !bakerID) {
-    showNotFound('No baker specified', 'This link appears to be invalid.');
+    showNotFound('No shop specified', 'This link appears to be invalid.');
     return;
   }
 
@@ -1017,8 +1043,28 @@
   })
   .then(function (r) { return r.json(); })
   .then(function (data) {
-    if (!data || !data.profile) { showNotFound('Baker not found', 'No baker found at this link.'); return; }
+    // A shop whose Bakeri plan has lapsed stays visible with ordering off
+    // (vendor_plans / effective_plan_tier). Any failure here — including the
+    // function not existing yet — leaves the shop open, never blocks it.
+    // Off until paid plans launch (2026-10-26, Harvey: everyone is on the
+    // free setup) — flip VENDOR_PLANS_ENABLED to bring the check back.
+    if (!VENDOR_PLANS_ENABLED || !data || !data.profile || !data.profile.id) return data;
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/effective_plan_tier', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+      body: JSON.stringify({ p_user_id: data.profile.id })
+    })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (tier) { data.profile.__plan_paused = tier === 'none'; return data; }, function () { return data; });
+  })
+  .then(function (data) {
+    if (!data || !data.profile) { showNotFound('Shop not found', 'No shop found at this link.'); return; }
     profile = data.profile;
+    // A shop still on v1 can only see its v2 site inside the app's builder
+    // (preview mode, which never reaches this fetch) until it switches —
+    // publicly it's served the v1 page. index.html only redirects back here
+    // for 'v2', so this can't loop.
+    if (profile.storefront_version !== 'v2') { location.replace('/baker/' + location.search); return; }
     resolvedBakerId = profile.id;
 
     loadCart();
@@ -1091,12 +1137,18 @@
     // Case-insensitive: Swift's uuidString is uppercase, PostgREST's is
     // lowercase, and the builder preview payload can carry either.
     const sfId = String(p.storefront_listing_id || '').toLowerCase();
-    sfListing = (sfId && allListings.find(function (l) {
-      return String(l.id).toLowerCase() === sfId && l.intake_form_id;
-    })) || null;
+    const formListings = allListings.filter(function (l) {
+      return l.intake_form_id && (l.is_storefront_form === true || String(l.id).toLowerCase() === sfId);
+    });
+    // Only a site that has a primary form (storefront_listing_id) is a form
+    // site; the other forms join it.
+    sfForms = formListings.some(function (l) { return String(l.id).toLowerCase() === sfId; })
+      ? orderForms(formListings, sfId, p.storefront_design)
+      : [];
+    sfListing = sfForms[0] || null;
 
     updateAnnouncementBanner(p, listings);
-    const name = p.business_name || p.user_name || 'Baker';
+    const name = p.business_name || p.user_name || 'Vendor';
     const place = p.neighbourhood || p.pickup_city || '';
     // Skip the province when the place already ends with it ("Bay Minette, AL").
     const prov = (p.pickup_province || '').trim();
@@ -1108,7 +1160,8 @@
 
     document.title = name + ' on Bakeri';
     document.querySelector('meta[name="description"]').content = name + ' — handcrafted bakes on Bakeri. ' + (p.bio || '');
-    stripeReady = p.stripe_connect_onboarding_complete === true;
+    ordersPaused = !!p.__plan_paused;
+    stripeReady = p.stripe_connect_onboarding_complete === true && !ordersPaused;
 
     resolveBlocks(p);
     applyDesignTokens();
@@ -1140,7 +1193,7 @@
 
     renderLeadMagnet(p);
     renderMenuCard();
-    if (sfListing) renderFormStorefront(sfListing);
+    if (sfListing) renderFormStorefront();
     else document.getElementById('form-storefront').classList.add('hidden');
     renderProductsCard();
     renderLinkSections();
@@ -1315,7 +1368,8 @@
       case 'emailCapture': return ((profile && profile.email_capture_heading) || '').trim() || 'Join my list';
       case 'leadMagnet': return leadMagnetConfig().heading;
       case 'form':
-        return (sfListing && ((sfListing.storefront_intro_title || '').trim() || sfListing.name)) || 'Order';
+        if (sfForms.length > 1) return 'Order forms';
+        return (sfListing && formTitle(sfListing)) || 'Order';
     }
     return '';
   }
@@ -1369,9 +1423,14 @@
       if (c.hidden) return;
       const show = typeof c.nav === 'boolean' ? c.nav : NAV_DEFAULT[key];
       if (!show) return;
-      const label = (c.nav_label || '').trim() || cardTitle(key);
+      // Several forms on the site: a button per form, each opening its own row.
+      const targets = (key === 'form' && sfForms.length > 1)
+        ? sfForms.map(function (f) { return { id: formRowId(f), label: formTitle(f), formId: formRowId(f) }; })
+        : [{ id: el.id, label: (c.nav_label || '').trim() || cardTitle(key), formId: null }];
+      targets.forEach(function (target) {
+      const label = target.label;
       const btn = document.createElement('a');
-      btn.href = '#' + el.id;
+      btn.href = '#' + target.id;
       btn.className = 'sf-navbtn' + (first ? ' primary' : '');
       // Each menu button: own fill, text colour, border (with its own
       // colour) and shake — entry.nav_color / nav_text_color /
@@ -1390,9 +1449,14 @@
       }
       if (c.nav_shake === true) btn.classList.add('shake');
       btn.innerHTML = '<span>' + escapeHtml(label) + '</span>' + ARROW_SVG;
-      btn.addEventListener('click', function (e) { e.preventDefault(); scrollToSection(el.id); });
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (target.formId) openFormRow(target.formId);
+        scrollToSection(target.id);
+      });
       nav.appendChild(btn);
       first = false;
+      });
     });
   }
 
@@ -2144,34 +2208,137 @@
   // card (in Menu's slot); every other card stays (spec). Mounted in-page —
   // no redirect to custom-order.html.
   let mountedFormKey = null;
-  function renderFormStorefront(listing) {
+  let formRowsKey = null;
+
+  function formTitle(listing) {
+    return (listing.storefront_intro_title || '').trim() || listing.name || 'Order';
+  }
+  function formRowId(listing) { return 'sf-formrow-' + String(listing.id).toLowerCase(); }
+  function formLeadText(listing) {
+    return listing.lead_time_note ? ('Lead time: ' + listing.lead_time_note) : 'Request a quote';
+  }
+
+  // The form block's settings live on the menu block entry (the form takes
+  // the menu's slot): forms_order (listing ids) and forms_expanded (a listing
+  // id, or 'none'). Unset: one form shows open; several start collapsed.
+  function formsCfg(designJSON) {
+    const blocks = designJSON && Array.isArray(designJSON.blocks) ? designJSON.blocks : [];
+    const entry = blocks.find(function (b) { return b && b.type === 'menu'; }) || {};
+    return entry;
+  }
+  function orderForms(list, primaryId, designJSON) {
+    const order = (formsCfg(designJSON).forms_order || []).map(function (x) { return String(x).toLowerCase(); });
+    return list.slice().sort(function (a, b) {
+      const ia = order.indexOf(String(a.id).toLowerCase()), ib = order.indexOf(String(b.id).toLowerCase());
+      if (ia !== ib) return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
+      const pa = String(a.id).toLowerCase() === primaryId, pb = String(b.id).toLowerCase() === primaryId;
+      if (pa !== pb) return pa ? -1 : 1;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+  }
+  function expandedFormId() {
+    const pick = formsCfg(design).forms_expanded;
+    if (pick === 'none') return null;
+    if (pick && sfForms.some(function (f) { return String(f.id).toLowerCase() === String(pick).toLowerCase(); })) {
+      return String(pick).toLowerCase();
+    }
+    return sfForms.length === 1 ? String(sfForms[0].id).toLowerCase() : null;
+  }
+
+  function mountForm(container, listing) {
+    if (!window.BakeriIntakeForm) return;
+    window.BakeriIntakeForm.mount({
+      container: container,
+      supabaseUrl: SUPABASE_URL,
+      anonKey: ANON_KEY,
+      bakerId: resolvedBakerId,
+      itemId: listing.id,
+      formId: listing.intake_form_id,
+      itemName: listing.name,
+      standalone: false
+    });
+  }
+
+  function openFormRow(rowId) {
+    const row = document.getElementById(rowId);
+    if (!row || row.classList.contains('open')) return;
+    row.classList.add('open');
+    const mount = row.querySelector('.sf-formrow-mount');
+    if (mount && !mount.dataset.mounted) {
+      mount.dataset.mounted = '1';
+      const listing = sfForms.find(function (f) { return formRowId(f) === rowId; });
+      if (listing) mountForm(mount, listing);
+    }
+  }
+
+  // profiles.storefront_listing_id (+ any other forms on the site) → the
+  // form(s) replace the MENU card (in Menu's slot); every other card stays
+  // (spec). Mounted in-page — no redirect to custom-order.html. One form
+  // shows as before; several stack as rows that open in place.
+  function renderFormStorefront() {
     const card = document.getElementById('form-storefront');
     card.classList.remove('hidden');
     document.getElementById('sf-form-title').textContent = cardTitle('form');
-    document.getElementById('sf-form-sub').textContent = listing.lead_time_note ? ('Lead time: ' + listing.lead_time_note) : 'Request a quote';
-    const introBody = (listing.storefront_intro_body || '').trim();
-    document.getElementById('sf-intro-body').textContent = introBody;
-    document.getElementById('sf-form-intro').classList.toggle('hidden', !introBody);
-
-    // Preview re-renders on every draft edit — don't wipe a half-filled
-    // form unless it's actually a different form now.
-    const key = listing.id + ':' + listing.intake_form_id;
-    if (mountedFormKey === key) return;
-    mountedFormKey = key;
+    const intro = document.getElementById('sf-form-intro');
     const mount = document.getElementById('sf-form-mount');
-    mount.innerHTML = '';
-    if (window.BakeriIntakeForm) {
-      window.BakeriIntakeForm.mount({
-        container: mount,
-        supabaseUrl: SUPABASE_URL,
-        anonKey: ANON_KEY,
-        bakerId: resolvedBakerId,
-        itemId: listing.id,
-        formId: listing.intake_form_id,
-        itemName: listing.name,
-        standalone: false
-      });
+    const expanded = expandedFormId();
+
+    if (sfForms.length === 1 && expanded) {
+      const listing = sfForms[0];
+      formRowsKey = null;
+      document.getElementById('sf-form-sub').textContent = formLeadText(listing);
+      const introBody = (listing.storefront_intro_body || '').trim();
+      document.getElementById('sf-intro-body').textContent = introBody;
+      intro.classList.toggle('hidden', !introBody);
+      // Preview re-renders on every draft edit — don't wipe a half-filled
+      // form unless it's actually a different form now.
+      const key = listing.id + ':' + listing.intake_form_id;
+      if (mountedFormKey === key) return;
+      mountedFormKey = key;
+      mount.innerHTML = '';
+      mountForm(mount, listing);
+      return;
     }
+
+    mountedFormKey = null;
+    intro.classList.add('hidden');
+    document.getElementById('sf-form-sub').textContent =
+      sfForms.length > 1 ? sfForms.length + ' forms · tap one to start' : formLeadText(sfForms[0]);
+    // Same reasoning as above: only rebuild the rows when the set of forms,
+    // their order or the open pick changed, so a half-filled form survives a
+    // preview re-render. Titles and intros still refresh in place.
+    const key = sfForms.map(function (f) { return f.id + ':' + f.intake_form_id; }).join('|') + '#' + (expanded || '');
+    if (formRowsKey !== key) {
+      formRowsKey = key;
+      mount.innerHTML = '';
+      sfForms.forEach(function (listing) {
+        const row = document.createElement('div');
+        row.className = 'sf-formrow';
+        row.id = formRowId(listing);
+        row.innerHTML =
+          '<button type="button" class="sf-formrow-head" aria-expanded="false">' +
+            '<span class="t"><strong></strong><span></span></span>' + PLUS_SVG +
+          '</button>' +
+          '<div class="sf-formrow-body"><p class="sf-formrow-intro"></p><div class="sf-formrow-mount"></div></div>';
+        row.querySelector('.sf-formrow-head').addEventListener('click', function () {
+          if (row.classList.contains('open')) row.classList.remove('open');
+          else openFormRow(row.id);
+          this.setAttribute('aria-expanded', row.classList.contains('open') ? 'true' : 'false');
+        });
+        mount.appendChild(row);
+      });
+      if (expanded) openFormRow('sf-formrow-' + expanded);
+    }
+    sfForms.forEach(function (listing) {
+      const row = document.getElementById(formRowId(listing));
+      if (!row) return;
+      row.querySelector('.t strong').textContent = formTitle(listing);
+      row.querySelector('.t span').textContent = formLeadText(listing);
+      const introBody = (listing.storefront_intro_body || '').trim();
+      const p = row.querySelector('.sf-formrow-intro');
+      p.textContent = introBody;
+      p.style.display = introBody ? '' : 'none';
+    });
   }
 
   // ══════════════════════ Products (Shop my Products) ══════════════════════
@@ -2425,9 +2592,8 @@
     }
     if (hasGlow) {
       const rgb = hexRgb(glowColor);
-      // Two layers: a tight bright halo plus a wide soft one, so the glow
-      // reads on any card colour.
-      shadows.push('0 0 6px 2px rgba(' + rgb.join(',') + ',.9)', '0 0 22px 6px rgba(' + rgb.join(',') + ',.6)');
+      // One soft layer only — a tight inner halo read as a border.
+      shadows.push('0 0 20px 5px rgba(' + rgb.join(',') + ',.7)');
     }
     if (shadows.length) css.push('box-shadow:' + shadows.join(','));
     if (fill) css.push('background:' + fill);
@@ -2478,7 +2644,7 @@
     card.classList.remove('hidden');
     const heading = cardTitle('about');
     document.getElementById('pb-about-heading').textContent = heading;
-    document.getElementById('pb-about-kicker').classList.toggle('hidden', heading.trim().toLowerCase() === 'about the baker');
+    document.getElementById('pb-about-kicker').classList.toggle('hidden', ['about', 'about the baker'].includes(heading.trim().toLowerCase()));
     document.getElementById('pb-about-text').innerHTML = String(p.about_story).split(/\n\s*\n/).map(function (para) {
       return '<p>' + escapeHtml(para.trim()) + '</p>';
     }).join('');
@@ -2803,7 +2969,7 @@
       btn.className = 'add-btn' + (qty > 0 ? ' added' : '');
       if (!anyStock || !stripeReady) {
         btn.style.opacity = '.4'; btn.disabled = true; btn.textContent = '—';
-        btn.title = stripeReady ? 'Sold out' : 'Ordering isn\'t live yet';
+        btn.title = stripeReady ? 'Sold out' : (ordersPaused ? 'Not taking orders right now' : 'Ordering isn\'t live yet');
       } else {
         btn.textContent = qty > 0 ? String(qty) : '+';
         btn.setAttribute('aria-label', 'Choose an option');
@@ -2824,7 +2990,7 @@
         btn.className = 'add-btn';
         btn.style.opacity = '.4'; btn.disabled = true;
         btn.textContent = '—';
-        btn.title = stripeReady ? 'Sold out' : 'Ordering isn\'t live yet';
+        btn.title = stripeReady ? 'Sold out' : (ordersPaused ? 'Not taking orders right now' : 'Ordering isn\'t live yet');
         wrap.appendChild(btn);
         return;
       }
@@ -2879,7 +3045,7 @@
       btn.className = 'add-btn';
       if (isSoldOut(item) || !stripeReady) {
         btn.style.opacity = '.4'; btn.disabled = true; btn.textContent = '—';
-        btn.title = stripeReady ? 'Ordering closed' : 'Ordering isn\'t live yet';
+        btn.title = stripeReady ? 'Ordering closed' : (ordersPaused ? 'Not taking orders right now' : 'Ordering isn\'t live yet');
       } else {
         btn.textContent = '+';
         btn.setAttribute('aria-label', 'Choose pickup date');
@@ -2894,7 +3060,7 @@
       btn.className = 'add-btn';
       btn.style.opacity = '.4'; btn.disabled = true;
       btn.textContent = '—';
-      btn.title = stripeReady ? 'Sold out for today' : 'Ordering isn\'t live yet';
+      btn.title = stripeReady ? 'Sold out for today' : (ordersPaused ? 'Not taking orders right now' : 'Ordering isn\'t live yet');
       wrap.appendChild(btn);
       return;
     }
@@ -3376,7 +3542,7 @@
         } : null;
       } else if (item.listing_kind === 'physical') {
         if (isSoldOut(item) || !stripeReady) {
-          cta.textContent = isSoldOut(item) ? 'Sold Out' : 'Ordering Opens Soon';
+          cta.textContent = isSoldOut(item) ? 'Sold Out' : (ordersPaused ? 'Not Taking Orders' : 'Ordering Opens Soon');
           cta.disabled = true;
           cta.style.opacity = '.5';
         } else {
@@ -3394,7 +3560,7 @@
         cta.disabled = true;
         cta.style.opacity = '.5';
       } else if (!stripeReady) {
-        cta.textContent = 'Ordering Opens Soon';
+        cta.textContent = (ordersPaused ? 'Not Taking Orders' : 'Ordering Opens Soon');
         cta.disabled = true;
         cta.style.opacity = '.5';
       } else {
@@ -3775,7 +3941,7 @@
     }
     const soldOut = (variant.stock_qty || 0) <= 0;
     if (soldOut || !stripeReady) {
-      cta.textContent = soldOut ? 'Sold Out' : 'Ordering Opens Soon';
+      cta.textContent = soldOut ? 'Sold Out' : (ordersPaused ? 'Not Taking Orders' : 'Ordering Opens Soon');
       cta.disabled = true;
       cta.style.opacity = '.5';
       cta.onclick = null;
@@ -3881,7 +4047,7 @@
       boxEl.innerHTML = '';
     }
     if (!stripeReady) {
-      cta.textContent = 'Ordering Opens Soon';
+      cta.textContent = (ordersPaused ? 'Not Taking Orders' : 'Ordering Opens Soon');
       cta.disabled = true;
       cta.style.opacity = '.5';
       cta.onclick = null;
@@ -3928,7 +4094,7 @@
       return;
     }
     const canBuy = stripeReady;
-    cta.textContent = canBuy ? 'Add to Order' : 'Ordering Opens Soon';
+    cta.textContent = canBuy ? 'Add to Order' : (ordersPaused ? 'Not Taking Orders' : 'Ordering Opens Soon');
     cta.disabled = !canBuy;
     cta.style.opacity = canBuy ? '1' : '.5';
     cta.onclick = canBuy ? function () { addPreorderToCart(preorderState.item, preorderState.chosenISO); } : null;
