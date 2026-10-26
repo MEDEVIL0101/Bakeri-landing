@@ -37,6 +37,7 @@ export function DesignEditor(props: EditorProps) {
         <div className="grid-2">
           <ColorField label="Buttons & highlights" value={colors.accent} onChange={(v) => setColors({ accent: v })} />
           <ColorField label="Soft tint" value={colors.tint} onChange={(v) => setColors({ tint: v })} />
+          <ColorField label="Sale (promo banner, sale prices, discount tags)" value={colors.sale} onChange={(v) => setColors({ sale: v })} />
         </div>
       </Section>
       <ShopNameSection name={props.draft.business_name} design={design} setDesign={setDesign} />
@@ -86,30 +87,23 @@ function ShopNameSection({ name, design, setDesign }: { name: string; design: St
   const sample = name.trim() || 'Your shop';
   const headingFont = V2_FONT_DEFS.find((f) => f.name === design.display_font) ?? V2_FONT_DEFS[0];
   const size = design.title_size ?? 100;
-  const tile = (value: string | undefined, f: (typeof V2_FONT_DEFS)[number], label?: string) => (
-    <button key={value ?? '_same'} type="button" className={`font-tile ${design.title_font === value ? 'on' : ''}`} aria-pressed={design.title_font === value}
-      onClick={() => setDesign({ title_font: value })}>
-      <span className="font-tile-sample ellipsis" style={{ fontFamily: `"${f.name}", system-ui`, fontWeight: f.w }}>{sample}</span>
-      <span className="font-tile-name">{label ?? f.name}</span>
-    </button>
-  );
+  const titleFont = V2_FONT_DEFS.find((f) => f.name === design.title_font) ?? headingFont;
   return (
     <Section title="Shop name" hint="Your name stays on one line — a long name shrinks to fit.">
       {/* The shop name's own colour (design.colors.ink) — card titles and
           prices follow each card's title colour instead. */}
       <ColorField label="Colour" value={design.colors?.ink} onChange={(v) => setDesign({ colors: { ...(design.colors ?? {}), ink: v } })} />
-      <div className="stack">
-        <span className="field-label">Font</span>
-        <div className="font-tiles">
-          {tile(undefined, headingFont, 'Same as card headings')}
+      <Field label="Font">
+        <Select value={design.title_font ?? ''} onChange={(e) => setDesign({ title_font: e.target.value || undefined })}>
+          <option value="">Same as card headings ({headingFont.name})</option>
           {V2_FONT_GROUPS.map((g) => (
-            <div key={g} className="font-tile-group">
-              <span className="font-tile-group-label">{g}</span>
-              {V2_FONT_DEFS.filter((f) => f.group === g).map((f) => tile(f.name, f))}
-            </div>
+            <optgroup key={g} label={g}>
+              {V2_FONT_DEFS.filter((f) => f.group === g).map((f) => <option key={f.name}>{f.name}</option>)}
+            </optgroup>
           ))}
-        </div>
-      </div>
+        </Select>
+      </Field>
+      <div className="font-tile-sample ellipsis" aria-hidden style={{ fontFamily: `"${titleFont.name}", system-ui`, fontWeight: titleFont.w, fontSize: 26 }}>{sample}</div>
       <div className="stack">
         <span className="field-label">Size</span>
         <div className="pct-row">

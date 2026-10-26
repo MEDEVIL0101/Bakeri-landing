@@ -69,7 +69,8 @@ export interface FocusPoint { x: number; y: number }
 export interface LinkDesign { background?: string; text?: string; border?: boolean; border_color?: string; glow?: boolean; glow_color?: string; /** Order-form cards only. */ shake?: boolean }
 export interface StorefrontDesign {
   blocks?: V2Block[];
-  colors?: { accent?: string; ink?: string; tint?: string };
+  /** sale = promo banner, sale prices, discount tag (unset = accent). */
+  colors?: { accent?: string; ink?: string; tint?: string; sale?: string };
   display_font?: string;
   /** Shop-name font; unset = the heading font. */
   title_font?: string;
