@@ -536,6 +536,9 @@
     /* Listing section headings (Halloween, Gift boxes…) — span the menu grid. */
     .section-group-title { grid-column: 1 / -1; font-size: 15px; font-weight: 700; color: var(--ink); margin: 14px 0 0; }
     .section-group-title:first-child { margin-top: 0; }
+    .section-single { display: flex; flex-direction: column; min-width: 0; }
+    .section-single > .section-group-title { margin: 0 0 10px; }
+    .section-single > .p-card { flex: 1; }
     #digital-grid .section-group-title { margin: 14px 0 6px; }
     .digital-row {
       display: flex; align-items: center; gap: 14px; padding: 12px 0;
@@ -2289,6 +2292,16 @@
     grid.innerHTML = '';
     const groups = sectionGroups(listings, 'More');
     (groups || [{ items: listings }]).forEach(function (g) {
+      // A one-item section sits in a single grid cell (heading over its
+      // card), so back-to-back ones pair up instead of leaving half a row empty.
+      if (groups && g.items.length === 1) {
+        const cell = document.createElement('div');
+        cell.className = 'section-single';
+        cell.appendChild(sectionHeading(g.category));
+        cell.appendChild(buildCard(g.items[0]));
+        grid.appendChild(cell);
+        return;
+      }
       if (groups) grid.appendChild(sectionHeading(g.category));
       g.items.forEach(function (item) { grid.appendChild(buildCard(item)); });
     });
