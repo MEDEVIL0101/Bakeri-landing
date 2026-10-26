@@ -188,10 +188,9 @@ Deno.serve(async (req: Request) => {
     .single();
 
   if (bakerProfileErr || !bakerProfile) return json({ error: "This listing is no longer available." }, 400);
-  if (!bakerProfile.stripe_connect_onboarding_complete) {
-    const bakerDisplayName = bakerProfile.business_name?.trim() || bakerProfile.user_name?.trim() || "This baker";
-    return json({ error: `${bakerDisplayName} hasn't finished setting up payments yet. Check back soon!` }, 400);
-  }
+  // No Stripe check here (2026-10-25): a request takes no payment. Vendors
+  // without Direct Deposit still get requests; the app and web app grey out
+  // Send Quote until Direct Deposit is connected.
 
   const { data: fields, error: fieldsErr } = await db
     .from("intake_form_fields")
