@@ -327,8 +327,7 @@
     /* Listing section headings (Halloween, Gift boxes…) inside a card. */
     .sf-group-title { font-size: 15px; font-weight: 800; margin: 22px 0 10px; color: var(--card-title, var(--head-ink)); letter-spacing: .01em; }
     .sf-group-title:first-child { margin-top: 0; }
-    .sf-grid-singles { margin-top: 22px; }
-    .sf-grid-singles:first-child { margin-top: 0; }
+    .sf-group-spacer { visibility: hidden; }
     .sf-single-section { display: flex; flex-direction: column; min-width: 0; }
     .sf-single-section > .sf-group-title { margin: 0 0 10px; }
     .sf-single-section > :last-child { flex: 1; }
@@ -2171,30 +2170,26 @@
       body.appendChild(grid);
       return;
     }
-    // A section of several items: its heading, then its own grid row(s).
-    // Back-to-back one-item sections share one grid instead — each cell its
-    // heading over its tile — so a lone item doesn't leave a row of space.
-    let singles = null;
+    // Every section shares one grid so tiles fill the whole line on a wide
+    // screen: each cell is a heading over its tile. A section's heading shows
+    // over its first tile; the rest keep an invisible copy so tiles in a row
+    // still line up.
+    const grid = document.createElement('div');
+    grid.className = 'sf-grid';
     groups.forEach(function (g) {
-      const h = document.createElement('h3');
-      h.className = 'sf-group-title';
-      h.textContent = g.category;
-      if (g.items.length === 1) {
-        if (!singles) { singles = document.createElement('div'); singles.className = 'sf-grid sf-grid-singles'; body.appendChild(singles); }
+      g.items.forEach(function (item, i) {
         const cell = document.createElement('div');
         cell.className = 'sf-single-section';
+        const h = document.createElement('h3');
+        h.className = 'sf-group-title' + (i ? ' sf-group-spacer' : '');
+        h.textContent = g.category;
+        if (i) h.setAttribute('aria-hidden', 'true');
         cell.appendChild(h);
-        cell.appendChild(buildTile(g.items[0]));
-        singles.appendChild(cell);
-        return;
-      }
-      singles = null;
-      body.appendChild(h);
-      const grid = document.createElement('div');
-      grid.className = 'sf-grid';
-      g.items.forEach(function (item) { grid.appendChild(buildTile(item)); });
-      body.appendChild(grid);
+        cell.appendChild(buildTile(item));
+        grid.appendChild(cell);
+      });
     });
+    body.appendChild(grid);
   }
 
   // ══════════════════════ Form takeover ══════════════════════
