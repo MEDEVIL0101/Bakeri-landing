@@ -223,15 +223,25 @@
       headers: { 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }
     }).then(function (r) { return r.json(); }).catch(function () { return []; });
 
-    Promise.all([fieldsFetch, unavailableFetch])
+    // The form's description (intake_forms.description) — shown above
+    // everything. Isolated like the dates fetch: any failure (including the
+    // column not existing yet) just means no description.
+    const descriptionFetch = fetch(SUPABASE_URL + '/rest/v1/intake_forms?id=eq.' + encodeURIComponent(formId) + '&select=description', {
+      headers: { 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }
+    }).then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) { return (Array.isArray(rows) && rows[0] && typeof rows[0].description === 'string') ? rows[0].description.trim() : ''; })
+      .catch(function () { return ''; });
+
+    Promise.all([fieldsFetch, unavailableFetch, descriptionFetch])
     .then(function (results) {
       const fields = results[0];
       const unavailableRows = results[1];
+      formDescription = results[2];
       if (Array.isArray(unavailableRows)) {
         unavailableRows.forEach(function (row) { if (row && row.date) blockedDateKeys.add(row.date); });
       }
       if (!Array.isArray(fields) || fields.length === 0) {
-        showNotFound('Form not found', 'This baker hasn\'t set up a custom order form for this item yet.');
+        showNotFound('Form not found', 'This vendor hasn\'t set up a custom order form for this item yet.');
         return;
       }
       standardContact = detectStandardContactFields(fields);
@@ -250,6 +260,7 @@
     const productQtyState = {}; // fieldId -> { optionId: quantity }
     const touched = {};
     let standardContact = null; // see detectStandardContactFields
+    let formDescription = ''; // intake_forms.description, shown first
     const blockedDateKeys = new Set(); // "yyyy-MM-dd" days the baker has marked unavailable
     const dateFieldState = {}; // fieldId -> { displayedMonth: Date }
     // Kept in memory rather than as HTML data-* attributes — a label/option
@@ -291,14 +302,33 @@
       return !!(standardContact && standardContact.matchedIds[field.id]);
     }
 
+    // Text the vendor put at the very top of the form (a welcome blurb,
+    // policies, a section title) — notices/headings before the first
+    // question, with no condition. Shown above the name/email/phone block
+    // rather than below it (dippedbyjuliannaa, 2026-10-26).
+    function leadingIntroCount(fields) {
+      let n = 0;
+      while (n < fields.length &&
+             (fields[n].field_type === 'notice' || fields[n].field_type === 'heading') &&
+             !fields[n].condition_field_id &&
+             !isHiddenStandardField(fields[n])) n++;
+      return n;
+    }
+
     function renderForm(fields) {
       let html = '';
+      const introCount = leadingIntroCount(fields);
       if (standalone) {
         html +=
           '<div class="bkform-eyebrow">Custom Order Request</div>' +
           '<div class="bkform-item-name">' + escapeHtml(itemName) + '</div>' +
-          '<div class="bkform-lede">Tell the baker what you have in mind. They\'ll follow up with a quote directly.</div>';
+          '<div class="bkform-lede">Tell the vendor what you have in mind. They\'ll follow up with a quote directly.</div>';
       }
+
+      if (formDescription) {
+        html += renderField({ id: 'form-description', field_type: 'notice', label: formDescription });
+      }
+      fields.slice(0, introCount).forEach(function (field) { html += renderField(field); });
 
       html +=
         '<div class="field-group">' +
@@ -337,14 +367,14 @@
         }
       });
 
-      fields.forEach(function (field) {
+      fields.slice(introCount).forEach(function (field) {
         if (isHiddenStandardField(field)) return;
         html += wrapConditional(field, renderField(field));
       });
 
       html += '<button class="btn-submit" id="submit-btn">Send Request</button>' +
               '<div class="submit-status" id="submit-status"></div>' +
-              '<div class="pickup-note">📍 Pickup details are provided once the baker confirms your order.</div>';
+              '<div class="pickup-note">📍 Pickup details are provided once the vendor confirms your order.</div>';
 
       card.innerHTML = html;
 
@@ -633,7 +663,7 @@
       }
       html += '</div>';
       if (hasBlockedDay) {
-        html += '<div class="cal-legend">Crossed-out days — baker unavailable</div>';
+        html += '<div class="cal-legend">Crossed-out days — unavailable</div>';
       }
 
       container.innerHTML = html;
@@ -939,7 +969,7 @@
         '<div class="success-state">' +
           '<div class="icon">✓</div>' +
           '<h2>Request sent!</h2>' +
-          '<p>' + escapeHtml(itemName) + ' — the baker will follow up with you by email or phone with a quote.</p>' +
+          '<p>' + escapeHtml(itemName) + ' — the vendor will follow up with you by email or phone with a quote.</p>' +
         '</div>';
     }
   }

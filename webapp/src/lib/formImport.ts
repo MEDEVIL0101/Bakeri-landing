@@ -24,6 +24,7 @@ export const IMPORT_SOURCES: Record<ImportSource, { name: string; placeholder: s
 
 export interface ImportedForm {
   title: string;
+  description: string;
   fields: FormField[];
 }
 
@@ -36,6 +37,7 @@ export async function importExternalForm(source: ImportSource, url: string): Pro
 
 function parseImport(json: any): ImportedForm {
   const title = typeof json?.title === 'string' ? json.title : '';
+  const description = typeof json?.description === 'string' ? json.description.trim() : '';
   const rawFields: any[] = Array.isArray(json?.fields) ? json.fields : [];
 
   const built: { raw: any; field: FormField }[] = [];
@@ -81,5 +83,5 @@ function parseImport(json: any): ImportedForm {
     entry.field.condition_values = values;
   });
 
-  return { title, fields: built.map((b) => b.field) };
+  return { title, description, fields: built.map((b) => b.field) };
 }

@@ -6,7 +6,7 @@ import { formatMoney } from '../../lib/format';
  * A working, customer's-eye render of the form. Answers here are throwaway —
  * they exist so conditional questions can be tried out while building.
  */
-export function FormPreview({ title, fields, highlight, onSelect }: { title: string; fields: FormField[]; highlight?: string | null; onSelect?: (id: string) => void }) {
+export function FormPreview({ title, description, fields, highlight, onSelect }: { title: string; description?: string; fields: FormField[]; highlight?: string | null; onSelect?: (id: string) => void }) {
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [qty, setQty] = useState<Record<string, number>>({});
 
@@ -25,18 +25,13 @@ export function FormPreview({ title, fields, highlight, onSelect }: { title: str
     return { ...a, [fid]: single ? [v] : cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] };
   });
 
-  return (
-    <div className="pv">
-      <div className="pv-title">{title || 'Custom order request'}</div>
-      <div className="pv-section">
-        <div className="pv-label">Your name <span className="pv-req">*</span></div>
-        <div className="pv-input" />
-        <div className="pv-label">Email <span className="pv-req">*</span></div>
-        <div className="pv-input" />
-        <div className="pv-label">Phone</div>
-        <div className="pv-input" />
-      </div>
-      {fields.filter(visible).map((f) => (
+  const introCount = (() => {
+    let n = 0;
+    while (n < fields.length && (fields[n].field_type === 'notice' || fields[n].field_type === 'heading') && !fields[n].condition_field_id) n++;
+    return n;
+  })();
+
+  const renderField = (f: FormField) => (
         <div key={f.id} className={`pv-field ${highlight === f.id ? 'hl' : ''}`} onClick={() => onSelect?.(f.id)}>
           {f.field_type === 'heading' ? <div className="pv-heading">{f.label || 'Section title'}</div>
             : f.field_type === 'notice' ? <div className="pv-notice">{f.label || 'Notice text'}</div>
@@ -79,7 +74,24 @@ export function FormPreview({ title, fields, highlight, onSelect }: { title: str
                 </>
               )}
         </div>
-      ))}
+  );
+
+  return (
+    <div className="pv">
+      <div className="pv-title">{title || 'Custom order request'}</div>
+      {description?.trim() && <div className="pv-notice">{description.trim()}</div>}
+      {/* Notices/section titles before the first question show above the
+          customer's details, like the storefront (intake-form.js). */}
+      {fields.slice(0, introCount).map(renderField)}
+      <div className="pv-section">
+        <div className="pv-label">Your name <span className="pv-req">*</span></div>
+        <div className="pv-input" />
+        <div className="pv-label">Email <span className="pv-req">*</span></div>
+        <div className="pv-input" />
+        <div className="pv-label">Phone</div>
+        <div className="pv-input" />
+      </div>
+      {fields.slice(introCount).filter(visible).map(renderField)}
       <div className="pv-submit">Send request</div>
     </div>
   );

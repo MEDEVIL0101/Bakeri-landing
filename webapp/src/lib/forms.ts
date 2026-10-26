@@ -51,6 +51,8 @@ export interface FormField {
 export interface IntakeFormFull {
   id: string;
   title: string;
+  /** Welcome blurb shown above everything, including the customer's details. */
+  description: string;
   updated_at: string;
   fields: FormField[];
 }
@@ -77,17 +79,17 @@ export function starterFields(): FormField[] {
 const FIELD_COLS = 'id, form_id, position, field_type, label, help_text, is_required, options, product_options, condition_field_id, condition_values';
 
 export async function listForms(userId: string): Promise<IntakeFormFull[]> {
-  const forms = check(await supabase.from('intake_forms').select('id, title, updated_at').eq('user_id', userId).order('updated_at', { ascending: false })) as { id: string; title: string; updated_at: string }[];
+  const forms = check(await supabase.from('intake_forms').select('id, title, description, updated_at').eq('user_id', userId).order('updated_at', { ascending: false })) as { id: string; title: string; description: string | null; updated_at: string }[];
   if (!forms.length) return [];
   const fields = check(await supabase.from('intake_form_fields').select(FIELD_COLS).in('form_id', forms.map((f) => f.id)).order('position')) as (FormField & { form_id: string })[];
-  return forms.map((f) => ({ ...f, fields: fields.filter((x) => x.form_id === f.id).map(normalise) }));
+  return forms.map((f) => ({ ...f, description: f.description ?? '', fields: fields.filter((x) => x.form_id === f.id).map(normalise) }));
 }
 
 export async function getForm(id: string): Promise<IntakeFormFull | null> {
-  const forms = check(await supabase.from('intake_forms').select('id, title, updated_at').eq('id', id).limit(1)) as { id: string; title: string; updated_at: string }[];
+  const forms = check(await supabase.from('intake_forms').select('id, title, description, updated_at').eq('id', id).limit(1)) as { id: string; title: string; description: string | null; updated_at: string }[];
   if (!forms.length) return null;
   const fields = check(await supabase.from('intake_form_fields').select(FIELD_COLS).eq('form_id', id).order('position')) as FormField[];
-  return { ...forms[0], fields: fields.map(normalise) };
+  return { ...forms[0], description: forms[0].description ?? '', fields: fields.map(normalise) };
 }
 
 function normalise(f: any): FormField {
@@ -99,9 +101,9 @@ function normalise(f: any): FormField {
 }
 
 /** Same as IntakeFormService.saveForm: upsert the form, then replace its fields. */
-export async function saveForm(userId: string, form: { id: string; title: string; fields: FormField[] }): Promise<void> {
+export async function saveForm(userId: string, form: { id: string; title: string; description: string; fields: FormField[] }): Promise<void> {
   const ts = nowISO();
-  check(await supabase.from('intake_forms').upsert({ id: form.id, user_id: userId, title: form.title.trim(), updated_at: ts }, { onConflict: 'id' }));
+  check(await supabase.from('intake_forms').upsert({ id: form.id, user_id: userId, title: form.title.trim(), description: form.description.trim(), updated_at: ts }, { onConflict: 'id' }));
   check(await supabase.from('intake_form_fields').delete().eq('form_id', form.id));
   const ids = new Set(form.fields.map((f) => f.id));
   if (form.fields.length) {

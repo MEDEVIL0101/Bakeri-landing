@@ -25,19 +25,20 @@ export function FormBuilderPage() {
   return <Builder key={id ?? 'new'} initial={existing.data ?? null} imported={id ? undefined : imported} menu={menu.data ?? []} userId={userId} />;
 }
 
-function Builder({ initial, imported, menu, userId }: { initial: { id: string; title: string; fields: FormField[] } | null; imported?: ImportedForm; menu: MenuItemFull[]; userId: string }) {
+function Builder({ initial, imported, menu, userId }: { initial: { id: string; title: string; description: string; fields: FormField[] } | null; imported?: ImportedForm; menu: MenuItemFull[]; userId: string }) {
   const navigate = useNavigate();
   const toast = useToast();
   const [formId] = useState(() => initial?.id ?? newId());
   const [title, setTitle] = useState(initial?.title ?? imported?.title ?? '');
+  const [description, setDescription] = useState(initial?.description ?? imported?.description ?? '');
   const [fields, setFields] = useState<FormField[]>(() => initial?.fields ?? imported?.fields ?? starterFields());
   const [selected, setSelected] = useState<string | null>(null);
   const [adding, setAdding] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const baseline = useRef(JSON.stringify({ title: initial?.title ?? '', fields: initial?.fields ?? starterFields() }));
-  const dirty = JSON.stringify({ title, fields }) !== baseline.current || !initial;
+  const baseline = useRef(JSON.stringify({ title: initial?.title ?? '', description: initial?.description ?? '', fields: initial?.fields ?? starterFields() }));
+  const dirty = JSON.stringify({ title, description, fields }) !== baseline.current || !initial;
 
   useEffect(() => {
     if (!dirty) return;
@@ -61,8 +62,8 @@ function Builder({ initial, imported, menu, userId }: { initial: { id: string; t
     if (blank) { setSelected(blank.id); setErr('Every question needs a label.'); return; }
     setBusy(true); setErr(null);
     try {
-      await saveForm(userId, { id: formId, title, fields });
-      baseline.current = JSON.stringify({ title, fields });
+      await saveForm(userId, { id: formId, title, description, fields });
+      baseline.current = JSON.stringify({ title, description, fields });
       toast('Form saved');
       navigate('/forms');
     } catch (e: any) { setErr(e.message); setBusy(false); }
@@ -84,6 +85,11 @@ function Builder({ initial, imported, menu, userId }: { initial: { id: string; t
 
       <div className="form-builder">
         <div className="fb-fields">
+          <div className="fb-fixed">
+            <div className="row-title">Description</div>
+            <p className="small muted">Shown at the top of your form, before the customer’s details — a welcome message, booking window, policies.</p>
+            <Textarea rows={3} value={description} placeholder="Optional" onChange={(e) => setDescription(e.target.value)} aria-label="Form description" />
+          </div>
           <div className="fb-fixed">
             <div className="row-title">Customer details</div>
             <p className="small muted">Every customer gives their name, email, and phone before your questions — the same for every vendor, so they’re not editable here.</p>
@@ -117,7 +123,7 @@ function Builder({ initial, imported, menu, userId }: { initial: { id: string; t
         <aside className="fb-preview">
           <div className="fb-preview-label">Customer view</div>
           <div className="fb-phone">
-            <IPhoneFrame><FormPreview title={title} fields={fields} highlight={selected} onSelect={setSelected} /></IPhoneFrame>
+            <IPhoneFrame><FormPreview title={title} description={description} fields={fields} highlight={selected} onSelect={setSelected} /></IPhoneFrame>
           </div>
         </aside>
       </div>
