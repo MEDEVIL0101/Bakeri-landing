@@ -88,7 +88,12 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
   }, [changes.length]);
 
   const payload = useMemo(() => previewPayload(data, draft, userId), [data, draft, userId]);
-  const src = v2 ? '/baker/next.html?preview=1&builder=2' : '/baker/index.html?preview=1';
+  // Fresh copy of the page each time the builder opens — the site lets
+  // browsers keep it for 10 minutes, so a just-deployed page change didn't
+  // show in the preview (2026-10-26). Stable for the session so the iframe
+  // isn't reloaded on every render.
+  const [pageVersion] = useState(() => Date.now());
+  const src = v2 ? `/baker/next.html?preview=1&builder=2&v=${pageVersion}` : `/baker/index.html?preview=1&v=${pageVersion}`;
   const props: EditorProps = { draft, set, data, userId, v2 };
   const liveURL = data.slug ? `https://bakeriapp.com/${data.slug}` : null;
 
