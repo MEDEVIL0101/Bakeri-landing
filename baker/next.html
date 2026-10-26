@@ -332,8 +332,19 @@
     .sf-single-section { display: flex; flex-direction: column; min-width: 0; }
     .sf-single-section > .sf-group-title { margin: 0 0 10px; }
     .sf-single-section > :last-child { flex: 1; }
-    .sf-dl-list .sf-group-title { margin: 16px 0 6px; padding: 0 var(--cpad2, 18px); }
-    .sf-dl-list .sf-group-title:first-child { margin-top: 4px; }
+    /* Section headings inside the downloads list span every column and sit
+       flush with the rows below them. */
+    .sf-dl-list .sf-group-title { grid-column: 1 / -1; margin: 20px 0 0; padding: 0; }
+    .sf-dl-list .sf-group-title:first-child { margin-top: 8px; }
+    /* "View all" — a full-width button under the list, not a corner link. */
+    .sf-dl-more { padding: 6px var(--cpad) var(--cpad2); }
+    .sf-dl-morebtn {
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px;
+      border: 0; border-radius: var(--rp); background: var(--card-bg, #fff); cursor: pointer;
+      box-shadow: inset 0 0 0 1.5px var(--card-line, var(--n300));
+      font: 800 15px var(--body); color: var(--card-title, var(--head-ink));
+    }
+    .sf-dl-morebtn:hover { box-shadow: inset 0 0 0 1.5px var(--card-title, var(--head-ink)); }
     @media (min-width: 560px) { .sf-tile-wide .sf-tile-name { font-size: 20px; } .sf-tile-desc { -webkit-line-clamp: 5; } }
 
     /* ══════════════ 2. Lead magnet ══════════════ */
@@ -2259,18 +2270,6 @@
       head.innerHTML = '<div class="titles">' +
         (physOn ? '<h3>Digital downloads</h3>' : '') +
         '<span class="sf-sub">Instant download · ' + items.length + ' design' + (items.length === 1 ? '' : 's') + '</span></div>';
-      if (collapsible) {
-        const toggle = document.createElement('button');
-        toggle.type = 'button';
-        toggle.className = 'sf-viewall';
-        toggle.innerHTML = (digitalExpanded ? 'Show fewer' : 'View all') + ' ' + ARROW_SVG;
-        toggle.addEventListener('click', function () {
-          digitalExpanded = !digitalExpanded;
-          renderDigitalFeed();
-          if (!digitalExpanded) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-        head.appendChild(toggle);
-      }
       wrap.appendChild(head);
     }
 
@@ -2297,6 +2296,22 @@
       list.appendChild(buildDigitalRow(item));
     });
     wrap.appendChild(list);
+
+    if (collapsible) {
+      const more = document.createElement('div');
+      more.className = 'sf-dl-more';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sf-dl-morebtn';
+      btn.innerHTML = (digitalExpanded ? 'Show fewer' : 'View all ' + items.length + ' downloads') + (digitalExpanded ? '' : ' ' + ARROW_SVG);
+      btn.addEventListener('click', function () {
+        digitalExpanded = !digitalExpanded;
+        renderDigitalFeed();
+        if (!digitalExpanded) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      more.appendChild(btn);
+      wrap.appendChild(more);
+    }
   }
 
   function digitalInCart(item) {
