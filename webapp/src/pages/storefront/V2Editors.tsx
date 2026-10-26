@@ -33,10 +33,9 @@ export function DesignEditor(props: EditorProps) {
 
   return (
     <>
-      <Section title="Site colours" hint="Leave any colour on “Theme” to use your theme’s.">
+      <Section title="Site colours" hint="Leave any colour on “Theme” to use your theme’s. Card titles and prices follow each card’s own title colour.">
         <div className="grid-2">
           <ColorField label="Buttons & highlights" value={colors.accent} onChange={(v) => setColors({ accent: v })} />
-          <ColorField label="Titles & prices" value={colors.ink} onChange={(v) => setColors({ ink: v })} />
           <ColorField label="Soft tint" value={colors.tint} onChange={(v) => setColors({ tint: v })} />
         </div>
       </Section>
@@ -96,6 +95,9 @@ function ShopNameSection({ name, design, setDesign }: { name: string; design: St
   );
   return (
     <Section title="Shop name" hint="Your name stays on one line — a long name shrinks to fit.">
+      {/* The shop name's own colour (design.colors.ink) — card titles and
+          prices follow each card's title colour instead. */}
+      <ColorField label="Colour" value={design.colors?.ink} onChange={(v) => setDesign({ colors: { ...(design.colors ?? {}), ink: v } })} />
       <div className="stack">
         <span className="field-label">Font</span>
         <div className="font-tiles">
@@ -159,7 +161,7 @@ function CardColorFields({ value, onChange }: { value: CardColors; onChange: (c:
   return (
     <div className="grid-2">
       <ColorField label="Card background" value={value.background} onChange={(v) => upd({ background: v })} />
-      <ColorField label="Title" value={value.title} onChange={(v) => upd({ title: v })} />
+      <ColorField label="Title & prices" value={value.title} onChange={(v) => upd({ title: v })} />
       <ColorField label="Text" value={value.text} onChange={(v) => upd({ text: v })} />
       <ColorField label="Buttons" value={value.button} onChange={(v) => upd({ button: v })} />
     </div>

@@ -1582,7 +1582,10 @@
     root.setProperty('--accent', accent);
     root.setProperty('--accent-600', mixHex(accent, '#000000', 0.1));
     root.setProperty('--accent-fg', validHex(c.button_text) || accentFg);
-    root.setProperty('--head-ink', validHex(c.ink) || inkFor(accent));
+    // Card titles and prices follow each card's own title colour, falling
+    // back to the theme — design.colors.ink is now the shop name's colour
+    // only (renderIdentity), not a site-wide "titles & prices" colour.
+    root.setProperty('--head-ink', inkFor(accent));
     root.setProperty('--tint', validHex(c.tint) || mixHex(accent, '#ffffff', 0.88));
 
     const fontName = DISPLAY_FONTS[design.display_font] ? design.display_font : 'Archivo';
