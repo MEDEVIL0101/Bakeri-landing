@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bakeri</title>
   <meta name="description" content="View this shop's storefront on Bakerï." />
-  <!-- Storefront v2 ("Profile layout") — see STOREFRONT_V2_SPEC.md. Not
-       linked from anywhere and not indexed until it replaces index.html at
-       launch. DELETE this robots tag at cutover. -->
+  <!-- Same page as index.html, kept at this path for the app's builder
+       (StorefrontDesignStore.shellURL) and old links. Not indexed — index.html
+       is the canonical storefront. -->
   <meta name="robots" content="noindex, nofollow" />
   <meta name="theme-color" content="#FFFFFF" />
   <link rel="icon" type="image/png" href="../assets/favicon.png" />
@@ -1054,11 +1054,6 @@
   .then(function (data) {
     if (!data || !data.profile) { showNotFound('Shop not found', 'No shop found at this link.'); return; }
     profile = data.profile;
-    // A shop still on v1 can only see its v2 site inside the app's builder
-    // (preview mode, which never reaches this fetch) until it switches —
-    // publicly it's served the v1 page. index.html only redirects back here
-    // for 'v2', so this can't loop.
-    if (profile.storefront_version !== 'v2') { location.replace('/baker/' + location.search); return; }
     resolvedBakerId = profile.id;
 
     loadCart();
