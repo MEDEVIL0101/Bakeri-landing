@@ -31,7 +31,7 @@ export interface PlanDef {
   tier: PlanTier;
   name: string;
   blurb: string;
-  /** CAD per month. */
+  /** USD per month. */
   price: number;
   feePct: number;
   perks: string[];

@@ -1,14 +1,13 @@
 // release-referral-payouts
 // Monthly pg_cron sweep (20260908000003_schedule_referral_payouts.sql), 09:00
-// UTC on the 1st. Pays each referrer in Bakeri's affiliate program one Stripe
-// transfer from the platform balance to their connected account, covering
-// every referral earning that has:
-//   * cleared its 14-day hold (referral_earnings.payable_after <= now), and
-//   * a referred baker who has passed the CAD $100 completed-sales threshold
-//     (expressed as >= 500 cents of collected platform fee — see
-//     referral_payout_batches),
-// netted against any earning that was reversed AFTER already being paid
-// (clawback). A referrer whose net is <= 0 is skipped and rolls forward.
+// UTC on the 1st — monthly on purpose, to keep transfer/payout costs to one
+// per referrer per month. Pays each referrer in Bakeri's Refer a Vendor
+// program one Stripe transfer from the platform balance to their connected
+// account, covering every referral earning that has cleared its 4-day hold
+// (referral_earnings.payable_after <= now), netted against any
+// earning that was reversed AFTER already being paid (clawback). A referrer
+// whose net is <= 0, or who hasn't connected Stripe yet, is skipped and
+// rolls forward.
 //
 // The money math is structurally identical to release-baker-payouts' Transfer
 // leg: stripe.transfers.create with NO { stripeAccount } option pulls from the
@@ -28,7 +27,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { currencyForCountry } from "../_shared/currency.ts";
 
 const stripe = getStripeClient();
 
@@ -92,7 +90,9 @@ serve(async (req) => {
       continue;
     }
 
-    const currency = currencyForCountry(b.country);
+    // Commission is earned in USD (plan prices are USD), so pay it in USD;
+    // Stripe converts for a referrer whose account settles in CAD.
+    const currency = "usd";
 
     try {
       const transfer = await stripe.transfers.create(

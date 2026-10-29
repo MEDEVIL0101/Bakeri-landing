@@ -13,8 +13,10 @@
 //   invoice.paid, charge.refunded
 //
 // invoice.paid / charge.refunded drive Refer a Vendor: 20% of each paid
-// plan invoice (before tax) accrues to the vendor's referrer, and a fully
-// refunded invoice reverses it (20261023000002_referrals_from_plans.sql).
+// plan invoice (before tax) accrues to the vendor's referrer for as long as
+// the vendor stays subscribed — provided the referrer has an active plan
+// themselves — and a fully refunded invoice reverses it
+// (20261023000002_referrals_from_plans.sql, 20261029000001_bakeri_referral_program.sql).
 //
 // Every event is handled the same way: re-fetch the subscription from
 // Stripe and write its current state. That makes delivery order and

@@ -29,9 +29,9 @@ export function SettingsPage() {
 
   const r = referral.data;
   const referralSub = !r
-    ? 'Earn about 1% of every sale from vendors you invite'
-    : !r.eligible ? 'Connect Direct Deposit to unlock'
-      : r.referred_count === 0 ? 'Share your code and earn about 1% of their sales'
+    ? 'Earn 20% of every plan payment from vendors you refer'
+    : !r.eligible ? 'Choose a plan to unlock'
+      : r.referred_count === 0 ? 'Earn 20% recurring commission on every vendor you refer'
         : `${r.referred_count === 1 ? '1 vendor' : `${r.referred_count} vendors`} referred · ${formatCents(r.available_cents + r.pending_cents + r.paid_cents, r.currency)} earned`;
 
   return (

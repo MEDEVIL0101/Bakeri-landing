@@ -60,7 +60,7 @@ export function PlanPage() {
                 {grandfathered && p.tier === 'starter' ? (
                   <><span className="plan-amount">$0</span><span className="muted small">free for you, forever</span></>
                 ) : (
-                  <><span className="plan-amount">${p.price.toFixed(2)}</span><span className="muted small">CAD / month</span></>
+                  <><span className="plan-amount">${p.price.toFixed(2)}</span><span className="muted small">USD / month</span></>
                 )}
               </div>
               <div className="plan-fee">

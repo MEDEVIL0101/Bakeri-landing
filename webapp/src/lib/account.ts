@@ -40,18 +40,23 @@ export async function sendFeedback(userId: string, category: string, message: st
 // ── Referrals (ReferralService) ───────────────────────────────────────────
 
 export interface ReferralDashboard {
+  /** Has an active Bakeri plan — can share and earn. */
   eligible: boolean;
+  /** Stripe connected — earnings can be paid out. */
+  payouts_ready: boolean;
+  /** Bakeri turned this referrer's commission off (e.g. paid ads). */
+  commission_disabled: boolean;
   code: string | null;
   currency: string;
   referred_count: number;
-  /** Referred vendors who have paid for a plan. */
+  /** Referred vendors on a paid plan right now. */
   selling_count: number;
   pending_cents: number;
   available_cents: number;
   paid_cents: number;
   next_payout_date: string | null;
   // Totals only — no per-vendor money (20261023000002_referrals_from_plans).
-  referred_bakers: { name: string; joined_at: string; status: string }[];
+  referred_bakers: { name: string; joined_at: string; status: string; plan_status: 'trialing' | 'paying' | 'inactive' }[];
 }
 
 export async function referralDashboard(): Promise<ReferralDashboard> {
