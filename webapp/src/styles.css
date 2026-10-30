@@ -1142,6 +1142,7 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .nav-soon { opacity: .45; cursor: default; }
 .nav-soon:hover { background: none; color: var(--ink-2); }
 .nav-soon-tag { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.nav-pro-tag { margin-left: auto; padding: 2px 7px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 
 /* Packaging on an order (OrderPackagingCard) */
 .packaging-line { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }

@@ -94,6 +94,12 @@ Deno.serve(async (req: Request) => {
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // Email campaigns are a Pro feature (Harvey 2026-10-30).
+  const { data: plan } = await db.from("vendor_plans").select("tier, status").eq("user_id", bakerId).maybeSingle();
+  if (!plan || plan.tier !== "pro" || !["trialing", "active", "past_due"].includes(plan.status)) {
+    return json({ error: "Email campaigns are part of the Pro plan." }, 403);
+  }
+
   const { data: campaign } = await db
     .from("baker_campaigns")
     .select("id, user_id, subject, body_text, image_url, cta_label, cta_url, cta_listing_id, status")

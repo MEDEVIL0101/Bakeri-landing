@@ -12,7 +12,8 @@ import { ThemeSheet } from './ThemeSheet';
 import { asPattern, asTheme, backdropStyle, themeVars, type PatternName, type ThemeName } from '../lib/theme';
 
 // soon: shown greyed out with a "Coming soon" tag and not clickable.
-type NavItem = { to: string; label: string; icon: ReactNode; end?: boolean; soon?: boolean };
+// pro: a Pro-plan feature — tagged "Pro"; the page itself handles Starter.
+type NavItem = { to: string; label: string; icon: ReactNode; end?: boolean; soon?: boolean; pro?: boolean };
 
 const NAV: { heading?: string; items: NavItem[] }[] = [
   { items: [
@@ -27,7 +28,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
   ] },
   { heading: 'Customers', items: [
     { to: '/customers', label: 'Customers', icon: <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.87M16 3.13a3.5 3.5 0 0 1 0 6.75" /> },
-    { to: '/campaigns', label: 'Email Campaigns', soon: true, icon: <path d="M3 6h18v12H3zM3 6l9 7 9-7" /> },
+    { to: '/campaigns', label: 'Email Campaigns', pro: true, icon: <path d="M3 6h18v12H3zM3 6l9 7 9-7" /> },
   ] },
   { heading: 'Kitchen', items: [
     { to: '/schedule', label: 'Schedule', icon: <path d="M4 5h16v15H4zM4 10h16M8 3v4M16 3v4" /> },
@@ -67,7 +68,7 @@ const PHONE_MENU: NavItem[] = [
 ];
 const PHONE_MENU_MORE: NavItem[] = [
   { to: '/customers', label: 'Customers', icon: <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.87M16 3.13a3.5 3.5 0 0 1 0 6.75" /> },
-  { to: '/campaigns', label: 'Email Campaigns', soon: true, icon: <path d="M3 6h18v12H3zM3 6l9 7 9-7" /> },
+  { to: '/campaigns', label: 'Email Campaigns', pro: true, icon: <path d="M3 6h18v12H3zM3 6l9 7 9-7" /> },
   { to: '/promotions', label: 'Promotions', icon: <path d="M19 5 5 19M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM16.5 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /> },
   { to: '/calculator', label: 'Calculator', icon: <path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" /> },
 ];
@@ -233,6 +234,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link key={n.to} to={n.to} className="pm-row-sm" onClick={() => setOpen(false)}>
                 <Icon size={18}>{n.icon}</Icon>
                 <span>{n.label}</span>
+                {n.pro && <span className="nav-pro-tag">Pro</span>}
               </Link>
             ))}
           </div>
@@ -283,6 +285,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                   <Icon>{n.icon}</Icon>
                   <span>{n.label}</span>
+                  {n.pro && <span className="nav-pro-tag">Pro</span>}
                   {n.to === '/orders' && pending > 0 && <span className="nav-badge">{pending}</span>}
                 </NavLink>
               ))}

@@ -1,21 +1,25 @@
 import { useState } from 'react';
-import { useUserId } from '../../auth/AuthProvider';
+import { Link } from 'react-router-dom';
+import { useAuth, useUserId } from '../../auth/AuthProvider';
+import { effectiveTier } from '../../lib/plans';
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, Input, Modal, PageHeader, Select, Spinner, Textarea, useLoad, useToast } from '../../components/ui';
 import { deleteCampaign, listCampaigns, listContacts, saveCampaignDraft, sendCampaign } from '../../lib/data';
 import { listMenuItems } from '../../lib/menu';
 import { formatDateTime } from '../../lib/format';
 import type { Campaign } from '../../lib/types';
 
-// Greyed out "Coming soon" (2026-10-25, Harvey) — the nav rows are disabled
-// too (AppShell `soon`). Set to false to bring campaigns back.
-const CAMPAIGNS_COMING_SOON = true;
-
+// Email campaigns are a Pro feature (Harvey 2026-10-30). Starter vendors
+// still collect their mailing list; send-baker-campaign enforces the same rule.
 export function CampaignsPage() {
-  if (CAMPAIGNS_COMING_SOON) {
+  const { plan } = useAuth();
+  if (effectiveTier(plan) !== 'pro') {
     return (
       <div className="page">
         <PageHeader title="Email Campaigns" />
-        <Card><EmptyState title="Coming soon" body="Email campaigns to your mailing list are on the way. Your customers and mailing list are still collected in the meantime." /></Card>
+        <Card>
+          <EmptyState title="Email campaigns are part of Pro" body="Send launches, drops and sales to your mailing list. Your customers and mailing list keep being collected on every plan." />
+          <div className="btn-row" style={{ justifyContent: 'center' }}><Link to="/plan" className="btn btn-primary">See Pro</Link></div>
+        </Card>
       </div>
     );
   }
