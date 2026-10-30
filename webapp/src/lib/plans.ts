@@ -45,7 +45,7 @@ export const PLANS: PlanDef[] = [
   { tier: 'starter', name: 'Starter', blurb: 'A low monthly price while you’re getting going.', price: 14.99, salePrice: 5.99, saleMonths: 2, feePct: 5,
     perks: ['Your storefront at bakeriapp.com', 'Orders, schedule, menu and recipes', 'Card payments and payouts', 'iPhone app and web app'] },
   { tier: 'pro', name: 'Pro', blurb: 'Keep every dollar of your sales.', price: 29.99, feePct: 0,
-    perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Best value once you sell about $300 a month'] },
+    perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Email campaigns to your customer list', 'Best value once you sell about $300 a month'] },
 ];
 
 export const TRIAL_DAYS = 14;

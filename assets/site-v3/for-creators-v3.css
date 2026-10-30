@@ -88,11 +88,9 @@ em.sf{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--pin
 @media(max-width:980px){.split{grid-template-columns:1fr;gap:48px}}
 .split.rev-order>.media{order:2}@media(max-width:980px){.split.rev-order>.media{order:0}}
 .stage{position:relative;border-radius:32px;background:var(--blush);aspect-ratio:1/1.02;display:grid;place-items:center;overflow:hidden}
-.phone{box-sizing:content-box;width:clamp(200px,40%,260px);aspect-ratio:1320/2868;border-radius:36px;border:7px solid var(--ink);background:var(--ink);overflow:hidden;box-shadow:var(--sh-lg)}
+.phone{width:clamp(200px,40%,260px);aspect-ratio:1320/2868;border-radius:36px;border:7px solid var(--ink);background:var(--ink);overflow:hidden;box-shadow:var(--sh-lg)}
 .phone img{width:100%;height:100%;object-fit:cover;border-radius:29px}
-/* The whole phone fits its stage: sized from the stage height, not width. */
-.stage{container-type:size}
-.stage .phone{width:auto;height:84cqh;translate:0 3%}
+.stage .phone{translate:0 12%}
 .bio{position:absolute;left:8%;top:9%;display:flex;align-items:center;gap:12px;background:#fff;border-radius:18px;padding:12px 16px 12px 12px;box-shadow:var(--sh);z-index:2}
 .bio .av{width:42px;height:42px;border-radius:50%;background:var(--pink) url(logo.png) center/62% no-repeat;flex:none}
 .bio b{display:block;font-family:var(--display);font-size:14px}
@@ -264,19 +262,19 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .xp-glow.g1{left:12%;top:4%;width:80%;aspect-ratio:1;background:radial-gradient(closest-side,var(--purple-tint),rgba(236,220,250,0))}
 .xp-glow.g2{right:-6%;bottom:-4%;width:56%;aspect-ratio:1;background:radial-gradient(closest-side,var(--cyan-tint),rgba(205,241,246,0))}
 .xp>*{position:absolute}
-/* centre: the storefront as a tall, tilted phone screen (no bezel), with its
-   intro and menu cards exploded out (the product tiles sit on the menu card)
-   and the orders, quote and sign-ups it brings in circling it. */
-.xp-phone{left:36%;top:3%;width:31%;aspect-ratio:760/1516;rotate:-9deg;z-index:2;container-type:inline-size}
+/* centre: the storefront as a tall, tilted phone screen (no bezel). Its two
+   product tiles are lifted out — the slots stay behind as dashed outlines and
+   the tiles float below, with the orders, quote and sign-ups they bring in. */
+.xp-phone{left:44%;top:0;width:34%;aspect-ratio:760/1436;rotate:-9deg;z-index:2;container-type:inline-size}
 .xp-screen{position:absolute;inset:0;border-radius:28px;overflow:hidden;box-shadow:0 2px 4px rgba(26,20,22,.06),0 40px 70px -26px rgba(90,30,140,.45)}
 .xp-screen img{width:100%;height:100%;object-fit:cover;object-position:top}
 /* the storefront's own layers, exploded toward the viewer along one 45° line
    down and to the left. --k is how far each layer travels; the x/y factors
    undo the phone's -9° tilt so the line is 45° on screen. */
 .xp-layer{position:absolute;left:2.6%;width:94.8%;translate:calc(var(--k)*-1.144) calc(var(--k)*.832);filter:drop-shadow(0 18px 22px rgba(60,20,90,.3)) drop-shadow(0 3px 5px rgba(26,20,22,.12))}
-.xp-layer.l-info{top:35.25%;--k:12cqw}
-.xp-layer.l-menu{top:81.32%;--k:24cqw}
-.xp-layer.l-tile{top:92.82%;width:46%;border-radius:20px;--k:25cqw}
+.xp-layer.l-info{top:31.6%;--k:12cqw}
+.xp-layer.l-menu{top:84%;--k:24cqw}
+.xp-layer.l-tile{top:96.2%;width:46%;border-radius:20px;--k:38cqw}
 .xp-layer.t1{left:4.7%}.xp-layer.t2{left:49.2%}
 /* cards a storefront sends back */
 .xp-card{background:#fff;border-radius:18px;padding:14px;box-shadow:var(--sh-lg);z-index:3;font-size:12px;line-height:1.3;display:grid;gap:7px;rotate:-6deg}
@@ -285,26 +283,24 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .xp-card small{color:var(--ink-2)}
 .xp-card .f{display:block;background:#f4f1f2;border-radius:9px;padding:8px 10px;color:#8a7f84}
 .xp-card .sub{display:block;border-radius:999px;padding:8px;text-align:center;color:#fff;font-family:var(--display);font-weight:700}
-.xp-quote{left:-2%;top:4%;width:29%}
+.xp-quote{left:0;top:2%;width:28%}
 .xp-quote .tag{background:var(--cyan-tint);color:var(--cyan-2)}
 .xp-quote .sub{background:var(--cyan-2)}
-.xp-list{left:-4%;top:44%;width:28%;rotate:-9deg}
+.xp-list{left:0;top:39%;width:26%;rotate:-9deg}
 .xp-list .tag{background:var(--purple-tint);color:var(--purple-2)}
 .xp-list .sub{background:var(--purple-deep)}
 .xp .note{z-index:5;font-size:13px;animation:none}
-.xp .note.x1{right:-10%;top:50%}
-.xp .note.x2{right:-6%;top:6%;animation-delay:-2s}
-.xp .note.x3{right:-4%;top:auto;bottom:6%;animation-delay:-4s}
-.xp .note.x4{left:2%;top:auto;bottom:2%;animation-delay:-3s}
+.xp .note.x1{right:-6%;top:52%}
+.xp .note.x2{right:-10%;top:30%;animation-delay:-2s}
+.xp .note.x3{right:-8%;top:74%;animation-delay:-4s}
+.xp .note.x4{left:0;top:auto;bottom:0;animation-delay:-3s}
 @media(min-width:981px) and (max-width:1240px){.xp-card{padding:10px;gap:5px;font-size:10.5px}.xp-card b{font-size:12px}.xp-card .tag{font-size:9px;padding:3px 7px}.xp-card .f{padding:6px 8px}.xp-card .sub{padding:6px}.xp .note{font-size:11.5px;padding:8px 11px 8px 8px;gap:8px}.xp .note small{font-size:10.5px}.xp .note .ic{width:28px;height:28px}}
 @media(max-width:1240px){.xp .note.x1,.xp .note.x2,.xp .note.x3{right:-3%}}
 @media(max-width:980px){.xp .note.x1,.xp .note.x2,.xp .note.x3{right:0}}
 @media(max-width:560px){
   .xp-screen{border-radius:18px}.xp-layer.l-tile{border-radius:12px}
   .xp-card{padding:8px;gap:4px;border-radius:12px;font-size:9.5px}.xp-card b{font-size:11px}.xp-card .tag{font-size:8.5px;padding:3px 6px}.xp-card .f{padding:5px 7px;border-radius:6px}.xp-card .sub{padding:5px}
-  .xp-quote{width:33%;left:0}.xp-list{width:31%;left:0}
-  .hero-art.xp{height:108vw}.xp-phone{left:36%;top:2%;width:38%}
-  .xp .note.x2{top:2%}.xp .note.x1{top:48%}.xp .note.x3{bottom:-5%}.xp .note.x4{bottom:1%;left:0}
+  .xp-quote{width:33%}.xp-list{width:31%}
   .xp .note{font-size:10.5px;padding:6px 9px 6px 6px;gap:7px;border-radius:11px}.xp .note small{font-size:9.5px}.xp .note .ic{width:24px;height:24px;border-radius:7px}.xp .note .ic svg{width:13px;height:13px}
 }
 /* headline: the italic phrase steps through the logo colours */
@@ -313,7 +309,7 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 /* why Bakerï: feature grid + price comparison (replaces the creator photo grid) */
 .whys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
 @media(max-width:980px){.whys{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.whys{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
+@media(max-width:560px){.whys{grid-template-columns:1fr}}
 .why{background:#fff;border-radius:22px;padding:26px 24px 28px;box-shadow:0 1px 0 var(--line)}
 .why-ic{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:var(--blush);color:var(--pink-2);margin-bottom:18px}
 .why-ic svg{width:22px;height:22px}
@@ -339,21 +335,6 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .whys-head{margin:64px 0 6px;text-align:center;font-family:var(--display);font-weight:800;font-size:clamp(22px,2.2vw,28px);letter-spacing:-.02em}
 .whys-head em.sf{font-family:var(--serif);font-weight:400;color:var(--cyan-2)}
 .pc-sale{align-self:flex-start;display:inline-block;margin-top:2px;padding:4px 10px;border-radius:999px;background:var(--pink);color:#fff;font-family:var(--display);font-weight:800;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
-.pc-was{font-weight:700;font-size:.62em;color:#efe9eb;text-decoration:line-through;text-decoration-color:rgba(229,23,95,.9);text-decoration-thickness:2px;margin-right:6px;vertical-align:.2em}
+.pc-was{font-weight:700;font-size:.55em;color:#cdc4c7;text-decoration:line-through;text-decoration-color:var(--pink);text-decoration-thickness:3px;margin-right:4px;vertical-align:.25em}
 .whys-sub{text-align:center;margin:0 0 24px;color:var(--ink-2);font-size:15px}
 .pro-tag{display:inline-block;vertical-align:3px;margin-left:6px;padding:3px 8px;border-radius:999px;background:var(--ink);color:#fff;font-family:var(--display);font-weight:800;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase}
-.bio .av.av-tilly{background:#e5175f url(tilly/logo.webp) center/cover no-repeat}
-.bio .av.av-sugarland{background:#fff url(sugarland/logo.webp) center/cover no-repeat}
-.bio.bio-step{left:5%;top:14px;gap:9px;padding:8px 12px 8px 8px;border-radius:14px}.bio-step .av{width:32px;height:32px}.bio-step b{font-size:12.5px}.bio-step span{font-size:11.5px;margin-top:1px}
-/* Laptop + phone device shot (A simpler solution) */
-.devices{position:relative;max-width:1000px;margin:64px auto 0;padding:0 7% 0 3%}
-.mac-screen{background:#1b1b1d;border-radius:20px 20px 0 0;padding:1.6% 1.6% 2.4%;box-shadow:0 30px 60px -20px rgba(60,20,90,.35),inset 0 0 0 1.5px #3a3a3e}
-.mac-screen img{display:block;width:100%;aspect-ratio:1440/900;border-radius:3px}
-.mac-base{position:relative;height:16px;margin:0 -7%;background:linear-gradient(#e4e4e8,#b9b9c0 70%,#8e8e95);border-radius:0 0 18px 18px;box-shadow:0 18px 30px -12px rgba(26,20,22,.35)}
-.mac-base::before{content:"";position:absolute;left:50%;top:0;translate:-50% 0;width:15%;height:7px;background:#a3a3aa;border-radius:0 0 9px 9px}
-.devices .dev-phone{position:absolute;right:0;bottom:-6%;width:22%;border-width:6px;border-radius:30px;box-shadow:0 30px 50px -15px rgba(26,20,22,.45)}
-.devices .dev-phone img{border-radius:24px}
-@media(max-width:720px){.devices{margin-top:40px;padding:0 9% 0 0}.mac-screen{border-radius:12px 12px 0 0}.mac-base{height:9px;border-radius:0 0 10px 10px}.mac-base::before{height:4px}.devices .dev-phone{width:27%;border-width:4px;border-radius:18px}.devices .dev-phone img{border-radius:14px}}
-.pc-cta{text-align:center;margin:20px 0 0}
-/* Why Bakerï: compact 2-up grid on phones (after the base .why rules so it wins) */
-@media(max-width:560px){.why{padding:14px 13px 16px;border-radius:16px}.why-ic{width:32px;height:32px;border-radius:10px;margin-bottom:10px}.why-ic svg{width:17px;height:17px}.why h4{font-size:14.5px;line-height:1.2;margin-bottom:4px}.why p{font-size:12.5px;line-height:1.4}}
