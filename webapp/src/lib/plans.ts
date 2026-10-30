@@ -50,6 +50,21 @@ export const PLANS: PlanDef[] = [
 
 export const TRIAL_DAYS = 14;
 
+// The plan a vendor picked on the website before signing up (the site's
+// "Try Pro free" button → /app/signup?plan=pro). Kept in this browser and in
+// user_metadata.plan_intent, so it survives the confirmation-email round trip
+// even when the link opens on another device.
+const INTENT_KEY = 'bakeri.planIntent';
+export function rememberPlanIntent(tier: string | null): void {
+  try { if (tier === 'pro') localStorage.setItem(INTENT_KEY, tier); } catch { /* private mode */ }
+}
+export function storedPlanIntent(): PlanTier | null {
+  try { return localStorage.getItem(INTENT_KEY) === 'pro' ? 'pro' : null; } catch { return null; }
+}
+export function clearPlanIntent(): void {
+  try { localStorage.removeItem(INTENT_KEY); } catch { /* private mode */ }
+}
+
 /** One line for Settings: "Pro · trial ends Nov 22" etc. */
 export function planSummary(plan: VendorPlan | null | undefined): string {
   const tier = effectiveTier(plan);

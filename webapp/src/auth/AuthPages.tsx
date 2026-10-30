@@ -2,6 +2,7 @@ import { LOGO } from '../lib/brand';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { appURL, supabase } from '../lib/supabase';
+import { TRIAL_DAYS, rememberPlanIntent } from '../lib/plans';
 import { Button, ErrorBanner, Field, Input, Spinner } from '../components/ui';
 import { useAuth } from './AuthProvider';
 
@@ -100,6 +101,8 @@ export function SignupPage() {
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [referral, setReferral] = useState(params.get('ref') ?? '');
+  // From the site's "Try Pro free" button.
+  const proIntent = params.get('plan') === 'pro';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -122,6 +125,7 @@ export function SignupPage() {
     if (firstName.trim()) data.first_name = firstName.trim();
     if (lastName.trim()) data.last_name = lastName.trim();
     if (referral.trim()) data.referral_code = referral.trim().toUpperCase();
+    if (proIntent) { data.plan_intent = 'pro'; rememberPlanIntent('pro'); }
     const invite = params.get('invite');
     if (invite) data.vendor_application_id = invite;
     const { data: res, error } = await supabase.auth.signUp({
@@ -155,8 +159,8 @@ export function SignupPage() {
 
   return (
     <AuthLayout
-      title="Create your Bakeri account"
-      subtitle="Your link-in-bio storefront and order manager."
+      title={proIntent ? `Start your free ${TRIAL_DAYS}-day Pro trial` : 'Create your Bakeri account'}
+      subtitle={proIntent ? 'Create your account first — you won’t be charged until your trial ends.' : 'Your link-in-bio storefront and order manager.'}
       footer={<>Already have an account? <Link to="/login">Log in</Link></>}
     >
       <form onSubmit={submit} className="stack">

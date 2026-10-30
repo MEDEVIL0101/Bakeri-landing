@@ -1153,3 +1153,4 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 
 /* Forms on your site (builder): name + up/down buttons */
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.plan-grid.one { max-width: 380px; grid-template-columns: 1fr; }

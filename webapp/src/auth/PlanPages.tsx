@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { LOGO } from '../lib/brand';
 import { Button, ErrorBanner, Spinner } from '../components/ui';
-import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, effectiveTier, hasSubscription, openBillingPortal, startCheckout, type PlanTier } from '../lib/plans';
+import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, clearPlanIntent, effectiveTier, hasSubscription, openBillingPortal, startCheckout, storedPlanIntent, type PlanTier } from '../lib/plans';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -13,7 +13,9 @@ import { useAuth } from './AuthProvider';
  * iOS app never shows this.
  */
 export function PlanPage() {
-  const { plan, signOut } = useAuth();
+  const { plan, signOut, session } = useAuth();
+  const [params] = useSearchParams();
+  const [showAll, setShowAll] = useState(false);
   const [busy, setBusy] = useState<PlanTier | 'portal' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const current = effectiveTier(plan);
@@ -24,9 +26,14 @@ export function PlanPage() {
   const grandfathered = !!plan?.grandfathered_starter;
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const lapsed = current === 'none' && !!plan?.stripe_customer_id;
+  // Came from the site's "Try Pro free" button: lead with Pro alone.
+  const wantsPro = params.get('tier') === 'pro' || session?.user?.user_metadata?.plan_intent === 'pro' || storedPlanIntent() === 'pro';
+  const focusPro = wantsPro && trial && current === 'none' && !subscribed && !grandfathered && !showAll;
+  const shown = focusPro ? PLANS.filter((p) => p.tier === 'pro') : PLANS;
 
   async function pick(tier: PlanTier) {
     setBusy(tier); setError(null);
+    clearPlanIntent();
     try { await startCheckout(tier, 'month'); } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); setBusy(null); }
   }
 
@@ -39,17 +46,18 @@ export function PlanPage() {
     <div className="auth-page plan-page">
       <a href="/" className="auth-logo"><img src={LOGO} alt="Bakeri" /></a>
       <div className="plan-head">
-        <h1>{current !== 'none' ? 'Your plan' : lapsed ? 'Pick a plan to keep going' : 'Choose your plan'}</h1>
+        <h1>{focusPro ? `Try Pro free for ${TRIAL_DAYS} days` : current !== 'none' ? 'Your plan' : lapsed ? 'Pick a plan to keep going' : 'Choose your plan'}</h1>
         <p className="muted">
-          {grandfathered && !subscribed ? 'As one of our first vendors, Starter is free for you forever. Upgrade to Pro any time to drop the 5% fee.'
+          {focusPro ? 'No Bakeri fee on any sale, plus email campaigns. You won’t be charged until your trial ends, and you can cancel any time.'
+            : grandfathered && !subscribed ? 'As one of our first vendors, Starter is free for you forever. Upgrade to Pro any time to drop the 5% fee.'
             : current !== 'none' ? 'Switch plans any time.'
             : trial ? `Try either plan free for ${TRIAL_DAYS} days. You won’t be charged until your trial ends, and you can switch or cancel any time.`
             : 'Your shop is paused until you pick a plan. Everything you set up is still here.'}
         </p>
       </div>
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
-      <div className="plan-grid two">
-        {PLANS.map((p) => {
+      <div className={`plan-grid ${focusPro ? 'one' : 'two'}`}>
+        {shown.map((p) => {
           const isCurrent = current === p.tier;
           return (
             <section key={p.tier} className={`plan-card ${p.tier === 'pro' ? 'featured' : ''} ${isCurrent ? 'current' : ''}`}>
@@ -86,7 +94,8 @@ export function PlanPage() {
           );
         })}
       </div>
-      <p className="small muted plan-note">Pro costs $14 more a month and saves you 5% on every sale — so it pays for itself once you sell about $280 a month.</p>
+      {focusPro && <p className="plan-note"><button type="button" className="link-btn" onClick={() => setShowAll(true)}>Compare with Starter</button></p>}
+      {!focusPro && <p className="small muted plan-note">Pro costs $15 more a month and saves you 5% on every sale — so it pays for itself once you sell about $300 a month.</p>}
       <div className="auth-footer plan-footer">
         {subscribed && <><button type="button" className="link-btn" onClick={manage} disabled={!!busy}>Manage billing &amp; invoices</button> · </>}
         {current !== 'none' ? <Link to="/">Back to Bakeri</Link> : <button type="button" className="link-btn" onClick={signOut}>Sign out</button>}
