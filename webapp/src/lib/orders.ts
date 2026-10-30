@@ -448,6 +448,25 @@ export function revenueReceived(o: Order, start: Date, end: Date): number {
   return total;
 }
 
+/**
+ * Tips on an order: the "Tip" line a Tap to Pay sale or a storefront
+ * checkout/quote/invoice adds (the vendor keeps 100%). Already inside
+ * effectiveTotal; broken out so vendors can see — and report — tip income.
+ * Mirrors iOS Order.tipAmount.
+ */
+export function tipAmount(o: Order): number {
+  return (o.order_items ?? [])
+    .filter((i) => i.custom_name === 'Tip' && !i.recipe_id && !i.menu_item_id)
+    .reduce((t, i) => t + Number(i.price_per_unit || 0) * Number(i.quantity || 0), 0);
+}
+
+/** Tips received in [start, end): paid with the final (or only) payment, so dated like it. */
+export function tipsReceived(o: Order, start: Date, end: Date): number {
+  if (o.status === 'Cancelled' || o.marketplace_status === 'refunded' || !o.is_paid) return 0;
+  const d = new Date(o.paid_at ?? o.updated_at);
+  return d >= start && d < end ? tipAmount(o) : 0;
+}
+
 export function isUnacceptedQuote(o: Order): boolean {
   return isStorefrontOrder(o) && (o.marketplace_status === 'pending_quote' || o.marketplace_status === 'quote_provided');
 }
