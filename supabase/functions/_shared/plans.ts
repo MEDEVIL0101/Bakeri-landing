@@ -15,10 +15,10 @@
 // 2-month repeating coupon, id starter-launch-sale in live) — unset it to end
 // the sale for new sign-ups;
 // (…_YEAR variants are supported if yearly billing is ever offered)
-// and the Billing calls use STRIPE_BILLING_SECRET_KEY only — deliberately no
-// fallback to the live STRIPE_SECRET_KEY, so plans are built against a test
-// key while vendor payments keep using the live one. Going live = set this
-// secret (and the price ids) to live values.
+// and the Billing calls use STRIPE_BILLING_SECRET_KEY when it's set (e.g. a
+// test key while building), otherwise the live STRIPE_SECRET_KEY that vendor
+// payments already use — plans went live on it 2026-10-30. The price ids and
+// coupon above must belong to the same mode as the key in use.
 
 export type PlanTier = "starter" | "pro";
 export type BillingInterval = "month" | "year";
@@ -58,7 +58,7 @@ export function launchCouponFor(tier: PlanTier): string | null {
 }
 
 export function billingSecretKey(): string {
-  return Deno.env.get("STRIPE_BILLING_SECRET_KEY") || "";
+  return Deno.env.get("STRIPE_BILLING_SECRET_KEY") || Deno.env.get("STRIPE_SECRET_KEY") || "";
 }
 
 /** Where Stripe sends the vendor back to (the web app's plan pages). */
