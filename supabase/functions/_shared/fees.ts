@@ -62,3 +62,23 @@ export function calcDirectChargeApplicationFee(
   const bakeriShareOfStripeFee = Math.round(platformFeeCents * STRIPE_FEE_ESTIMATE.pct);
   return Math.max(0, platformFeeCents - bakeriShareOfStripeFee);
 }
+
+// Storefront tips (menu checkout + quote/invoice final payments), same rule
+// as Tap to Pay (create-terminal-payment-intent, Harvey 2026-09-24): the
+// vendor keeps 100% of a tip. It's left out of the platform-fee base, and
+// Bakeri also covers Stripe's percentage fee on it by collecting that much
+// less application fee (callers floor the result at 0).
+export function tipStripeFeeCoverCents(tipCents: number): number {
+  return Math.round(tipCents * STRIPE_FEE_ESTIMATE.pct);
+}
+
+// Validates a client-sent tip. Capped at the pre-tip sale amount so a sale
+// can't be relabelled as a fee-free "tip". Returns the tip in cents, or
+// throws with a message safe to show the customer.
+export function parseTipCents(raw: unknown, saleCents: number): number {
+  if (raw === undefined || raw === null || raw === 0) return 0;
+  const tip = Number(raw);
+  if (!Number.isInteger(tip) || tip < 0) throw new Error("That tip amount isn't valid.");
+  if (tip > saleCents) throw new Error("A tip can't be more than the order itself.");
+  return tip;
+}

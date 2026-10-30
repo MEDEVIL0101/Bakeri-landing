@@ -65,6 +65,17 @@
     .promo-status { font-size: 12.5px; margin-top: 6px; min-height: 1em; }
     .promo-status.ok { color: #3FA672; font-weight: 600; }
     .promo-status.err { color: #C0392B; }
+    .tip-block { margin-top: 14px; }
+    .tip-block [hidden] { display: none; }
+    .tip-block .tip-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .tip-block .tip-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .tip-chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
+    .tip-chip { min-height: 44px; padding: 4px 2px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface, #fff); color: var(--ink); font-weight: 700; font-size: 13px; cursor: pointer; line-height: 1.15; }
+    .tip-chip small { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
+    .tip-chip.on { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
+    .tip-chip.on small { color: inherit; opacity: .85; }
+    .tip-custom { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+    .tip-custom input { flex: 1; min-width: 0; height: 42px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface, #fff); color: var(--ink); padding: 0 12px; font-size: 14px; }
     .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); font-variant-numeric: tabular-nums; }
     .totals-row.grand { font-weight: 700; color: var(--ink); font-size: 17px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
 
@@ -281,7 +292,16 @@
   const hasInstantLeg = digitalItems.length > 0 || shipItems.length > 0;
   const instantSubtotal = digitalSubtotal + shipSubtotal;
 
-  const grandTotal = total + digitalSubtotal + shipSubtotal;
+  // ── Tip ── on the pickup payment only, when the vendor has tips on
+  // (profiles.tips_enabled). Worked out on the item subtotal before tax;
+  // create-payment-intent validates it and the vendor keeps all of it.
+  const tipsOffered = cart.items.length > 0 && cart.tipsEnabled !== false;
+  const TIP_PERCENTS = [10, 15, 20];
+  let tipChoice = 'none'; // 'none' | 10 | 15 | 20 | 'custom'
+  let tipCents = 0;
+  function percentTipCents(fraction) { return Math.round(subtotal * 100 * fraction); }
+  function pickupTotal() { return total + tipCents / 100; }
+  function grandTotalNow() { return pickupTotal() + digitalSubtotal + shipSubtotal; }
   let physicalResult = null;
   let digitalResult = null;
   let digitalError = null;
@@ -324,11 +344,12 @@
     content.innerHTML =
       '<div class="eyebrow">Your Order</div>' +
       '<div class="heading">Checkout</div>' +
-      renderMultiChargeNotice() +
+      '<div id="multi-charge-notice">' + renderMultiChargeNotice() + '</div>' +
       lines +
       (cart.items.length > 0 ? (
         '<div class="totals-row"><span>Subtotal</span><span>$' + subtotal.toFixed(2) + '</span></div>' +
-        (taxCents > 0 ? '<div class="totals-row"><span>Tax</span><span>$' + (taxCents / 100).toFixed(2) + '</span></div>' : '')
+        (taxCents > 0 ? '<div class="totals-row"><span>Tax</span><span>$' + (taxCents / 100).toFixed(2) + '</span></div>' : '') +
+        renderTipBlock()
       ) : '') +
       (digitalItems.length > 0 ? (
         '<div class="eyebrow" style="margin-top:14px;">Digital Downloads</div>' +
@@ -344,7 +365,7 @@
       '<div class="promo-row"><input id="promo-input" type="text" placeholder="Promo code" autocapitalize="characters" autocomplete="off" value="' + (appliedCode || '') + '" />' +
       '<button type="button" id="promo-apply">Apply</button></div>' +
       '<div class="promo-status ' + (appliedCode ? 'ok' : '') + '" id="promo-status">' + (appliedCode ? 'Code ' + appliedCode + ' applied — discount shown at payment' : '') + '</div>' +
-      '<div class="totals-row grand"><span>Total</span><span>$' + grandTotal.toFixed(2) + '</span></div>' +
+      '<div class="totals-row grand"><span>Total</span><span id="grand-total">$' + grandTotalNow().toFixed(2) + '</span></div>' +
       '<button class="btn-primary" id="continue-btn">' + (legTotalCount > 1 ? 'Continue to Payment · Step 1 of ' + legTotalCount : 'Continue to Payment') + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
       '<div class="pickup-note">' +
@@ -353,8 +374,59 @@
       '</div>';
 
     document.getElementById('continue-btn').addEventListener('click', startCheckout);
+    wireTipBlock();
     var pa = document.getElementById('promo-apply');
     if (pa) pa.addEventListener('click', applyPromoCode);
+  }
+
+  function renderTipBlock() {
+    if (!tipsOffered) return '';
+    const shop = (cart.shopName || '').trim();
+    const chip = function (key, label, sub) {
+      return '<button type="button" class="tip-chip' + (tipChoice === key ? ' on' : '') + '" data-tip="' + key + '">' +
+        label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+    };
+    return '<div class="tip-block">' +
+      '<div class="tip-title">Add a tip' + (shop ? ' for ' + escapeHtml(shop) : '') + '?</div>' +
+      '<div class="tip-sub">Optional — 100% goes to them.</div>' +
+      '<div class="tip-chips">' +
+        TIP_PERCENTS.map(function (p) { return chip(p, p + '%', '$' + (percentTipCents(p / 100) / 100).toFixed(2)); }).join('') +
+        chip('custom', 'Custom', '') + chip('none', 'No tip', '') +
+      '</div>' +
+      '<div class="tip-custom" id="tip-custom"' + (tipChoice === 'custom' ? '' : ' hidden') + '>' +
+        '<span>$</span><input id="tip-custom-input" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Custom tip amount" />' +
+      '</div>' +
+      '<div class="totals-row" id="tip-row"' + (tipCents > 0 ? '' : ' hidden') + '><span>Tip</span><span id="tip-amount">$' + (tipCents / 100).toFixed(2) + '</span></div>' +
+    '</div>';
+  }
+
+  function wireTipBlock() {
+    if (!tipsOffered) return;
+    document.querySelectorAll('.tip-chip').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const key = btn.dataset.tip;
+        tipChoice = (key === 'none' || key === 'custom') ? key : Number(key);
+        document.querySelectorAll('.tip-chip').forEach(function (b) { b.classList.toggle('on', b === btn); });
+        document.getElementById('tip-custom').hidden = tipChoice !== 'custom';
+        if (tipChoice === 'custom') { document.getElementById('tip-custom-input').focus(); readCustomTip(); }
+        else setTip(tipChoice === 'none' ? 0 : percentTipCents(tipChoice / 100));
+      });
+    });
+    document.getElementById('tip-custom-input').addEventListener('input', readCustomTip);
+  }
+
+  function readCustomTip() {
+    const v = parseFloat(String(document.getElementById('tip-custom-input').value).replace(/[^0-9.]/g, ''));
+    // Capped at the item subtotal, same as the server (a tip can't exceed the order).
+    setTip(isFinite(v) && v > 0 ? Math.min(Math.round(v * 100), Math.round(subtotal * 100)) : 0);
+  }
+
+  function setTip(cents) {
+    tipCents = cents;
+    document.getElementById('tip-row').hidden = cents <= 0;
+    document.getElementById('tip-amount').textContent = '$' + (cents / 100).toFixed(2);
+    document.getElementById('grand-total').textContent = '$' + grandTotalNow().toFixed(2);
+    document.getElementById('multi-charge-notice').innerHTML = renderMultiChargeNotice();
   }
 
   // A mixed cart settles as multiple back-to-back Stripe charges (see the
@@ -367,7 +439,7 @@
   function renderMultiChargeNotice() {
     if (legTotalCount <= 1) return '';
     const steps = [];
-    if (cart.items.length > 0) steps.push('<b>Pickup items</b> — $' + total.toFixed(2) + ', authorized now and charged once the baker confirms your order');
+    if (cart.items.length > 0) steps.push('<b>Pickup items</b> — $' + pickupTotal().toFixed(2) + ', authorized now and charged once the baker confirms your order');
     if (digitalItems.length > 0 && shipItems.length > 0) {
       steps.push('<b>Digital downloads &amp; shipping items</b> — $' + instantSubtotal.toFixed(2) + ', charged right away in one payment — your download link arrives instantly, and shipped items go out separately after you enter a shipping address');
     } else if (digitalItems.length > 0) {
@@ -421,7 +493,8 @@
         }),
         currency: 'cad',
         tax_amount_cents: taxCents,
-        promo_code: appliedCode
+        promo_code: appliedCode,
+        tip_cents: tipsOffered ? tipCents : 0
       })
     })
     .then(function (r) { return r.json(); })
@@ -743,6 +816,7 @@
             (breakdown ? '<div class="m">' + escapeHtml(breakdown) + '</div>' : '') + '</div>' +
             '<span class="p">$' + (i.price_per_unit * i.quantity).toFixed(2) + '</span></div>';
         }).join('') +
+        (physicalResult.tip_cents > 0 ? '<div class="receipt-row"><div><div class="n">Tip</div></div><span class="p">$' + (physicalResult.tip_cents / 100).toFixed(2) + '</span></div>' : '') +
         '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + (physicalResult.total_cents / 100).toFixed(2) + '</span></div>' +
       '</div>'
     ) : '';

@@ -4504,6 +4504,9 @@
       province: profile.pickup_province || '',
       // is_gst_registered now means "collects sales tax" (Stripe Tax active).
       collectsTax: profile.is_gst_registered ? '1' : '0',
+      // Offer a tip on the pickup payment (profiles.tips_enabled, default on).
+      tipsEnabled: profile.tips_enabled !== false,
+      shopName: profile.business_name || profile.user_name || '',
       customer: { name: name, phone: phone, email: email },
       items: cartLines().map(function (l) {
         if (l.kind === 'box') {

@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { PLATFORM_FEE_RATE, parseTipCents, tipStripeFeeCoverCents } from "../_shared/fees.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 import { resolvePromotions, type BaseLine } from "../_shared/promotions.ts";
@@ -48,6 +48,9 @@ interface RequestBody {
   // physical items (physical-only, or mixed digital+physical). Real
   // carrier-computed rates are a later integration.
   shipping_fee_cents?: number;
+  // Storefront tip on a pickup (ready-now/preorder) cart — see the tip block
+  // below. Rejected for any other cart.
+  tip_cents?: number;
 }
 
 type PaymentFlow = "immediate" | "setup_intent" | "deposit_and_save";
@@ -137,7 +140,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const isApp = await isAuthenticatedBuyer(req.headers.get("Authorization"));
-    const { items, currency: requestedCurrency = "cad", tax_amount_cents = 0, shipping_fee_cents = 0, promo_code = null }: RequestBody = await req.json();
+    const { items, currency: requestedCurrency = "cad", tax_amount_cents = 0, shipping_fee_cents = 0, promo_code = null, tip_cents: rawTip = 0 }: RequestBody = await req.json();
 
     if (!items || items.length === 0) {
       return new Response(JSON.stringify({ error: "No items" }), {
@@ -397,8 +400,27 @@ Deno.serve(async (req: Request) => {
     // via the customer's added fee, once more carved out of the baker's own
     // base price. See _shared/fees.ts.
     const platformFeeCents = Math.round((depositAmountCents ?? itemsTotalCents) * PLATFORM_FEE_RATE);
-    const chargeCents = (depositAmountCents ?? fullTotalCents) + (isApp ? platformFeeCents : 0);
-    const applicationFeeCents = isApp ? platformFeeCents * 2 : platformFeeCents;
+
+    // Tip (storefront pickup carts only): the vendor keeps all of it — not in
+    // the platform-fee base above, and Bakeri covers Stripe's % on it via a
+    // smaller application fee. Only when the vendor has tips turned on.
+    let tipCents = 0;
+    if (rawTip) {
+      const tipEligible = !isApp && paymentFlow === "immediate" && !isInstantCaptureCart
+        && new Set(items.map((i) => i.baker_id)).size === 1;
+      if (!tipEligible) throw new ValidationError("Tips can't be added to this order.");
+      const { data: tipProfile } = await getSupabaseClient()
+        .from("profiles").select("tips_enabled").eq("id", items[0].baker_id).single();
+      if (tipProfile?.tips_enabled !== true) throw new ValidationError("This shop isn't accepting tips.");
+      try {
+        tipCents = parseTipCents(rawTip, itemsTotalCents);
+      } catch (e) {
+        throw new ValidationError((e as Error).message);
+      }
+    }
+
+    const chargeCents = (depositAmountCents ?? fullTotalCents) + (isApp ? platformFeeCents : 0) + tipCents;
+    const applicationFeeCents = Math.max(0, (isApp ? platformFeeCents * 2 : platformFeeCents) - tipStripeFeeCoverCents(tipCents));
 
     // A promo code can take the whole order to $0 (a giveaway "WINNER"
     // code). Stripe can't create a $0 PaymentIntent, and the rejection used
@@ -454,6 +476,8 @@ Deno.serve(async (req: Request) => {
     if (promo.totalDiscountCents > 0) {
       metadata.promo_discount_cents = String(promo.totalDiscountCents);
     }
+    // create-guest-marketplace-order records the tip from here, never from the client.
+    if (tipCents > 0) metadata.tip_cents = String(tipCents);
 
     const isSingleBaker = bakerIDs.length === 1;
     const paymentModel: "direct" | "platform_custody" = isSingleBaker ? "direct" : "platform_custody";
@@ -511,6 +535,7 @@ Deno.serve(async (req: Request) => {
         payment_flow: paymentFlow,
         deposit_amount_cents: depositAmountCents,
         platform_fee_cents: platformFeeCents,
+        tip_cents: tipCents,
         payment_model: paymentModel,
         stripe_connect_account_id: connectedAccountId,
       }),

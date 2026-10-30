@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
-import { Badge, Button, Card, ConfirmModal, ErrorBanner, Field, PageHeader, Select, Spinner, useLoad } from '../../components/ui';
+import { Badge, Button, Card, ConfirmModal, ErrorBanner, Field, PageHeader, Select, Spinner, Toggle, useLoad } from '../../components/ui';
+import { supabase } from '../../lib/supabase';
+import { check } from '../../lib/api';
 import {
   CONNECT_COUNTRIES, connectOnboardingURL, connectStatus, disconnectStripe, formatCents, payoutSummary, txnLabel,
 } from '../../lib/account';
@@ -115,6 +117,8 @@ function Connected({ onChange }: { onChange: () => void }) {
         <p className="muted small">New sales take a few days to move from Pending to Available, per Stripe’s schedule. Your payout schedule, instant payouts, and bank details are all managed in your Stripe dashboard.</p>
       </Card>
 
+      <TipsCard />
+
       <Card title="Recent activity">
         {summary.loading && !d ? <Spinner /> : !d?.recent_transactions.length ? <p className="muted small">No activity yet.</p> : (
           <div className="table-scroll"><table className="table">
@@ -143,5 +147,37 @@ function Connected({ onChange }: { onChange: () => void }) {
           onClose={() => setDisconnecting(false)} onConfirm={async () => { await disconnectStripe(); onChange(); }} />
       )}
     </>
+  );
+}
+
+/** Mirrors iOS BankingPaymentsView.tipsSection — profiles.tips_enabled (default on). */
+function TipsCard() {
+  const userId = useUserId();
+  const loaded = useLoad(async () => {
+    const row = check(await supabase.from('profiles').select('tips_enabled').eq('id', userId).single()) as { tips_enabled: boolean };
+    return row.tips_enabled;
+  }, [userId]);
+  const [on, setOn] = useState<boolean | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const value = on ?? loaded.data ?? true;
+
+  async function save(next: boolean) {
+    setOn(next);
+    setErr(null);
+    try {
+      check(await supabase.from('profiles').update({ tips_enabled: next }).eq('id', userId));
+    } catch (e: any) {
+      setOn(!next);
+      setErr(`Couldn’t save: ${e.message}`);
+    }
+  }
+
+  return (
+    <Card title="Tips">
+      {loaded.error && <ErrorBanner message={loaded.error} onRetry={loaded.reload} />}
+      <Toggle checked={value} onChange={save} label="Ask for tips"
+        hint="Customers can add a tip (10%, 15%, 20% or their own amount) when they pay for a menu order or your quote on your website. You keep 100% of every tip — no Bakeri fee." />
+      {err && <ErrorBanner message={err} />}
+    </Card>
   );
 }

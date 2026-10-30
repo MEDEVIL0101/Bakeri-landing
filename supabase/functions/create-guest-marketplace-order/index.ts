@@ -560,7 +560,11 @@ Deno.serve(async (req: Request) => {
   // Fee is on the pre-tax item subtotal — comes out of the baker's cut, not
   // added to what the customer was actually charged (subtotal + tax only).
   const platformFeeCents = Math.round(subtotalCents * PLATFORM_FEE_RATE);
-  const totalCents = subtotalCents + taxCents;
+  // Tip — set by create-payment-intent in the PI metadata (never trusted from
+  // this request). 100% the vendor's; recorded as its own "Tip" line, the
+  // same way a Tap to Pay tip is.
+  const tipCents = Math.max(0, parseInt(String(intent.metadata?.tip_cents ?? "0"), 10) || 0);
+  const totalCents = subtotalCents + taxCents + tipCents;
 
   // Order name: the single item's name, or "First item + N more" for a cart —
   // matches how the app already summarizes multi-line manual orders.
@@ -593,7 +597,7 @@ Deno.serve(async (req: Request) => {
     status: "Confirmed",
     notes: "",
     is_paid: true,
-    payment_note: `Subtotal: $${(subtotalCents / 100).toFixed(2)}, Tax: $${(taxCents / 100).toFixed(2)}, Total charged: $${(totalCents / 100).toFixed(2)} (Bakeri service charge: $${(platformFeeCents / 100).toFixed(2)}, deducted from your payout)`,
+    payment_note: `Subtotal: $${(subtotalCents / 100).toFixed(2)}, Tax: $${(taxCents / 100).toFixed(2)}${tipCents > 0 ? `, Tip: $${(tipCents / 100).toFixed(2)} (all yours)` : ""}, Total charged: $${(totalCents / 100).toFixed(2)} (Bakeri service charge: $${(platformFeeCents / 100).toFixed(2)}, deducted from your payout)`,
     platform_fee_cents: platformFeeCents,
     deposit_amount: 0,
     deposit_note: "",
@@ -638,7 +642,22 @@ Deno.serve(async (req: Request) => {
       tier_label: l.tierLabel,
       variant_breakdown: l.variantBreakdown,
       preorder_date: l.preorderDate,
-    }))
+    })).concat(tipCents > 0 ? [{
+      id: crypto.randomUUID(),
+      user_id: baker_id,
+      order_id: orderId,
+      recipe_id: null,
+      menu_item_id: null,
+      custom_name: "Tip",
+      quantity: 1,
+      unit: "pieces",
+      price_per_unit: tipCents / 100,
+      notes: "",
+      updated_at: now,
+      tier_label: null,
+      variant_breakdown: null,
+      preorder_date: null,
+    }] : [])
   );
 
   if (itemErr) {
@@ -670,7 +689,9 @@ Deno.serve(async (req: Request) => {
         price_per_unit: l.pricePerUnit,
         menu_item_id: l.item.id,
         variant_breakdown: l.variantBreakdown,
-      })),
+      })).concat(tipCents > 0 ? [{
+        custom_name: "Tip", quantity: 1, price_per_unit: tipCents / 100, menu_item_id: null, variant_breakdown: null,
+      }] : []),
       customerName: customer_name,
       customerEmail: customer_email,
       customerPhone: customer_phone,
@@ -693,6 +714,7 @@ Deno.serve(async (req: Request) => {
     subtotal_cents: subtotalCents,
     platform_fee_cents: platformFeeCents,
     tax_cents: taxCents,
+    tip_cents: tipCents,
     total_cents: totalCents,
     baker_name: bakerDisplayName,
   });
