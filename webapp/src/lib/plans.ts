@@ -2,9 +2,10 @@
 // prices, fee rates) is supabase/functions/_shared/plans.ts — keep the fee
 // numbers here in step with PLAN_FEE_RATE there.
 //
-// Tiers (Harvey 2026-10-23): a free trial on the plan they pick, then
-// Starter $5.99/mo + 5% Bakeri fee per sale, or Pro $19.99/mo with no Bakeri
-// fee; Stripe card fees are the vendor's on both. TRIAL_DAYS must match the
+// Tiers (Harvey 2026-10-30): a free trial on the plan they pick, then
+// Starter $14.99/mo + 5% Bakeri fee per sale — on a $5.99 launch sale for the
+// first 2 months (Stripe coupon starter-launch-sale) — or Pro $29.99/mo with
+// no Bakeri fee; Stripe card fees are the vendor's on both. TRIAL_DAYS must match the
 // PLAN_TRIAL_DAYS secret (14). Plans are bought here on the web
 // only — the iOS app never shows prices or links to buy (App Store
 // anti-steering rules).
@@ -33,15 +34,18 @@ export interface PlanDef {
   blurb: string;
   /** USD per month. */
   price: number;
+  /** Launch-sale price for the first saleMonths months (Starter only). */
+  salePrice?: number;
+  saleMonths?: number;
   feePct: number;
   perks: string[];
 }
 
 export const PLANS: PlanDef[] = [
-  { tier: 'starter', name: 'Starter', blurb: 'A low monthly price while you’re getting going.', price: 5.99, feePct: 5,
+  { tier: 'starter', name: 'Starter', blurb: 'A low monthly price while you’re getting going.', price: 14.99, salePrice: 5.99, saleMonths: 2, feePct: 5,
     perks: ['Your storefront at bakeriapp.com', 'Orders, schedule, menu and recipes', 'Card payments and payouts', 'iPhone app and web app'] },
-  { tier: 'pro', name: 'Pro', blurb: 'Keep every dollar of your sales.', price: 19.99, feePct: 0,
-    perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Best value once you sell about $280 a month'] },
+  { tier: 'pro', name: 'Pro', blurb: 'Keep every dollar of your sales.', price: 29.99, feePct: 0,
+    perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Best value once you sell about $300 a month'] },
 ];
 
 export const TRIAL_DAYS = 14;

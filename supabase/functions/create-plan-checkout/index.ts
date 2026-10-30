@@ -19,7 +19,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@13.11.0?target=deno";
 import { adminClient, corsHeaders, json, requireUser } from "../_shared/billingAuth.ts";
-import { PAID_TIERS, appURL, billingSecretKey, priceIdFor, trialDays, type BillingInterval, type PlanTier } from "../_shared/plans.ts";
+import { PAID_TIERS, appURL, billingSecretKey, launchCouponFor, priceIdFor, trialDays, type BillingInterval, type PlanTier } from "../_shared/plans.ts";
 
 const LIVE_STATUSES = ["trialing", "active", "past_due"];
 
@@ -69,7 +69,8 @@ serve(async (req) => {
       customer: customerId,
       client_reference_id: user.id,
       line_items: [{ price, quantity: 1 }],
-      allow_promotion_codes: true,
+      // Stripe allows either an automatic coupon or a promo-code box, not both.
+      ...(launchCouponFor(tier) ? { discounts: [{ coupon: launchCouponFor(tier)! }] } : { allow_promotion_codes: true }),
       metadata: { user_id: user.id, tier, interval },
       subscription_data: {
         metadata: { user_id: user.id },

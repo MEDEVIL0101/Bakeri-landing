@@ -59,6 +59,8 @@ export function PlanPage() {
               <div className="plan-price">
                 {grandfathered && p.tier === 'starter' ? (
                   <><span className="plan-amount">$0</span><span className="muted small">free for you, forever</span></>
+                ) : p.salePrice ? (
+                  <><span className="plan-amount"><s className="muted">${p.price.toFixed(2)}</s> ${p.salePrice.toFixed(2)}</span><span className="muted small">USD / month for your first {p.saleMonths} months, then ${p.price.toFixed(2)}</span></>
                 ) : (
                   <><span className="plan-amount">${p.price.toFixed(2)}</span><span className="muted small">USD / month</span></>
                 )}

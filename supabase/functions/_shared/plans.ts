@@ -2,14 +2,18 @@
 // exist, what each costs in Stripe, and the platform fee each pays on sales.
 // Mirrored for display by webapp/src/lib/plans.ts (names, prices, perks).
 //
-// Tiers (Harvey 2026-10-23): a free trial (PLAN_TRIAL_DAYS, once per
-// vendor) on the plan they pick, then Starter $5.99/mo + 5% Bakeri fee per
-// sale, or Pro $19.99/mo with no Bakeri fee; Stripe card fees are the
+// Tiers (Harvey 2026-10-30): a free trial (PLAN_TRIAL_DAYS, once per
+// vendor) on the plan they pick, then Starter $14.99/mo + 5% Bakeri fee per
+// sale ($5.99 launch sale for the first 2 months), or Pro $29.99/mo with no
+// Bakeri fee; Stripe card fees are the
 // vendor's on both. Trial: 14 days. Billing is web-only
 // through Stripe Billing on Bakeri's platform account — never Apple IAP.
 //
 // Stripe Price ids come from secrets so test mode and live mode can differ:
 //   STRIPE_PRICE_STARTER_MONTH, STRIPE_PRICE_PRO_MONTH
+// and the Starter launch sale from STRIPE_STARTER_LAUNCH_COUPON (a $9-off,
+// 2-month repeating coupon, id starter-launch-sale in live) — unset it to end
+// the sale for new sign-ups;
 // (…_YEAR variants are supported if yearly billing is ever offered)
 // and the Billing calls use STRIPE_BILLING_SECRET_KEY only — deliberately no
 // fallback to the live STRIPE_SECRET_KEY, so plans are built against a test
@@ -46,6 +50,11 @@ export function tierForPriceId(priceId: string | null | undefined): { tier: Plan
     }
   }
   return null;
+}
+
+/** Coupon applied automatically at checkout for this tier, if any. */
+export function launchCouponFor(tier: PlanTier): string | null {
+  return tier === "starter" ? Deno.env.get("STRIPE_STARTER_LAUNCH_COUPON") || null : null;
 }
 
 export function billingSecretKey(): string {
