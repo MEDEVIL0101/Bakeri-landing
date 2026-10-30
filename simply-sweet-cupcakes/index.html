@@ -11,7 +11,7 @@
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
     // Any query (e.g. ?item=… on a shared product link) carries through.
-    location.replace("/baker/?slug=simply-sweet-cupcakes&clean=1" + (location.search ? "&" + location.search.slice(1) : ""));
+    location.replace("/baker/?slug=simply-sweet-cupcakes&clean=1" + (location.search ? "&" + location.search.slice(1) : "") + (document.referrer ? "&from=" + encodeURIComponent(document.referrer) : ""));
   </script>
   <title>Simply Sweet Cupcakes — Order online</title>
   <meta name="description" content="Order handmade baked goods from Simply Sweet Cupcakes on Bakeri." />

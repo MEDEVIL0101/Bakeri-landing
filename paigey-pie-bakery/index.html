@@ -11,7 +11,7 @@
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
     // Any query (e.g. ?item=… on a shared product link) carries through.
-    location.replace("/baker/?slug=paigey-pie-bakery&clean=1" + (location.search ? "&" + location.search.slice(1) : ""));
+    location.replace("/baker/?slug=paigey-pie-bakery&clean=1" + (location.search ? "&" + location.search.slice(1) : "") + (document.referrer ? "&from=" + encodeURIComponent(document.referrer) : ""));
   </script>
   <title>Paigey Pie Bakery — Order online · Schertz, TX</title>
   <meta name="description" content="Custom cookies made with delicious brown butter for a softer and more delectable bite." />

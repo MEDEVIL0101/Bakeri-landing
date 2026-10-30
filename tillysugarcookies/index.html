@@ -11,7 +11,7 @@
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
     // Any query (e.g. ?item=… on a shared product link) carries through.
-    location.replace("/baker/?slug=tillysugarcookies&clean=1" + (location.search ? "&" + location.search.slice(1) : ""));
+    location.replace("/baker/?slug=tillysugarcookies&clean=1" + (location.search ? "&" + location.search.slice(1) : "") + (document.referrer ? "&from=" + encodeURIComponent(document.referrer) : ""));
   </script>
   <title>Tilly Sugar Cookies — Order online · Stoney Creek, ON</title>
   <meta name="description" content="Hand-decorated sugar cookies made for life’s sweetest celebrations. From birthdays to weddings, every cookie is thoughtfully designed, baked fresh and…" />

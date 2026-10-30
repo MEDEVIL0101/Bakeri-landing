@@ -11,7 +11,7 @@
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
     // Any query (e.g. ?item=… on a shared product link) carries through.
-    location.replace("/baker/?slug=designer-cakes-by-karissa&clean=1" + (location.search ? "&" + location.search.slice(1) : ""));
+    location.replace("/baker/?slug=designer-cakes-by-karissa&clean=1" + (location.search ? "&" + location.search.slice(1) : "") + (document.referrer ? "&from=" + encodeURIComponent(document.referrer) : ""));
   </script>
   <title>Designer Cakes By Karissa — Order online · Bay Minette, AL, AL</title>
   <meta name="description" content="Timeless elegance… that’s what Designer Cakes by Karissa aims to deliver for your “sweet” event!" />
@@ -61,6 +61,7 @@
     <a class="cta" href="/baker/?slug=designer-cakes-by-karissa">View the full menu &amp; order online &rarr;</a>
     <h2>On the menu</h2>
     <ul>
+        <li>Custom baby shower cake — $85.00</li>
         <li>Custom birthday cake — $85.00</li>
         <li>Custom Printed/2D Sugar Cookies — $5.00</li>
         <li>Custom smash cake — $55.00</li>

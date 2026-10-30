@@ -11,7 +11,7 @@
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
     // Any query (e.g. ?item=… on a shared product link) carries through.
-    location.replace("/baker/?slug=cakes-by-eve&clean=1" + (location.search ? "&" + location.search.slice(1) : ""));
+    location.replace("/baker/?slug=cakes-by-eve&clean=1" + (location.search ? "&" + location.search.slice(1) : "") + (document.referrer ? "&from=" + encodeURIComponent(document.referrer) : ""));
   </script>
   <title>Cakes By Eve — Order online · Waterdown, ON</title>
   <meta name="description" content="Passionate baker and creator behind Cakes By Eve Creating beautiful, delicious cakes and sweet treats made with love for every special occasion. 🎂✨" />
