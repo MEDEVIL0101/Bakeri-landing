@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { LOGO } from '../lib/brand';
 import { Button, ErrorBanner, Spinner } from '../components/ui';
-import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, clearPlanIntent, effectiveTier, hasSubscription, openBillingPortal, startCheckout, storedPlanIntent, type PlanDef, type PlanTier } from '../lib/plans';
+import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_SAVING_PCT, clearPlanIntent, effectiveTier, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -13,7 +13,7 @@ import { useAuth } from './AuthProvider';
  * back to /welcome. Web only: the iOS app never shows this.
  */
 export function PlanPage() {
-  const { plan, signOut, session } = useAuth();
+  const { plan, signOut } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [busy, setBusy] = useState<PlanTier | 'portal' | null>(null);
@@ -26,17 +26,14 @@ export function PlanPage() {
   const grandfathered = !!plan?.grandfathered_starter;
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const lapsed = current === 'none' && !!plan?.stripe_customer_id;
-  // Came from the site's "Try Pro free" button: straight to the Pro trial page.
-  const wantsPro = params.get('tier') === 'pro' || session?.user?.user_metadata?.plan_intent === 'pro' || storedPlanIntent() === 'pro';
-  if (wantsPro && trial && current === 'none' && !subscribed && !grandfathered && !params.has('all')) {
+  // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
+  if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all')) {
     return <Navigate to="/plan/trial?tier=pro" replace />;
   }
 
-  async function pick(tier: PlanTier) {
-    if (trial) { navigate(`/plan/trial?tier=${tier}`); return; }
-    setBusy(tier); setError(null);
+  function pick(tier: PlanTier) {
     clearPlanIntent();
-    try { await startCheckout(tier, 'month'); } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); setBusy(null); }
+    navigate(`/plan/trial?tier=${tier}&picked`);
   }
 
   async function manage() {
@@ -68,7 +65,7 @@ export function PlanPage() {
               <header className="pk-head"><h2>{p.name}</h2></header>
               <div className="pk-body">
                 <PlanPrice p={p} grandfathered={grandfathered} />
-                <p className="pk-sub">{p.feePct ? `Billed monthly · ${p.feePct}% Bakeri fee per sale` : 'Billed monthly · No Bakeri fee on any sale'}</p>
+                <p className="pk-sub">{p.feePct ? `${p.feePct}% Bakeri fee per sale` : 'No Bakeri fee on any sale'}</p>
                 {isCurrent ? (
                   <Button variant="secondary" className="pk-btn" disabled>Current plan</Button>
                 ) : grandfathered && p.tier === 'starter' ? (
@@ -100,53 +97,70 @@ export function PlanPage() {
 
 function PlanPrice({ p, grandfathered }: { p: PlanDef; grandfathered: boolean }) {
   if (grandfathered && p.tier === 'starter') return <div className="pk-price"><b>$0</b><span>/mo</span><small>Free for you, forever</small></div>;
-  if (p.salePrice) {
-    return (
-      <div className="pk-price">
-        <s>${p.price.toFixed(2)}</s> <b>${p.salePrice.toFixed(2)}</b><span>/mo</span>
-        <small>For your first {p.saleMonths} months, then ${p.price.toFixed(2)}/mo</small>
-      </div>
-    );
-  }
-  return <div className="pk-price"><b>${p.price.toFixed(2)}</b><span>/mo</span></div>;
+  const perMonth = Math.round((p.yearPrice / 12) * 100) / 100;
+  const m = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
+  return (
+    <div className="pk-price">
+      <b>{m(perMonth)}</b><span>/mo</span>
+      <small>Billed yearly, or {m(p.price)} monthly{p.salePrice ? ` (${m(p.salePrice)} for your first ${p.saleMonths} months)` : ''}</small>
+    </div>
+  );
 }
 
 /**
  * "Claim a free 7-day trial" — between picking a plan and Stripe Checkout:
- * what happens today, how to cancel, and when the plan starts.
+ * the billing cycle (yearly saves 20%), what happens today and when the plan
+ * starts. New vendors land here on Pro first; Skip opens every plan.
  */
 export function TrialPage() {
   const { plan } = useAuth();
   const [params] = useSearchParams();
+  const [interval, setCycle] = useState<BillingInterval>('year');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const p = PLANS.find((x) => x.tier === params.get('tier')) ?? PLANS.find((x) => x.tier === 'pro')!;
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
+  const fromPicker = params.has('picked');
   if (hasSubscription(plan)) return <Navigate to="/plan" replace />;
 
   const starts = new Date(Date.now() + TRIAL_DAYS * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const then = p.salePrice ? `$${p.salePrice.toFixed(2)}/month for your first ${p.saleMonths} months, then $${p.price.toFixed(2)}` : `$${p.price.toFixed(2)}/month`;
+  const money = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
+  const monthly = p.salePrice ? `${money(p.salePrice)}/month for your first ${p.saleMonths} months, then ${money(p.price)}/month` : `${money(p.price)}/month`;
+  const then = interval === 'year' ? `${money(p.yearPrice)}/year` : monthly;
 
   async function go() {
     setBusy(true); setError(null);
     clearPlanIntent();
-    try { await startCheckout(p.tier, 'month'); } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); setBusy(false); }
+    try { await startCheckout(p.tier, interval); } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); setBusy(false); }
   }
 
   return (
     <div className="auth-page trial-page">
-      <Link to="/plan?all" className="trial-back">‹ Back to plans</Link>
+      {fromPicker ? <Link to="/plan?all" className="trial-back">‹ Back to plans</Link> : <Link to="/plan?all" className="trial-skip">Skip</Link>}
       <div className="trial-brand"><img src={LOGO} alt="Bakeri" /> <span>{p.name}</span></div>
       <h1 className="trial-title">{trial ? <>Claim a free<br />{TRIAL_DAYS}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
       <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
+      <div className="cycle" role="radiogroup" aria-label="Billing cycle">
+        <button type="button" role="radio" aria-checked={interval === 'year'} className={`cycle-opt ${interval === 'year' ? 'on' : ''}`} onClick={() => setCycle('year')}>
+          <span className="cycle-save">Save {YEARLY_SAVING_PCT}%</span>
+          <b>{money(Math.round((p.yearPrice / 12) * 100) / 100)}<small>/mo</small></b>
+          <span>Yearly</span>
+          <small>{money(p.yearPrice)}/year{trial ? ' after trial' : ''}</small>
+        </button>
+        <button type="button" role="radio" aria-checked={interval === 'month'} className={`cycle-opt ${interval === 'month' ? 'on' : ''}`} onClick={() => setCycle('month')}>
+          <b>{money(p.salePrice ?? p.price)}<small>/mo</small></b>
+          <span>Monthly</span>
+          <small>{p.salePrice ? `Then ${money(p.price)}/month after ${p.saleMonths} months` : `${money(p.price)}/month${trial ? ' after trial' : ''}`}</small>
+        </button>
+      </div>
       <ol className="trial-steps">
-        <li><span className="ts-dot hot">✦</span><div><b>Today</b><p>Your shop is ready to go — take orders and get paid. <Link to="/plan?all">Cancel any time</Link>.</p></div></li>
+        <li><span className="ts-dot hot">✦</span><div><b>Today</b><p>Your shop is ready to go — take orders and get paid. Cancel any time.</p></div></li>
         {trial && <li><span className="ts-dot">✕</span><div><b>Any time before {starts}</b><p>Cancel from Settings → Plan &amp; billing and you won’t be charged.</p></div></li>}
-        <li><span className="ts-dot">✓</span><div><b>{trial ? `In ${TRIAL_DAYS} days` : 'Each month'}</b><p>{trial ? `Your plan starts on ${starts} at ${then}, unless you cancel during the trial.` : `${then}. Cancel any time.`}</p></div></li>
+        <li><span className="ts-dot">✓</span><div><b>{trial ? `In ${TRIAL_DAYS} days` : 'Then'}</b><p>{trial ? `Your plan starts on ${starts} at ${then}, unless you cancel during the trial.` : `${then}. Cancel any time.`}</p></div></li>
       </ol>
       <div className="trial-foot">
-        <p className="muted small">{trial ? 'Due today: $0.00 · Prices in USD' : 'Prices in USD'}</p>
+        <p className="muted small">{trial ? 'Due today: $0.00' : `Due today: ${interval === 'year' ? money(p.yearPrice) : money(p.salePrice ?? p.price)}`} · Prices in USD · Stripe card fees apply</p>
         <Button className="trial-btn" loading={busy} onClick={go}>{trial ? 'Continue with free trial' : 'Continue to payment'}</Button>
       </div>
     </div>

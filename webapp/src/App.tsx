@@ -30,7 +30,7 @@ import { IngredientsPage } from './pages/kitchen/IngredientsPage';
 import { CalculatorPage } from './pages/kitchen/CalculatorPage';
 import { TimerProvider } from './pages/kitchen/Timers';
 import { PromotionsPage } from './pages/promotions/PromotionsPage';
-import { PlanPage, WelcomePage } from './auth/PlanPages';
+import { PlanPage, TrialPage, WelcomePage } from './auth/PlanPages';
 import { effectiveTier } from './lib/plans';
 
 /** Signed in, nothing else — the plan picker and welcome page sit here. */
@@ -71,6 +71,7 @@ export default function App() {
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
             <Route element={<RequireSession />}>
               <Route path="/plan" element={<PlanPage />} />
+              <Route path="/plan/trial" element={<TrialPage />} />
               <Route path="/welcome" element={<WelcomePage />} />
             </Route>
             <Route element={<RequireVendor />}>
