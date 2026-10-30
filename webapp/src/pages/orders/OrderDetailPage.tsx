@@ -12,6 +12,7 @@ import type { Order } from '../../lib/types';
 import { StorefrontActions } from './StorefrontActions';
 import { FormAnswers } from './FormAnswers';
 import { OrderPackagingCard } from './OrderPackagingCard';
+import { OrderVendorNotesCard } from './OrderVendorNotesCard';
 
 export function OrderDetailPage() {
   const { id } = useParams();
@@ -72,8 +73,9 @@ export function OrderDetailPage() {
           <InspirationPhotos order={order} />
 
           {order.notes && (
-            <Card title="Notes"><p className="prewrap">{order.notes}</p></Card>
+            <Card title={storefront ? 'Customer note' : 'Notes'}><p className="prewrap">{order.notes}</p></Card>
           )}
+          {storefront && <OrderVendorNotesCard userId={order.user_id} orderId={order.id} />}
           {order.buyer_profile_id && <OrderMessages order={order} userId={order.user_id} />}
         </div>
 
