@@ -38,7 +38,10 @@
       if (isPlausibleSlug) {
         // Any query (e.g. ?item=… on a shared product link) carries through.
         var extra = window.location.search ? '&' + window.location.search.slice(1) : '';
-        window.location.replace('/baker/index.html?slug=' + encodeURIComponent(path.toLowerCase()) + '&clean=1' + extra);
+        // The redirect itself would become the referrer — pass the real one on
+        // for the shop's visit analytics (where visitors came from).
+        var from = document.referrer ? '&from=' + encodeURIComponent(document.referrer) : '';
+        window.location.replace('/baker/index.html?slug=' + encodeURIComponent(path.toLowerCase()) + '&clean=1' + extra + from);
       }
     })();
   </script>

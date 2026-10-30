@@ -155,7 +155,7 @@ ${GENERATED_MARKER}
     // summary + item list for a beat on every load. Bots that don't run JS
     // keep the static content below for indexing and link previews.
     // Any query (e.g. ?item=… on a shared product link) carries through.
-    location.replace(${JSON.stringify(storeHref + "&clean=1")} + (location.search ? "&" + location.search.slice(1) : ""));
+    location.replace(${JSON.stringify(storeHref + "&clean=1")} + (location.search ? "&" + location.search.slice(1) : "") + (document.referrer ? "&from=" + encodeURIComponent(document.referrer) : ""));
   </script>
   <title>${esc(title)}</title>
   <meta name="description" content="${attr(description)}" />

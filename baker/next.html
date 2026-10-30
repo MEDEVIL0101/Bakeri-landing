@@ -895,6 +895,7 @@
     const stamp = profile && profile.updated_at ? Date.parse(profile.updated_at) : 0;
     return stamp ? base + (base.indexOf('?') === -1 ? '?' : '&') + 'v=' + stamp : base;
   }
+  let lastAddedItemId = null; // last item opened — what an add-to-cart is credited to
   let cart = {}; // { itemId: qty } — ready_now items only; preorder always uses preorderCartLines below
   let boxCartLines = []; // Assorted Box lines: { lineId, menuItemId, tierId, tierLabel, unitCount, price, qty, variants: [{variantId, name, qty}] }
   let boxState = null; // in-progress box picker: { item, tierId, chosen: {variantId: qty} }
@@ -987,6 +988,9 @@
     }
   }
   function saveCart() {
+    const size = cartSize();
+    if (lastCartSize !== null && size > lastCartSize) trackVisit('add_to_cart', lastAddedItemId);
+    lastCartSize = size;
     try {
       sessionStorage.setItem(cartStorageKey(), JSON.stringify({
         cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines,
@@ -1007,6 +1011,89 @@
   // unchanged and unaware preview mode even exists — this only decides
   // what calls render() and with what data.
   const isPreviewMode = new URLSearchParams(location.search).get('preview') === '1';
+
+  // ══════════════════════ Visit analytics ══════════════════════
+  //
+  // First-party numbers for the vendor's Insights (log_storefront_event,
+  // migration 20261030000002) — no third-party service. A random visitor id
+  // in localStorage, a per-tab session id and where the visit came from.
+  // Never counted in builder previews, or in the vendor's own browser
+  // (?self=1, which the app's "View my site" adds, marks it for good).
+  const ANALYTICS_SOURCES = [
+    ['instagram', /(^|\.)instagram\.com$/], ['facebook', /(^|\.)(facebook\.com|fb\.com|fb\.me|messenger\.com)$/],
+    ['tiktok', /(^|\.)tiktok\.com$/], ['pinterest', /(^|\.)pinterest\./], ['google', /(^|\.)google\./],
+    ['bing', /(^|\.)bing\.com$/], ['youtube', /(^|\.)(youtube\.com|youtu\.be)$/], ['x', /(^|\.)(twitter\.com|x\.com|t\.co)$/]
+  ];
+  const IN_APP_SOURCES = [['instagram', /Instagram/], ['facebook', /FBAN|FBAV|FB_IAB/], ['tiktok', /musical_ly|Bytedance|TikTok/i]];
+  function analyticsRemember(store, key, make) {
+    try {
+      let v = store.getItem(key);
+      if (!v) { v = make(); if (v) store.setItem(key, v); }
+      return v;
+    } catch (e) { return make(); }
+  }
+  function analyticsSource() {
+    return analyticsRemember(sessionStorage, 'bakeri_visit_src', function () {
+      const q = new URLSearchParams(location.search);
+      if (q.get('utm_source')) return q.get('utm_source').toLowerCase().slice(0, 60);
+      // The /<slug> pages redirect here, so they pass the real referrer on as ?from=.
+      let host = '';
+      try { host = new URL(q.get('from') || document.referrer).hostname.replace(/^www\./, ''); } catch (e) {}
+      if (host && host !== location.hostname) {
+        const hit = ANALYTICS_SOURCES.find(function (s) { return s[1].test(host); });
+        return hit ? hit[0] : host;
+      }
+      // In-app browsers often send no referrer, but say who they are.
+      const app = IN_APP_SOURCES.find(function (s) { return s[1].test(navigator.userAgent); });
+      return app ? app[0] : 'direct';
+    }) || 'direct';
+  }
+  // Analytics must never break the page: any error in here is swallowed.
+  function trackVisit(event, ref) {
+    try { sendVisitEvent(event, ref); } catch (e) {}
+  }
+  function sendVisitEvent(event, ref) {
+    if (isPreviewMode || !resolvedBakerId) return;
+    const selfKey = 'bakeri_self_' + resolvedBakerId;
+    try {
+      if (new URLSearchParams(location.search).get('self') === '1') localStorage.setItem(selfKey, '1');
+      if (localStorage.getItem(selfKey) === '1') return;
+    } catch (e) {}
+    const newId = function () { return window.crypto && crypto.randomUUID ? crypto.randomUUID() : ''; };
+    fetch(SUPABASE_URL + '/rest/v1/rpc/log_storefront_event', {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({
+        p_shop: resolvedBakerId,
+        p_event: event,
+        p_ref: ref ? String(ref).toLowerCase() : null,
+        p_source: analyticsSource(),
+        p_session: analyticsRemember(sessionStorage, 'bakeri_visit_session', newId),
+        p_visitor: analyticsRemember(localStorage, 'bakeri_visitor', newId) || null
+      })
+    }).catch(function () {});
+  }
+  window.__bakeriTrack = trackVisit;
+  // Link and social icon clicks (data-track on the element), and which item a
+  // tile's add control belongs to (data-track-item) so its add is credited.
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+    const item = e.target.closest('[data-track-item]');
+    if (item) lastAddedItemId = item.dataset.trackItem;
+    const el = e.target.closest('[data-track]');
+    if (el) trackVisit(el.dataset.track, el.dataset.trackRef);
+  }, true);
+  // Anything added to any cart: saveCart() compares the cart's size.
+  function cartSize() {
+    const n = function (x) {
+      if (Array.isArray(x)) return x.reduce(function (t, l) { return t + (Number(l && l.qty) || 1); }, 0);
+      if (x && typeof x === 'object') return Object.keys(x).reduce(function (t, k) { return t + (Number(x[k]) || (x[k] ? 1 : 0)); }, 0);
+      return 0;
+    };
+    return n(cart) + n(boxCartLines) + n(preorderCartLines) + n(digitalCart) + n(shipCart) + n(shipVariantCartLines) + n(digitalVariantCartLines);
+  }
+  let lastCartSize = null;
   // builder=2: the new iOS builder — the tap bridge reports v2 card types
   // (menu, products, info, leadMagnet, …) instead of today's v1 ones.
   const isBuilderV2 = isPreviewMode && new URLSearchParams(location.search).get('builder') === '2';
@@ -1060,6 +1147,8 @@
 
     loadCart();
     render(profile, data.listings || [], data.faqs || [], data.links || []);
+    lastCartSize = cartSize();
+    trackVisit('page_view');
     openSharedItemFromURL();
     if (isCleanRedirect && slug && window.history && window.history.replaceState) {
       // Keep a shared product's ?item= on the clean URL.
@@ -2013,7 +2102,7 @@
         : '<span class="social-icon-fallback">' + ARROW_UR_SVG + '</span>';
       // mailto: opens the mail app — a new tab would just be left blank.
       const newTab = platform.icon === 'email' ? '' : ' target="_blank" rel="noopener noreferrer"';
-      return '<a class="social-icon" href="' + escapeHtml(l.url) + '"' + newTab + ' ' +
+      return '<a class="social-icon" data-track="social_click" data-track-ref="' + escapeHtml(l.id) + '" href="' + escapeHtml(l.url) + '"' + newTab + ' ' +
         'title="' + escapeHtml(platform.label) + '" aria-label="' + escapeHtml(platform.label) + '">' + inner + '</a>';
     }).join('');
   }
@@ -2327,7 +2416,7 @@
           '<div class="sf-formrow-body"><p class="sf-formrow-intro"></p><div class="sf-formrow-mount"></div></div>';
         row.querySelector('.sf-formrow-head').addEventListener('click', function () {
           if (row.classList.contains('open')) row.classList.remove('open');
-          else openFormRow(row.id);
+          else { openFormRow(row.id); trackVisit('form_open', listing.id); }
           this.setAttribute('aria-expanded', row.classList.contains('open') ? 'true' : 'false');
         });
         mount.appendChild(row);
@@ -2658,7 +2747,7 @@
     if (isFile) {
       const fileName = decodeURIComponent(l.url.split('?')[0].split('/').pop() || '');
       const href = l.url.split('?')[0] + '?download=' + encodeURIComponent(fileName);
-      return '<a class="' + classes.join(' ') + '"' + style + ' href="' + escapeHtml(href) +
+      return '<a class="' + classes.join(' ') + '"' + style + ' data-track="link_click" data-track-ref="' + escapeHtml(l.id) + '" href="' + escapeHtml(href) +
         '" download="' + escapeHtml(fileName) + '" rel="noopener noreferrer">' + inner + '</a>';
     }
     if (l.target_type === 'product' && l.linked_listing_id) {
@@ -2666,7 +2755,7 @@
         escapeHtml(l.linked_listing_id) + '" data-lead-magnet="' +
         (l.target_listing_is_lead_magnet ? 'true' : 'false') + '">' + inner + '</button>';
     }
-    return '<a class="' + classes.join(' ') + '"' + style + ' href="' + escapeHtml(l.url) +
+    return '<a class="' + classes.join(' ') + '"' + style + ' data-track="link_click" data-track-ref="' + escapeHtml(l.id) + '" href="' + escapeHtml(l.url) +
       '" target="_blank" rel="noopener noreferrer">' + inner + '</a>';
   }
 
@@ -2948,6 +3037,7 @@
   }
 
   function refreshAddControl(wrap, item) {
+    wrap.dataset.trackItem = item.id;
     wrap.innerHTML = '';
     if (item.listing_kind === 'custom') {
       const btn = document.createElement('button');
@@ -3123,6 +3213,7 @@
   }
 
   function changeQty(item, delta) {
+    lastAddedItemId = item.id;
     const current = cart[item.id] || 0;
     const next = Math.max(0, current + delta);
     if (next === 0) { delete cart[item.id]; } else { cart[item.id] = next; }
@@ -3505,6 +3596,8 @@
 
   function openItemSheet(item) {
     sheetItem = item;
+    lastAddedItemId = item.id;
+    trackVisit('item_view', item.id);
     setItemInAddressBar(item);
     document.getElementById('item-sheet-name').textContent = item.name;
     document.getElementById('item-sheet-price').innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
@@ -4173,6 +4266,7 @@
   // ══════════════════════ Cart / Checkout Sheet ══════════════════════
 
   function openCartSheet() {
+    trackVisit('cart_open');
     // Always opens this sheet first, regardless of which cart(s) have items
     // — a digital- or ship-only cart used to jump straight to its own
     // lightweight checkout page from here, which had no way to remove an
@@ -4404,6 +4498,7 @@
       errEl.textContent = "Those emails don't match — please check for typos.";
       return;
     }
+    trackVisit('checkout_start');
     const payload = {
       baker: resolvedBakerId,
       theme: profile.selected_theme,

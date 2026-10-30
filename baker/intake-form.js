@@ -965,6 +965,7 @@
     }
 
     function showSuccess() {
+      if (window.__bakeriTrack) window.__bakeriTrack('form_submit', itemId);
       card.innerHTML =
         '<div class="success-state">' +
           '<div class="icon">✓</div>' +
