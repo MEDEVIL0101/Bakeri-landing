@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { PLATFORM_FEE_RATE, tipStripeFeeCoverCents } from "../_shared/fees.ts";
 import { readDirectChargeSettlement, toDepositSettlementFields } from "../_shared/settlement.ts";
 import { sendGuestPaymentReceiptEmail } from "../_shared/guestReceiptEmail.ts";
 
@@ -109,12 +109,17 @@ Deno.serve(async (req: Request) => {
   const fullCents = Math.round(Number(order.quoted_price ?? 0) * 100);
   const baseCents = isDepositLeg ? depositCents : fullCents;
   const platformFeeCents = Math.round(baseCents * PLATFORM_FEE_RATE);
+  // Tip on a full payment (create-guest-quote-payment-intent's metadata, never the
+  // request). The vendor keeps it all; Bakeri's actual application fee was
+  // reduced by Stripe's % on it, so the payout is worked out from that.
+  const tipCents = isDepositLeg ? 0 : Math.max(0, parseInt(String(intent.metadata?.tip_cents ?? "0"), 10) || 0);
+  const feeTakenCents = Math.max(0, platformFeeCents - tipStripeFeeCoverCents(tipCents));
 
   // Direct charge already settled instantly — close the payout loop right
   // away instead of waiting on release-baker-payouts (whose sweep only runs
   // for platform_custody orders).
   const settlement = connectedAccountId
-    ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, platformFeeCents)
+    ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, feeTakenCents)
     : null;
 
   const paidAt = new Date().toISOString();
@@ -147,6 +152,10 @@ Deno.serve(async (req: Request) => {
         payment_status: "captured",
         payment_model: connectedAccountId ? "direct" : "platform_custody",
         platform_fee_cents: platformFeeCents,
+        // Like a Tap to Pay tip: the quoted price grows by the tip so the
+        // order's total matches what was collected (quoted_price overrides
+        // the item sum), and the tip gets its own "Tip" line below.
+        ...(tipCents > 0 ? { quoted_price: (fullCents + tipCents) / 100 } : {}),
         updated_at: paidAt,
         ...(settlement ?? {}),
       };
@@ -161,13 +170,32 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Something went wrong. Please try again." }, 400);
   }
 
+  if (tipCents > 0) {
+    const { error: tipErr } = await db.from("order_items").insert({
+      id: crypto.randomUUID(),
+      user_id: order.user_id,
+      order_id,
+      recipe_id: null,
+      menu_item_id: null,
+      custom_name: "Tip",
+      quantity: 1,
+      unit: "pieces",
+      price_per_unit: tipCents / 100,
+      notes: "",
+      updated_at: paidAt,
+    });
+    // The payment and order are already recorded — the order total still
+    // includes the tip via quoted_price, so just log a missing line.
+    if (tipErr) console.error("tip line insert failed:", tipErr.message);
+  }
+
   // Best-effort — never let a receipt-email failure surface as a failed
   // payment. A quote's first payment is either the deposit leg or, when
   // there's no deposit split, the full quoted amount.
   await sendGuestPaymentReceiptEmail(db, {
     orderId: order_id,
     leg: isDepositLeg ? "deposit" : "full",
-    amountCents: baseCents,
+    amountCents: baseCents + tipCents,
     paidAtIso: paidAt,
   });
 

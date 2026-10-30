@@ -8,6 +8,7 @@
   <link rel="icon" type="image/png" href="../assets/favicon.png" />
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
   <script src="https://js.stripe.com/v3/"></script>
+  <script src="tip-picker.js"></script>
   <script>
     // See baker/theme.js for why: forces a fresh load instead of an in-app
     // browser (Instagram especially) silently resuming a stale, previously
@@ -317,10 +318,14 @@
       ? '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + depositAmount.toFixed(2) + '<span class="note">Due now</span></span></div>' +
         '<div class="receipt-row"><span class="label">Balance</span><span class="value">$' + (amount - depositAmount).toFixed(2) + '<span class="note">Due later</span></span></div>' +
         '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + amount.toFixed(2) + '</span></div>'
-      : '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + amount.toFixed(2) + '</span></div>';
+      : '<div class="receipt-row total"><span class="label">Order total</span><span class="value" id="quote-total">$' + amount.toFixed(2) + '</span></div>';
 
     const payNowCents = isSplitQuote ? depositCents : amountCents;
     const payLabel = isSplitQuote ? 'Accept Quote and Pay Deposit $' : 'Accept Quote and Pay $';
+    // Tip only when the quote is paid in full here — a deposit quote's
+    // balance is tipped on its final invoice (pay/index.html) instead.
+    const tipsOffered = !isSplitQuote && data.tips_enabled !== false && !!window.BakeriTipPicker;
+    let tipCents = 0;
 
     card.innerHTML =
       '<div class="bakeri-mark">Bakerï</div>' +
@@ -330,9 +335,27 @@
       itemsHtml +
       renderRequestBlock(data.form_responses) +
       '<div class="section-title">Billing and Payment</div>' +
-      '<div class="receipt-card">' + breakdownHtml + '</div>' +
+      '<div class="receipt-card">' +
+        (tipsOffered ? '<div class="receipt-row" id="tip-row" style="display:none"><span class="label">Tip</span><span class="value" id="tip-amount"></span></div>' : '') +
+        breakdownHtml +
+      '</div>' +
+      (tipsOffered ? '<div id="tip-picker"></div>' : '') +
       '<button class="btn-primary" id="continue-btn">' + payLabel + (payNowCents / 100).toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
+
+    if (tipsOffered) {
+      window.BakeriTipPicker.mount(document.getElementById('tip-picker'), {
+        baseCents: amountCents,
+        shopName: data.business_name,
+        onChange: function (state) {
+          tipCents = state.cents;
+          document.getElementById('tip-row').style.display = tipCents > 0 ? '' : 'none';
+          document.getElementById('tip-amount').textContent = '$' + (tipCents / 100).toFixed(2);
+          document.getElementById('quote-total').textContent = '$' + ((amountCents + tipCents) / 100).toFixed(2);
+          document.getElementById('continue-btn').textContent = payLabel + ((payNowCents + tipCents) / 100).toFixed(2);
+        }
+      });
+    }
 
     document.getElementById('continue-btn').addEventListener('click', function () {
       const btn = document.getElementById('continue-btn');
@@ -343,7 +366,7 @@
       fetch(SUPABASE_URL + '/functions/v1/create-guest-quote-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
-        body: JSON.stringify({ order_id: orderId })
+        body: JSON.stringify({ order_id: orderId, tip_cents: tipsOffered ? tipCents : 0 })
       })
       .then(function (r) { return r.json(); })
       .then(function (piData) {

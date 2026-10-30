@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { PLATFORM_FEE_RATE, parseTipCents, tipStripeFeeCoverCents } from "../_shared/fees.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 
@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("business_name, user_name, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
+    .select("business_name, user_name, stripe_connect_account_id, stripe_connect_onboarding_complete, country, tips_enabled")
     .eq("id", order.user_id)
     .single();
   if (!bakerProfile?.stripe_connect_onboarding_complete || !bakerProfile?.stripe_connect_account_id) {
@@ -93,8 +93,25 @@ Deno.serve(async (req: Request) => {
   // 0 means no deposit was configured, and >= the total means the baker
   // effectively quoted full payment through the deposit field.
   const isPartialDeposit = depositCents > 0 && depositCents < fullCents;
-  const chargeCents = isPartialDeposit ? depositCents : fullCents;
-  const platformFeeCents = Math.round(chargeCents * PLATFORM_FEE_RATE);
+  const saleCents = isPartialDeposit ? depositCents : fullCents;
+  const platformFeeCents = Math.round(saleCents * PLATFORM_FEE_RATE);
+
+  // Tip — only when the quote is paid in full (never on a deposit; a split
+  // quote's balance is tipped on its final invoice instead) and the vendor
+  // has tips on. The vendor keeps all of it: not in the fee base above, and
+  // Bakeri covers Stripe's % on it (_shared/fees.ts).
+  let tipCents = 0;
+  if (body.tip_cents) {
+    if (isPartialDeposit) return json({ error: "A tip can be added when you pay the balance." }, 400);
+    if (bakerProfile.tips_enabled !== true) return json({ error: "This shop isn't accepting tips." }, 400);
+    try {
+      tipCents = parseTipCents(body.tip_cents, saleCents);
+    } catch (e) {
+      return json({ error: (e as Error).message }, 400);
+    }
+  }
+  const chargeCents = saleCents + tipCents;
+  const applicationFeeCents = Math.max(0, platformFeeCents - tipStripeFeeCoverCents(tipCents));
 
   let intent;
   try {
@@ -104,12 +121,14 @@ Deno.serve(async (req: Request) => {
         currency: currencyForCountry(bakerProfile.country),
         capture_method: "automatic",
         automatic_payment_methods: { enabled: true },
-        application_fee_amount: platformFeeCents,
+        application_fee_amount: applicationFeeCents,
         metadata: {
           order_id: order.id,
           baker_id: order.user_id,
           flow: "guest_quote_payment",
           leg: isPartialDeposit ? "deposit" : "full",
+          // finalize-guest-quote-payment records the tip from here.
+          ...(tipCents > 0 ? { tip_cents: String(tipCents) } : {}),
         },
       },
       { stripeAccount: connectedAccountId }
@@ -122,6 +141,7 @@ Deno.serve(async (req: Request) => {
     payment_intent_id: intent.id,
     client_secret: intent.client_secret,
     amount_cents: chargeCents,
+    tip_cents: tipCents,
     platform_fee_cents: platformFeeCents,
     stripe_connect_account_id: connectedAccountId,
     is_deposit: isPartialDeposit,

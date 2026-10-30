@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { PLATFORM_FEE_RATE } from "../_shared/fees.ts";
+import { PLATFORM_FEE_RATE, tipStripeFeeCoverCents } from "../_shared/fees.ts";
 import { readDirectChargeSettlement, toDepositSettlementFields } from "../_shared/settlement.ts";
 import { sendGuestPaymentReceiptEmail } from "../_shared/guestReceiptEmail.ts";
 
@@ -105,13 +105,19 @@ Deno.serve(async (req: Request) => {
       baseAmountCents = order.invoice_type === "balance" ? effectiveTotalCents - depositCents : effectiveTotalCents;
     }
     const platformFeeCents = Math.round(baseAmountCents * PLATFORM_FEE_RATE);
+    // Tip on a final invoice (create-invoice-payment-intent's metadata, never
+    // the request) — 100% the vendor's. Worked out above from the pre-tip
+    // total, then recorded below like a Tap to Pay tip.
+    const tipCents = order.invoice_type === "deposit"
+      ? 0
+      : Math.max(0, parseInt(String(intent.metadata?.tip_cents ?? "0"), 10) || 0);
 
     // Direct charge already settled instantly — read the real Stripe fee now
     // so this closes the payout loop immediately instead of waiting on
     // release-baker-payouts (whose sweep only runs for platform_custody
-    // orders).
+    // orders). Bakeri's fee was reduced by Stripe's % on any tip.
     const settlement = connectedAccountId
-      ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, platformFeeCents)
+      ? await readDirectChargeSettlement(stripe, payment_intent_id, connectedAccountId, Math.max(0, platformFeeCents - tipStripeFeeCoverCents(tipCents)))
       : null;
 
     const paidAt = new Date().toISOString();
@@ -149,8 +155,14 @@ Deno.serve(async (req: Request) => {
             is_paid: true,
             paid_at: paidAt,
             payment_status: "captured",
-            payment_note: order.invoice_type === "balance" ? "Balance paid online via invoice link" : "Paid online via invoice link",
+            payment_note: (order.invoice_type === "balance" ? "Balance paid online via invoice link" : "Paid online via invoice link")
+              + (tipCents > 0 ? ` (includes a $${(tipCents / 100).toFixed(2)} tip — all yours)` : ""),
             platform_fee_cents: platformFeeCents,
+            // A quoted total overrides the item sum, so it grows by the tip
+            // (the "Tip" line below covers an item-priced order).
+            ...(tipCents > 0 && Number(order.quoted_price ?? 0) > 0
+              ? { quoted_price: Number(order.quoted_price) + tipCents / 100 }
+              : {}),
             // order_source is immutable after creation (claim_invoice no
             // longer flips it — see 20260805000003_order_source_immutable)
             // so an invoiced order is 'marketplace' here only if it was
@@ -184,12 +196,30 @@ Deno.serve(async (req: Request) => {
       .eq("id", order.id);
     if (updateErr) throw new Error(updateErr.message);
 
+    if (tipCents > 0) {
+      const { error: tipErr } = await supabase.from("order_items").insert({
+        id: crypto.randomUUID(),
+        user_id: order.user_id,
+        order_id: order.id,
+        recipe_id: null,
+        menu_item_id: null,
+        custom_name: "Tip",
+        quantity: 1,
+        unit: "pieces",
+        price_per_unit: tipCents / 100,
+        notes: "",
+        updated_at: paidAt,
+      });
+      // Already paid and recorded — only the line itself is missing.
+      if (tipErr) console.error("tip line insert failed:", tipErr.message);
+    }
+
     // Best-effort — never let a receipt-email failure surface as a failed
     // payment. invoice_type is already exactly "deposit"/"balance"/"full".
     await sendGuestPaymentReceiptEmail(supabase, {
       orderId: order.id,
       leg: (order.invoice_type ?? "full") as "deposit" | "balance" | "full",
-      amountCents: baseAmountCents,
+      amountCents: baseAmountCents + tipCents,
       paidAtIso: paidAt,
     });
 

@@ -8,6 +8,7 @@
   <link rel="icon" type="image/png" href="../assets/favicon.png" />
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
   <script src="https://js.stripe.com/v3/"></script>
+  <script src="/baker/tip-picker.js"></script>
   <script>
     // See baker/theme.js for why: forces a fresh load instead of an in-app
     // browser (Instagram especially) silently resuming a stale, previously
@@ -211,7 +212,9 @@
   fetch(SUPABASE_URL + '/functions/v1/create-invoice-payment-intent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
-    body: JSON.stringify({ invoice_code: code })
+    // offer_tip: a storefront order's final invoice comes back without a
+    // PaymentIntent so the customer can pick a tip first (renderInvoice).
+    body: JSON.stringify({ invoice_code: code, offer_tip: !!window.BakeriTipPicker })
   })
   .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
   .then(function (res) {
@@ -305,6 +308,12 @@
       : data.invoice_type === 'balance' ? 'Pay Balance $'
       : 'Pay $';
     const dueHtml = dueStr ? '<div class="note-line">Due ' + escapeHtml(dueStr) + '</div>' : '';
+    // Tip first, card form after (create-invoice-payment-intent deferred the
+    // PaymentIntent because this invoice can take a tip).
+    const tipMode = data.tips_offered === true && !data.client_secret && !!window.BakeriTipPicker;
+    const tipRowHtml = tipMode
+      ? '<div class="receipt-row" id="tip-row" style="display:none"><span class="label">Tip</span><span class="value" id="tip-amount"></span></div>'
+      : '';
 
     // Same Deposit/Balance/Order total breakdown as the invoice email — a
     // balance invoice shows the deposit already paid (with its date)
@@ -317,13 +326,14 @@
       breakdownHtml =
         '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + (depositCents / 100).toFixed(2) + '<span class="note">' + (depositDateStr ? 'Paid ' + escapeHtml(depositDateStr) : 'Paid') + '</span></span></div>' +
         '<div class="receipt-row"><span class="label">Balance</span><span class="value">$' + amount + '<span class="note">Due now</span></span></div>' +
-        '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + (fullTotalCents / 100).toFixed(2) + '</span></div>';
+        tipRowHtml +
+        '<div class="receipt-row total"><span class="label">Order total</span><span class="value" id="inv-total" data-cents="' + fullTotalCents + '">$' + (fullTotalCents / 100).toFixed(2) + '</span></div>';
     } else if (data.invoice_type === 'deposit' && fullTotalCents > depositCents) {
       breakdownHtml =
         '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + amount + '<span class="note">Due now</span></span></div>' +
         '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + (fullTotalCents / 100).toFixed(2) + '</span></div>';
     } else {
-      breakdownHtml = '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + amount + '</span></div>';
+      breakdownHtml = tipRowHtml + '<div class="receipt-row total"><span class="label">Order total</span><span class="value" id="inv-total" data-cents="' + data.amount_cents + '">$' + amount + '</span></div>';
     }
 
     card.innerHTML =
@@ -333,10 +343,67 @@
       dueHtml +
       '<div class="section-title">Billing and Payment</div>' +
       '<div class="receipt-card">' + breakdownHtml + '</div>' +
-      '<div id="payment-element"></div>' +
-      '<button class="btn-primary" id="submit-btn" type="button">' + payLabel + amount + '</button>' +
+      '<div id="pay-area">' +
+        (tipMode
+          ? '<div id="tip-picker"></div><button class="btn-primary" id="continue-btn" type="button">Continue · ' + payLabel + amount + '</button>'
+          : '<div id="payment-element"></div><button class="btn-primary" id="submit-btn" type="button">' + payLabel + amount + '</button>') +
+      '</div>' +
       '<div class="submit-status" id="submit-status"></div>';
 
+    if (tipMode) { mountTipStep(data, payLabel); return; }
+    mountPayment(data);
+  }
+
+  function mountTipStep(data, payLabel) {
+    let tipCents = 0;
+    const totalEl = document.getElementById('inv-total');
+    const totalBase = Number(totalEl.dataset.cents);
+    // Percentages are of the whole order (a balance invoice is only part of
+    // it); a tip can't exceed what's being charged now (server rule).
+    window.BakeriTipPicker.mount(document.getElementById('tip-picker'), {
+      baseCents: totalBase,
+      maxCents: data.amount_cents,
+      shopName: data.baker_name,
+      onChange: function (state) {
+        tipCents = state.cents;
+        document.getElementById('tip-row').style.display = tipCents > 0 ? '' : 'none';
+        document.getElementById('tip-amount').textContent = '$' + (tipCents / 100).toFixed(2);
+        totalEl.textContent = '$' + ((totalBase + tipCents) / 100).toFixed(2);
+        document.getElementById('continue-btn').textContent = 'Continue · ' + payLabel + ((data.amount_cents + tipCents) / 100).toFixed(2);
+      }
+    });
+    document.getElementById('continue-btn').addEventListener('click', function () {
+      const btn = document.getElementById('continue-btn');
+      const statusEl = document.getElementById('submit-status');
+      btn.disabled = true;
+      statusEl.style.color = 'var(--error)';
+      statusEl.textContent = '';
+      fetch(SUPABASE_URL + '/functions/v1/create-invoice-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+        body: JSON.stringify({ invoice_code: code, tip_cents: tipCents })
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (body) {
+        if (body.error || !body.client_secret) {
+          statusEl.textContent = body.error || 'Something went wrong. Please try again.';
+          btn.disabled = false;
+          return;
+        }
+        currentOrderData = body;
+        document.getElementById('pay-area').innerHTML =
+          '<div id="payment-element"></div>' +
+          '<button class="btn-primary" id="submit-btn" type="button">' + payLabel + (body.amount_cents / 100).toFixed(2) + '</button>';
+        mountPayment(body);
+      })
+      .catch(function () {
+        statusEl.textContent = 'Something went wrong. Please check your connection and try again.';
+        btn.disabled = false;
+      });
+    });
+  }
+
+  function mountPayment(data) {
     const stripe = Stripe(STRIPE_PK, { stripeAccount: data.stripe_connect_account_id });
     const elements = stripe.elements({ clientSecret: data.client_secret });
     const paymentElement = elements.create('payment');
@@ -418,6 +485,10 @@
     const depositCents = data.deposit_amount_cents || 0;
     const hasSplit = depositCents > 0 && depositCents < Math.round(fullTotal * 100);
 
+    const tipCents = data.tip_cents || 0;
+    const tipReceiptRow = tipCents > 0
+      ? '<div class="receipt-row"><span class="label">Tip</span><span class="value">$' + (tipCents / 100).toFixed(2) + '</span></div>'
+      : '';
     let paymentRows;
     if (hasSplit) {
       const depositAmt = (depositCents / 100).toFixed(2);
@@ -433,9 +504,10 @@
           '<br><span style="font-size:11px;font-weight:400;color:var(--muted);">' + escapeHtml(depositDateStr) + '</span></span></div>' +
         '<div class="receipt-row"><span class="label">Balance</span><span class="value">$' + balanceAmt +
           '<br><span style="font-size:11px;font-weight:400;color:var(--muted);">' + escapeHtml(balanceDateStr) + '</span></span></div>' +
-        '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + fullTotal.toFixed(2) + '</span></div>';
+        tipReceiptRow +
+        '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + (fullTotal + tipCents / 100).toFixed(2) + '</span></div>';
     } else {
-      paymentRows = '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + amount + '</span></div>';
+      paymentRows = tipReceiptRow + '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + amount + '</span></div>';
     }
 
     card.innerHTML =

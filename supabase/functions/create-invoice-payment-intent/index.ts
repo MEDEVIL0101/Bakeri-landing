@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
-import { PLATFORM_FEE_RATE, calcDirectChargeApplicationFee } from "../_shared/fees.ts";
+import { PLATFORM_FEE_RATE, calcDirectChargeApplicationFee, parseTipCents, tipStripeFeeCoverCents } from "../_shared/fees.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 import { resolveItemImageUrl } from "../_shared/receiptEmailStyle.ts";
 
@@ -28,13 +28,16 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    const { invoice_code }: { invoice_code: string } = await req.json();
+    // offer_tip: the page can take a tip — for a tippable invoice, return the
+    // details without a PaymentIntent so the customer picks a tip first, then
+    // call again with tip_cents. Every other invoice behaves as before.
+    const { invoice_code, offer_tip = false, tip_cents: rawTip }: { invoice_code: string; offer_tip?: boolean; tip_cents?: number } = await req.json();
     const code = (invoice_code ?? "").trim().toUpperCase();
     if (!code) throw new Error("Missing invoice code");
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, due_date, is_paid, buyer_profile_id, created_at, invoice_type, deposit_amount_cents, deposit_paid_at, quoted_price")
+      .select("id, user_id, due_date, is_paid, buyer_profile_id, created_at, invoice_type, deposit_amount_cents, deposit_paid_at, quoted_price, order_source")
       .eq("invoice_code", code)
       .single();
 
@@ -88,11 +91,10 @@ Deno.serve(async (req: Request) => {
     // same policy as create-guest-quote-payment-intent/charge-balance-payment
     // — see _shared/fees.ts.
     const platformFeeCents = Math.round(baseAmountCents * PLATFORM_FEE_RATE);
-    const amountCents = baseAmountCents;
 
     const { data: baker } = await supabase
       .from("profiles")
-      .select("business_name, user_name, profile_slug, stripe_connect_account_id, stripe_connect_onboarding_complete, country")
+      .select("business_name, user_name, profile_slug, stripe_connect_account_id, stripe_connect_onboarding_complete, country, tips_enabled")
       .eq("id", order.user_id)
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Baker";
@@ -101,6 +103,17 @@ Deno.serve(async (req: Request) => {
       throw new Error(`${bakerName} hasn't finished setting up payments yet. Check back soon!`);
     }
     const connectedAccountId = baker.stripe_connect_account_id;
+
+    // Tip — a storefront order's final (balance/full) invoice, when the vendor
+    // has tips on. The vendor keeps all of it: not in the fee base, and Bakeri
+    // covers Stripe's % on it (_shared/fees.ts).
+    const tipsOffered = invoiceType !== "deposit" && order.order_source === "marketplace" && baker.tips_enabled === true;
+    let tipCents = 0;
+    if (rawTip) {
+      if (!tipsOffered) throw new Error("Tips can't be added to this invoice.");
+      tipCents = parseTipCents(rawTip, baseAmountCents);
+    }
+    const amountCents = baseAmountCents + tipCents;
 
     // Direct charge: created on the baker's own connected account, so funds
     // settle instantly and Stripe's fee comes out of the baker's balance
@@ -112,12 +125,14 @@ Deno.serve(async (req: Request) => {
       currency: currencyForCountry(baker.country),
       capture_method: "automatic",
       automatic_payment_methods: { enabled: true },
-      application_fee_amount: calcDirectChargeApplicationFee(amountCents, platformFeeCents),
+      application_fee_amount: Math.max(0, calcDirectChargeApplicationFee(amountCents, platformFeeCents) - tipStripeFeeCoverCents(tipCents)),
       metadata: {
         order_id: order.id,
         invoice_code: code,
         source: "invoice_web",
         invoice_type: invoiceType,
+        // finalize-invoice-payment records the tip from here.
+        ...(tipCents > 0 ? { tip_cents: String(tipCents) } : {}),
       },
     };
     if (invoiceType === "deposit") {
@@ -128,13 +143,18 @@ Deno.serve(async (req: Request) => {
       createParams.setup_future_usage = "off_session";
     }
 
-    // deno-lint-ignore no-explicit-any
-    const intent = await stripe.paymentIntents.create(createParams as any, { stripeAccount: connectedAccountId });
-
-    await supabase.from("orders").update({
-      payment_intent_id: intent.id,
-      payment_model: "direct",
-    }).eq("id", order.id);
+    // The customer picks a tip before any PaymentIntent exists.
+    const deferForTip = offer_tip && tipsOffered && rawTip === undefined;
+    let intent: { id: string; client_secret: string | null } | null = null;
+    if (!deferForTip) {
+      // deno-lint-ignore no-explicit-any
+      const created = await stripe.paymentIntents.create(createParams as any, { stripeAccount: connectedAccountId });
+      intent = created;
+      await supabase.from("orders").update({
+        payment_intent_id: created.id,
+        payment_model: "direct",
+      }).eq("id", order.id);
+    }
 
     // Resolved server-side (bypasses RLS via the service-role client) so the
     // static page never needs its own menu_items query — the public read
@@ -152,8 +172,11 @@ Deno.serve(async (req: Request) => {
         order_id: order.id,
         baker_id: order.user_id,
         profile_slug: baker?.profile_slug ?? null,
-        client_secret: intent.client_secret,
+        client_secret: intent?.client_secret ?? null,
         amount_cents: amountCents,
+        base_amount_cents: baseAmountCents,
+        tip_cents: tipCents,
+        tips_offered: tipsOffered,
         platform_fee_cents: platformFeeCents,
         invoice_type: invoiceType,
         baker_name: bakerName,

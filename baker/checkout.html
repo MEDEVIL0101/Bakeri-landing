@@ -9,6 +9,7 @@
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
   <script src="https://js.stripe.com/v3/"></script>
   <script src="theme.js"></script>
+  <script src="tip-picker.js"></script>
 
   <style>
     :root {
@@ -65,17 +66,7 @@
     .promo-status { font-size: 12.5px; margin-top: 6px; min-height: 1em; }
     .promo-status.ok { color: #3FA672; font-weight: 600; }
     .promo-status.err { color: #C0392B; }
-    .tip-block { margin-top: 14px; }
-    .tip-block [hidden] { display: none; }
-    .tip-block .tip-title { font-size: 13px; font-weight: 700; color: var(--ink); }
-    .tip-block .tip-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
-    .tip-chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
-    .tip-chip { min-height: 44px; padding: 4px 2px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface, #fff); color: var(--ink); font-weight: 700; font-size: 13px; cursor: pointer; line-height: 1.15; }
-    .tip-chip small { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
-    .tip-chip.on { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
-    .tip-chip.on small { color: inherit; opacity: .85; }
-    .tip-custom { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
-    .tip-custom input { flex: 1; min-width: 0; height: 42px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface, #fff); color: var(--ink); padding: 0 12px; font-size: 14px; }
+    #tip-row[hidden] { display: none; }
     .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); font-variant-numeric: tabular-nums; }
     .totals-row.grand { font-weight: 700; color: var(--ink); font-size: 17px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
 
@@ -296,10 +287,8 @@
   // (profiles.tips_enabled). Worked out on the item subtotal before tax;
   // create-payment-intent validates it and the vendor keeps all of it.
   const tipsOffered = cart.items.length > 0 && cart.tipsEnabled !== false;
-  const TIP_PERCENTS = [10, 15, 20];
-  let tipChoice = 'none'; // 'none' | 10 | 15 | 20 | 'custom'
+  let tipState = { choice: 'none', cents: 0 };
   let tipCents = 0;
-  function percentTipCents(fraction) { return Math.round(subtotal * 100 * fraction); }
   function pickupTotal() { return total + tipCents / 100; }
   function grandTotalNow() { return pickupTotal() + digitalSubtotal + shipSubtotal; }
   let physicalResult = null;
@@ -381,44 +370,20 @@
 
   function renderTipBlock() {
     if (!tipsOffered) return '';
-    const shop = (cart.shopName || '').trim();
-    const chip = function (key, label, sub) {
-      return '<button type="button" class="tip-chip' + (tipChoice === key ? ' on' : '') + '" data-tip="' + key + '">' +
-        label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
-    };
-    return '<div class="tip-block">' +
-      '<div class="tip-title">Add a tip' + (shop ? ' for ' + escapeHtml(shop) : '') + '?</div>' +
-      '<div class="tip-sub">Optional — 100% goes to them.</div>' +
-      '<div class="tip-chips">' +
-        TIP_PERCENTS.map(function (p) { return chip(p, p + '%', '$' + (percentTipCents(p / 100) / 100).toFixed(2)); }).join('') +
-        chip('custom', 'Custom', '') + chip('none', 'No tip', '') +
-      '</div>' +
-      '<div class="tip-custom" id="tip-custom"' + (tipChoice === 'custom' ? '' : ' hidden') + '>' +
-        '<span>$</span><input id="tip-custom-input" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Custom tip amount" />' +
-      '</div>' +
-      '<div class="totals-row" id="tip-row"' + (tipCents > 0 ? '' : ' hidden') + '><span>Tip</span><span id="tip-amount">$' + (tipCents / 100).toFixed(2) + '</span></div>' +
-    '</div>';
+    return '<div id="tip-picker"></div>' +
+      '<div class="totals-row" id="tip-row"' + (tipCents > 0 ? '' : ' hidden') + '><span>Tip</span><span id="tip-amount">$' + (tipCents / 100).toFixed(2) + '</span></div>';
   }
 
+  // Shared picker (tip-picker.js); re-mounted on every summary render with
+  // the current choice so a re-render never loses it.
   function wireTipBlock() {
-    if (!tipsOffered) return;
-    document.querySelectorAll('.tip-chip').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        const key = btn.dataset.tip;
-        tipChoice = (key === 'none' || key === 'custom') ? key : Number(key);
-        document.querySelectorAll('.tip-chip').forEach(function (b) { b.classList.toggle('on', b === btn); });
-        document.getElementById('tip-custom').hidden = tipChoice !== 'custom';
-        if (tipChoice === 'custom') { document.getElementById('tip-custom-input').focus(); readCustomTip(); }
-        else setTip(tipChoice === 'none' ? 0 : percentTipCents(tipChoice / 100));
-      });
+    if (!tipsOffered || !window.BakeriTipPicker) return;
+    window.BakeriTipPicker.mount(document.getElementById('tip-picker'), {
+      baseCents: Math.round(subtotal * 100),
+      shopName: cart.shopName,
+      state: tipState,
+      onChange: function (state) { tipState = state; setTip(state.cents); }
     });
-    document.getElementById('tip-custom-input').addEventListener('input', readCustomTip);
-  }
-
-  function readCustomTip() {
-    const v = parseFloat(String(document.getElementById('tip-custom-input').value).replace(/[^0-9.]/g, ''));
-    // Capped at the item subtotal, same as the server (a tip can't exceed the order).
-    setTip(isFinite(v) && v > 0 ? Math.min(Math.round(v * 100), Math.round(subtotal * 100)) : 0);
   }
 
   function setTip(cents) {
