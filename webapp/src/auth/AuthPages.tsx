@@ -158,8 +158,7 @@ export function SignupPage() {
 
   return (
     <AuthLayout
-      title={proIntent ? `Start your free ${TRIAL_DAYS}-day Pro trial` : 'Create your account'}
-      subtitle={`Just your email and a password — you’ll set up your shop next. ${TRIAL_DAYS} days free.`}
+      title={`Start your free ${TRIAL_DAYS}-day Pro trial`}
       footer={<>Already have an account? <Link to="/login">Log in</Link></>}
     >
       <form onSubmit={submit} className="stack">
