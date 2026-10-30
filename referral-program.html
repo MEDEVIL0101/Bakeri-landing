@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bakerï Referral Program — Earn 20% recurring commission</title>
+<link rel="canonical" href="https://bakeriapp.com/referral-program.html" />
+<meta name="description" content="Earn 20% recurring commission on every vendor you refer to Bakerï, for as long as they stay subscribed. Paid out monthly." />
+<link rel="icon" type="image/png" href="assets/site-v3/logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/site-v3/for-creators-v3.css?v=17" />
+<style>
+/* Referral Program page — additions on top of for-creators-v3.css, same tokens */
+.ref-hero .hx{font-size:clamp(42px,5.2vw,78px)}
+.ref-hero .kick{margin-bottom:18px}
+.ref-art{position:relative;height:clamp(460px,42vw,580px)}
+@media(max-width:980px){.ref-art{height:min(112vw,540px);max-width:540px;margin:0 auto;width:100%}}
+.ref-art .stage{position:absolute;inset:0;aspect-ratio:auto}
+.ref-art .note{z-index:3}
+.ref-art .n1{left:-3%;top:20%}.ref-art .n2{right:-2%;bottom:16%}
+.ref-art .bio{left:auto;right:7%;top:6%}
+
+.steps-txt .step{padding:30px 28px 32px}
+.steps-txt .step .ic{width:52px;height:52px;border-radius:16px;background:var(--blush);color:var(--pink-2);display:grid;place-items:center;margin-bottom:22px}
+.steps-txt .step .ic svg{width:24px;height:24px}
+
+.organic{display:grid;grid-template-columns:56px 1fr;gap:22px;align-items:start;max-width:1000px;margin:52px auto 0;background:#fff;border:1px solid var(--line);border-radius:26px;padding:32px 36px}
+@media(max-width:560px){.organic{grid-template-columns:1fr;padding:26px 22px}}
+.organic .ic{width:56px;height:56px;border-radius:16px;background:var(--pink);color:#fff;display:grid;place-items:center}
+.organic .ic svg{width:26px;height:26px}
+.organic h3{margin:0 0 8px;font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.02em}
+.organic p{margin:0;font-size:16px;line-height:1.55;color:var(--ink-2)}
+
+.kind ol{margin:8px 0 0;padding-left:20px;font-size:15.5px;line-height:1.55;color:var(--ink-2)}
+.kind ol li{margin-bottom:4px}
+.kind p b,.kind ol b{color:var(--ink);font-weight:700}
+
+.rates{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;max-width:1000px;margin:0 auto}
+@media(max-width:820px){.rates{grid-template-columns:1fr}}
+.rate{border-radius:26px;padding:38px;background:#fff;color:var(--ink)}
+.rate .plan{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--pink-2)}
+.rate .amt{display:flex;align-items:baseline;gap:8px;margin:18px 0 4px;font-family:var(--display);font-weight:800;font-size:clamp(52px,6vw,76px);letter-spacing:-.04em;line-height:1}
+.rate .amt small{font-family:var(--sans);font-weight:600;font-size:17px;letter-spacing:0;color:var(--ink-2)}
+.rate .per{margin:0;font-size:15.5px;color:var(--ink-2)}
+.rate .of{margin:24px 0 0;padding-top:18px;border-top:1px solid var(--line);font-size:15px;color:var(--ink-2)}
+.rate .of b{color:var(--ink)}
+.rates-fine{margin:28px auto 0;max-width:60ch;text-align:center;font-size:14px;color:#ffe8ef}
+
+.example{margin-top:28px;background:var(--wash);border-radius:22px;padding:26px 28px}
+.example .kick{font-size:12px}
+.timeline{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:0}
+.timeline li{display:grid;grid-template-columns:96px 1fr;gap:16px;padding:12px 0;border-top:1px solid var(--line);font-size:15.5px;line-height:1.45;color:var(--ink-2)}
+.timeline li:first-child{border-top:0;padding-top:0}
+.timeline b{font-family:var(--display);font-weight:800;color:var(--ink)}
+
+.heads{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;max-width:1000px;margin:0 auto}
+@media(max-width:820px){.heads{grid-template-columns:1fr}}
+.head-card{border-radius:26px;padding:34px 36px;background:var(--wash)}
+.head-card.pinkc{background:var(--pink);color:#fff;box-shadow:var(--sh-lg)}
+.head-card h3{margin:0 0 10px;font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.02em}
+.head-card p{margin:0 0 10px;font-size:16px;line-height:1.55;color:var(--ink-2)}
+.head-card.pinkc p{color:#ffe8ef}
+.head-card ul{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:12px}
+.head-card li{display:flex;gap:12px;align-items:flex-start;font-size:16px;line-height:1.45}
+.head-card li svg{width:20px;height:20px;flex:none;margin-top:1px;color:var(--pink)}
+.head-card.pinkc li svg{color:#fff}
+.head-card a{color:var(--pink-2);font-weight:700}
+
+.cta-band{text-align:center}
+.cta-band .hero-cta{justify-content:center}
+.cta-band .lede{margin-left:auto;margin-right:auto;max-width:48ch}
+.foot-links a[aria-current]{color:var(--purple-2)}
+.pay-ink{background:var(--ink)}.pay-ink .kick{color:var(--cyan)}.pay-ink .h2 em.sf{color:var(--purple-tint)}.pay-ink .lede{color:#d9d1d4}
+.rate{border-top:6px solid var(--pink)}
+.rate.r-purple{border-top-color:var(--purple)}.rate.r-purple .plan{color:var(--purple-2)}
+.rate.r-cyan{border-top-color:var(--cyan)}.rate.r-cyan .plan{color:var(--cyan-2)}
+.rates-fine{color:#cdc4c7}
+.steps-txt .step:nth-child(3n+2) .ic{background:var(--purple-tint);color:var(--purple-2)}
+.steps-txt .step:nth-child(3n+3) .ic{background:var(--cyan-tint);color:var(--cyan-2)}
+.organic .ic{background:var(--purple)}
+.example{background:#fff}
+.head-card.pinkc{background:var(--purple-deep)}
+.head-card:not(.pinkc) li svg{color:var(--cyan-2)}
+.head-card a{color:var(--purple-2)}
+</style>
+</head>
+<body>
+<header class="nav" id="nav"><div class="wrap nav-in">
+<a href="for-creators.html" aria-label="Bakerï home"><img src="assets/site-v3/bakeri-wordmark.png" alt="Bakerï" /></a>
+<nav class="nav-links"><a href="#how">How it works</a><a href="#commission">Commission</a><a href="#payouts">Payouts</a></nav>
+<div class="nav-auth"><a class="signin" href="https://bakeriapp.com/app/">Sign in</a><a class="btn" href="for-creators.html#trial">Sign up</a></div>
+</div></header>
+<span id="top"></span>
+
+<section class="hero ref-hero" data-screen-label="Hero">
+<div class="wrap hero-grid">
+<div>
+<span class="kick">Referral program</span>
+<h1 class="hx"><span class="w">Share Bakerï.</span> <em class="sf"><span class="w">Earn 20%</span> <b class="w">every month.</b></em></h1>
+<p class="lede hero-sub">Earn 20% recurring commission on every vendor you refer — for as long as they stay subscribed. It’s passive income, paid out monthly.</p>
+<div class="hero-cta"><a class="btn" href="https://bakeriapp.com/app/refer">Get your referral link <span class="arw">→</span></a><a class="btn btn-line" href="#how">How it works</a></div>
+<p class="hero-note">Available to every vendor with an active Bakerï plan.</p>
+</div>
+<div class="ref-art">
+<div class="stage st-purple pop" style="transition-delay:.15s"><div class="phone"><img src="assets/site-v3/screen-storefront.webp?v=3" alt="A Bakerï storefront on a phone" /></div></div>
+<div class="bio pop" style="transition-delay:.55s"><span class="av"></span><span><b>Your referral link</b><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>bakeriapp.com/?ref=TILLY</span></span></div>
+<div class="note n1 pop" style="transition-delay:.7s"><span class="ic i-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span><span>New referral<small>Started a free trial</small></span></div>
+<div class="note n2 pop" style="transition-delay:.85s"><span class="ic i-cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span><span>Commission paid · $24.00<small>Monthly payout · Nov 1</small></span></div>
+</div>
+</div>
+</section>
+
+<section class="sec sec-wash tint-purple" id="how" data-screen-label="How it works">
+<div class="wrap">
+<div class="sec-head center rv"><span class="kick">How it works</span><h2 class="h2">Recurring income, <em class="sf">from one link.</em></h2><p class="lede">Help your friends make money too. When they join Bakerï with your link, you earn a share of every plan payment they make.</p></div>
+<div class="steps steps-txt">
+<div class="step rv"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span><span class="num">1</span><h4>Share your referral link</h4><p>Copy it from Refer a Vendor in your account, or add it to your storefront.</p></div>
+<div class="step rv"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 11.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span><span class="num">2</span><h4>Your friend joins Bakerï</h4><p>They sign up with your link or code and start their 7-day free trial.</p></div>
+<div class="step rv"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="num">3</span><h4>Earn 20%, every month</h4><p>Once their plan is paid, you earn 20% of every payment for as long as they stay subscribed.</p></div>
+</div>
+<div class="organic rv">
+<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"/></svg></span>
+<div><h3>Share Bakerï organically.</h3><p>The program is all about word of mouth — link sharing, shout-outs, and genuine recommendations. Paid ads aren’t part of the program, and if we spot them, referral commission on your account can be turned off. Have fun sharing Bakerï, and keep it within our guidelines.</p></div>
+</div>
+</div>
+</section>
+
+<section class="sec" id="share" data-screen-label="How to share">
+<div class="wrap split">
+<div class="media rv"><div class="stage st-cyan">
+<div class="bio"><span class="av av-tilly"></span><span><b>Tilly Sugar Cookies</b><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>Start your shop on Bakerï</span></span></div>
+<div class="phone"><img src="assets/site-v3/app-refer-share.webp?v=4" alt="Refer a Vendor in Bakerï: your referral link with Copy link, Copy code and Share" /></div>
+</div></div>
+<div class="rv">
+<span class="kick k-cyan">Your referral link</span>
+<h2 class="h2">Two easy ways <em class="sf c-cyan">to share it.</em></h2>
+<p class="lede">Add your link to your storefront, or copy it straight from your account. Anyone who signs up with it is tracked as your referral automatically.</p>
+<div class="kinds">
+<div class="kind"><h4>On your storefront</h4><div><ol><li>Copy your link from <b>Settings → Refer a Vendor</b>.</li><li>In <b>Storefront</b>, add a <b>Link</b>.</li><li>Paste your referral link and give it a title like “Start your own shop on Bakerï”.</li></ol></div></div>
+<div class="kind"><h4>Share it directly</h4><div><ol><li>Open <b>Settings → Refer a Vendor</b> on the web or in the app.</li><li>Find your referral code and link.</li><li>Tap <b>Copy link</b> or <b>Share</b> and send it to someone who’d be a great fit.</li></ol></div></div>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec pay pay-ink" id="commission" data-screen-label="Commission breakdown">
+<div class="wrap">
+<div class="sec-head center rv"><span class="kick">Commission breakdown</span><h2 class="h2">20% of every payment, <em class="sf">every month.</em></h2><p class="lede">You earn 20% of your referral’s plan price each time they pay. It keeps going for as long as their plan stays active.</p></div>
+<div class="rates">
+<div class="rate r-purple rv"><span class="plan">Starter · monthly</span><div class="amt">$2.00<small>/ month</small></div><p class="per">per referral</p><p class="of">20% of the <b>$10</b> Starter plan</p></div>
+<div class="rate r-cyan rv"><span class="plan">Pro · monthly</span><div class="amt">$6.00<small>/ month</small></div><p class="per">per referral</p><p class="of">20% of the <b>$30</b> Pro plan</p></div>
+</div>
+<p class="rates-fine rv">Prices in USD. Commission is worked out on what your referral actually pays, before tax — so a yearly plan earns 20% of the yearly payment. No commission is earned during a free trial.</p>
+</div>
+</section>
+
+<section class="sec sec-wash tint-cyan" id="payouts" data-screen-label="Tracking & payouts">
+<div class="wrap split rev-order">
+<div class="media rv"><div class="stage st-purple">
+<div class="phone"><img src="assets/site-v3/app-refer-earnings.webp?v=4" alt="Referral earnings in Bakerï: ready to pay out, pending and paid to date" /></div>
+</div></div>
+<div class="rv">
+<span class="kick">Tracking &amp; payouts</span>
+<h2 class="h2">Paid out <em class="sf">on the 1st.</em></h2>
+<p class="lede">Follow every referral in Refer a Vendor — who joined, who’s on a free trial, who’s paying — and your pending, ready, and paid totals.</p>
+<div class="kinds">
+<div class="kind"><h4>When you earn</h4><p>Once your referral’s 7-day free trial ends and their plan is paid.</p></div>
+<div class="kind"><h4>When you’re paid</h4><p>Monthly, on the 1st — one payout covering everything that has cleared.</p></div>
+<div class="kind"><h4>Where it goes</h4><p>Straight to your connected <b>Stripe</b> account. Not connected yet? Your commission is tracked and paid once you are.</p></div>
+<div class="kind"><h4>Refunds</h4><p>If a referral’s plan payment is refunded, the commission on it is reversed.</p></div>
+</div>
+<div class="example">
+<span class="kick">For example</span>
+<ul class="timeline">
+<li><b>Jan 1</b>Your friend signs up with your link and starts their free trial.</li>
+<li><b>Jan 8</b>Their trial ends and their first plan payment goes through — you start earning.</li>
+<li><b>Feb 1</b>Your commission is paid out to your Stripe account.</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec" id="rules" data-screen-label="Good to know">
+<div class="wrap">
+<div class="sec-head center rv"><span class="kick k-purple">Good to know</span><h2 class="h2">Keeping it <em class="sf c-purple">fair for everyone.</em></h2></div>
+<div class="heads">
+<div class="head-card pinkc rv">
+<h3>Keep your plan active.</h3>
+<p>You must have an active Bakerï plan to earn referral commission.</p>
+<ul><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>If you cancel your plan, you stop earning commission — even on referrals who are still subscribed.</li></ul>
+</div>
+<div class="head-card rv">
+<h3>Changing referrers</h3>
+<p>We totally get that mix-ups happen! To keep things fair and consistent:</p>
+<ul>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>Referrers can only be changed within 45 days of the original signup.</li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>Changes are only made when the request comes from the referred vendor, not the referrer — email <a href="mailto:hello@bakeriapp.com">hello@bakeriapp.com</a>.</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec sec-wash cta-band" data-screen-label="Get started">
+<div class="wrap rv">
+<span class="kick">Get started</span>
+<h2 class="h2">Start sharing <em class="sf">Bakerï.</em></h2>
+<p class="lede">Grab your referral link and earn 20% of every plan payment from the vendors you bring in.</p>
+<div class="hero-cta"><a class="btn" href="https://bakeriapp.com/app/refer">Get your referral link <span class="arw">→</span></a><a class="btn btn-line" href="for-creators.html#trial">New to Bakerï? Start free</a></div>
+</div>
+</section>
+
+<footer class="foot"><div class="wrap">
+<div class="foot-top">
+<img src="assets/site-v3/bakeri-wordmark.png" alt="Bakerï" />
+<nav class="foot-links"><a href="https://bakeriapp.com/app/">Sign in</a><a href="referral-program.html" aria-current="page">Referral program</a><a href="mailto:hello@bakeriapp.com">Help</a><a href="privacy-policy.html">Privacy policy</a><a href="terms-of-service.html">Terms and conditions</a><a href="vendor-terms.html">Vendor terms</a></nav>
+</div>
+<div class="foot-bot"><span>© 2026 Bakerï — All rights reserved</span><span>Food sales must adhere to local food safety laws.</span></div>
+</div></footer>
+<script>
+const nav=document.getElementById('nav');const onS=()=>nav.classList.toggle('scrolled',scrollY>8);onS();addEventListener('scroll',onS,{passive:true});
+const hero=document.querySelector('.hero');
+document.querySelectorAll('.hx .w').forEach((w,i)=>{w.style.transitionDelay=(0.08+i*0.08)+'s'});
+requestAnimationFrame(()=>requestAnimationFrame(()=>hero.classList.add('play')));
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.15,rootMargin:'0px 0px -6% 0px'});
+document.querySelectorAll('.steps,.rates,.heads').forEach(g=>[...g.children].forEach((c,i)=>{c.style.transitionDelay=(i*80)+'ms'}));
+document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
