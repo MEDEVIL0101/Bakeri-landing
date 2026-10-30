@@ -139,7 +139,7 @@ export function ReferPage() {
         <ul className="small">
           <li>You must have an active Bakeri plan to earn commission. If you cancel, you stop earning — even on referrals who are still subscribed.</li>
           <li>Payouts go to your connected Stripe account.</li>
-          <li>Referred the wrong way? A referrer can only be changed within 45 days of signup ({TRIAL_DAYS}-day trial + 30 days), and only when the referred vendor asks us.</li>
+          <li>Referred the wrong way? A referrer can only be changed within 45 days of signup, and only when the referred vendor asks us.</li>
         </ul>
         <p className="small"><a href={REFERRAL_HELP_URL} target="_blank" rel="noreferrer">Read the full Referral Program guide</a></p>
       </Card>

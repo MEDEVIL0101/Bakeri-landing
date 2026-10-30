@@ -70,7 +70,7 @@ serve(async (req) => {
       client_reference_id: user.id,
       line_items: [{ price, quantity: 1 }],
       // Stripe allows either an automatic coupon or a promo-code box, not both.
-      ...(launchCouponFor(tier) ? { discounts: [{ coupon: launchCouponFor(tier)! }] } : { allow_promotion_codes: true }),
+      ...(launchCouponFor(tier, interval) ? { discounts: [{ coupon: launchCouponFor(tier, interval)! }] } : { allow_promotion_codes: true }),
       metadata: { user_id: user.id, tier, interval },
       subscription_data: {
         metadata: { user_id: user.id },

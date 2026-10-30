@@ -144,8 +144,8 @@ export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
           <tr>
             <td class="step-number-cell"><span class="step-number">2</span></td>
             <td>
-              <div class="step-title">Pick your plan — free for 14 days</div>
-              <p class="step-desc">Starter is $14.99 a month — on sale for $5.99 a month for your first two months — plus a 5% Bakerï fee per sale. Pro is $29.99 a month with no Bakerï fee. Either one is free for your first 14 days, and you can switch or cancel any time.</p>
+              <div class="step-title">Pick your plan — free for 7 days</div>
+              <p class="step-desc">Starter is $14.99 a month — on sale for $5.99 a month for your first two months — plus a 5% Bakerï fee per sale. Pro is $29.99 a month with no Bakerï fee. Either one is free for your first 7 days, and you can switch or cancel any time.</p>
             </td>
           </tr>
         </table>
@@ -166,11 +166,11 @@ export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
       <!-- CTA -->
       <div class="cta-section">
         <h2>Ready to start using Bakerï?</h2>
-        <p>Create your account to start your 14-day free trial.</p>
+        <p>Create your account to start your 7-day free trial.</p>
         <a class="cta-button" href="{{signup_url}}">
           Create my account →
         </a>
-        <p class="cta-note">iPhone, Android or computer · 14 days free · No charge until your trial ends</p>
+        <p class="cta-note">iPhone, Android or computer · 7 days free · No charge until your trial ends</p>
       </div>
 
       <hr class="divider"/>

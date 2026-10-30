@@ -6,11 +6,12 @@
 // vendor) on the plan they pick, then Starter $14.99/mo + 5% Bakeri fee per
 // sale ($5.99 launch sale for the first 2 months), or Pro $29.99/mo with no
 // Bakeri fee; Stripe card fees are the
-// vendor's on both. Trial: 14 days. Billing is web-only
+// vendor's on both. Trial: 7 days (was 14 until 2026-10-30). Billing is web-only
 // through Stripe Billing on Bakeri's platform account — never Apple IAP.
 //
 // Stripe Price ids come from secrets so test mode and live mode can differ:
-//   STRIPE_PRICE_STARTER_MONTH, STRIPE_PRICE_PRO_MONTH
+//   STRIPE_PRICE_STARTER_MONTH, STRIPE_PRICE_PRO_MONTH,
+//   STRIPE_PRICE_STARTER_YEAR ($144), STRIPE_PRICE_PRO_YEAR ($288) — 20% off yearly
 // and the Starter launch sale from STRIPE_STARTER_LAUNCH_COUPON (a $9-off,
 // 2-month repeating coupon, id starter-launch-sale in live) — unset it to end
 // the sale for new sign-ups;
@@ -31,9 +32,9 @@ export const PLAN_FEE_RATE: Record<PlanTier, number> = {
   pro: 0,
 };
 
-/** Free trial on a vendor’s first subscription (14 days). */
+/** Free trial on a vendor’s first subscription (7 days). */
 export function trialDays(): number {
-  const n = Number(Deno.env.get("PLAN_TRIAL_DAYS") ?? 14);
+  const n = Number(Deno.env.get("PLAN_TRIAL_DAYS") ?? 7);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
 }
 
@@ -52,9 +53,9 @@ export function tierForPriceId(priceId: string | null | undefined): { tier: Plan
   return null;
 }
 
-/** Coupon applied automatically at checkout for this tier, if any. */
-export function launchCouponFor(tier: PlanTier): string | null {
-  return tier === "starter" ? Deno.env.get("STRIPE_STARTER_LAUNCH_COUPON") || null : null;
+/** Coupon applied automatically at checkout, if any — the Starter launch sale is monthly billing only. */
+export function launchCouponFor(tier: PlanTier, interval: BillingInterval): string | null {
+  return tier === "starter" && interval === "month" ? Deno.env.get("STRIPE_STARTER_LAUNCH_COUPON") || null : null;
 }
 
 export function billingSecretKey(): string {

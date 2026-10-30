@@ -6,7 +6,7 @@
 // Starter $14.99/mo + 5% Bakeri fee per sale — on a $5.99 launch sale for the
 // first 2 months (Stripe coupon starter-launch-sale) — or Pro $29.99/mo with
 // no Bakeri fee; Stripe card fees are the vendor's on both. TRIAL_DAYS must match the
-// PLAN_TRIAL_DAYS secret (14). Plans are bought here on the web
+// PLAN_TRIAL_DAYS secret (7; Harvey 2026-10-30). Plans are bought here on the web
 // only — the iOS app never shows prices or links to buy (App Store
 // anti-steering rules).
 
@@ -34,6 +34,8 @@ export interface PlanDef {
   blurb: string;
   /** USD per month. */
   price: number;
+  /** USD per year when billed yearly (20% off). */
+  yearPrice: number;
   /** Launch-sale price for the first saleMonths months (Starter only). */
   salePrice?: number;
   saleMonths?: number;
@@ -42,13 +44,15 @@ export interface PlanDef {
 }
 
 export const PLANS: PlanDef[] = [
-  { tier: 'starter', name: 'Starter', blurb: 'A low monthly price while you’re getting going.', price: 14.99, salePrice: 5.99, saleMonths: 2, feePct: 5,
+  { tier: 'starter', name: 'Starter', blurb: 'A low monthly price while you’re getting going.', price: 14.99, yearPrice: 144, salePrice: 5.99, saleMonths: 2, feePct: 5,
     perks: ['Your storefront at bakeriapp.com', 'Orders, schedule, menu and recipes', 'Card payments and payouts', 'iPhone app and web app'] },
-  { tier: 'pro', name: 'Pro', blurb: 'Keep every dollar of your sales.', price: 29.99, feePct: 0,
+  { tier: 'pro', name: 'Pro', blurb: 'Keep every dollar of your sales.', price: 29.99, yearPrice: 288, feePct: 0,
     perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Email campaigns to your customer list', 'Best value once you sell about $300 a month'] },
 ];
 
-export const TRIAL_DAYS = 14;
+export const TRIAL_DAYS = 7;
+/** Yearly billing saves this much vs paying monthly (shown as "Save 20%"). */
+export const YEARLY_SAVING_PCT = 20;
 
 // The plan a vendor picked on the website before signing up (the site's
 // "Try Pro free" button → /app/signup?plan=pro). Kept in this browser and in

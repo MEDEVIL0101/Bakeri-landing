@@ -93,14 +93,13 @@ export function LoginPage() {
 export function SignupPage() {
   const { session } = useAuth();
   const [params] = useSearchParams();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [business, setBusiness] = useState('');
+  // Email-only sign-up: name and business are asked on SetupPage after confirming.
+  const firstName = '', lastName = '', business = '';
   // The invite email links here with the applicant's email (and referral
   // code) filled in; invite = their vendor_applications id.
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
-  const [referral, setReferral] = useState(params.get('ref') ?? '');
+  const referral = params.get('ref') ?? '';
   // From the site's "Try Pro free" button.
   const proIntent = params.get('plan') === 'pro';
   const [busy, setBusy] = useState(false);
@@ -159,22 +158,11 @@ export function SignupPage() {
 
   return (
     <AuthLayout
-      title={proIntent ? `Start your free ${TRIAL_DAYS}-day Pro trial` : 'Create your Bakeri account'}
-      subtitle={proIntent ? 'Create your account first — you won’t be charged until your trial ends.' : 'Your link-in-bio storefront and order manager.'}
+      title={proIntent ? `Start your free ${TRIAL_DAYS}-day Pro trial` : 'Create your account'}
+      subtitle={`Just your email and a password — you’ll set up your shop next. ${TRIAL_DAYS} days free.`}
       footer={<>Already have an account? <Link to="/login">Log in</Link></>}
     >
       <form onSubmit={submit} className="stack">
-        <div className="grid-2">
-          <Field label="First name">
-            <Input autoComplete="given-name" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-          </Field>
-          <Field label="Last name">
-            <Input autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-          </Field>
-        </div>
-        <Field label="Business name">
-          <Input autoComplete="organization" required value={business} onChange={(e) => setBusiness(e.target.value)} />
-        </Field>
         <Field label="Email">
           <Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
@@ -182,9 +170,6 @@ export function SignupPage() {
           <Input type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
         {password && <PasswordRules password={password} />}
-        <Field label="Referral code (optional)">
-          <Input value={referral} onChange={(e) => setReferral(e.target.value)} />
-        </Field>
         {error && <ErrorBanner message={error} />}
         <Button type="submit" loading={busy} className="btn-block">Create account</Button>
         <p className="muted small center">
