@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { LOGO } from '../lib/brand';
 import { Button, ErrorBanner, Spinner } from '../components/ui';
-import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_SAVING_PCT, clearPlanIntent, effectiveTier, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
+import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -18,6 +18,7 @@ export function PlanPage() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState<PlanTier | 'portal' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cycle, setCycle] = useState<BillingInterval>('year');
   const current = effectiveTier(plan);
   // A live Stripe subscription — switching plans then happens in Stripe's
   // billing portal, so there's only ever one per vendor. Grandfathered
@@ -33,7 +34,7 @@ export function PlanPage() {
 
   function pick(tier: PlanTier) {
     clearPlanIntent();
-    navigate(`/plan/trial?tier=${tier}&picked`);
+    navigate(`/plan/trial?tier=${tier}&cycle=${cycle}&picked`);
   }
 
   async function manage() {
@@ -55,6 +56,12 @@ export function PlanPage() {
         </p>
       </div>
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
+      {!grandfathered && !subscribed && (
+        <div className="pk-cycle" role="tablist" aria-label="Billing cycle">
+          <button type="button" role="tab" aria-selected={cycle === 'year'} className={cycle === 'year' ? 'on' : ''} onClick={() => setCycle('year')}>Annually <span className="pk-save">{YEARLY_FREE_MONTHS} months free!</span></button>
+          <button type="button" role="tab" aria-selected={cycle === 'month'} className={cycle === 'month' ? 'on' : ''} onClick={() => setCycle('month')}>Monthly</button>
+        </div>
+      )}
       <div className="pk-grid">
         {PLANS.map((p) => {
           const isCurrent = current === p.tier;
@@ -62,9 +69,9 @@ export function PlanPage() {
           return (
             <section key={p.tier} className={`pk ${pro ? 'pk-pro' : ''} ${isCurrent ? 'current' : ''}`}>
               {pro && <span className="pk-badge">★ Recommended</span>}
-              <header className="pk-head"><h2>{p.name}</h2></header>
+              <header className="pk-head"><h2>{p.name}</h2><p>{p.tagline}</p></header>
               <div className="pk-body">
-                <PlanPrice p={p} grandfathered={grandfathered} />
+                <PlanPrice p={p} grandfathered={grandfathered} cycle={cycle} />
                 <p className="pk-sub">{p.feePct ? `${p.feePct}% Bakeri fee per sale` : 'No Bakeri fee on any sale'}</p>
                 {isCurrent ? (
                   <Button variant="secondary" className="pk-btn" disabled>Current plan</Button>
@@ -79,14 +86,14 @@ export function PlanPage() {
                   </Button>
                 )}
                 <hr />
-                <p className="pk-lead">{pro ? 'Everything in Starter, plus:' : 'Everything you need to sell:'}</p>
+                <p className="pk-lead">{pro ? 'All features in Starter, and' : 'Standout features:'}</p>
                 <ul className="pk-perks">{p.perks.filter((x) => x !== 'Everything in Starter').map((x) => <li key={x}>{x}</li>)}</ul>
               </div>
             </section>
           );
         })}
       </div>
-      <p className="small muted plan-note">Prices in USD. Stripe card fees apply on both plans. Pro costs $15 more a month and saves you 5% on every sale — so it pays for itself once you sell about $300 a month.</p>
+      <p className="small muted plan-note">Prices in USD. Stripe card fees apply on both plans. Pro costs $20 more a month and saves you 5% on every sale — so it pays for itself once you sell about $400 a month.</p>
       <div className="auth-footer plan-footer">
         {subscribed && <><button type="button" className="link-btn" onClick={manage} disabled={!!busy}>Manage billing &amp; invoices</button> · </>}
         {current !== 'none' ? <Link to="/">Back to Bakeri</Link> : <button type="button" className="link-btn" onClick={signOut}>Sign out</button>}
@@ -95,27 +102,37 @@ export function PlanPage() {
   );
 }
 
-function PlanPrice({ p, grandfathered }: { p: PlanDef; grandfathered: boolean }) {
-  if (grandfathered && p.tier === 'starter') return <div className="pk-price"><b>$0</b><span>/mo</span><small>Free for you, forever</small></div>;
-  const perMonth = Math.round((p.yearPrice / 12) * 100) / 100;
+function PlanPrice({ p, grandfathered, cycle }: { p: PlanDef; grandfathered: boolean; cycle: BillingInterval }) {
   const m = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
-  return (
-    <div className="pk-price">
-      <b>{m(perMonth)}</b><span>/mo</span>
-      <small>Billed yearly, or {m(p.price)} monthly{p.salePrice ? ` (${m(p.salePrice)} for your first ${p.saleMonths} months)` : ''}</small>
-    </div>
-  );
+  if (grandfathered && p.tier === 'starter') return <div className="pk-price"><b>$0</b><span>/month</span><small>Free for you, forever</small></div>;
+  if (cycle === 'year') {
+    return (
+      <div className="pk-price">
+        <s>{m(p.price)}</s><b>{m(Math.round((p.yearPrice / 12) * 100) / 100)}</b><span>/mo</span>
+        <small>{m(p.yearPrice)} billed annually</small>
+      </div>
+    );
+  }
+  if (p.salePrice) {
+    return (
+      <div className="pk-price">
+        <s>{m(p.price)}</s><b>{m(p.salePrice)}</b><span>/month</span>
+        <small>For your first {p.saleMonths} months, then {m(p.price)}/month</small>
+      </div>
+    );
+  }
+  return <div className="pk-price"><b>{m(p.price)}</b><span>/month</span><small>Billed monthly</small></div>;
 }
 
 /**
  * "Claim a free 7-day trial" — between picking a plan and Stripe Checkout:
- * the billing cycle (yearly saves 20%), what happens today and when the plan
+ * the billing cycle (yearly = 2 months free), what happens today and when the plan
  * starts. New vendors land here on Pro first; Skip opens every plan.
  */
 export function TrialPage() {
   const { plan } = useAuth();
   const [params] = useSearchParams();
-  const [interval, setCycle] = useState<BillingInterval>('year');
+  const [interval, setCycle] = useState<BillingInterval>(params.get('cycle') === 'month' ? 'month' : 'year');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const p = PLANS.find((x) => x.tier === params.get('tier')) ?? PLANS.find((x) => x.tier === 'pro')!;
@@ -143,7 +160,7 @@ export function TrialPage() {
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       <div className="cycle" role="radiogroup" aria-label="Billing cycle">
         <button type="button" role="radio" aria-checked={interval === 'year'} className={`cycle-opt ${interval === 'year' ? 'on' : ''}`} onClick={() => setCycle('year')}>
-          <span className="cycle-save">Save {YEARLY_SAVING_PCT}%</span>
+          <span className="cycle-save">{YEARLY_FREE_MONTHS} months free</span>
           <b>{money(Math.round((p.yearPrice / 12) * 100) / 100)}<small>/mo</small></b>
           <span>Yearly</span>
           <small>{money(p.yearPrice)}/year{trial ? ' after trial' : ''}</small>

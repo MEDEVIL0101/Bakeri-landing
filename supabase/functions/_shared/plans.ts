@@ -3,18 +3,16 @@
 // Mirrored for display by webapp/src/lib/plans.ts (names, prices, perks).
 //
 // Tiers (Harvey 2026-10-30): a free trial (PLAN_TRIAL_DAYS, once per
-// vendor) on the plan they pick, then Starter $14.99/mo + 5% Bakeri fee per
-// sale ($5.99 launch sale for the first 2 months), or Pro $29.99/mo with no
-// Bakeri fee; Stripe card fees are the
+// vendor) on the plan they pick, then Starter $10/mo + 5% Bakeri fee per
+// sale, or Pro $30/mo with no Bakeri fee; yearly = 2 months free ($100 / $300); Stripe card fees are the
 // vendor's on both. Trial: 7 days (was 14 until 2026-10-30). Billing is web-only
 // through Stripe Billing on Bakeri's platform account — never Apple IAP.
 //
 // Stripe Price ids come from secrets so test mode and live mode can differ:
 //   STRIPE_PRICE_STARTER_MONTH, STRIPE_PRICE_PRO_MONTH,
-//   STRIPE_PRICE_STARTER_YEAR ($144), STRIPE_PRICE_PRO_YEAR ($288) — 20% off yearly
-// and the Starter launch sale from STRIPE_STARTER_LAUNCH_COUPON (a $9-off,
-// 2-month repeating coupon, id starter-launch-sale in live) — unset it to end
-// the sale for new sign-ups;
+//   STRIPE_PRICE_STARTER_YEAR, STRIPE_PRICE_PRO_YEAR
+// and an optional automatic Starter coupon from STRIPE_STARTER_LAUNCH_COUPON
+// (unset since the $10 pricing, 2026-10-30 — set it to run a launch sale);
 // (…_YEAR variants are supported if yearly billing is ever offered)
 // and the Billing calls use STRIPE_BILLING_SECRET_KEY when it's set (e.g. a
 // test key while building), otherwise the live STRIPE_SECRET_KEY that vendor

@@ -145,7 +145,7 @@ export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
             <td class="step-number-cell"><span class="step-number">2</span></td>
             <td>
               <div class="step-title">Pick your plan — free for 7 days</div>
-              <p class="step-desc">Starter is $14.99 a month — on sale for $5.99 a month for your first two months — plus a 5% Bakerï fee per sale. Pro is $29.99 a month with no Bakerï fee. Either one is free for your first 7 days, and you can switch or cancel any time.</p>
+              <p class="step-desc">Starter is $10 a month plus a 5% Bakerï fee per sale. Pro is $30 a month with no Bakerï fee. Either one is free for your first 7 days, and you can switch or cancel any time.</p>
             </td>
           </tr>
         </table>

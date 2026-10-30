@@ -3,9 +3,9 @@
 // numbers here in step with PLAN_FEE_RATE there.
 //
 // Tiers (Harvey 2026-10-30): a free trial on the plan they pick, then
-// Starter $14.99/mo + 5% Bakeri fee per sale — on a $5.99 launch sale for the
-// first 2 months (Stripe coupon starter-launch-sale) — or Pro $29.99/mo with
-// no Bakeri fee; Stripe card fees are the vendor's on both. TRIAL_DAYS must match the
+// Starter $10/mo + 5% Bakeri fee per sale (existing vendors are
+// grandfathered onto Starter, so they keep paying the 5%), or Pro $30/mo with
+// no Bakeri fee; yearly billing is 2 months free ($100 / $300); Stripe card fees are the vendor's on both. TRIAL_DAYS must match the
 // PLAN_TRIAL_DAYS secret (7; Harvey 2026-10-30). Plans are bought here on the web
 // only — the iOS app never shows prices or links to buy (App Store
 // anti-steering rules).
@@ -32,9 +32,11 @@ export interface PlanDef {
   tier: PlanTier;
   name: string;
   blurb: string;
+  /** One line under the plan name on the plan picker. */
+  tagline: string;
   /** USD per month. */
   price: number;
-  /** USD per year when billed yearly (20% off). */
+  /** USD per year when billed yearly — 2 months free (10 × the monthly price). */
   yearPrice: number;
   /** Launch-sale price for the first saleMonths months (Starter only). */
   salePrice?: number;
@@ -44,15 +46,15 @@ export interface PlanDef {
 }
 
 export const PLANS: PlanDef[] = [
-  { tier: 'starter', name: 'Starter', blurb: 'A low monthly price while you’re getting going.', price: 14.99, yearPrice: 144, salePrice: 5.99, saleMonths: 2, feePct: 5,
+  { tier: 'starter', name: 'Starter', tagline: 'Open your shop', blurb: 'A low monthly price while you’re getting going.', price: 10, yearPrice: 100, feePct: 5,
     perks: ['Your storefront at bakeriapp.com', 'Orders, schedule, menu and recipes', 'Card payments and payouts', 'iPhone app and web app'] },
-  { tier: 'pro', name: 'Pro', blurb: 'Keep every dollar of your sales.', price: 29.99, yearPrice: 288, feePct: 0,
-    perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Email campaigns to your customer list', 'Best value once you sell about $300 a month'] },
+  { tier: 'pro', name: 'Pro', tagline: 'Keep every dollar you make', blurb: 'Keep every dollar of your sales.', price: 30, yearPrice: 300, feePct: 0,
+    perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Email campaigns to your customer list', 'Best value once you sell about $400 a month'] },
 ];
 
 export const TRIAL_DAYS = 7;
-/** Yearly billing saves this much vs paying monthly (shown as "Save 20%"). */
-export const YEARLY_SAVING_PCT = 20;
+/** Yearly billing = this many months free (shown as "2 months free!"). */
+export const YEARLY_FREE_MONTHS = 2;
 
 // The plan a vendor picked on the website before signing up (the site's
 // "Try Pro free" button → /app/signup?plan=pro). Kept in this browser and in

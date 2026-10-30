@@ -1210,3 +1210,33 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .trial-foot { width: 100%; max-width: 520px; display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: auto; padding-top: 28px; }
 .trial-foot .trial-btn { width: 100%; min-height: 52px; border-radius: 999px; background: #8a2fc2; border-color: #8a2fc2; font-size: 16px; }
 @media (max-width: 560px) { .cycle { grid-template-columns: 1fr; } .plan-back { left: 14px; top: 18px; } .trial-skip { right: 16px; } .trial-back { left: 16px; } }
+
+/* Plan picker v2 — Annually/Monthly tabs, struck monthly price, tinted Pro card */
+.pk-cycle { display: flex; gap: 36px; margin: 6px 0 10px; }
+.pk-cycle button { background: none; border: 0; padding: 0 0 8px; font: inherit; font-family: var(--display); font-size: clamp(24px, 3vw, 32px); font-weight: 700; letter-spacing: -.02em; color: #c4bab0; cursor: pointer; border-bottom: 4px solid transparent; display: flex; align-items: center; gap: 10px; }
+.pk-cycle button.on { color: var(--ink); border-bottom-color: var(--ink); }
+.pk-save { font-family: var(--font); font-size: 14px; font-weight: 600; letter-spacing: 0; background: #8a2fc2; color: #fff; padding: 4px 9px; border-radius: 6px; }
+.pk-grid { max-width: 820px; gap: 26px; }
+.pk { border-radius: 22px; }
+.pk-head, .pk-pro .pk-head { background: none; border-radius: 0; padding: 30px 30px 0; }
+.pk-head h2, .pk-pro .pk-head h2 { font-family: var(--font); font-weight: 500; font-size: 26px; letter-spacing: -.01em; color: var(--ink); }
+.pk-head p { margin: 6px 0 0; color: var(--muted); font-size: 16px; }
+.pk-pro { border: 3px solid #8a2fc2; background: linear-gradient(180deg, #f1e4fb 0%, #fbf7fe 38%, #fff 100%); }
+.pk-pro .pk-body { background: none; }
+.pk-body { padding: 18px 30px 32px; gap: 14px; }
+.pk-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px; }
+.pk-price s { font-family: var(--display); font-size: 40px; font-weight: 700; color: #ddd3c9; letter-spacing: -.03em; text-decoration-thickness: 3px; }
+.pk-price b { font-size: 48px; letter-spacing: -.03em; }
+.pk-price > span { font-size: 20px; color: var(--muted); }
+.pk-price small { flex-basis: 100%; margin-top: 10px; font-size: 15px; }
+.pk .pk-btn { border-radius: 12px; min-height: 56px; font-size: 17px; font-weight: 800; margin-top: 10px; }
+.pk:not(.pk-pro) .pk-btn.btn-secondary { background: var(--ink); color: #fff; border-color: var(--ink); }
+.pk hr { margin: 14px 0 6px; }
+.pk-lead { font-weight: 700; color: var(--ink); font-size: 15.5px; }
+.pk-perks { gap: 14px; font-size: 16px; }
+.pk-perks li { padding-left: 32px; }
+.pk-perks li::before, .pk-pro .pk-perks li::before { background: none; color: var(--ink); font-size: 16px; width: auto; height: auto; top: 0; }
+@media (max-width: 560px) { .pk-cycle { gap: 22px; } .pk-price s { font-size: 30px; } .pk-price b { font-size: 38px; } .pk-head, .pk-pro .pk-head { padding: 24px 22px 0; } .pk-body { padding: 16px 22px 26px; } }
+.pk-price s { font-size: 34px; } .pk-price b { font-size: 44px; }
+.pk-price { flex-wrap: nowrap; } .pk-price { display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; column-gap: 8px; } .pk-price small { grid-column: 1 / -1; }
+.pk-price > span { white-space: nowrap; }
