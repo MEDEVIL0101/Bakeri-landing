@@ -311,7 +311,7 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 /* why Bakerï: feature grid + price comparison (replaces the creator photo grid) */
 .whys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
 @media(max-width:980px){.whys{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.whys{grid-template-columns:1fr}}
+@media(max-width:560px){.whys{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
 .why{background:#fff;border-radius:22px;padding:26px 24px 28px;box-shadow:0 1px 0 var(--line)}
 .why-ic{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:var(--blush);color:var(--pink-2);margin-bottom:18px}
 .why-ic svg{width:22px;height:22px}
@@ -353,3 +353,5 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .devices .dev-phone img{border-radius:24px}
 @media(max-width:720px){.devices{margin-top:40px;padding:0 9% 0 0}.mac-screen{border-radius:12px 12px 0 0}.mac-base{height:9px;border-radius:0 0 10px 10px}.mac-base::before{height:4px}.devices .dev-phone{width:27%;border-width:4px;border-radius:18px}.devices .dev-phone img{border-radius:14px}}
 .pc-cta{text-align:center;margin:20px 0 0}
+/* Why Bakerï: compact 2-up grid on phones (after the base .why rules so it wins) */
+@media(max-width:560px){.why{padding:14px 13px 16px;border-radius:16px}.why-ic{width:32px;height:32px;border-radius:10px;margin-bottom:10px}.why-ic svg{width:17px;height:17px}.why h4{font-size:14.5px;line-height:1.2;margin-bottom:4px}.why p{font-size:12.5px;line-height:1.4}}
