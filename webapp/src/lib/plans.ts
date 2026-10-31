@@ -10,6 +10,7 @@
 // only — the iOS app never shows prices or links to buy (App Store
 // anti-steering rules).
 
+import { trackSite } from './siteTrack';
 import { callFunction } from './api';
 import { supabase } from './supabase';
 
@@ -114,6 +115,7 @@ export async function loadPlan(userId: string): Promise<VendorPlan | null | unde
 
 /** Starts Stripe Checkout (or opens the billing portal for an existing subscriber) and leaves the page. */
 export async function startCheckout(tier: PlanTier, interval: BillingInterval): Promise<void> {
+  trackSite('checkout_start', `${tier}-${interval}`);
   const { url } = await callFunction<{ url: string }>('create-plan-checkout', { tier, interval });
   window.location.assign(url);
 }

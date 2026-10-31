@@ -193,5 +193,6 @@ document.querySelectorAll('a[data-ref]').forEach(a=>{if(ref){const u=new URL(a.h
 // Submit hands off to the web app's sign-up with plan=pro: the new account sees the Pro trial first and can skip to every plan.
 form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;const q=new URLSearchParams({email:emailIn.value.trim(),plan:'pro'});if(ref)q.set('ref',ref);btn.classList.add('done');btn.textContent='Taking you to sign-up…';location.assign('https://bakeriapp.com/app/signup?'+q)});
 </script>
+<script src="/assets/site-analytics.js?v=1" defer></script>
 </body>
 </html>

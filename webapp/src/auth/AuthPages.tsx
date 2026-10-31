@@ -1,5 +1,6 @@
 import { LOGO } from '../lib/brand';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { trackSite } from '../lib/siteTrack';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { appURL, supabase } from '../lib/supabase';
 import { TRIAL_DAYS, rememberPlanIntent } from '../lib/plans';
@@ -105,6 +106,7 @@ export function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  useEffect(() => { if (!session) trackSite('signup_view', proIntent ? 'pro' : undefined); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (session) return <Navigate to="/" replace />;
 
@@ -144,6 +146,7 @@ export function SignupPage() {
       setError('An account with this email already exists. Please log in, or reset your password.');
       return;
     }
+    trackSite('signup_done', proIntent ? 'pro' : undefined);
     if (!res.session) setSentTo(email.trim());
   }
 

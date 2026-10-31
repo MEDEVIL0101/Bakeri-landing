@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { trackSite } from '../lib/siteTrack';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { LOGO } from '../lib/brand';
 import { Button, ErrorBanner, Spinner } from '../components/ui';
@@ -20,6 +21,7 @@ export function PlanPage() {
   const [error, setError] = useState<string | null>(null);
   const [cycle, setCycle] = useState<BillingInterval>('year');
   const current = effectiveTier(plan);
+  useEffect(() => { trackSite('plan_view'); }, []);
   // A live Stripe subscription — switching plans then happens in Stripe's
   // billing portal, so there's only ever one per vendor. Grandfathered
   // accounts have free Starter with no subscription.
