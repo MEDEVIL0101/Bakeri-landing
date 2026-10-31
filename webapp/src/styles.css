@@ -1247,3 +1247,13 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .mfa-secret { font-size: 12px; word-break: break-all; user-select: all; }
 .mfa-steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .mfa-actions { display: flex; gap: 10px; }
+
+/* Get on iOS */
+.ios-card { display: flex; gap: 28px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 18px; }
+.ios-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: none; }
+.ios-qr img { background: #fff; padding: 10px; border-radius: 14px; border: 1px solid var(--line); }
+.ios-steps { margin: 0; padding-left: 22px; display: grid; gap: 14px; }
+.ios-steps li strong { display: block; }
+.ios-steps li span { display: block; font-size: 14px; margin-top: 2px; }
+.ios-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+@media (max-width: 640px) { .ios-card { flex-direction: column; align-items: stretch; padding: 18px; } }

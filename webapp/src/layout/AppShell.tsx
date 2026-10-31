@@ -43,6 +43,9 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
     { to: '/finances', label: 'Finances', icon: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /> },
     { to: '/payouts', label: 'Direct Deposit', icon: <path d="M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M12 3l9 5H3z" /> },
   ] },
+  { items: [
+    { to: '/ios', label: 'Get on iOS', icon: <path d="M8 2.5h8a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 20V4A1.5 1.5 0 0 1 8 2.5zM11 18.5h2" /> },
+  ] },
 ];
 
 // Phone tab bar — the iOS app's four tabs, in its order and with its names.
@@ -153,7 +156,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const titles: Record<string, string> = {
     '': 'Home', storefront: 'Storefront', orders: 'Orders', menu: 'Menu & Listings', promotions: 'Promotions', forms: 'Order Forms',
     customers: 'Customers', campaigns: 'Email Campaigns', schedule: 'Schedule', recipes: 'Recipes', ingredients: 'Ingredients', packaging: 'Packaging',
-    calculator: 'Calculator', finances: 'Finances', payouts: 'Direct Deposit', settings: 'Settings', 'shop-settings': 'Shop settings', refer: 'Referral Program',
+    calculator: 'Calculator', finances: 'Finances', payouts: 'Direct Deposit', settings: 'Settings', 'shop-settings': 'Shop settings', refer: 'Referral Program', ios: 'Get on iOS', security: 'Two-factor authentication',
   };
   useEffect(() => setOpen(false), [location.pathname, location.search]);
   useEffect(() => {
@@ -242,6 +245,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Link to="/settings" className="pm-row-sm" onClick={() => setOpen(false)}>
               <Icon size={18}><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 12.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.2 18.4a6.5 6.5 0 0 1 11.6 0" /></Icon>
               <span>Profile &amp; Settings</span>
+            </Link>
+            <Link to="/ios" className="pm-row-sm" onClick={() => setOpen(false)}>
+              <Icon size={18}><path d="M8 2.5h8a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 20V4A1.5 1.5 0 0 1 8 2.5zM11 18.5h2" /></Icon>
+              <span>Get on iOS</span>
             </Link>
             <Link to="/settings?help=1" className="pm-row-sm" onClick={() => setOpen(false)}>
               <Icon size={18}><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8M12 17h.01" /></Icon>

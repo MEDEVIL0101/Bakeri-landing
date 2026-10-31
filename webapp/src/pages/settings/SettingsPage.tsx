@@ -73,6 +73,7 @@ export function SettingsPage() {
         <NavRow title="Direct Deposit" sub={profile?.stripe_connect_onboarding_complete ? 'Stripe connected' : 'Connect to get paid'} to="/payouts" />
         <NavRow title="Shop settings" sub="Your link, pickup address, shipping" to="/shop-settings" />
         <NavRow title="Order forms" sub="Custom order request forms" to="/forms" />
+        <NavRow title="Get on iOS" sub="Bakeri for iPhone, on TestFlight" to="/ios" />
       </SettingsGroup>
 
       <SettingsGroup heading="Recipes" footer="Saved in this browser — used by the calculator, recipe weights, and ingredient totals.">

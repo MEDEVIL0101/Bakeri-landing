@@ -120,7 +120,9 @@ export function SignupPage() {
     // Same user_metadata keys as iOS AuthService.signUp — the confirmation
     // email template reads first_name, and the profile/referral setup reads
     // full_name, bakery_name and referral_code after confirmation.
-    const data: Record<string, string> = {};
+    // signup_source: the before-user-created hook (20261031000005) only lets
+    // accounts be made here on the web — the iPhone app is sign-in only.
+    const data: Record<string, string> = { signup_source: 'web' };
     if (fullName) data.full_name = fullName;
     if (business.trim()) data.bakery_name = business.trim();
     if (firstName.trim()) data.first_name = firstName.trim();
