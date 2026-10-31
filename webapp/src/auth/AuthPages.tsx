@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { trackSite } from '../lib/siteTrack';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { appURL, supabase } from '../lib/supabase';
-import { TRIAL_DAYS, rememberPlanIntent } from '../lib/plans';
+import { rememberPlanIntent } from '../lib/plans';
 import { Button, ErrorBanner, Field, Input, Spinner } from '../components/ui';
 import { useAuth } from './AuthProvider';
 
@@ -163,7 +163,7 @@ export function SignupPage() {
 
   return (
     <AuthLayout
-      title={`Start your free ${TRIAL_DAYS}-day Pro trial`}
+      title="Create your Bakerï account"
       footer={<>Already have an account? <Link to="/login">Log in</Link></>}
     >
       <form onSubmit={submit} className="stack">

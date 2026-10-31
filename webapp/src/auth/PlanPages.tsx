@@ -49,7 +49,7 @@ export function PlanPage() {
       {current !== 'none' && <Link to="/" className="plan-back" aria-label="Back to Bakeri">‹</Link>}
       <a href="/" className="auth-logo"><img src={LOGO} alt="Bakeri" /></a>
       <div className="plan-head">
-        <h1>{current !== 'none' ? 'Your plan' : lapsed ? 'Pick a plan to keep going' : 'Find the plan for you'}</h1>
+        <h1>{current !== 'none' ? 'Your plan' : lapsed ? 'Pick a plan to keep going' : trial ? `Sign up and get ${TRIAL_DAYS} days free` : 'Find the plan for you'}</h1>
         <p className="muted">
           {grandfathered && !subscribed ? 'As one of our first vendors, Starter is free for you forever. Upgrade to Pro any time to drop the 5% fee.'
             : current !== 'none' ? 'Switch plans any time.'
