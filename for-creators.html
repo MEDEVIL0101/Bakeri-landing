@@ -25,7 +25,7 @@
 <div>
 <h1 class="hx"><span class="w">The all-in-one</span> <span class="w">platform</span> <em class="sf"><span class="w">for</span> <b class="w">food makers and creators.</b></em></h1>
 <p class="lede hero-sub">Sell food, digital and shipped goods and grow your brand — all from one platform, on the web and on your phone.</p>
-<div class="hero-cta"><a class="btn" data-ref href="https://bakeriapp.com/app/signup">Try it free for 7 days <span class="arw">→</span></a><a class="btn btn-line" href="#link">See how it works</a></div>
+<div class="hero-cta"><a class="btn" data-ref href="https://bakeriapp.com/app/signup?plan=pro">Try it free for 7 days <span class="arw">→</span></a><a class="btn btn-line" href="#link">See how it works</a></div>
 </div>
 <div class="hero-art xp" role="img" aria-label="The Tilly Sugar Cookies storefront on Bakerï, exploded: its intro card and menu card popped off the background and its Birthday Cookies and Custom Decorated Cookies tiles lifted out, surrounded by a new order, a custom-quote request, a digital download sale, a shipped cookie-cutter order and a mailing-list sign-up">
 <span class="xp-glow g1"></span><span class="xp-glow g2"></span>
@@ -136,7 +136,7 @@
 <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>Tap to Pay at your market stand, right from your phone</li>
 <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>Collect tips and track every in-person sale</li>
 </ul>
-<a class="btn btn-white" href="#trial">Sign up for 7 days free <span class="arw">→</span></a>
+<a class="btn btn-white" href="#trial">Try Pro free for 7 days <span class="arw">→</span></a>
 </div>
 <div class="pay-stage rv">
 <div class="ring"></div><div class="ring r2"></div>
@@ -150,7 +150,7 @@
 <div class="wrap apply-grid">
 <div class="rv">
 <span class="kick">Get started</span>
-<h2 class="h2">Try 7 days <em class="sf">free.</em></h2>
+<h2 class="h2">Try Pro <em class="sf">free for 7 days.</em></h2>
 <ul class="apply-pts">
 <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>Full access to every feature</li>
 <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>Your storefront live the same day</li>
@@ -163,7 +163,7 @@
 <div class="fg">
 <div class="fd full"><label for="f-email">Email</label><input id="f-email" type="email" placeholder="you@yourstudio.com" autocomplete="email" required /></div>
 </div>
-<button class="btn submit" id="submitBtn" type="submit" disabled>Sign up for 7 days free <span class="arw">→</span></button>
+<button class="btn submit" id="submitBtn" type="submit" disabled>Try Pro free for 7 days <span class="arw">→</span></button>
 <p class="fine">Already have an account? <a href="https://bakeriapp.com/app/login">Sign in</a></p>
 </form>
 </div>
@@ -191,8 +191,8 @@ form.addEventListener('input',refresh);
 // Referral links (?ref=CODE) carry through to sign-up.
 let ref='';try{ref=((new URLSearchParams(location.search).get('ref'))||sessionStorage.getItem('bakeri_ref')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);if(ref)sessionStorage.setItem('bakeri_ref',ref)}catch(_){}
 document.querySelectorAll('a[data-ref]').forEach(a=>{if(ref){const u=new URL(a.href);u.searchParams.set('ref',ref);a.href=u}});
-// Submit hands off to the web app's sign-up with plan=all, so the new account lands on the full plan picker (each plan has a 7-day trial).
-form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;const q=new URLSearchParams({email:emailIn.value.trim(),plan:'all'});if(ref)q.set('ref',ref);btn.classList.add('done');btn.textContent='Taking you to sign-up…';location.assign('https://bakeriapp.com/app/signup?'+q)});
+// Submit hands off to the web app's sign-up with plan=pro: the new account sees the Pro trial first and can skip to every plan.
+form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;const q=new URLSearchParams({email:emailIn.value.trim(),plan:'pro'});if(ref)q.set('ref',ref);btn.classList.add('done');btn.textContent='Taking you to sign-up…';location.assign('https://bakeriapp.com/app/signup?'+q)});
 </script>
 </body>
 </html>
