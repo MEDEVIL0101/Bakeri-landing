@@ -3,7 +3,7 @@ import { trackSite } from '../lib/siteTrack';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { LOGO } from '../lib/brand';
 import { Button, ErrorBanner, Spinner } from '../components/ui';
-import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
+import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, storedPlanIntent, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -14,7 +14,7 @@ import { useAuth } from './AuthProvider';
  * back to /welcome. Web only: the iOS app never shows this.
  */
 export function PlanPage() {
-  const { plan, signOut } = useAuth();
+  const { plan, signOut, session } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [busy, setBusy] = useState<PlanTier | 'portal' | null>(null);
@@ -30,7 +30,9 @@ export function PlanPage() {
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const lapsed = current === 'none' && !!plan?.stripe_customer_id;
   // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
-  if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all')) {
+  // Starting from "Try Starter free" opens every plan straight away, so Pro sits beside it.
+  const starterIntent = (storedPlanIntent() ?? session?.user.user_metadata?.plan_intent) === 'starter';
+  if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all') && !starterIntent) {
     return <Navigate to="/plan/trial?tier=pro" replace />;
   }
 

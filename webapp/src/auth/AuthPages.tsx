@@ -101,12 +101,13 @@ export function SignupPage() {
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
   const referral = params.get('ref') ?? '';
-  // From the site's "Try Pro free" button.
-  const proIntent = params.get('plan') === 'pro';
+  // From the site's "Try Pro free" / "Try Starter free" buttons.
+  const planParam = params.get('plan');
+  const intent = planParam === 'pro' || planParam === 'starter' ? planParam : null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
-  useEffect(() => { if (!session) trackSite('signup_view', proIntent ? 'pro' : undefined); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!session) trackSite('signup_view', intent ?? undefined); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (session) return <Navigate to="/" replace />;
 
@@ -128,7 +129,7 @@ export function SignupPage() {
     if (firstName.trim()) data.first_name = firstName.trim();
     if (lastName.trim()) data.last_name = lastName.trim();
     if (referral.trim()) data.referral_code = referral.trim().toUpperCase();
-    if (proIntent) { data.plan_intent = 'pro'; rememberPlanIntent('pro'); }
+    if (intent) { data.plan_intent = intent; rememberPlanIntent(intent); }
     const invite = params.get('invite');
     if (invite) data.vendor_application_id = invite;
     const { data: res, error } = await supabase.auth.signUp({
@@ -148,7 +149,7 @@ export function SignupPage() {
       setError('An account with this email already exists. Please log in, or reset your password.');
       return;
     }
-    trackSite('signup_done', proIntent ? 'pro' : undefined);
+    trackSite('signup_done', intent ?? undefined);
     if (!res.session) setSentTo(email.trim());
   }
 
