@@ -359,3 +359,5 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .pc-cta{text-align:center;margin:20px 0 0}
 /* Why Bakerï: compact 2-up grid on phones (after the base .why rules so it wins) */
 @media(max-width:560px){.why{padding:14px 13px 16px;border-radius:16px}.why-ic{width:32px;height:32px;border-radius:10px;margin-bottom:10px}.why-ic svg{width:17px;height:17px}.why h4{font-size:14.5px;line-height:1.2;margin-bottom:4px}.why p{font-size:12.5px;line-height:1.4}}
+/* purple button (Try Starter), matching the site's purple accents */
+.btn-purple{background:var(--purple-deep);color:#fff}.btn-purple:hover{background:var(--purple-2);color:#fff;box-shadow:0 10px 24px -10px rgba(127,47,179,.6)}
