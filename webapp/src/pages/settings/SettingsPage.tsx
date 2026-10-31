@@ -63,6 +63,7 @@ export function SettingsPage() {
         </div>
         <InfoRow title="Email" value={session?.user.email ?? ''} />
         <NavRow title="Change password" onClick={() => setModal('password')} />
+        <NavRow title="Two-factor authentication" sub="Extra security when you log in" to="/security" />
       </SettingsGroup>
 
       <SettingsGroup heading="Business">

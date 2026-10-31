@@ -31,24 +31,29 @@ import { CalculatorPage } from './pages/kitchen/CalculatorPage';
 import { TimerProvider } from './pages/kitchen/Timers';
 import { PromotionsPage } from './pages/promotions/PromotionsPage';
 import { PlanPage, TrialPage, WelcomePage } from './auth/PlanPages';
+import { MfaChallengePage, TwoFactorPage } from './auth/TwoFactor';
 import { effectiveTier } from './lib/plans';
 
 /** Signed in, nothing else — the plan picker and welcome page sit here. */
 function RequireSession() {
-  const { session, recovering } = useAuth();
+  const { session, recovering, mfaNeeded } = useAuth();
   const location = useLocation();
   if (session === undefined) return <div className="full-center"><Spinner /></div>;
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   if (recovering) return <Navigate to="/reset-password" replace />;
+  if (mfaNeeded === undefined) return <div className="full-center"><Spinner /></div>;
+  if (mfaNeeded) return <MfaChallengePage />;
   return <Outlet />;
 }
 
 function RequireVendor() {
-  const { session, profile, profileLoading, recovering, plan, planLoading } = useAuth();
+  const { session, profile, profileLoading, recovering, plan, planLoading, mfaNeeded } = useAuth();
   const location = useLocation();
   if (session === undefined) return <div className="full-center"><Spinner /></div>;
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   if (recovering) return <Navigate to="/reset-password" replace />;
+  if (mfaNeeded === undefined) return <div className="full-center"><Spinner /></div>;
+  if (mfaNeeded) return <MfaChallengePage />;
   if ((profileLoading && !profile) || (planLoading && plan === undefined)) return <div className="full-center"><Spinner /></div>;
   // No live plan (a new account, or a trial/subscription that ended) →
   // the plan picker. Accounts from before plans are 'legacy' Starter.
@@ -99,6 +104,7 @@ export default function App() {
               <Route path="payouts" element={<PayoutsPage />} />
               <Route path="shop-settings" element={<ShopSettingsPage />} />
               <Route path="refer" element={<ReferPage />} />
+              <Route path="security" element={<TwoFactorPage />} />
               <Route path="finances" element={<FinancesPage />} />
               <Route path="promotions" element={<PromotionsPage />} />
               <Route path="ingredients" element={<IngredientsPage />} />

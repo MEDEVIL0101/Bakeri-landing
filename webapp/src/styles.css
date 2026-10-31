@@ -1240,3 +1240,10 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .pk-price s { font-size: 34px; } .pk-price b { font-size: 44px; }
 .pk-price { flex-wrap: nowrap; } .pk-price { display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; column-gap: 8px; } .pk-price small { grid-column: 1 / -1; }
 .pk-price > span { white-space: nowrap; }
+
+/* Two-factor authentication */
+.mfa-code { font-size: 22px; letter-spacing: .35em; text-align: center; font-variant-numeric: tabular-nums; }
+.mfa-qr { width: 180px; height: 180px; align-self: center; background: #fff; padding: 8px; border-radius: 12px; border: 1px solid var(--line); }
+.mfa-secret { font-size: 12px; word-break: break-all; user-select: all; }
+.mfa-steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.mfa-actions { display: flex; gap: 10px; }

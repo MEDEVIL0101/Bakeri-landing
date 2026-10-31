@@ -17,6 +17,9 @@ interface AuthState {
   plan: VendorPlan | null | undefined;
   planLoading: boolean;
   refreshPlan: () => Promise<VendorPlan | null | undefined>;
+  /** True when 2FA is on and this session hasn't entered its code yet; undefined while checking. */
+  mfaNeeded: boolean | undefined;
+  refreshMfa: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -32,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [recovering, setRecovering] = useState(false);
   const [plan, setPlan] = useState<VendorPlan | null | undefined>(undefined);
   const [planLoading, setPlanLoading] = useState(false);
+  const [mfaNeeded, setMfaNeeded] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -42,7 +46,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const userId = session?.user.id;
+  // 2FA: a password-only session is aal1; with a verified authenticator the
+  // account needs aal2 before the app (and RLS) lets it at anything.
+  const refreshMfa = useCallback(async () => {
+    const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    setMfaNeeded(error ? false : data.nextLevel === 'aal2' && data.currentLevel !== 'aal2');
+  }, []);
+
+  useEffect(() => {
+    if (session === undefined) return;
+    if (!session) { setMfaNeeded(false); return; }
+    refreshMfa();
+  }, [session, refreshMfa]);
+
+  // Data loads wait for the code — RLS refuses an aal1 session anyway.
+  const userId = mfaNeeded === false ? session?.user.id : undefined;
 
   const loadProfile = useCallback(async () => {
     if (!userId) { setProfile(null); return; }
@@ -80,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, profileLoading, recovering, setRecovering, refreshProfile: loadProfile, plan, planLoading, refreshPlan, signOut }}
+      value={{ session, profile, profileLoading, recovering, setRecovering, refreshProfile: loadProfile, plan, planLoading, refreshPlan, mfaNeeded, refreshMfa, signOut }}
     >
       {children}
     </AuthContext.Provider>
