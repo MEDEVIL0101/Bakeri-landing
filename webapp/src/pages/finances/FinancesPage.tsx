@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useUserId } from '../../auth/AuthProvider';
+import { useAuth, useUserId } from '../../auth/AuthProvider';
+import { planFeeRate } from '../../lib/plans';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Input, PageHeader, Spinner, useLoad } from '../../components/ui';
 import { listOrders, effectiveTotal, isStorefrontOrder, revenueReceived, statusLabel, statusTone, tipAmount, tipsReceived } from '../../lib/orders';
 import { formatDate, formatMoney, toDateInput } from '../../lib/format';
@@ -80,6 +81,8 @@ export function FinancesPage() {
 }
 
 function Report({ orders, recipes, costs, packaging }: { orders: Order[]; recipes: CostingRecipe[]; costs: IngredientCostRow[]; packaging: Map<string, number> }) {
+  // Estimated net before release-baker-payouts writes the real figures.
+  const feeRate = planFeeRate(useAuth().plan);
   const [period, setPeriod] = useState<Period>('month');
   const [offset, setOffset] = useState(0);
   const [metric, setMetric] = useState<Metric>('revenue');
@@ -219,7 +222,7 @@ function Report({ orders, recipes, costs, packaging }: { orders: Order[]; recipe
                       <span className="row-end">
                         <span className={`row-amount ${o.is_paid ? '' : 'muted'}`}>{metric === 'costs' ? formatMoney(c) : metric === 'profit' ? formatMoney(effectiveTotal(o) - c) : metric === 'tips' ? formatMoney(tipAmount(o)) : formatMoney(effectiveTotal(o))}</span>
                         {metric !== 'revenue' && metric !== 'orders' && <span className="small muted">of {formatMoney(effectiveTotal(o))}</span>}
-                        {metric === 'revenue' && isStorefrontOrder(o) && <span className="small muted">{o.baker_payout_cents != null ? '' : '~'}{formatMoney(netPayout(o))} net</span>}
+                        {metric === 'revenue' && isStorefrontOrder(o) && <span className="small muted">{o.baker_payout_cents != null ? '' : '~'}{formatMoney(netPayout(o, feeRate))} net</span>}
                         {!o.is_paid && <span className="small unpaid">Unpaid</span>}
                       </span>
                     </Link>
@@ -252,10 +255,10 @@ function Report({ orders, recipes, costs, packaging }: { orders: Order[]; recipe
 }
 
 /** Order.netPayoutEstimate */
-function netPayout(o: Order): number {
+function netPayout(o: Order, feeRate: number): number {
   if (o.baker_payout_cents != null) return o.baker_payout_cents / 100;
   const t = effectiveTotal(o);
-  const fee = o.platform_fee_cents != null ? o.platform_fee_cents / 100 : t * 0.05;
+  const fee = o.platform_fee_cents != null ? o.platform_fee_cents / 100 : t * feeRate;
   return Math.max(0, t - fee - (t * 0.029 + 0.3));
 }
 

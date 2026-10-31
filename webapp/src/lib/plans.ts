@@ -101,6 +101,18 @@ export function effectiveTier(plan: VendorPlan | null | undefined): PlanTier | '
   return plan?.grandfathered_starter ? 'starter' : 'none';
 }
 
+/** Bakeri's fee on this vendor's storefront sales: none on Pro, 5% otherwise (mirrors _shared/plans.ts PLAN_FEE_RATE). */
+export function planFeeRate(plan: VendorPlan | null | undefined): number {
+  return effectiveTier(plan) === 'pro' ? 0 : 0.05;
+}
+
+/** "5% of each sale" / "nothing on Pro" style copy for the vendor's own plan. */
+export function feeDescription(plan: VendorPlan | null | undefined): string {
+  return planFeeRate(plan) === 0
+    ? 'Your Pro plan has no Bakeri service fee'
+    : 'Bakeri’s service fee is 5% of each sale';
+}
+
 /**
  * The signed-in vendor's plan row. null = no row yet (never subscribed);
  * undefined = couldn't tell (e.g. the table isn't there yet) — callers

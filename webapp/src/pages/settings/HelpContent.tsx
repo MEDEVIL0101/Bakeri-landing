@@ -1,5 +1,9 @@
+import { useAuth } from '../../auth/AuthProvider';
+import { planFeeRate } from '../../lib/plans';
 // Mirrors iOS HelpCenterView. The sales-tax section is left out until the
 // Stripe Tax work ships.
+const FEE_BODY = '5% of each storefront sale, before tax, on Starter — none on Pro. Stripe’s card processing fee is also deducted by Stripe.';
+
 const SECTIONS: { heading: string; rows: { title: string; body: string }[] }[] = [
   {
     heading: 'When customers are charged',
@@ -13,7 +17,7 @@ const SECTIONS: { heading: string; rows: { title: string; body: string }[] }[] =
   {
     heading: 'Fees',
     rows: [
-      { title: 'Bakeri service fee', body: '5% of each storefront sale, before tax. Stripe’s card processing fee is also deducted by Stripe.' },
+      { title: 'Bakeri service fee', body: FEE_BODY },
       { title: 'Tips', body: 'Tips taken with the Payment Terminal in the iPhone app are 100% yours. Bakeri takes no fee on them.' },
     ],
   },
@@ -32,6 +36,10 @@ const SECTIONS: { heading: string; rows: { title: string; body: string }[] }[] =
 ];
 
 export function HelpContent() {
+  const { plan } = useAuth();
+  const feeBody = planFeeRate(plan) === 0
+    ? 'None — your Pro plan has no Bakeri service fee. Stripe’s card processing fee is still deducted by Stripe.'
+    : FEE_BODY;
   return (
     <div className="help">
       {SECTIONS.map((s) => (
@@ -40,7 +48,7 @@ export function HelpContent() {
           {s.rows.map((r) => (
             <div key={r.title} className="help-row">
               <div className="row-title">{r.title}</div>
-              <p className="muted small">{r.body}</p>
+              <p className="muted small">{r.body === FEE_BODY ? feeBody : r.body}</p>
             </div>
           ))}
         </section>

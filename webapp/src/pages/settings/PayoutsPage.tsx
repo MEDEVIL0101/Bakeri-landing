@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
+import { feeDescription } from '../../lib/plans';
 import { Badge, Button, Card, ConfirmModal, ErrorBanner, Field, PageHeader, Select, Spinner, Toggle, useLoad } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { check } from '../../lib/api';
@@ -12,7 +13,7 @@ import { formatDate } from '../../lib/format';
 /** Mirrors iOS BankingPaymentsView / BakerPayoutSetupView ("Direct Deposit"). */
 export function PayoutsPage() {
   const userId = useUserId();
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, plan } = useAuth();
   const [params, setParams] = useSearchParams();
   const status = useLoad(() => connectStatus(userId), [userId]);
   const returned = params.get('stripe') === 'return';
@@ -41,7 +42,7 @@ export function PayoutsPage() {
 
       <Card title="How payments work">
         <p className="muted small">
-          Bakeri’s service fee is 5% of each sale, and Stripe deducts its card processing fee. The rest goes into your own Stripe account as soon as a customer is charged. Payouts to your bank are managed in your Stripe dashboard.
+          {feeDescription(plan)}, and Stripe deducts its card processing fee. The rest goes into your own Stripe account as soon as a customer is charged. Payouts to your bank are managed in your Stripe dashboard.
         </p>
       </Card>
     </div>
