@@ -100,9 +100,8 @@ export function SignupPage() {
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
   const referral = params.get('ref') ?? '';
-  // From the site: "Try Pro free" (plan=pro) or the plan-picker sign-up (plan=all).
-  const planParam = params.get('plan');
-  const planIntent = planParam === 'pro' || planParam === 'all' ? planParam : null;
+  // From the site's "Try Pro free" button.
+  const proIntent = params.get('plan') === 'pro';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -125,7 +124,7 @@ export function SignupPage() {
     if (firstName.trim()) data.first_name = firstName.trim();
     if (lastName.trim()) data.last_name = lastName.trim();
     if (referral.trim()) data.referral_code = referral.trim().toUpperCase();
-    if (planIntent) { data.plan_intent = planIntent; rememberPlanIntent(planIntent); }
+    if (proIntent) { data.plan_intent = 'pro'; rememberPlanIntent('pro'); }
     const invite = params.get('invite');
     if (invite) data.vendor_application_id = invite;
     const { data: res, error } = await supabase.auth.signUp({
@@ -159,7 +158,7 @@ export function SignupPage() {
 
   return (
     <AuthLayout
-      title={planIntent === 'all' ? `Start your free ${TRIAL_DAYS}-day trial` : `Start your free ${TRIAL_DAYS}-day Pro trial`}
+      title={`Start your free ${TRIAL_DAYS}-day Pro trial`}
       footer={<>Already have an account? <Link to="/login">Log in</Link></>}
     >
       <form onSubmit={submit} className="stack">
