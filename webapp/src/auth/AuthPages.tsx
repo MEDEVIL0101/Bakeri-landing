@@ -51,6 +51,19 @@ function friendlyAuthError(message: string): string {
   return message;
 }
 
+function AlreadySignedIn({ email, continueTo }: { email: string; continueTo: string }) {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+  return (
+    <AuthLayout title="You’re already signed in" subtitle={email ? <>Signed in as <strong>{email}</strong>.</> : undefined}>
+      <div className="stack">
+        <Button className="btn-block" onClick={() => navigate(continueTo, { replace: true })}>Continue</Button>
+        <Button variant="secondary" className="btn-block" onClick={() => signOut()}>Use a different account</Button>
+      </div>
+    </AuthLayout>
+  );
+}
+
 export function LoginPage() {
   const { session } = useAuth();
   const location = useLocation();
@@ -58,12 +71,17 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [justSignedIn, setJustSignedIn] = useState(false);
   const from = (location.state as { from?: string } | null)?.from ?? '/';
 
-  if (session) return <Navigate to={from} replace />;
+  if (session && justSignedIn) return <Navigate to={from} replace />;
+  // Already signed in (e.g. the site's "Sign in" in a browser that still has
+  // a session) — ask, rather than dropping them into that account's app.
+  if (session) return <AlreadySignedIn email={session.user.email ?? ''} continueTo={from} />;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    setJustSignedIn(true);
     setBusy(true); setError(null);
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
@@ -109,7 +127,7 @@ export function SignupPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   useEffect(() => { if (!session) trackSite('signup_view', intent ?? undefined); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (session) return <Navigate to="/" replace />;
+  if (session) return <AlreadySignedIn email={session.user.email ?? ''} continueTo="/" />;
 
   const rulesMet = passwordRules(password).every((r) => r.met);
 
