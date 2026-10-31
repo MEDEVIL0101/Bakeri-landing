@@ -43,7 +43,7 @@ export function SettingsPage() {
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" /></svg>
         </span>
         <span className="grow">
-          <span className="row-title">Refer a Vendor</span>
+          <span className="row-title">Referral Program</span>
           <span className="row-sub">{referralSub}</span>
         </span>
         <span className="chev" aria-hidden>›</span>

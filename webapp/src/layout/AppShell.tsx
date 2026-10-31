@@ -153,7 +153,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const titles: Record<string, string> = {
     '': 'Home', storefront: 'Storefront', orders: 'Orders', menu: 'Menu & Listings', promotions: 'Promotions', forms: 'Order Forms',
     customers: 'Customers', campaigns: 'Email Campaigns', schedule: 'Schedule', recipes: 'Recipes', ingredients: 'Ingredients', packaging: 'Packaging',
-    calculator: 'Calculator', finances: 'Finances', payouts: 'Direct Deposit', settings: 'Settings', 'shop-settings': 'Shop settings', refer: 'Refer a Vendor',
+    calculator: 'Calculator', finances: 'Finances', payouts: 'Direct Deposit', settings: 'Settings', 'shop-settings': 'Shop settings', refer: 'Referral Program',
   };
   useEffect(() => setOpen(false), [location.pathname, location.search]);
   useEffect(() => {

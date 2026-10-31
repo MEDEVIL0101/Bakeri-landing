@@ -951,7 +951,7 @@
   let stripeReady = false;
   // Plan lapsed (see the profile fetch) — ordering off, worded as paused.
   let ordersPaused = false;
-  const VENDOR_PLANS_ENABLED = false;
+  const VENDOR_PLANS_ENABLED = true;
 
   // ── Cart persistence — keyed per baker so a visitor's cart from one
   // storefront never bleeds into another's. ──
@@ -1129,8 +1129,8 @@
     // A shop whose Bakeri plan has lapsed stays visible with ordering off
     // (vendor_plans / effective_plan_tier). Any failure here — including the
     // function not existing yet — leaves the shop open, never blocks it.
-    // Off until paid plans launch (2026-10-26, Harvey: everyone is on the
-    // free setup) — flip VENDOR_PLANS_ENABLED to bring the check back.
+    // On since paid plans launched (2026-10-31); every account from before
+    // then is grandfathered on free Starter, so only lapsed new shops pause.
     if (!VENDOR_PLANS_ENABLED || !data || !data.profile || !data.profile.id) return data;
     return fetch(SUPABASE_URL + '/rest/v1/rpc/effective_plan_tier', {
       method: 'POST',

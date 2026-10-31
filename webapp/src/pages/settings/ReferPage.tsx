@@ -29,7 +29,7 @@ export function ReferPage() {
 
   return (
     <div className="page page-narrow">
-      <PageHeader back={<Link to="/settings" className="back-link">Settings</Link>} title="Refer a Vendor" />
+      <PageHeader back={<Link to="/settings" className="back-link">Settings</Link>} title="Referral Program" />
       <Card className="hero-card">
         <h2 className="hero-title">Earn {COMMISSION_PCT}% recurring commission on every vendor you refer — for as long as they stay subscribed.</h2>
         <p className="muted">Share your link. When a new vendor joins with it, you earn {COMMISSION_PCT}% of every Bakeri plan payment they make, paid to your Stripe account on the 1st of each month.</p>
