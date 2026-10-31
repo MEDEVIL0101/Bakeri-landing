@@ -31,7 +31,8 @@ export function PlanPage() {
   const lapsed = current === 'none' && !!plan?.stripe_customer_id;
   // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
   // Starting from "Try Starter free" opens every plan straight away, so Pro sits beside it.
-  const starterIntent = (storedPlanIntent() ?? session?.user.user_metadata?.plan_intent) === 'starter';
+  // The account's own sign-up choice wins over this browser's, which can be left over from another sign-up.
+  const starterIntent = (session?.user.user_metadata?.plan_intent ?? storedPlanIntent()) === 'starter';
   if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all') && !starterIntent) {
     return <Navigate to="/plan/trial?tier=pro" replace />;
   }
