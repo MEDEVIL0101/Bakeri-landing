@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { giveBackAiUse, limitMessage, takeAiUse } from "../_shared/aiQuota.ts";
 
 // Proxies Claude API calls (recipe-scan-from-photo, form-import) that used to
 // go straight from the device to api.anthropic.com with a hardcoded API key
@@ -67,6 +68,10 @@ Deno.serve(async (req: Request) => {
       MAX_TOKENS_CEILING
     );
 
+    // Daily limit per vendor (_shared/aiQuota.ts); a failed call gives it back.
+    const use = await takeAiUse(user.id, "ai");
+    if (!use.ok) return json({ error: limitMessage("ai") }, 429);
+
     const anthropicResponse = await fetch(ANTHROPIC_ENDPOINT, {
       method: "POST",
       headers: {
@@ -78,6 +83,7 @@ Deno.serve(async (req: Request) => {
     });
 
     const responseBody = await anthropicResponse.text();
+    if (!anthropicResponse.ok) await giveBackAiUse(use.id);
     return new Response(responseBody, {
       status: anthropicResponse.status,
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
