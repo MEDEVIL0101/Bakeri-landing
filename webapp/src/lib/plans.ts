@@ -56,16 +56,18 @@ export const TRIAL_DAYS = 7;
 /** Yearly billing = this many months free (shown as "2 months free!"). */
 export const YEARLY_FREE_MONTHS = 2;
 
-// The plan a vendor picked on the website before signing up (the site's
-// "Try Pro free" button → /app/signup?plan=pro). Kept in this browser and in
+// Where a vendor started on the website: "Try Pro free" (/app/signup?plan=pro)
+// leads with the Pro trial; "Sign up" lower down (/app/signup?plan=all) opens
+// the full plan picker. Kept in this browser and in
 // user_metadata.plan_intent, so it survives the confirmation-email round trip
 // even when the link opens on another device.
 const INTENT_KEY = 'bakeri.planIntent';
-export function rememberPlanIntent(tier: string | null): void {
-  try { if (tier === 'pro') localStorage.setItem(INTENT_KEY, tier); } catch { /* private mode */ }
+export type PlanIntent = 'pro' | 'all';
+export function rememberPlanIntent(intent: string | null): void {
+  try { if (intent === 'pro' || intent === 'all') localStorage.setItem(INTENT_KEY, intent); } catch { /* private mode */ }
 }
-export function storedPlanIntent(): PlanTier | null {
-  try { return localStorage.getItem(INTENT_KEY) === 'pro' ? 'pro' : null; } catch { return null; }
+export function storedPlanIntent(): PlanIntent | null {
+  try { const v = localStorage.getItem(INTENT_KEY); return v === 'pro' || v === 'all' ? v : null; } catch { return null; }
 }
 export function clearPlanIntent(): void {
   try { localStorage.removeItem(INTENT_KEY); } catch { /* private mode */ }

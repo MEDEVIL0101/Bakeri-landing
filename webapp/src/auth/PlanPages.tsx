@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { LOGO } from '../lib/brand';
 import { Button, ErrorBanner, Spinner } from '../components/ui';
-import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
+import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, storedPlanIntent, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -13,7 +13,7 @@ import { useAuth } from './AuthProvider';
  * back to /welcome. Web only: the iOS app never shows this.
  */
 export function PlanPage() {
-  const { plan, signOut } = useAuth();
+  const { plan, session, signOut } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [busy, setBusy] = useState<PlanTier | 'portal' | null>(null);
@@ -28,7 +28,9 @@ export function PlanPage() {
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const lapsed = current === 'none' && !!plan?.stripe_customer_id;
   // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
-  if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all')) {
+  // Vendors who signed up from the site's plan-picker entry (plan=all) skip straight here.
+  const wantsAll = params.has('all') || storedPlanIntent() === 'all' || session?.user.user_metadata?.plan_intent === 'all';
+  if (trial && current === 'none' && !subscribed && !grandfathered && !wantsAll) {
     return <Navigate to="/plan/trial?tier=pro" replace />;
   }
 
