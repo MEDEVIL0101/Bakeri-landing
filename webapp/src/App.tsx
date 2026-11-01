@@ -33,6 +33,7 @@ import { PromotionsPage } from './pages/promotions/PromotionsPage';
 import { PlanPage, TrialPage, WelcomePage } from './auth/PlanPages';
 import { MfaChallengePage, TwoFactorPage } from './auth/TwoFactor';
 import { GetIOSPage } from './pages/settings/GetIOSPage';
+import { InsightsPage } from './pages/insights/InsightsPage';
 import { effectiveTier } from './lib/plans';
 
 /** Signed in, nothing else — the plan picker and welcome page sit here. */
@@ -107,6 +108,7 @@ export default function App() {
               <Route path="refer" element={<ReferPage />} />
               <Route path="security" element={<TwoFactorPage />} />
               <Route path="ios" element={<GetIOSPage />} />
+              <Route path="insights" element={<InsightsPage />} />
               <Route path="finances" element={<FinancesPage />} />
               <Route path="promotions" element={<PromotionsPage />} />
               <Route path="ingredients" element={<IngredientsPage />} />

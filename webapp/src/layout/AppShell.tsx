@@ -21,6 +21,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
   ] },
   { heading: 'Sell', items: [
     { to: '/storefront', label: 'Storefront', icon: <path d="M4 9l1.5-5h13L20 9M4 9v11h16V9M4 9c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3M10 20v-5h4v5" /> },
+    { to: '/insights', label: 'Insights', icon: <path d="M4 20V11M9.5 20V5M15 20v-6M20.5 20V8" /> },
     { to: '/orders', label: 'Orders', icon: <path d="M6 3h12l1 4H5zM5 7h14v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1zM9 11h6" /> },
     { to: '/menu', label: 'Menu & Listings', icon: <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01" /> },
     { to: '/promotions', label: 'Promotions', icon: <path d="M19 5 5 19M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM16.5 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /> },
@@ -61,6 +62,7 @@ const TABS: NavItem[] = [
 // web-only tools the app reaches from inside other screens.
 const PHONE_MENU: NavItem[] = [
   { to: '/', label: 'Home', end: true, icon: <path fill="currentColor" stroke="none" d="M11.3 2.6a1 1 0 0 1 1.4 0l8.6 7.9a1 1 0 0 1 .3.7V20a1 1 0 0 1-1 1h-5v-6.5H8.4V21h-5a1 1 0 0 1-1-1v-8.8a1 1 0 0 1 .3-.7z" /> },
+  { to: '/insights', label: 'Insights', icon: <path d="M4 20V11M9.5 20V5M15 20v-6M20.5 20V8" /> },
   { to: '/recipes', label: 'Recipes', icon: <path d="M4 5.5C6.5 4 9.5 4 12 5.5v14c-2.5-1.5-5.5-1.5-8 0zM20 5.5c-2.5-1.5-5.5-1.5-8 0v14c2.5-1.5 5.5-1.5 8 0z" /> },
   { to: '/forms', label: 'Manage Forms', icon: <path d="M9 3.5h6a1 1 0 0 1 1 1v1H8v-1a1 1 0 0 1 1-1zM8 5.5H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-13a1 1 0 0 0-1-1h-2M8.5 11h.01M11 11h4.5M8.5 15h.01M11 15h4.5" /> },
   { to: '/orders?filter=closed', label: 'Past Orders', icon: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12.2l2.7 2.7L16 9.6" /> },
@@ -156,7 +158,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const titles: Record<string, string> = {
     '': 'Home', storefront: 'Storefront', orders: 'Orders', menu: 'Menu & Listings', promotions: 'Promotions', forms: 'Order Forms',
     customers: 'Customers', campaigns: 'Email Campaigns', schedule: 'Schedule', recipes: 'Recipes', ingredients: 'Ingredients', packaging: 'Packaging',
-    calculator: 'Calculator', finances: 'Finances', payouts: 'Direct Deposit', settings: 'Settings', 'shop-settings': 'Shop settings', refer: 'Referral Program', ios: 'Get on iOS', security: 'Two-factor authentication',
+    calculator: 'Calculator', finances: 'Finances', payouts: 'Direct Deposit', settings: 'Settings', 'shop-settings': 'Shop settings', refer: 'Referral Program', ios: 'Get on iOS', insights: 'Insights', security: 'Two-factor authentication',
   };
   useEffect(() => setOpen(false), [location.pathname, location.search]);
   useEffect(() => {
@@ -179,6 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, [session?.user.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ?self=1: the vendor's own visits don't count in their Insights (baker/index.html sendVisitEvent).
   const storefront = profile?.profile_slug ? `https://bakeriapp.com/${profile.profile_slug}` : null;
   const logoURL = session ? `${STORAGE_PUBLIC_URL}/business-logos/${session.user.id.toUpperCase()}/logo.jpg` : null;
   const initial = ((profile?.user_name || profile?.business_name || 'B').trim()[0] ?? 'B').toUpperCase();
@@ -211,7 +214,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {avatar('pm-avatar')}
             <div className="pm-biz">{profile?.business_name?.trim() || 'My Shop'}</div>
             {profile?.user_name && <div className="pm-name">{profile.user_name}</div>}
-            {storefront && <a href={storefront} target="_blank" rel="noreferrer" className="pm-link ellipsis">bakeriapp.com/{profile?.profile_slug} ↗</a>}
+            {storefront && <a href={`${storefront}?self=1`} target="_blank" rel="noreferrer" className="pm-link ellipsis">bakeriapp.com/{profile?.profile_slug} ↗</a>}
           </div>
           <nav className="pm-rows">
             {PHONE_MENU.map((n) => (
@@ -272,7 +275,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="biz-text">
             <span className="biz-name ellipsis">{profile?.business_name}</span>
             {storefront && (
-              <a href={storefront} target="_blank" rel="noreferrer" className="biz-link ellipsis">
+              <a href={`${storefront}?self=1`} target="_blank" rel="noreferrer" className="biz-link ellipsis">
                 bakeriapp.com/{profile?.profile_slug} ↗
               </a>
             )}

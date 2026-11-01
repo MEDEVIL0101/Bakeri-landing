@@ -4,8 +4,8 @@ interface Series { key: string; label: string; color: string }
 
 /** Lightweight grouped bar chart (no chart library) with hover read-outs. */
 export function BarChart<T extends { label: string } & Record<string, number | string>>({
-  data, series, format,
-}: { data: T[]; series: Series[]; format: (n: number) => string }) {
+  data, series, format, labelEvery = 1,
+}: { data: T[]; series: Series[]; format: (n: number) => string; /** Show every Nth x label when bars are many (all stay in the tooltip). */ labelEvery?: number }) {
   const [hover, setHover] = useState<number | null>(null);
   const values = data.flatMap((d) => series.map((s) => Number(d[s.key]) || 0));
   const max = Math.max(1, ...values);
@@ -36,7 +36,7 @@ export function BarChart<T extends { label: string } & Record<string, number | s
                   );
                 })}
               </div>
-              <span className="chart-label">{d.label}</span>
+              <span className="chart-label">{i % labelEvery === 0 ? d.label : ''}</span>
               {hover === i && (
                 <div className="chart-tip">
                   <strong>{d.label}</strong>

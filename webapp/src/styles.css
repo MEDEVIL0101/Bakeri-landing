@@ -1257,3 +1257,19 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .ios-steps li span { display: block; font-size: 14px; margin-top: 2px; }
 .ios-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 @media (max-width: 640px) { .ios-card { flex-direction: column; align-items: stretch; padding: 18px; } }
+
+/* Insights */
+.metric.static { cursor: default; }
+.metric.static:hover { transform: none; }
+.ins-grid { align-items: start; }
+.ins-funnel { display: grid; gap: 10px; }
+.ins-row { display: grid; grid-template-columns: minmax(110px, 38%) 1fr 54px 48px; align-items: center; gap: 10px; font-size: 14px; }
+.ins-label { color: var(--ink); min-width: 0; }
+.ins-track { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.ins-fill { display: block; height: 100%; border-radius: 999px; background: var(--chart-1); }
+.ins-num { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ins-pct { text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ins-table td.ellipsis { max-width: 0; width: 60%; }
+.ins-note { margin-top: 4px; }
+@media (max-width: 640px) { .ins-row { grid-template-columns: minmax(90px, 40%) 1fr 44px 40px; font-size: 13px; } }
+.ins-chart .chart-group { max-width: 64px; margin: 0 auto; }

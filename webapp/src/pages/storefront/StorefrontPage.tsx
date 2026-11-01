@@ -128,7 +128,7 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
           <h1>Storefront</h1>
         </div>
         <div className="btn-row">
-          {liveURL && <a href={liveURL} target="_blank" rel="noreferrer" className="btn btn-ghost">View live ↗</a>}
+          {liveURL && <a href={`${liveURL}?self=1`} target="_blank" rel="noreferrer" className="btn btn-ghost">View live ↗</a>}
           {changes.length > 0 && <Button variant="ghost" onClick={() => setDiscarding(true)}>Discard</Button>}
           <Button disabled={!changes.length} onClick={() => setConfirming(true)}>
             {changes.length ? `Publish changes (${changes.length})` : 'Published'}
