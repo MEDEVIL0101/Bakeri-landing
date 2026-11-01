@@ -62,13 +62,13 @@ export function PhotoPicker({ label, value, onPick, maxSide = 900, round }: {
 export function ProfileEditor({ draft, set, data, userId }: EditorProps) {
   const pickImage = (key: 'logo' | 'header') => async (blob: Blob) =>
     set({ images: { ...draft.images, [key]: await blobToDataURL(blob) } });
+  // No header photo here any more (2026-11-01): the background photo is set
+  // in Site design → Background, and a second header picker here was
+  // confusing and didn't show once a background photo was chosen.
   return (
     <>
-      <Section title="Logo & header">
-        <div className="grid-2">
-          <PhotoPicker label="Logo" round value={draft.images.logo ?? storageURL('business-logos', userId, 'logo.jpg', data.updatedAt)} onPick={pickImage('logo')} />
-          <PhotoPicker label="Header photo" maxSide={1600} value={draft.images.header ?? storageURL('storefront-headers', userId, 'header.jpg', data.updatedAt)} onPick={pickImage('header')} />
-        </div>
+      <Section title="Logo">
+        <PhotoPicker label="Logo" round value={draft.images.logo ?? storageURL('business-logos', userId, 'logo.jpg', data.updatedAt)} onPick={pickImage('logo')} />
       </Section>
       <Section title="Your business">
         <Field label="Business name"><Input value={draft.business_name} onChange={(e) => set({ business_name: e.target.value })} /></Field>
