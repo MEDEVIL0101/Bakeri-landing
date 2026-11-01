@@ -1740,6 +1740,9 @@
   let bgToken = 0;
   let bgRatio = 0;
   let bgMode = 'theme';
+  // The photo currently painted, so a re-render with the same photo doesn't
+  // blank it to the theme colour first.
+  let bgShownUrl = null;
 
   // The page's base colour: what the top image fades into, the frame's fill
   // and everything outside the frame (photo modes) / the theme background
@@ -1771,6 +1774,7 @@
 
   function useThemeBackground() {
     bgMode = 'theme';
+    bgShownUrl = null;
     document.getElementById('sf-bg-top').classList.add('hidden');
     document.getElementById('sf-bg-full').classList.add('hidden');
     document.documentElement.style.background = baseColor();
@@ -1788,16 +1792,24 @@
     const fade = baseColor();
     document.documentElement.style.setProperty('--fade-base', fade);
     const token = ++bgToken;
-    useThemeBackground(); // paints immediately; swapped out below once an image loads
-    if (b.mode === 'theme') return;
+    const url = b.mode === 'theme' ? null : (b.image_url || (profile && profile.__preview_header_data_url) ||
+      assetURL('/storefront-headers/' + resolvedBakerId.toUpperCase() + '/header.jpg'));
+    if (url && url === bgShownUrl) {
+      // Same photo already on screen (the builder re-renders on every colour
+      // or focus change): keep it up and just refresh the fade colour —
+      // repainting the theme first flashed the whole page in that colour.
+      document.documentElement.style.background = fade;
+    } else {
+      useThemeBackground(); // paints immediately; swapped out below once an image loads
+    }
+    if (!url) return;
 
-    const url = b.image_url || (profile && profile.__preview_header_data_url) ||
-      assetURL('/storefront-headers/' + resolvedBakerId.toUpperCase() + '/header.jpg');
     const img = new Image();
     img.onload = function () {
       if (token !== bgToken) return; // a newer render already replaced this
       const full = b.mode === 'image_full';
       bgMode = full ? 'image_full' : 'image_top';
+      bgShownUrl = url;
       bgRatio = img.naturalHeight / img.naturalWidth;
       const layer = document.getElementById('theme-pattern-layer');
       if (layer) layer.remove();
