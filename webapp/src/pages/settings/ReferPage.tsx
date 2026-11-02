@@ -18,7 +18,14 @@ const PLAN_STATUS: Record<ReferralDashboard['referred_bakers'][number]['plan_sta
 
 export function ReferPage() {
   const toast = useToast();
-  const dash = useLoad(() => referralDashboard(), []);
+  // Every vendor with a plan just has a code — made on first visit (from
+  // the shop name), not behind a "Get my referral link" button.
+  const dash = useLoad(async () => {
+    const d = await referralDashboard();
+    if (d.code) return d;
+    try { await getOrCreateReferralCode(); } catch { return d; }
+    return referralDashboard();
+  }, []);
   const [claiming, setClaiming] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const d = dash.data;
@@ -66,8 +73,8 @@ export function ReferPage() {
                     )}
                   </div>
                   <p className="small muted">
-                    Anyone who signs up with your link or code is tracked as your referral. You can also add it to your storefront:
-                    in <Link to="/storefront">Storefront</Link>, add a Link and paste your referral link.
+                    Anyone who signs up with your link or code is tracked as your referral and gets 10% off their first 3 months.
+                    Show it on your storefront by turning on the Bakerï Referral card in <Link to="/storefront">Storefront</Link>.
                   </p>
                 </>
               ) : (
@@ -76,7 +83,7 @@ export function ReferPage() {
                   try { await getOrCreateReferralCode(); dash.reload(); }
                   catch { setErr('Couldn’t create your link — make sure your plan is active, then try again.'); }
                   setClaiming(false);
-                }}>Get my referral link</Button></div>
+                }}>Try again</Button></div>
               )}
               {err && <ErrorBanner message={err} />}
             </Card>
