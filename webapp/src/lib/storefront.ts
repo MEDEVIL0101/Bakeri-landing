@@ -191,6 +191,8 @@ export interface StorefrontData {
   slug: string | null;
   firstName: string;
   updatedAt: string;
+  /** The vendor's referral code, for the Bakerï Referral card's preview. */
+  referralCode: string | null;
 }
 
 const PROFILE_COLUMNS = [
@@ -211,13 +213,14 @@ function normaliseHours(raw: any): WeekHours {
 // ── Load ──────────────────────────────────────────────────────────────────
 
 export async function loadStorefront(userId: string): Promise<StorefrontData> {
-  const [profileRes, linksRes, faqsRes, rpcRes, menuRes] = await Promise.all([
+  const [profileRes, linksRes, faqsRes, rpcRes, menuRes, referralCode] = await Promise.all([
     supabase.from('profiles').select(PROFILE_COLUMNS.join(', ')).eq('id', userId).single(),
     supabase.from('baker_links').select('id, section, label, url, style, image_url, outline_style, shake, target_type, linked_listing_id')
       .eq('user_id', userId).is('deleted_at', null).order('sort_order'),
     supabase.from('baker_faqs').select('id, question, answer').eq('user_id', userId).is('deleted_at', null).order('sort_order'),
     supabase.rpc('get_baker_web_profile_by_id', { p_user_id: userId }),
     supabase.from('menu_items').select('id, user_id, name, listing_kind, is_listed_in_marketplace, is_lead_magnet, has_image, updated_at, intake_form_id, is_storefront_form').eq('user_id', userId).is('deleted_at', null).order('sort_order'),
+    supabase.rpc('get_or_create_referral_code').then((r) => (typeof r.data === 'string' ? r.data : null), () => null),
   ]);
   const p = check(profileRes) as any;
   const links = (check(linksRes) as any[]).map((l) => ({
@@ -269,6 +272,7 @@ export async function loadStorefront(userId: string): Promise<StorefrontData> {
     slug: p.profile_slug ?? null,
     firstName: (p.user_name ?? '').trim().split(/\s+/)[0] || 'me',
     updatedAt: p.updated_at,
+    referralCode,
   };
 }
 
@@ -495,6 +499,7 @@ export function previewPayload(data: StorefrontData, d: StorefrontDraft, userId:
       __preview_logo_data_url: images.logo,
       __preview_header_data_url: images.header,
       __preview_portrait_data_url: images.portrait,
+      __preview_referral_code: data.referralCode,
     },
     listings: data.listings,
     faqs: faqs.filter((f) => f.question.trim()),

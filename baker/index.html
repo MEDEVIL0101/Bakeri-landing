@@ -2808,6 +2808,9 @@
   function renderReferralCard() {
     const cfg = blockCfg.referral;
     if (!cfg || cfg.hidden) { fillReferralCard(null); return; }
+    // In the builder's preview the builder passes the vendor's own code (the
+    // public lookup only answers for a published, switched-on card).
+    if (isPreviewMode && profile && profile.__preview_referral_code) { fillReferralCard(String(profile.__preview_referral_code)); return; }
     if (!profile || !profile.id) { fillReferralCard(isPreviewMode ? 'YOURCODE' : null); return; }
     if (referralCode) { fillReferralCard(referralCode); return; }
     fillReferralCard(isPreviewMode ? 'YOURCODE' : null);
