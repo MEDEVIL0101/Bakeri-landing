@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useUserId } from '../../auth/AuthProvider';
+import { useAuth, useUserId } from '../../auth/AuthProvider';
 import { Button, ConfirmModal, ErrorBanner, Spinner, useLoad, useToast } from '../../components/ui';
 import {
-  changedSections, clearLocalDraft, loadLocalDraft, loadStorefront, previewPayload, publishStorefront, saveLocalDraft,
+  changedSections, clearLocalDraft, loadLocalDraft, loadStorefront, previewPayload, publishStorefront, saveLocalDraft, setAccountCreatedAt,
   type StorefrontData, type StorefrontDraft, type V2CardType,
 } from '../../lib/storefront';
 import { PreviewFrame } from './PreviewFrame';
@@ -11,7 +11,7 @@ import {
   AboutEditor, FAQEditor, HoursEditor, LinksEditor, ListingsInfo, MailingEditor, PoliciesEditor,
   ProfileEditor, ThemeEditor, type EditorProps,
 } from './Editors';
-import { CardSettings, DesignEditor } from './V2Editors';
+import { CardSettings, DesignEditor, ReferralCardInfo } from './V2Editors';
 
 type Panel =
   | 'home' | 'profile' | 'theme' | 'links' | 'about' | 'faq' | 'policies' | 'hours' | 'mailing'
@@ -38,6 +38,8 @@ function writePref(key: string, v: string) {
 
 export function StorefrontPage() {
   const userId = useUserId();
+  // The Bakerï Referral card starts on for new accounts, off for older ones.
+  setAccountCreatedAt(useAuth().session?.user.created_at);
   const { data, loading, error, reload } = useLoad(() => loadStorefront(userId), [userId]);
   if (loading && !data) return <div className="page"><Spinner label="Loading your storefront…" /></div>;
   if (error || !data) return <div className="page"><ErrorBanner message={error ?? 'Couldn’t load your storefront.'} onRetry={reload} /></div>;
@@ -116,6 +118,7 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
         links: <LinksEditor {...props} />, about: <AboutEditor {...props} />, menu: <ListingsInfo kind="menu" />,
         products: <><ListingsInfo kind="physical" /></>, emailCapture: <MailingEditor {...props} />,
         info: <><PoliciesEditor {...props} /><FAQEditor {...props} /><HoursEditor {...props} /></>,
+        referral: <ReferralCardInfo />,
       };
       editor = <><CardSettings {...props} type={t} />{content[t]}</>;
     }

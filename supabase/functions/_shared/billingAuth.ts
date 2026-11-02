@@ -27,3 +27,11 @@ export function adminClient() {
     auth: { persistSession: false },
   });
 }
+
+/** A client acting as the signed-in vendor (for RPCs that use auth.uid()). */
+export function userClient(req: Request) {
+  return createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
+    global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+    auth: { persistSession: false },
+  });
+}

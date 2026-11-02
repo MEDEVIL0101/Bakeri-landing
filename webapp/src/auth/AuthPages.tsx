@@ -185,6 +185,9 @@ export function SignupPage() {
       title="Create your Bakerï account"
       footer={<>Already have an account? <Link to="/login">Log in</Link></>}
     >
+      {referral.trim() && (
+        <p className="ref-note">Referral code <b>{referral.trim().toUpperCase()}</b>: you’ll get <b>10% off your first 3 months</b> when you pick a plan.</p>
+      )}
       <form onSubmit={submit} className="stack">
         <Field label="Email">
           <Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

@@ -361,6 +361,10 @@
     }
     #sf-magnet.sf-rich { background: var(--card-bg, var(--tint)); }
     .sf-rich.hidden { display: none; }
+    .sf-referral-badge { display: grid; place-content: center; text-align: center; background: var(--accent); color: #fff;
+      font-family: var(--display); font-weight: 800; font-size: 28px; line-height: 1; }
+    .sf-referral-badge small { display: block; font-size: 13px; font-weight: 700; margin-top: 2px; }
+    #sf-referral-code { font-weight: 800; letter-spacing: .06em; }
     .sf-rich-media {
       width: 96px; height: 96px; border-radius: var(--rs); background: var(--n100); transform: rotate(-4deg);
       box-shadow: var(--shadow-md); overflow: hidden; flex: none; position: relative;
@@ -753,6 +757,15 @@
     <p id="sf-capture-desc"></p>
   </div>
   <div class="sf-rich-action" id="sf-capture-body"></div>
+</section>
+
+<section id="sf-referral" class="sf-rich hidden" data-block="referral">
+  <div class="sf-rich-media sf-referral-badge" aria-hidden="true">10%<small>off</small></div>
+  <div class="sf-rich-text">
+    <h3 id="sf-referral-title"></h3>
+    <p id="sf-referral-desc"></p>
+  </div>
+  <div class="sf-rich-action"><a class="sf-btn" id="sf-referral-btn" target="_blank" rel="noopener"></a></div>
 </section>
 
 <footer id="site-footer">
@@ -1280,6 +1293,7 @@
     renderAbout(p);
     renderInfoCard(p);
     renderEmailCapture(p);
+    renderReferralCard();
     renderHeaderSignupButton(p);
     document.getElementById('footer-copy').textContent = '© ' + new Date().getFullYear() + ' ' + name;
 
@@ -1342,13 +1356,16 @@
   };
   const CARD_IDS = {
     leadMagnet: 'sf-magnet', menu: 'feed', form: 'form-storefront', products: 'sf-products',
-    links: 'links-feed', about: 'pb-about', info: 'sf-info', emailCapture: 'email-capture'
+    links: 'links-feed', about: 'pb-about', info: 'sf-info', emailCapture: 'email-capture',
+    // Bakerï Referral — never a default card (not in V2_DEFAULT_ORDER): it
+    // shows only where the vendor's design includes it switched on.
+    referral: 'sf-referral'
   };
   // Default nav set (spec): the shopping/info cards; About, Lead magnet and
   // Email capture only when the baker turns their button on (entry.nav).
   const NAV_DEFAULT = {
     menu: true, form: true, products: true, links: true, info: true,
-    about: false, leadMagnet: false, emailCapture: false
+    about: false, leadMagnet: false, emailCapture: false, referral: false
   };
 
   // V2 layout — written ONLY by the new builder, into
@@ -1447,6 +1464,7 @@
       case 'about': return ((profile && profile.about_heading) || '').trim() || 'Meet ' + firstName();
       case 'emailCapture': return ((profile && profile.email_capture_heading) || '').trim() || 'Join my list';
       case 'leadMagnet': return leadMagnetConfig().heading;
+      case 'referral': return 'Start your own shop on Bakerï';
       case 'form':
         if (sfForms.length > 1) return 'Order forms';
         return (sfListing && formTitle(sfListing)) || 'Order';
@@ -2772,6 +2790,47 @@
   }
 
   // ══════════════════════ About ══════════════════════
+
+  // Bakerï Referral card: the vendor's referral code (10% off a maker's
+  // first 3 months on Bakerï). The code comes from storefront_referral_code,
+  // which only answers for a published, switched-on card — so in the
+  // builder's preview a not-yet-published card shows a sample code.
+  let referralCode = null;
+  let referralLoading = false;
+  function fillReferralCard(code) {
+    const card = document.getElementById('sf-referral');
+    const cfg = blockCfg.referral;
+    if (!cfg || cfg.hidden || !code) { card.classList.add('hidden'); return; }
+    document.getElementById('sf-referral-title').textContent = cardTitle('referral');
+    document.getElementById('sf-referral-desc').innerHTML =
+      escapeHtml(firstName() === 'me' ? 'I run my shop' : firstName() + ' runs this shop') +
+      ' on Bakerï — online orders, payments and a storefront like this one. Use code <span id="sf-referral-code">' +
+      escapeHtml(code) + '</span> for 10% off your first 3 months.';
+    const btn = document.getElementById('sf-referral-btn');
+    btn.innerHTML = '<span>Get 10% off</span>' + ARROW_UR_SVG;
+    btn.href = 'https://bakeriapp.com/?ref=' + encodeURIComponent(code) + '&utm_source=storefront&utm_medium=referral';
+    card.classList.remove('hidden');
+  }
+  function renderReferralCard() {
+    const cfg = blockCfg.referral;
+    if (!cfg || cfg.hidden) { fillReferralCard(null); return; }
+    if (!profile || !profile.id) { fillReferralCard(isPreviewMode ? 'YOURCODE' : null); return; }
+    if (referralCode) { fillReferralCard(referralCode); return; }
+    fillReferralCard(isPreviewMode ? 'YOURCODE' : null);
+    if (referralLoading) return;
+    referralLoading = true;
+    fetch(SUPABASE_URL + '/rest/v1/rpc/storefront_referral_code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({ p_profile_id: profile.id })
+    }).then(function (r) { return r.ok ? r.json() : null; }).then(function (code) {
+      referralLoading = false;
+      if (typeof code === 'string' && code) referralCode = code;
+      fillReferralCard(referralCode || (isPreviewMode ? 'YOURCODE' : null));
+      if (blockCfg.referral && blockCfg.referral.hidden) document.getElementById('sf-referral').classList.add('hidden');
+      renderSectionNav();
+    }).catch(function () { referralLoading = false; });
+  }
 
   function renderAbout(p) {
     const card = document.getElementById('pb-about');

@@ -15,11 +15,16 @@
 // card changes and cancelling all happen there, so there's only ever one
 // subscription per vendor. The plan itself is recorded by
 // stripe-billing-webhook once Stripe confirms payment, not here.
+//
+// Referral Program: a vendor who signed up with a referral code (web sign-up
+// keeps it in user_metadata.referral_code) is attributed to the referrer
+// here — attribute_referral(), as the vendor — and, until they've paid for a
+// plan once, gets 10% off their first 3 months (referralCoupon()).
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@13.11.0?target=deno";
-import { adminClient, corsHeaders, json, requireUser } from "../_shared/billingAuth.ts";
-import { PAID_TIERS, appURL, billingSecretKey, launchCouponFor, priceIdFor, trialDays, type BillingInterval, type PlanTier } from "../_shared/plans.ts";
+import { adminClient, corsHeaders, json, requireUser, userClient } from "../_shared/billingAuth.ts";
+import { PAID_TIERS, appURL, billingSecretKey, launchCouponFor, priceIdFor, referralCoupon, trialDays, type BillingInterval, type PlanTier } from "../_shared/plans.ts";
 
 const LIVE_STATUSES = ["trialing", "active", "past_due"];
 
@@ -42,7 +47,7 @@ serve(async (req) => {
     const db = adminClient();
     const { data: plan, error: planErr } = await db
       .from("vendor_plans")
-      .select("tier, status, stripe_customer_id, stripe_subscription_id, trial_used_at, grandfathered_starter")
+      .select("tier, status, stripe_customer_id, stripe_subscription_id, trial_used_at, grandfathered_starter, first_paid_at")
       .eq("user_id", user.id)
       .maybeSingle();
     if (planErr) throw planErr;
@@ -64,14 +69,25 @@ serve(async (req) => {
       if (error) throw error;
     }
 
+    // Record the referral from sign-up (once; attribute_referral refuses
+    // self-referrals, invalid or disabled codes, and repeat attribution).
+    const signupCode = String(user.user_metadata?.referral_code ?? "").trim();
+    if (signupCode) {
+      const { error: attrErr } = await userClient(req).rpc("attribute_referral", { p_code: signupCode });
+      if (attrErr) console.error("attribute_referral:", attrErr.message);
+    }
+    const { data: referral } = await db.from("referrals")
+      .select("id").eq("referred_baker_id", user.id).eq("status", "active").maybeSingle();
+    const coupon = referral && !plan?.first_paid_at ? referralCoupon() : launchCouponFor(tier, interval);
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
       client_reference_id: user.id,
       line_items: [{ price, quantity: 1 }],
       // Stripe allows either an automatic coupon or a promo-code box, not both.
-      ...(launchCouponFor(tier, interval) ? { discounts: [{ coupon: launchCouponFor(tier, interval)! }] } : { allow_promotion_codes: true }),
-      metadata: { user_id: user.id, tier, interval },
+      ...(coupon ? { discounts: [{ coupon }] } : { allow_promotion_codes: true }),
+      metadata: { user_id: user.id, tier, interval, ...(coupon === referralCoupon() ? { referral: "1" } : {}) },
       subscription_data: {
         metadata: { user_id: user.id },
         ...(!plan?.trial_used_at && trialDays() ? { trial_period_days: trialDays() } : {}),

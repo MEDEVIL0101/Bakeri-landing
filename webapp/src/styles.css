@@ -1308,3 +1308,6 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 
 .row-kind { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 1px; }
 .kind-hidden { letter-spacing: 0; text-transform: none; font-size: 11px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+
+.ref-note { margin: 0 0 14px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--line); font-size: 14px; line-height: 1.45; }
+.plan-ref { max-width: 560px; margin: 0 auto 18px; text-align: center; }

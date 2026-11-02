@@ -51,6 +51,12 @@ export function tierForPriceId(priceId: string | null | undefined): { tier: Plan
   return null;
 }
 
+/** Referral Program: 10% off the first 3 months (Stripe coupon, repeating 3
+ * months — on yearly billing that's 10% off the first year's payment). */
+export function referralCoupon(): string {
+  return Deno.env.get("STRIPE_REFERRAL_COUPON") || "BAKERI_REFERRAL_10";
+}
+
 /** Coupon applied automatically at checkout, if any — the Starter launch sale is monthly billing only. */
 export function launchCouponFor(tier: PlanTier, interval: BillingInterval): string | null {
   return tier === "starter" && interval === "month" ? Deno.env.get("STRIPE_STARTER_LAUNCH_COUPON") || null : null;

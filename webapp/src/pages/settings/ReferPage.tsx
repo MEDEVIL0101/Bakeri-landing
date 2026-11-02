@@ -32,7 +32,8 @@ export function ReferPage() {
       <PageHeader back={<Link to="/settings" className="back-link">Settings</Link>} title="Referral Program" />
       <Card className="hero-card">
         <h2 className="hero-title">Earn {COMMISSION_PCT}% recurring commission on every vendor you refer — for as long as they stay subscribed.</h2>
-        <p className="muted">Share your link. When a new vendor joins with it, you earn {COMMISSION_PCT}% of every Bakeri plan payment they make, paid to your Stripe account on the 1st of each month.</p>
+        <p className="muted">Share your link or code. The vendors you refer get <b>10% off their first 3 months</b>, and you earn {COMMISSION_PCT}% of every Bakeri plan payment they make, paid to your Stripe account on the 1st of each month.</p>
+        <p className="small muted">Want customers to see it too? Turn on the Bakerï Referral card in your <Link to="/storefront">storefront builder</Link>.</p>
       </Card>
 
       <Card title="Share Bakeri organically">
@@ -61,7 +62,7 @@ export function ReferPage() {
                     <Button onClick={() => copy(referralLink(d.code!), 'Link')}>Copy link</Button>
                     <Button variant="secondary" onClick={() => copy(d.code!, 'Code')}>Copy code</Button>
                     {'share' in navigator && (
-                      <Button variant="ghost" onClick={() => navigator.share({ text: `Join me on Bakeri — use my referral code ${d.code} when you apply.`, url: referralLink(d.code!) }).catch(() => {})}>Share…</Button>
+                      <Button variant="ghost" onClick={() => navigator.share({ text: `Join me on Bakerï — use my referral code ${d.code} for 10% off your first 3 months.`, url: referralLink(d.code!) }).catch(() => {})}>Share…</Button>
                     )}
                   </div>
                   <p className="small muted">
@@ -120,7 +121,7 @@ export function ReferPage() {
       )}
 
       <Card title="Commission breakdown">
-        <p className="small">You earn {COMMISSION_PCT}% of your referral’s plan price, every time they pay, for as long as their plan stays active.</p>
+        <p className="small">You earn {COMMISSION_PCT}% of what your referral pays for their plan, every time they pay, for as long as their plan stays active. During their first 3 months they get 10% off, so your commission is on the discounted price.</p>
         <table className="table">
           <thead><tr><th>Your referral’s plan</th><th className="num">Your commission</th></tr></thead>
           <tbody>
@@ -137,6 +138,7 @@ export function ReferPage() {
 
       <Card title="Good to know">
         <ul className="small">
+          <li>Vendors who sign up with your link or code get 10% off their first 3 months (monthly plans), or 10% off their first year (yearly plans). It’s applied automatically at checkout.</li>
           <li>You must have an active Bakeri plan to earn commission. If you cancel, you stop earning — even on referrals who are still subscribed.</li>
           <li>Payouts go to your connected Stripe account.</li>
           <li>Referred the wrong way? A referrer can only be changed within 45 days of signup, and only when the referred vendor asks us.</li>

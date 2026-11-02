@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { getOrCreateReferralCode } from '../../lib/account';
 import { Button, Field, Input, Modal, Select, Textarea, Toggle, ErrorBanner } from '../../components/ui';
 import { menuImageURL } from '../../lib/menu';
 import {
@@ -427,5 +429,28 @@ export function FocalPointModal({ title, src, point, onSave, onClose }: {
         <figure><div className="focal-crop tall"><img src={src} alt="" style={{ objectPosition: pos }} /></div><figcaption>Tall</figcaption></figure>
       </div>
     </Modal>
+  );
+}
+
+/** Bakerï Referral card: what it shows, with the vendor's own code. */
+export function ReferralCardInfo() {
+  const [code, setCode] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { getOrCreateReferralCode().then(setCode, (e) => setErr(e?.message ?? 'Couldn’t load your code.')); }, []);
+  return (
+    <Section title="What this card shows">
+      <p className="small" style={{ marginTop: 0 }}>
+        Invites other makers to run their shop on Bakerï. Anyone who signs up with your code gets <b>10% off their first 3 months</b>,
+        and you earn 20% of what they pay for as long as they stay.
+      </p>
+      {code && (
+        <dl className="kv">
+          <dt>Your code</dt><dd><b style={{ letterSpacing: '.06em' }}>{code}</b></dd>
+          <dt>Button opens</dt><dd className="small">bakeriapp.com/?ref={code}</dd>
+        </dl>
+      )}
+      {err && <ErrorBanner message={err} />}
+      <p className="small muted">Earnings and payouts are in <Link to="/refer">Referral Program</Link>.</p>
+    </Section>
   );
 }

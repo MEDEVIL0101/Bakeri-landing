@@ -31,6 +31,10 @@ export function PlanPage() {
   const grandfathered = !lifetime && !!plan?.grandfathered_starter;
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const lapsed = current === 'none' && !!plan?.stripe_customer_id;
+  // Signed up with a referral code and hasn't had a plan yet → 10% off at checkout.
+  const referred = !subscribed && !lifetime && !plan?.trial_used_at
+    ? String(session?.user.user_metadata?.referral_code ?? '').trim().toUpperCase() || null
+    : null;
   // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
   // Starting from "Try Starter free" opens every plan straight away, so Pro sits beside it.
   // The account's own sign-up choice wins over this browser's, which can be left over from another sign-up.
@@ -63,6 +67,7 @@ export function PlanPage() {
             : 'Your shop is paused until you pick a plan. Everything you set up is still here.'}
         </p>
       </div>
+      {referred && <p className="ref-note plan-ref">Your referral code <b>{referred}</b> is applied: <b>10% off your first 3 months</b>, taken off at checkout.</p>}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       {!lifetime && !grandfathered && !subscribed && (
         <div className="pk-cycle" role="tablist" aria-label="Billing cycle">
@@ -141,7 +146,7 @@ function PlanPrice({ p, grandfathered, lifetime, cycle }: { p: PlanDef; grandfat
  * starts. New vendors land here on Pro first; Skip opens every plan.
  */
 export function TrialPage() {
-  const { plan } = useAuth();
+  const { plan, session } = useAuth();
   const [params] = useSearchParams();
   const [interval, setCycle] = useState<BillingInterval>(params.get('cycle') === 'month' ? 'month' : 'year');
   const [busy, setBusy] = useState(false);
@@ -149,6 +154,10 @@ export function TrialPage() {
   const p = PLANS.find((x) => x.tier === params.get('tier')) ?? PLANS.find((x) => x.tier === 'pro')!;
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const fromPicker = params.has('picked');
+  // Signed up with a referral code → 10% off the first 3 months at checkout.
+  const referred = !plan?.trial_used_at && !plan?.lifetime_pro
+    ? String(session?.user.user_metadata?.referral_code ?? '').trim().toUpperCase() || null
+    : null;
   if (hasSubscription(plan)) return <Navigate to="/plan" replace />;
 
   const starts = new Date(Date.now() + TRIAL_DAYS * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -168,6 +177,7 @@ export function TrialPage() {
       <div className="trial-brand"><img src={LOGO} alt="Bakeri" /> <span>{p.name}</span></div>
       <h1 className="trial-title">{trial ? <>Claim a free<br />{TRIAL_DAYS}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
       <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
+      {referred && <p className="ref-note plan-ref">Referral code <b>{referred}</b>: <b>10% off your first 3 months</b>{interval === 'year' ? ' (10% off your first year)' : ''}, taken off at checkout.</p>}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       <div className="cycle" role="radiogroup" aria-label="Billing cycle">
         <button type="button" role="radio" aria-checked={interval === 'year'} className={`cycle-opt ${interval === 'year' ? 'on' : ''}`} onClick={() => setCycle('year')}>

@@ -42,7 +42,7 @@ export const PATTERNS = ['Standard', 'Polka Dot', 'Stripes', 'Gingham', 'Pumpkin
 
 // v2 (profiles.storefront_design — Models/StorefrontDesign.swift)
 export interface CardColors { background?: string; title?: string; button?: string; text?: string }
-export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'links' | 'about' | 'info' | 'emailCapture';
+export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'links' | 'about' | 'info' | 'emailCapture' | 'referral';
 export interface V2Block {
   type: V2CardType;
   hidden?: boolean;
@@ -98,6 +98,7 @@ export const V2_CARDS: { type: V2CardType; label: string; navByDefault: boolean;
   { type: 'about', label: 'About', navByDefault: false },
   { type: 'info', label: 'Before You Order', navByDefault: true, parts: [{ key: 'policies', label: 'Store policies' }, { key: 'faq', label: 'FAQ' }, { key: 'hours', label: 'Pickup hours' }] },
   { type: 'emailCapture', label: 'Mailing List Signup', navByDefault: false },
+  { type: 'referral', label: 'Bakerï Referral', navByDefault: false },
 ];
 /** Same names, weights and Google Fonts specs as next.html DISPLAY_FONTS. */
 export const V2_FONT_DEFS: { name: string; w: number; gf: string | null; group: 'Classic' | 'Clean' | 'Fun' | 'Script' }[] = [
@@ -149,6 +150,7 @@ export function v2DefaultTitle(t: V2CardType, firstName: string): string {
   return {
     leadMagnet: 'Free download', menu: 'Shop my Menu', products: 'Shop my Products', links: `More from ${firstName}`,
     about: `Meet ${firstName}`, info: 'Before you order', emailCapture: 'Join my list',
+    referral: 'Start your own shop on Bakerï',
   }[t];
 }
 
@@ -442,7 +444,19 @@ export function seedV2Blocks(v1: LayoutBlock[], deliverableListingId: string | n
     }
     order.splice(at, 0, t);
   });
-  return order.map((t) => blocks.get(t)!).filter(Boolean);
+  // Bakerï Referral card, last: on for new shops, off for shops that
+  // existed before it (Harvey 2026-11-02).
+  return [...order.map((t) => blocks.get(t)!).filter(Boolean), { type: 'referral', hidden: !referralStartsOn() }];
+}
+
+// ── Bakerï Referral card default ──────────────────────────────────────────
+// Accounts made before the card existed get it switched off; newer ones on.
+// Set from the signed-in account (StorefrontPage) before designs are built.
+const REFERRAL_CARD_LAUNCH = '2026-11-03T00:00:00Z';
+let accountCreatedAt: string | null = null;
+export function setAccountCreatedAt(iso: string | null | undefined) { accountCreatedAt = iso ?? null; }
+function referralStartsOn(): boolean {
+  return !!accountCreatedAt && accountCreatedAt >= REFERRAL_CARD_LAUNCH;
 }
 
 export function ensureDesign(d: StorefrontDraft): StorefrontDesign {
@@ -450,11 +464,14 @@ export function ensureDesign(d: StorefrontDraft): StorefrontDesign {
   if (stored?.length) {
     // next.html appends any card type the saved list omits, visible, at the
     // end (resolveDesignBlocks) — list them the same way so the builder
-    // matches the page.
+    // matches the page. The referral card isn't one of those defaults: a
+    // design without it gets it listed switched off, matching the page.
     const missing = V2_DEFAULT_ORDER.filter((t) => !stored.some((b) => b.type === t));
-    return missing.length
-      ? { ...d.storefront_design, blocks: [...stored, ...missing.map((type) => ({ type, hidden: false }))] }
-      : d.storefront_design!;
+    const extra: V2Block[] = [
+      ...missing.map((type) => ({ type, hidden: false })),
+      ...(stored.some((b) => b.type === 'referral') ? [] : [{ type: 'referral' as const, hidden: true }]),
+    ];
+    return extra.length ? { ...d.storefront_design, blocks: [...stored, ...extra] } : d.storefront_design!;
   }
   return {
     ...(d.storefront_design ?? {}),
