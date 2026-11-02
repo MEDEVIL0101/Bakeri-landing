@@ -42,7 +42,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
   ] },
   { heading: 'Money', items: [
     { to: '/finances', label: 'Finances', icon: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /> },
-    { to: '/payouts', label: 'Direct Deposit', icon: <path d="M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M12 3l9 5H3z" /> },
+    { to: '/payments', label: 'Payments', icon: <path d="M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M12 3l9 5H3z" /> },
   ] },
   { items: [
     { to: '/ios', label: 'Get on iOS', icon: <path d="M8 2.5h8a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 20V4A1.5 1.5 0 0 1 8 2.5zM11 18.5h2" /> },
@@ -69,7 +69,7 @@ const PHONE_MENU: NavItem[] = [
   { to: '/finances', label: 'Financial Overview', icon: <path fill="currentColor" stroke="none" d="M4 13h3.5v8H4zM10.25 4h3.5v17h-3.5zM16.5 9H20v12h-3.5z" /> },
   { to: '/ingredients', label: 'Ingredients', icon: <path d="M14.5 9.5 4 20M14.5 9.5c1.5-1.5 4-1.5 5 0s0 3.5-1.5 5L8.5 20H4v-4.5zM15 4c0 2 1 3.5 3 4M20 4c-2 0-3.5 1-4 3" /> },
   { to: '/packaging', label: 'Packaging', icon: <path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8" /> },
-  { to: '/payouts', label: 'Direct Deposit', icon: <path fill="currentColor" stroke="none" fillRule="evenodd" d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1H2zm0 3.5h20V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM5 15h5v1.5H5z" /> },
+  { to: '/payments', label: 'Payments', icon: <path fill="currentColor" stroke="none" fillRule="evenodd" d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1H2zm0 3.5h20V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM5 15h5v1.5H5z" /> },
 ];
 const PHONE_MENU_MORE: NavItem[] = [
   { to: '/customers', label: 'Customers', icon: <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.87M16 3.13a3.5 3.5 0 0 1 0 6.75" /> },
@@ -158,7 +158,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const titles: Record<string, string> = {
     '': 'Home', storefront: 'Storefront', orders: 'Orders', menu: 'Menu & Listings', promotions: 'Promotions', forms: 'Order Forms',
     customers: 'Customers', campaigns: 'Email Campaigns', schedule: 'Schedule', recipes: 'Recipes', ingredients: 'Ingredients', packaging: 'Packaging',
-    calculator: 'Calculator', finances: 'Finances', payouts: 'Direct Deposit', settings: 'Settings', 'shop-settings': 'Shop settings', refer: 'Referral Program', ios: 'Get on iOS', insights: 'Insights', security: 'Two-factor authentication',
+    calculator: 'Calculator', finances: 'Finances', payouts: 'Direct Deposit', payments: 'Payments', settings: 'Settings', 'shop-settings': 'Shop settings', refer: 'Referral Program', ios: 'Get on iOS', insights: 'Insights', security: 'Two-factor authentication',
   };
   useEffect(() => setOpen(false), [location.pathname, location.search]);
   useEffect(() => {

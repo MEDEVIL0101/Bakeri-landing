@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
@@ -28,7 +29,7 @@ export function PayoutsPage() {
 
   return (
     <div className="page page-narrow">
-      <PageHeader title="Direct Deposit" subtitle="Get paid for storefront orders, straight to your bank." />
+      <PageHeader back={<Link to="/payments" className="back-link">Payments</Link>} title="Direct Deposit" subtitle="Get paid for storefront orders, straight to your bank." />
       {returned && !s.complete && (
         <div className="banner banner-info">Stripe still needs a few details before you can take payments. Pick up where you left off below.</div>
       )}

@@ -20,6 +20,7 @@ import { RecipeDetailPage } from './pages/recipes/RecipeDetailPage';
 import { StorefrontPage } from './pages/storefront/StorefrontPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { PayoutsPage } from './pages/settings/PayoutsPage';
+import { PaymentsPage } from './pages/settings/PaymentsPage';
 import { ShopSettingsPage } from './pages/settings/ShopSettingsPage';
 import { ReferPage } from './pages/settings/ReferPage';
 import { FormsPage } from './pages/forms/FormsPage';
@@ -107,6 +108,7 @@ export default function App() {
               <Route path="forms/:id" element={<FormBuilderPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="payouts" element={<PayoutsPage />} />
+              <Route path="payments" element={<PaymentsPage />} />
               <Route path="shop-settings" element={<ShopSettingsPage />} />
               <Route path="refer" element={<ReferPage />} />
               <Route path="security" element={<TwoFactorPage />} />

@@ -3,9 +3,9 @@ import { planSummary } from '../../lib/plans';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
 import { passwordRules } from '../../auth/AuthPages';
-import { Button, ErrorBanner, Field, Input, Modal, PageHeader, Select, Textarea, useLoad, useToast } from '../../components/ui';
+import { Button, ErrorBanner, Field, Input, Modal, PageHeader, Select, Textarea, useToast } from '../../components/ui';
 import {
-  FEEDBACK_CATEGORIES, formatCents, referralDashboard, saveUserName, scheduleAccountDeletion, sendFeedback, updatePassword,
+  FEEDBACK_CATEGORIES, saveUserName, scheduleAccountDeletion, sendFeedback, updatePassword,
 } from '../../lib/account';
 import { HelpContent } from './HelpContent';
 import { useUnitSystem } from '../../lib/prefs';
@@ -14,7 +14,6 @@ export function SettingsPage() {
   const userId = useUserId();
   const { profile, session, refreshProfile, plan } = useAuth();
   const toast = useToast();
-  const referral = useLoad(() => referralDashboard(), []);
   const [name, setName] = useState(profile?.user_name ?? '');
   const [savingName, setSavingName] = useState(false);
   const [units, setUnits] = useUnitSystem();
@@ -27,27 +26,10 @@ export function SettingsPage() {
     setParams({}, { replace: true });
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const r = referral.data;
-  const referralSub = !r
-    ? 'Earn 20% of their plan · they get 10% off'
-    : !r.eligible ? 'Choose a plan to unlock'
-      : r.referred_count === 0 ? (r.code ? `Share ${r.code} · they get 10% off` : 'Earn 20% of their plan · they get 10% off')
-        : `${r.referred_count === 1 ? '1 vendor' : `${r.referred_count} vendors`} referred · ${formatCents(r.available_cents + r.pending_cents + r.paid_cents, r.currency)} earned`;
-
   return (
     <div className="page page-narrow">
-      <PageHeader title="Settings" subtitle="Your account, payouts, and support." />
+      <PageHeader title="Settings" subtitle="Your account and support. Payouts and referrals are in Payments." />
 
-      <Link to="/refer" className="promo-card">
-        <span className="promo-icon" aria-hidden>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" /></svg>
-        </span>
-        <span className="grow">
-          <span className="row-title">Referral Program</span>
-          <span className="row-sub">{referralSub}</span>
-        </span>
-        <span className="chev" aria-hidden>›</span>
-      </Link>
 
       <SettingsGroup heading="Account">
         <div className="settings-row">
