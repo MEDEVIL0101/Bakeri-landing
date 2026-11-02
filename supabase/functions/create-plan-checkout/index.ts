@@ -18,12 +18,13 @@
 //
 // Referral Program: a vendor who signed up with a referral code (web sign-up
 // keeps it in user_metadata.referral_code) is attributed to the referrer
-// here — attribute_referral(), as the vendor — and, until they've paid for a
-// plan once, gets 10% off their first 3 months (referralCoupon()).
+// when their profile is created (profiles_attribute_signup_referral) and,
+// until they've paid for a plan once, gets 10% off their first 3 months
+// (referralCoupon()).
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@13.11.0?target=deno";
-import { adminClient, corsHeaders, json, requireUser, userClient } from "../_shared/billingAuth.ts";
+import { adminClient, corsHeaders, json, requireUser } from "../_shared/billingAuth.ts";
 import { PAID_TIERS, appURL, billingSecretKey, launchCouponFor, priceIdFor, referralCoupon, trialDays, type BillingInterval, type PlanTier } from "../_shared/plans.ts";
 
 const LIVE_STATUSES = ["trialing", "active", "past_due"];
@@ -69,16 +70,24 @@ serve(async (req) => {
       if (error) throw error;
     }
 
-    // Record the referral from sign-up (once; attribute_referral refuses
-    // self-referrals, invalid or disabled codes, and repeat attribution).
-    const signupCode = String(user.user_metadata?.referral_code ?? "").trim();
-    if (signupCode) {
-      const { error: attrErr } = await userClient(req).rpc("attribute_referral", { p_code: signupCode });
-      if (attrErr) console.error("attribute_referral:", attrErr.message);
-    }
+    // Referred? Either already recorded (referrals), or — the usual case at
+    // first checkout, before the vendor has a profile to attribute to — the
+    // code from their sign-up is a live code belonging to someone else with
+    // an active plan. (The referral itself is recorded when the profile is
+    // created: profiles_attribute_signup_referral.)
     const { data: referral } = await db.from("referrals")
       .select("id").eq("referred_baker_id", user.id).eq("status", "active").maybeSingle();
-    const coupon = referral && !plan?.first_paid_at ? referralCoupon() : launchCouponFor(tier, interval);
+    let referred = !!referral;
+    const signupCode = String(user.user_metadata?.referral_code ?? "").trim();
+    if (!referred && signupCode) {
+      const { data: r } = await db.rpc("resolve_referral_code", { p_code: signupCode });
+      const referrer = r?.status === "valid" ? String(r.referrer_user_id ?? "") : "";
+      if (referrer && referrer !== user.id) {
+        const { data: active } = await db.rpc("referrer_has_active_plan", { p_user_id: referrer });
+        referred = active === true;
+      }
+    }
+    const coupon = referred && !plan?.first_paid_at ? referralCoupon() : launchCouponFor(tier, interval);
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
