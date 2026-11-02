@@ -209,7 +209,7 @@ function Report({ stats, before, from, days }: { stats: Stats; before: Stats | n
 
         <Card title="Where visitors come from">
           <Breakdown rows={mergeByName(stats.sources.map((s) => ({ name: sourceName(s.source), n: s.visitors })))} empty="No visits yet." />
-          <p className="small muted">Add <code>?utm_source=newsletter</code> (or any name) to a link you share to see it here by name.</p>
+          <p className="small muted">Instagram, Facebook, TikTok and Google visits are named automatically. Some apps don’t say where a visit came from, so those count as Direct.</p>
         </Card>
       </div>
 
