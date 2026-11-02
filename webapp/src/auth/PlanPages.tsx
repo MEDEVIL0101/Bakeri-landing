@@ -26,7 +26,9 @@ export function PlanPage() {
   // billing portal, so there's only ever one per vendor. Grandfathered
   // accounts have free Starter with no subscription.
   const subscribed = hasSubscription(plan);
-  const grandfathered = !!plan?.grandfathered_starter;
+  // Lifetime Pro (set by hand): nothing to buy or switch.
+  const lifetime = !!plan?.lifetime_pro;
+  const grandfathered = !lifetime && !!plan?.grandfathered_starter;
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const lapsed = current === 'none' && !!plan?.stripe_customer_id;
   // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
@@ -54,14 +56,15 @@ export function PlanPage() {
       <div className="plan-head">
         <h1>{current !== 'none' ? 'Your plan' : lapsed ? 'Pick a plan to keep going' : trial ? `Sign up and get ${TRIAL_DAYS} days free` : 'Find the plan for you'}</h1>
         <p className="muted">
-          {grandfathered && !subscribed ? 'As one of our first vendors, Starter is free for you forever. Upgrade to Pro any time to drop the 5% fee.'
+          {lifetime ? 'Pro is free for you, for life. Nothing to pay and no Bakeri fee on your sales.'
+            : grandfathered && !subscribed ? 'As one of our first vendors, Starter is free for you forever. Upgrade to Pro any time to drop the 5% fee.'
             : current !== 'none' ? 'Switch plans any time.'
             : trial ? `Try either plan free for ${TRIAL_DAYS} days. You can cancel at any time.`
             : 'Your shop is paused until you pick a plan. Everything you set up is still here.'}
         </p>
       </div>
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
-      {!grandfathered && !subscribed && (
+      {!lifetime && !grandfathered && !subscribed && (
         <div className="pk-cycle" role="tablist" aria-label="Billing cycle">
           <button type="button" role="tab" aria-selected={cycle === 'year'} className={cycle === 'year' ? 'on' : ''} onClick={() => setCycle('year')}>Annually <span className="pk-save">{YEARLY_FREE_MONTHS} months free!</span></button>
           <button type="button" role="tab" aria-selected={cycle === 'month'} className={cycle === 'month' ? 'on' : ''} onClick={() => setCycle('month')}>Monthly</button>
@@ -76,10 +79,12 @@ export function PlanPage() {
               {pro && <span className="pk-badge">★ Recommended</span>}
               <header className="pk-head"><h2>{p.name}</h2><p>{p.tagline}</p></header>
               <div className="pk-body">
-                <PlanPrice p={p} grandfathered={grandfathered} cycle={cycle} />
+                <PlanPrice p={p} grandfathered={grandfathered} lifetime={lifetime} cycle={cycle} />
                 <p className="pk-sub">{p.feePct ? `${p.feePct}% Bakeri fee per sale` : 'No Bakeri fee on any sale'}</p>
                 {isCurrent ? (
                   <Button variant="secondary" className="pk-btn" disabled>Current plan</Button>
+                ) : lifetime ? (
+                  <Button variant="secondary" className="pk-btn" disabled>Included in Pro</Button>
                 ) : grandfathered && p.tier === 'starter' ? (
                   // Back to free Starter = cancel Pro in the billing portal.
                   <Button variant="secondary" className="pk-btn" loading={busy === 'portal'} disabled={!!busy} onClick={manage}>Go back to free Starter</Button>
@@ -107,7 +112,8 @@ export function PlanPage() {
   );
 }
 
-function PlanPrice({ p, grandfathered, cycle }: { p: PlanDef; grandfathered: boolean; cycle: BillingInterval }) {
+function PlanPrice({ p, grandfathered, lifetime, cycle }: { p: PlanDef; grandfathered: boolean; lifetime: boolean; cycle: BillingInterval }) {
+  if (lifetime && p.tier === 'pro') return <div className="pk-price"><b>$0</b><span>/month</span><small>Free for you, for life</small></div>;
   const m = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
   if (grandfathered && p.tier === 'starter') return <div className="pk-price"><b>$0</b><span>/month</span><small>Free for you, forever</small></div>;
   if (cycle === 'year') {

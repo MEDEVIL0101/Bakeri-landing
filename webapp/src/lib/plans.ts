@@ -27,6 +27,8 @@ export interface VendorPlan {
   cancel_at_period_end: boolean;
   stripe_customer_id: string | null;
   grandfathered_starter: boolean;
+  /** Complimentary Pro set by hand (never by Stripe) — wins over everything. */
+  lifetime_pro?: boolean;
 }
 
 export interface PlanDef {
@@ -97,6 +99,7 @@ export function hasSubscription(plan: VendorPlan | null | undefined): boolean {
 
 /** The tier the vendor actually has now, or 'none' (mirrors SQL effective_plan_tier). */
 export function effectiveTier(plan: VendorPlan | null | undefined): PlanTier | 'none' {
+  if (plan?.lifetime_pro) return 'pro';
   if (plan && hasSubscription(plan)) return plan.tier as PlanTier;
   return plan?.grandfathered_starter ? 'starter' : 'none';
 }
@@ -120,7 +123,7 @@ export function feeDescription(plan: VendorPlan | null | undefined): string {
  */
 export async function loadPlan(userId: string): Promise<VendorPlan | null | undefined> {
   const { data, error } = await supabase.from('vendor_plans')
-    .select('tier, status, billing_interval, current_period_end, trial_end, trial_used_at, cancel_at_period_end, stripe_customer_id, grandfathered_starter')
+    .select('tier, status, billing_interval, current_period_end, trial_end, trial_used_at, cancel_at_period_end, stripe_customer_id, grandfathered_starter, lifetime_pro')
     .eq('user_id', userId).maybeSingle();
   if (error) return undefined;
   return (data as VendorPlan | null) ?? null;
