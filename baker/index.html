@@ -1462,7 +1462,7 @@
       case 'about': return ((profile && profile.about_heading) || '').trim() || 'Meet ' + firstName();
       case 'emailCapture': return ((profile && profile.email_capture_heading) || '').trim() || 'Join my list';
       case 'leadMagnet': return leadMagnetConfig().heading;
-      case 'referral': return 'Start your own shop on Bakerï';
+      case 'referral': return 'Start your own shop on Bakerï!';
       case 'form':
         if (sfForms.length > 1) return 'Order forms';
         return (sfListing && formTitle(sfListing)) || 'Order';
@@ -2801,9 +2801,7 @@
     if (!cfg || cfg.hidden || !code) { card.classList.add('hidden'); return; }
     document.getElementById('sf-referral-title').textContent = cardTitle('referral');
     document.getElementById('sf-referral-desc').innerHTML =
-      escapeHtml(firstName() === 'me' ? 'I run my shop' : firstName() + ' runs this shop') +
-      ' on Bakerï — online orders, payments and a storefront like this one. Use code <span id="sf-referral-code">' +
-      escapeHtml(code) + '</span> for 10% off your first 3 months.';
+      'Use code <span id="sf-referral-code">' + escapeHtml(code) + '</span> to get 10% off your shop for the first 3 months.';
     const btn = document.getElementById('sf-referral-btn');
     btn.innerHTML = '<span>Get 10% off</span>' + ARROW_UR_SVG;
     btn.href = 'https://bakeriapp.com/?ref=' + encodeURIComponent(code) + '&utm_source=storefront&utm_medium=referral';

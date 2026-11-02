@@ -438,19 +438,10 @@ export function ReferralCardInfo() {
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { getOrCreateReferralCode().then(setCode, (e) => setErr(e?.message ?? 'Couldn’t load your code.')); }, []);
   return (
-    <Section title="What this card shows">
-      <p className="small" style={{ marginTop: 0 }}>
-        Invites other makers to run their shop on Bakerï. Anyone who signs up with your code gets <b>10% off their first 3 months</b>,
-        and you earn 20% of what they pay for as long as they stay.
-      </p>
-      {code && (
-        <dl className="kv">
-          <dt>Your code</dt><dd><b style={{ letterSpacing: '.06em' }}>{code}</b></dd>
-          <dt>Button opens</dt><dd className="small">bakeriapp.com/?ref={code}</dd>
-        </dl>
-      )}
+    <Section title="Your code">
+      {code && <p style={{ margin: 0 }}><b style={{ letterSpacing: '.06em' }}>{code}</b> · 10% off a new shop’s first 3 months</p>}
       {err && <ErrorBanner message={err} />}
-      <p className="small muted">Earnings and payouts are in <Link to="/refer">Referral Program</Link>.</p>
+      <p className="small muted">Earnings in <Link to="/refer">Referral Program</Link>.</p>
     </Section>
   );
 }

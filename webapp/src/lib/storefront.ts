@@ -150,7 +150,7 @@ export function v2DefaultTitle(t: V2CardType, firstName: string): string {
   return {
     leadMagnet: 'Free download', menu: 'Shop my Menu', products: 'Shop my Products', links: `More from ${firstName}`,
     about: `Meet ${firstName}`, info: 'Before you order', emailCapture: 'Join my list',
-    referral: 'Start your own shop on Bakerï',
+    referral: 'Start your own shop on Bakerï!',
   }[t];
 }
 
