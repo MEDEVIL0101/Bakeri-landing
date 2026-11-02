@@ -91,7 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => { refreshPlan(); }, [refreshPlan]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    // This browser only. The default ('global') also ended the account's
+    // session in the iPhone app, which then asked to log in again within the
+    // hour (Harvey 2026-11-02: "requesting login credentials often").
+    await supabase.auth.signOut({ scope: 'local' });
     setProfile(null);
     setPlan(undefined);
   }, []);
