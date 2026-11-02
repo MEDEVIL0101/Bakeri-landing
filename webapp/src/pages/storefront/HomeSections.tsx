@@ -42,8 +42,9 @@ export function HomeSections({ v2, props, changes, open }: {
       <SortableList items={list} keyOf={(b) => b.type} onReorder={setBlocks} className="site-blocks"
         renderRow={(b, handle) => (
           <BlockRow handle={handle} hidden={!!b.hidden}
+            kind={b.type === 'info' ? 'Policies, FAQ & hours' : V2_CARDS.find((c) => c.type === b.type)?.label}
             title={b.title || v2DefaultTitle(b.type, data.firstName)}
-            sub={V2_CARDS.find((c) => c.type === b.type)?.label ?? ''}
+            sub=""
             onOpen={() => open(`card:${b.type}`)}
             onToggle={(show) => setBlocks(list.map((x) => (x.type === b.type ? { ...x, hidden: !show } : x)))} />
         )} />
@@ -104,15 +105,18 @@ export function HomeSections({ v2, props, changes, open }: {
   );
 }
 
-function BlockRow({ handle, title, sub, hidden, onOpen, onToggle }: {
-  handle: ReactNode; title: ReactNode; sub: string; hidden: boolean; onOpen: () => void; onToggle: (show: boolean) => void;
+/** `kind` names what the section is (Links, About…) above its own title,
+ * so a renamed or hidden section is still recognisable (Harvey 2026-11-02). */
+function BlockRow({ handle, kind, title, sub, hidden, onOpen, onToggle }: {
+  handle: ReactNode; kind?: string; title: ReactNode; sub: string; hidden: boolean; onOpen: () => void; onToggle: (show: boolean) => void;
 }) {
   return (
     <div className={`block-row ${hidden ? 'is-hidden' : ''}`}>
       {handle}
       <button type="button" className="grow block-open" onClick={onOpen}>
+        {kind && <span className="row-kind">{kind}{hidden && <span className="kind-hidden">Hidden</span>}</span>}
         <span className="row-title">{title}</span>
-        <span className="row-sub">{hidden ? 'Hidden from your page' : sub}</span>
+        {(hidden && !kind) || sub ? <span className="row-sub">{hidden && !kind ? 'Hidden from your page' : sub}</span> : null}
       </button>
       <input type="checkbox" className="switch" aria-label={hidden ? 'Show on page' : 'Hide from page'} checked={!hidden}
         onChange={(e) => onToggle(e.target.checked)} />

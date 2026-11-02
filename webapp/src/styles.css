@@ -1305,3 +1305,6 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .html-editor textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.45; white-space: pre; tab-size: 2; }
 .html-preview { width: 100%; height: 420px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; margin-top: 6px; }
 @media (max-width: 900px) { .html-editor { grid-template-columns: 1fr; } }
+
+.row-kind { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 1px; }
+.kind-hidden { letter-spacing: 0; text-transform: none; font-size: 11px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
