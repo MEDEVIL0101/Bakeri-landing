@@ -1273,3 +1273,29 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .ins-note { margin-top: 4px; }
 @media (max-width: 640px) { .ins-row { grid-template-columns: minmax(90px, 40%) 1fr 44px 40px; font-size: 13px; } }
 .ins-chart .chart-group { max-width: 64px; margin: 0 auto; }
+
+/* ── Customer outreach (2026-11-02) ─────────────────────────────── */
+.chip-btn.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.chip-btn.on .muted { color: rgba(255,255,255,.7); }
+.chip-btn .muted { font-size: 12px; }
+.camp-side { position: sticky; top: 16px; }
+.camp-count { font-size: 15px; color: var(--muted); }
+.camp-count b { font-size: 34px; color: var(--ink); font-weight: 800; letter-spacing: -.02em; margin-right: 4px; }
+.camp-filters .grid-2 { align-items: end; }
+.camp-list { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.camp-list li { padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.camp-list li:last-child { border-bottom: 0; }
+.camp-list .check { align-items: flex-start; }
+.camp-list .row-title { display: block; }
+.camp-tiles, .cust-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 18px; }
+@media (max-width: 900px) { .camp-tiles, .cust-tiles { grid-template-columns: 1fr 1fr; } .camp-side { position: static; } }
+.stack-sm { display: flex; flex-direction: column; gap: 8px; }
+.bulk-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--line-strong); }
+.col-check { width: 36px; }
+.row-selected { background: var(--surface-2); }
+.tag-chips { margin-top: 4px; }
+.tag-chips .chip { padding: 1px 8px; font-size: 11.5px; }
+.journey { list-style: none; margin: 0; padding: 0; position: relative; }
+.journey li { display: flex; gap: 12px; padding: 8px 0; position: relative; }
+.journey li:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 34px; bottom: -6px; width: 1px; background: var(--line); }
+.journey-dot { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); font-size: 13px; color: var(--ink-2); }

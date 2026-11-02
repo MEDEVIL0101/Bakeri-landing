@@ -43,6 +43,8 @@ function buildCampaignHtml(opts: {
   ctaLabel: string | null;
   ctaHref: string | null;
   unsubscribeUrl: string;
+  /** campaign-track's 1×1 open image; omitted on test sends. */
+  openPixelUrl?: string | null;
 }): string {
   const paragraphs = opts.bodyText
     .split(/\n{2,}/)
@@ -64,6 +66,7 @@ function buildCampaignHtml(opts: {
         You're receiving this because you're on this baker's mailing list.
         <a href="${opts.unsubscribeUrl}" style="color:#A89B8C;">Unsubscribe</a>
       </p>
+      ${opts.openPixelUrl ? `<img src="${opts.openPixelUrl}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px;" />` : ""}
     </div>
   `;
 }
@@ -91,37 +94,28 @@ Deno.serve(async (req: Request) => {
   }
   const campaignId = String(body.campaign_id ?? "").trim();
   if (!campaignId) return json({ error: "Invalid request." }, 400);
+  // A copy to the vendor's own email only — nothing recorded, no tracking.
+  const isTest = body.test === true;
 
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   // Email campaigns are a Pro feature (Harvey 2026-10-30).
-  const { data: plan } = await db.from("vendor_plans").select("tier, status").eq("user_id", bakerId).maybeSingle();
-  if (!plan || plan.tier !== "pro" || !["trialing", "active", "past_due"].includes(plan.status)) {
+  // effective_plan_tier() so lifetime Pro and payment grace periods count.
+  const { data: tier } = await db.rpc("effective_plan_tier", { p_user_id: bakerId });
+  if (tier !== "pro") {
     return json({ error: "Email campaigns are part of the Pro plan." }, 403);
   }
 
   const { data: campaign } = await db
     .from("baker_campaigns")
-    .select("id, user_id, subject, body_text, image_url, cta_label, cta_url, cta_listing_id, status")
+    .select("id, user_id, subject, body_text, image_url, cta_label, cta_url, cta_listing_id, status, audience")
     .eq("id", campaignId)
     .eq("user_id", bakerId)
     .maybeSingle();
   if (!campaign) return json({ error: "Campaign not found." }, 404);
-  if (campaign.status === "sending" || campaign.status === "sent") {
+  if (!isTest && (campaign.status === "sending" || campaign.status === "sent")) {
     return json({ error: `This campaign is already ${campaign.status}.` }, 409);
   }
-
-  const { data: contacts } = await db
-    .from("baker_contacts")
-    .select("id, email, unsubscribe_token")
-    .eq("user_id", bakerId)
-    .is("unsubscribed_at", null);
-
-  if (!contacts || contacts.length === 0) {
-    return json({ error: "No subscribed contacts to send to." }, 400);
-  }
-
-  await db.from("baker_campaigns").update({ status: "sending", updated_at: new Date().toISOString() }).eq("id", campaignId);
 
   const { data: bakerProfile } = await db.from("profiles").select("business_name, user_name").eq("id", bakerId).maybeSingle();
   const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || null;
@@ -138,17 +132,77 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // ── Test send: one copy to the vendor, marked as a test ────────────────
+  if (isTest) {
+    const to = user.email;
+    if (!to) return json({ error: "Your account has no email address to send a test to." }, 400);
+    const result = await sendEmail({
+      from: identity.from,
+      reply_to: identity.reply_to,
+      to,
+      subject: `[Test] ${sanitizeDisplayName(campaign.subject) || "Update"}`,
+      html: buildCampaignHtml({
+        bodyText: campaign.body_text || "",
+        imageUrl: campaign.image_url,
+        ctaLabel: campaign.cta_label,
+        ctaHref,
+        unsubscribeUrl: "https://bakeriapp.com/",
+      }),
+    });
+    return result.ok ? json({ ok: true, to }) : json({ error: "The test email couldn't be sent. Please try again." }, 502);
+  }
+
+  // ── Recipients: the campaign's audience (contact ids the web app worked
+  // out), or everyone when it has none (older campaigns, the iPhone app).
+  // Always only this vendor's own contacts who are still subscribed.
+  const audienceIds: string[] | null = Array.isArray(campaign.audience?.contact_ids)
+    ? (campaign.audience.contact_ids as unknown[]).map(String)
+    : null;
+  if (audienceIds && audienceIds.length === 0) {
+    return json({ error: "Nobody is in this campaign's audience." }, 400);
+  }
+  let contacts: { id: string; email: string; unsubscribe_token: string }[] = [];
+  const pageSize = 300;
+  for (let i = 0; i < (audienceIds ? audienceIds.length : 1); i += pageSize) {
+    let q = db.from("baker_contacts")
+      .select("id, email, unsubscribe_token")
+      .eq("user_id", bakerId)
+      .is("unsubscribed_at", null);
+    if (audienceIds) q = q.in("id", audienceIds.slice(i, i + pageSize));
+    const { data } = await q;
+    contacts = contacts.concat(data ?? []);
+  }
+  if (contacts.length === 0) {
+    return json({ error: "No subscribed contacts to send to." }, 400);
+  }
+
+  await db.from("baker_campaigns").update({ status: "sending", updated_at: new Date().toISOString() }).eq("id", campaignId);
+
+  // One row per email up front — each gets the track_token its open image
+  // and button carry (campaign-track).
+  const { data: rows, error: rowsErr } = await db.from("baker_campaign_sends")
+    .insert(contacts.map((c) => ({ campaign_id: campaignId, contact_id: c.id, email: c.email, status: "pending" })))
+    .select("id, contact_id, track_token");
+  if (rowsErr || !rows) {
+    await db.from("baker_campaigns").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", campaignId);
+    return json({ error: "Couldn't start sending. Please try again." }, 500);
+  }
+  const rowFor = new Map(rows.map((r) => [r.contact_id as string, r]));
+  const trackBase = `${SUPABASE_URL}/functions/v1/campaign-track`;
+
   let sentCount = 0;
   let failedCount = 0;
 
   for (const contact of contacts) {
+    const row = rowFor.get(contact.id);
     const unsubscribeUrl = `${SUPABASE_URL}/functions/v1/unsubscribe?token=${contact.unsubscribe_token}`;
     const html = buildCampaignHtml({
       bodyText: campaign.body_text || "",
       imageUrl: campaign.image_url,
       ctaLabel: campaign.cta_label,
-      ctaHref,
+      ctaHref: ctaHref && row ? `${trackBase}?e=c&t=${row.track_token}` : ctaHref,
       unsubscribeUrl,
+      openPixelUrl: row ? `${trackBase}?e=o&t=${row.track_token}` : null,
     });
     const result = await sendEmail({
       from: identity.from,
@@ -157,14 +211,13 @@ Deno.serve(async (req: Request) => {
       subject: sanitizeDisplayName(campaign.subject) || "Update",
       html,
     });
-    await db.from("baker_campaign_sends").insert({
-      campaign_id: campaignId,
-      contact_id: contact.id,
-      email: contact.email,
-      status: result.ok ? "sent" : "failed",
-      sent_at: result.ok ? new Date().toISOString() : null,
-      error: result.ok ? null : (result.error ?? null),
-    });
+    if (row) {
+      await db.from("baker_campaign_sends").update({
+        status: result.ok ? "sent" : "failed",
+        sent_at: result.ok ? new Date().toISOString() : null,
+        error: result.ok ? null : (result.error ?? null),
+      }).eq("id", row.id);
+    }
     if (result.ok) sentCount++; else failedCount++;
   }
 

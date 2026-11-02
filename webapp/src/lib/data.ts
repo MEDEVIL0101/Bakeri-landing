@@ -72,6 +72,7 @@ export async function saveCampaignDraft(userId: string, c: Partial<Campaign> & {
       cta_label: c.cta_label || null,
       cta_url: c.cta_url || null,
       cta_listing_id: c.cta_listing_id || null,
+      audience: c.audience ?? null,
       updated_at: nowISO(),
     }),
   );
@@ -82,6 +83,26 @@ export async function sendCampaign(id: string): Promise<{ sent: number; failed: 
   const res = await callFunction<{ ok?: boolean; sent?: number; failed?: number; error?: string }>('send-baker-campaign', { campaign_id: id });
   if (!res?.ok) throw new ApiError(res?.error ?? 'Send failed');
   return { sent: res.sent ?? 0, failed: res.failed ?? 0 };
+}
+
+/** A copy of the campaign to the vendor's own email only — nothing is recorded as sent. */
+export async function sendCampaignTest(id: string): Promise<string> {
+  const res = await callFunction<{ ok?: boolean; to?: string; error?: string }>('send-baker-campaign', { campaign_id: id, test: true });
+  if (!res?.ok) throw new ApiError(res?.error ?? 'Test send failed');
+  return res.to ?? 'your email';
+}
+
+// ── Customer tags & notes ─────────────────────────────────────────────────
+
+export async function setContactTags(contactIds: string[], change: (tags: string[]) => string[], contacts: Contact[]): Promise<void> {
+  for (const c of contacts.filter((x) => contactIds.includes(x.id))) {
+    const next = [...new Set(change(c.tags ?? []).map((t) => t.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    check(await supabase.from('baker_contacts').update({ tags: next, updated_at: nowISO() }).eq('id', c.id));
+  }
+}
+
+export async function setContactNotes(id: string, notes: string): Promise<void> {
+  check(await supabase.from('baker_contacts').update({ notes: notes.trim() || null, updated_at: nowISO() }).eq('id', id));
 }
 
 export async function deleteCampaign(id: string): Promise<void> {

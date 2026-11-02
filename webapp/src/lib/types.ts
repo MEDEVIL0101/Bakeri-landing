@@ -183,6 +183,10 @@ export interface Contact {
   unsubscribed_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Vendor-made groups (2026-11-02). */
+  tags: string[];
+  /** Private notes about this customer. */
+  notes: string | null;
 }
 
 export interface Campaign {
@@ -199,6 +203,22 @@ export interface Campaign {
   sent_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Who it's for — see lib/crm.ts Audience. Null on older campaigns (everyone). */
+  audience: import('./crm').Audience | null;
+}
+
+/** One email sent for a campaign, with its opens and clicks. */
+export interface CampaignSend {
+  id: string;
+  campaign_id: string;
+  contact_id: string | null;
+  email: string;
+  status: 'pending' | 'sent' | 'failed';
+  sent_at: string | null;
+  opened_at: string | null;
+  open_count: number;
+  clicked_at: string | null;
+  click_count: number;
 }
 
 export interface BakingTask {
