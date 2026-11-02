@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/types';
 import { loadPlan, type VendorPlan } from '../lib/plans';
+import { startWebPresence } from '../lib/presence';
 
 interface AuthState {
   /** undefined while the stored session is still being restored. */
@@ -78,6 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [userId]);
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
+
+  // Online-now signal for Bakeri Admin, while signed in (and past 2FA).
+  const presenceUserId = session && mfaNeeded === false ? session.user.id : null;
+  useEffect(() => (presenceUserId ? startWebPresence(presenceUserId) : undefined), [presenceUserId]);
 
   const refreshPlan = useCallback(async () => {
     if (!userId) { setPlan(undefined); return undefined; }
