@@ -6,8 +6,8 @@
 // account, covering every referral earning that has cleared its 4-day hold
 // (referral_earnings.payable_after <= now), netted against any
 // earning that was reversed AFTER already being paid (clawback). A referrer
-// whose net is <= 0, or who hasn't connected Stripe yet, is skipped and
-// rolls forward.
+// whose net is under the $20 minimum payout (Harvey 2026-11-02), or who
+// hasn't connected Stripe yet, is skipped and rolls forward to a later month.
 //
 // The money math is structurally identical to release-baker-payouts' Transfer
 // leg: stripe.transfers.create with NO { stripeAccount } option pulls from the
@@ -27,6 +27,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
+
+/** $20 — smaller balances wait for a later month (one transfer each, fewer fees). */
+const MIN_PAYOUT_CENTS = 2000;
 
 const stripe = getStripeClient();
 
@@ -83,7 +86,8 @@ serve(async (req) => {
   results.batches = batches.length;
 
   for (const b of batches) {
-    if (b.net_cents <= 0) continue;
+    // Minimum payout: below it, earnings stay put and carry into next month.
+    if (b.net_cents < MIN_PAYOUT_CENTS) continue;
 
     if (!b.stripe_account_id) {
       results.skipped_no_account++;
