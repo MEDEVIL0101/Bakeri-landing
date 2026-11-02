@@ -158,6 +158,8 @@ function EditorForm({ userId, campaign, crm }: {
 
   const [subject, setSubject] = useState(campaign?.subject ?? params.get('subject') ?? '');
   const [body, setBody] = useState(campaign?.body_text ?? '');
+  const [format, setFormat] = useState<'simple' | 'html'>(campaign?.body_html ? 'html' : 'simple');
+  const [html, setHtml] = useState(campaign?.body_html ?? STARTER_HTML);
   const [ctaMode, setCtaMode] = useState<'none' | 'listing' | 'url'>(campaign?.cta_listing_id ? 'listing' : campaign?.cta_url ? 'url' : 'none');
   const [ctaLabel, setCtaLabel] = useState(campaign?.cta_label ?? '');
   const [ctaURL, setCtaURL] = useState(campaign?.cta_url ?? '');
@@ -200,17 +202,22 @@ function EditorForm({ userId, campaign, crm }: {
   }
 
   async function save(): Promise<string | null> {
-    if (!subject.trim() || !body.trim()) { setErr('Add a subject and a message.'); return null; }
-    if (ctaMode === 'url' && !/^https?:\/\//i.test(ctaURL.trim())) { setErr('The button link must start with https://'); return null; }
-    if (ctaMode === 'listing' && !ctaListing) { setErr('Choose the listing the button opens.'); return null; }
+    const isHtml = format === 'html';
+    if (!subject.trim()) { setErr('Add a subject.'); return null; }
+    if (isHtml ? !html.trim() : !body.trim()) { setErr(isHtml ? 'Add your HTML.' : 'Add a message.'); return null; }
+    if (isHtml && html.length > 100_000) { setErr('This HTML is too long. Keep it under 100 KB — Gmail cuts off longer emails.'); return null; }
+    if (!isHtml && ctaMode === 'url' && !/^https?:\/\//i.test(ctaURL.trim())) { setErr('The button link must start with https://'); return null; }
+    if (!isHtml && ctaMode === 'listing' && !ctaListing) { setErr('Choose the listing the button opens.'); return null; }
     setErr(null);
     const id = await saveCampaignDraft(userId, {
       id: draftId,
       subject: subject.trim(),
-      body_text: body,
-      cta_label: ctaMode === 'none' ? null : ctaLabel.trim() || (ctaMode === 'listing' ? 'Order now' : 'Learn more'),
-      cta_url: ctaMode === 'url' ? ctaURL.trim() : null,
-      cta_listing_id: ctaMode === 'listing' ? ctaListing || null : null,
+      // Custom HTML keeps a plain-text copy for lists and the iPhone app.
+      body_text: isHtml ? htmlToText(html) : body,
+      body_html: isHtml ? html : null,
+      cta_label: isHtml || ctaMode === 'none' ? null : ctaLabel.trim() || (ctaMode === 'listing' ? 'Order now' : 'Learn more'),
+      cta_url: !isHtml && ctaMode === 'url' ? ctaURL.trim() : null,
+      cta_listing_id: !isHtml && ctaMode === 'listing' ? ctaListing || null : null,
       audience: audience(),
     });
     setDraftId(id);
@@ -238,6 +245,11 @@ function EditorForm({ userId, campaign, crm }: {
 
           <Card title="2. Your email">
             <Field label="Subject"><Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Fall menu is here 🍂" /></Field>
+            <div className="seg" role="tablist" style={{ marginBottom: 12 }}>
+              <button className={format === 'simple' ? 'active' : ''} onClick={() => setFormat('simple')}>Simple</button>
+              <button className={format === 'html' ? 'active' : ''} onClick={() => setFormat('html')}>Custom HTML</button>
+            </div>
+            {format === 'html' ? <HtmlEditor html={html} onChange={setHtml} /> : <>
             <Field label="Message" hint="A blank line starts a new paragraph."><Textarea rows={10} value={body} onChange={(e) => setBody(e.target.value)} /></Field>
             <div className="grid-2">
               <Field label="Button">
@@ -258,6 +270,7 @@ function EditorForm({ userId, campaign, crm }: {
               </Field>
             )}
             {ctaMode === 'url' && <Field label="Link"><Input type="url" value={ctaURL} onChange={(e) => setCtaURL(e.target.value)} placeholder="https://" /></Field>}
+            </>}
           </Card>
         </div>
 
@@ -449,6 +462,46 @@ function PeoplePicker({ profiles, isIn, toggle, setAll, mode, filter }: {
   );
 }
 
+// ── Custom HTML ──────────────────────────────────────────────────────────
+
+const STARTER_HTML = `<table width="100%" cellpadding="0" cellspacing="0" style="font-family:Georgia,serif;background:#FBF7F1;">
+  <tr><td align="center" style="padding:32px 16px;">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;">
+      <tr><td style="padding:32px;">
+        <h1 style="margin:0 0 12px;font-size:28px;color:#241712;">Something sweet is coming</h1>
+        <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#4A3E33;">Write your news here. Use <b>bold</b>, links and images like any web page.</p>
+        <a href="https://bakeriapp.com/" style="display:inline-block;padding:12px 24px;background:#241712;color:#ffffff;border-radius:999px;text-decoration:none;font-weight:bold;">Order now</a>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>`;
+
+/** Plain-text copy of an HTML email (lists, the iPhone app). */
+function htmlToText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('style, script, head').forEach((n) => n.remove());
+  return (doc.body.textContent ?? '').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n\n').trim().slice(0, 5000);
+}
+
+function HtmlEditor({ html, onChange }: { html: string; onChange: (v: string) => void }) {
+  return (
+    <div className="html-editor">
+      <Field label="HTML" hint="Write or paste your email’s HTML. Inline styles work best in email apps.">
+        <Textarea className="code" rows={18} spellCheck={false} value={html} onChange={(e) => onChange(e.target.value)} />
+      </Field>
+      <div>
+        <span className="field-label">Preview</span>
+        {/* sandbox="" — no scripts, no access to this page; the preview can't do anything but show. */}
+        <iframe className="html-preview" title="Email preview" sandbox="" srcDoc={html} />
+      </div>
+      <p className="small muted html-note">
+        Before sending, Bakerï removes anything email apps don’t allow (scripts, forms, embedded frames) and adds your unsubscribe link at the bottom.
+        Links are tracked so you can see clicks. Use full image addresses (https://…).
+      </p>
+    </div>
+  );
+}
+
 // ── Report ───────────────────────────────────────────────────────────────
 
 function CampaignReport({ campaign }: { campaign: Campaign }) {
@@ -481,7 +534,7 @@ function CampaignReport({ campaign }: { campaign: Campaign }) {
       <div className="metric-grid camp-tiles">
         <Tile label="Sent" value={String(st.sent)} sub={st.failed ? `${st.failed} couldn’t be delivered` : 'Delivered to their inbox'} />
         <Tile label="Opened" value={pct(st.openRate)} sub={`${st.opened} of ${st.sent} people`} />
-        <Tile label="Clicked" value={pct(st.clickRate)} sub={campaign.cta_label ? `${st.clicked} tapped “${campaign.cta_label}”` : 'This email had no button'} />
+        <Tile label="Clicked" value={pct(st.clickRate)} sub={campaign.body_html ? `${st.clicked} clicked a link` : campaign.cta_label ? `${st.clicked} tapped “${campaign.cta_label}”` : 'This email had no button'} />
         <Tile label="Clicks per opener" value={st.opened ? (st.clicked / st.opened).toFixed(2) : '—'} sub="How well the button worked" />
       </div>
       <Card title="Who got it" actions={

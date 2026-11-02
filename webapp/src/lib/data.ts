@@ -73,6 +73,7 @@ export async function saveCampaignDraft(userId: string, c: Partial<Campaign> & {
       cta_url: c.cta_url || null,
       cta_listing_id: c.cta_listing_id || null,
       audience: c.audience ?? null,
+      body_html: c.body_html ?? null,
       updated_at: nowISO(),
     }),
   );

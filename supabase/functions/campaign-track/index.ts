@@ -5,6 +5,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // inside campaign emails sent by send-baker-campaign:
 //   ?e=o&t=<token>  the 1×1 image at the bottom of the email → records an open
 //   ?e=c&t=<token>  the email's button → records a click, then redirects
+//   ?e=c&t=<token>&l=<n>  link n of a custom-HTML email (baker_campaigns.links)
 // <token> is baker_campaign_sends.track_token (one per email sent). The
 // click redirect goes only to that campaign's own button destination,
 // worked out here from the campaign row — never to a URL taken from the
@@ -68,5 +69,12 @@ Deno.serve(async (req: Request) => {
   }
 
   if (kind === "open") return pixel();
-  return redirect(campaignId ? await campaignDestination(db, campaignId) : FALLBACK);
+  if (!campaignId) return redirect(FALLBACK);
+  const linkIndex = url.searchParams.get("l");
+  if (linkIndex !== null && /^\d{1,4}$/.test(linkIndex)) {
+    const { data: c } = await db.from("baker_campaigns").select("links").eq("id", campaignId).maybeSingle();
+    const target = Array.isArray(c?.links) ? c.links[Number(linkIndex)] : null;
+    return redirect(typeof target === "string" && /^https?:\/\//i.test(target) ? target : await campaignDestination(db, campaignId));
+  }
+  return redirect(await campaignDestination(db, campaignId));
 });

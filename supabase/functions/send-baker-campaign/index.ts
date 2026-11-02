@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { customerEmailIdentity, sanitizeDisplayName } from "../_shared/senderIdentity.ts";
 import { sendEmail } from "../_shared/resend.ts";
+import { MAX_HTML_LENGTH, collectLinks, sanitizeEmailHtml, trackLinks, wrapCustomHtml } from "../_shared/campaignHtml.ts";
 
 // Baker-authenticated only (a real signed-in user JWT, verified below) —
 // never public/anon, unlike capture-storefront-email. Composing/saving a
@@ -108,7 +109,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: campaign } = await db
     .from("baker_campaigns")
-    .select("id, user_id, subject, body_text, image_url, cta_label, cta_url, cta_listing_id, status, audience")
+    .select("id, user_id, subject, body_text, body_html, image_url, cta_label, cta_url, cta_listing_id, status, audience")
     .eq("id", campaignId)
     .eq("user_id", bakerId)
     .maybeSingle();
@@ -132,6 +133,30 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Custom HTML (when the vendor wrote one): cleaned once, used for every copy.
+  const rawHtml = typeof campaign.body_html === "string" ? campaign.body_html.trim() : "";
+  if (rawHtml.length > MAX_HTML_LENGTH) {
+    return json({ error: "This email's HTML is too long. Keep it under 100 KB — Gmail cuts off longer emails." }, 400);
+  }
+  const customHtml = rawHtml ? sanitizeEmailHtml(rawHtml) : null;
+  const customLinks = customHtml ? collectLinks(customHtml) : [];
+  const emailHtml = (unsubscribeUrl: string, track: { token: string; base: string } | null): string => {
+    if (customHtml) {
+      const body = track
+        ? trackLinks(customHtml, customLinks, (i) => `${track.base}?e=c&t=${track.token}&l=${i}`)
+        : customHtml;
+      return wrapCustomHtml(body, unsubscribeUrl, track ? `${track.base}?e=o&t=${track.token}` : null);
+    }
+    return buildCampaignHtml({
+      bodyText: campaign.body_text || "",
+      imageUrl: campaign.image_url,
+      ctaLabel: campaign.cta_label,
+      ctaHref: ctaHref && track ? `${track.base}?e=c&t=${track.token}` : ctaHref,
+      unsubscribeUrl,
+      openPixelUrl: track ? `${track.base}?e=o&t=${track.token}` : null,
+    });
+  };
+
   // ── Test send: one copy to the vendor, marked as a test ────────────────
   if (isTest) {
     const to = user.email;
@@ -141,13 +166,7 @@ Deno.serve(async (req: Request) => {
       reply_to: identity.reply_to,
       to,
       subject: `[Test] ${sanitizeDisplayName(campaign.subject) || "Update"}`,
-      html: buildCampaignHtml({
-        bodyText: campaign.body_text || "",
-        imageUrl: campaign.image_url,
-        ctaLabel: campaign.cta_label,
-        ctaHref,
-        unsubscribeUrl: "https://bakeriapp.com/",
-      }),
+      html: emailHtml("https://bakeriapp.com/", null),
     });
     return result.ok ? json({ ok: true, to }) : json({ error: "The test email couldn't be sent. Please try again." }, 502);
   }
@@ -176,7 +195,12 @@ Deno.serve(async (req: Request) => {
     return json({ error: "No subscribed contacts to send to." }, 400);
   }
 
-  await db.from("baker_campaigns").update({ status: "sending", updated_at: new Date().toISOString() }).eq("id", campaignId);
+  // The custom email's links, frozen now — campaign-track redirects ?l=N to links[N] only.
+  await db.from("baker_campaigns").update({
+    status: "sending",
+    links: customHtml ? customLinks : null,
+    updated_at: new Date().toISOString(),
+  }).eq("id", campaignId);
 
   // One row per email up front — each gets the track_token its open image
   // and button carry (campaign-track).
@@ -196,14 +220,7 @@ Deno.serve(async (req: Request) => {
   for (const contact of contacts) {
     const row = rowFor.get(contact.id);
     const unsubscribeUrl = `${SUPABASE_URL}/functions/v1/unsubscribe?token=${contact.unsubscribe_token}`;
-    const html = buildCampaignHtml({
-      bodyText: campaign.body_text || "",
-      imageUrl: campaign.image_url,
-      ctaLabel: campaign.cta_label,
-      ctaHref: ctaHref && row ? `${trackBase}?e=c&t=${row.track_token}` : ctaHref,
-      unsubscribeUrl,
-      openPixelUrl: row ? `${trackBase}?e=o&t=${row.track_token}` : null,
-    });
+    const html = emailHtml(unsubscribeUrl, row ? { token: row.track_token, base: trackBase } : null);
     const result = await sendEmail({
       from: identity.from,
       reply_to: identity.reply_to,

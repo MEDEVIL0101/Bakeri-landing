@@ -205,6 +205,10 @@ export interface Campaign {
   updated_at: string;
   /** Who it's for — see lib/crm.ts Audience. Null on older campaigns (everyone). */
   audience: import('./crm').Audience | null;
+  /** The vendor's own HTML email, when they wrote one (2026-11-02). */
+  body_html: string | null;
+  /** The HTML email's links, frozen at send time. */
+  links: string[] | null;
 }
 
 /** One email sent for a campaign, with its opens and clicks. */
