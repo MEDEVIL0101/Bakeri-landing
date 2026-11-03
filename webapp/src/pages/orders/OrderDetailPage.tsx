@@ -55,21 +55,7 @@ export function OrderDetailPage() {
             <ItemsTable order={order} />
           </Card>
 
-          {order.form_responses && (
-            <Card title="Order form answers">
-              <FormAnswers raw={order.form_responses} />
-            </Card>
-          )}
-          {(order.order_items ?? []).some((i) => i.form_responses) && (
-            <Card title="Item details">
-              {(order.order_items ?? []).filter((i) => i.form_responses).map((i) => (
-                <div key={i.id} className="stack">
-                  <h3 className="h3">{i.custom_name}</h3>
-                  <FormAnswers raw={i.form_responses} />
-                </div>
-              ))}
-            </Card>
-          )}
+          <RequestDetails order={order} />
           <InspirationPhotos order={order} />
 
           {order.notes && (
@@ -327,5 +313,35 @@ function DueDateInput({ order, onSaved }: { order: Order; onSaved: () => void })
         catch (err: any) { setValue(prev); toast(err?.message ?? 'Couldn’t change the due date.', 'error'); }
         setSaving(false);
       }} />
+  );
+}
+
+/** Same answers, however they were stored (JSON text or an object). */
+function answersKey(raw: unknown): string {
+  try { return JSON.stringify(typeof raw === 'string' ? JSON.parse(raw) : raw); } catch { return String(raw); }
+}
+
+/**
+ * What the customer filled in on the order form — one card (Harvey
+ * 2026-11-03). A form order stores its answers on the order and on its line
+ * item, which used to show the same answers twice ("Order form answers" and
+ * "Item details"). An item's answers are shown only when they differ from
+ * the order's (a cart with several form items).
+ */
+function RequestDetails({ order }: { order: Order }) {
+  const orderKey = order.form_responses ? answersKey(order.form_responses) : null;
+  const items = (order.order_items ?? []).filter((i) => i.form_responses && answersKey(i.form_responses) !== orderKey);
+  if (!order.form_responses && items.length === 0) return null;
+  const single = !order.form_responses && items.length === 1;
+  return (
+    <Card title="Request details">
+      {order.form_responses && <FormAnswers raw={order.form_responses} />}
+      {items.map((i) => (
+        <div key={i.id} className="stack">
+          {!single && <h3 className="h3">{i.custom_name}</h3>}
+          <FormAnswers raw={i.form_responses} />
+        </div>
+      ))}
+    </Card>
   );
 }
