@@ -190,7 +190,7 @@ export function TrialPage() {
 
   return (
     <div className="auth-page trial-page">
-      {fromPicker ? <Link to="/plan?all" className="trial-back">‹ Back to plans</Link> : <Link to="/plan?all" className="trial-skip">Skip</Link>}
+      {fromPicker ? <Link to="/plan?all" className="trial-back">‹ Back to plans</Link> : <Link to="/plan?all" className="trial-skip">See all plans</Link>}
       <div className="trial-brand"><img src={LOGO} alt="Bakeri" /> <span>{p.name}</span></div>
       <h1 className="trial-title">{trial ? <>Claim a free<br />{TRIAL_DAYS}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
       <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
