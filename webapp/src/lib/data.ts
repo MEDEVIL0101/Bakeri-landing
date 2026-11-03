@@ -16,6 +16,27 @@ export async function listContacts(userId: string): Promise<Contact[]> {
   ) as Contact[];
 }
 
+/** True when this email is already one of the vendor's contacts. */
+export async function hasContact(userId: string, email: string): Promise<boolean> {
+  const e = email.trim().toLowerCase();
+  if (!e) return true;
+  const { data } = await supabase.from('baker_contacts').select('id').eq('user_id', userId).eq('email', e).limit(1);
+  return (data ?? []).length > 0;
+}
+
+/** A storefront customer, added from their order (source 'order'), like the app's prompt. */
+export async function addOrderContact(userId: string, o: { id: string; customer_email: string; customer_name: string; customer_phone: string }): Promise<void> {
+  const email = o.customer_email.trim().toLowerCase();
+  if (!email) return;
+  check(
+    await supabase.from('baker_contacts').upsert(
+      { user_id: userId, email, name: o.customer_name?.trim() || null, phone: o.customer_phone?.trim() || null,
+        source: 'order', first_order_id: o.id, updated_at: nowISO() },
+      { onConflict: 'user_id,email' },
+    ),
+  );
+}
+
 /** Upsert on (user_id, email) — never touches unsubscribed_at. */
 export async function addContact(userId: string, c: { email: string; name: string; phone: string }): Promise<void> {
   const email = c.email.trim().toLowerCase();

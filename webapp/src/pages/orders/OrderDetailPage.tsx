@@ -1,5 +1,5 @@
 import { OrderMessages } from './OrderMessages';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, PageHeader, Select, Spinner, useLoad, useToast } from '../../components/ui';
 import {
@@ -13,6 +13,8 @@ import { StorefrontActions } from './StorefrontActions';
 import { FormAnswers } from './FormAnswers';
 import { OrderPackagingCard } from './OrderPackagingCard';
 import { OrderVendorNotesCard } from './OrderVendorNotesCard';
+import { useUserId } from '../../auth/AuthProvider';
+import { addOrderContact, hasContact } from '../../lib/data';
 
 export function OrderDetailPage() {
   const { id } = useParams();
@@ -41,6 +43,8 @@ export function OrderDetailPage() {
           </>
         )}
       />
+
+      <AddCustomerPrompt order={order} storefront={storefront} />
 
       <div className="detail-grid">
         <div className="stack-lg">
@@ -343,5 +347,56 @@ function RequestDetails({ order }: { order: Order }) {
         </div>
       ))}
     </Card>
+  );
+}
+
+// Emails this vendor already answered the prompt for (Add or Not now), so it
+// never asks twice — same rule as the app's contactPromptAnsweredEmails.
+const PROMPT_KEY = 'bakeri.contactPromptAnswered';
+function promptAnswered(email: string): boolean {
+  try { return (JSON.parse(localStorage.getItem(PROMPT_KEY) ?? '[]') as string[]).includes(email); } catch { return false; }
+}
+function rememberPromptAnswered(email: string) {
+  try {
+    const list = JSON.parse(localStorage.getItem(PROMPT_KEY) ?? '[]') as string[];
+    if (!list.includes(email)) localStorage.setItem(PROMPT_KEY, JSON.stringify([...list, email]));
+  } catch { /* private mode */ }
+}
+
+/**
+ * "Add [name] to your customer list?" on a storefront order whose customer
+ * isn't a contact yet — the web version of the app's prompt (Harvey
+ * 2026-11-03). A card, not a dialog, so the order stays usable.
+ */
+function AddCustomerPrompt({ order, storefront }: { order: Order; storefront: boolean }) {
+  const userId = useUserId();
+  const toast = useToast();
+  const email = (order.customer_email ?? '').trim().toLowerCase();
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    if (!storefront || !email || promptAnswered(email)) return;
+    hasContact(userId, email).then((known) => { if (live && !known) setShow(true); }, () => undefined);
+    return () => { live = false; };
+  }, [storefront, email, userId]);
+  if (!show) return null;
+  const name = order.customer_name?.trim() || 'this customer';
+  return (
+    <div className="add-customer-prompt">
+      <div className="grow">
+        <b>Add {name} to your customer list?</b>
+        <div className="small muted">You’ll be able to email them and quickly pull up their details on future orders.</div>
+      </div>
+      <div className="btn-row">
+        <Button variant="ghost" onClick={() => { rememberPromptAnswered(email); setShow(false); }}>Not now</Button>
+        <Button loading={busy} onClick={async () => {
+          setBusy(true);
+          try { await addOrderContact(userId, order); rememberPromptAnswered(email); setShow(false); toast(`${name} added to your customers`); }
+          catch (e: any) { toast(e?.message ?? 'Couldn’t add them. Try again from Customers.', 'error'); }
+          setBusy(false);
+        }}>Add</Button>
+      </div>
+    </div>
   );
 }

@@ -1316,3 +1316,5 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .trial-account { width: 100%; max-width: 520px; margin: 18px auto 0; padding: 22px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); text-align: left; }
 .trial-account h2 { margin: 0 0 6px; font-size: 20px; }
 .trial-account .btn-block { min-height: 50px; border-radius: 999px; background: #8a2fc2; border-color: #8a2fc2; font-size: 16px; }
+
+.add-customer-prompt { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 16px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow); }
