@@ -374,6 +374,7 @@ Deno.serve(async (req: Request) => {
       customerEmail: customer_email,
       customerPhone: customer_phone,
       kind: "quote_request",
+      orderId,
     });
     await logNotification(db, orderId, "baker_quote_request_email", result.ok ? "sent" : "failed", result.error);
   }
