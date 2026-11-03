@@ -21,6 +21,7 @@
 
       --bg:      var(--theme-bg);
       --accent:  var(--theme-primary);
+      --accent-fg: var(--theme-button-fg);
       --ink:     #241712;
       --muted:   #948577;
       --bio:     #4A3E33;
@@ -136,7 +137,7 @@
     body: JSON.stringify({ p_user_id: bakerId })
   })
   .then(function (r) { return r.json(); })
-  .then(function (data) { if (data && data.profile) renderHeader(data.profile); })
+  .then(function (data) { if (data && data.profile) { renderHeader(data.profile); applyFormColors(data.profile); } })
   .catch(function () { /* header is non-essential — the form still loads without it */ });
 
   window.BakeriIntakeForm.mount({
@@ -149,6 +150,25 @@
     itemName: itemName,
     standalone: true
   });
+
+  // The form's button follows the storefront's Menu section colours (the
+  // section the order form lives in), then the site's button colour, then
+  // the theme — with text that stays readable on it (Harvey 2026-11-03).
+  function applyFormColors(profile) {
+    const design = profile.storefront_design || {};
+    const hex = function (v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v.trim()) ? v.trim() : null; };
+    const menu = (Array.isArray(design.blocks) ? design.blocks : []).find(function (b) { return b && b.type === 'menu'; }) || {};
+    const btn = hex(menu.colors && menu.colors.button) || hex(design.colors && design.colors.accent);
+    if (!btn) return;
+    const lum = function (h) {
+      const c = [1, 3, 5].map(function (i) { const v = parseInt(h.substr(i, 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const L = lum(btn);
+    const onWhite = 1.05 / (L + 0.05), onDark = (L + 0.05) / (lum('#201e1d') + 0.05);
+    document.documentElement.style.setProperty('--btn-bg', btn);
+    document.documentElement.style.setProperty('--btn-fg', onWhite >= onDark ? '#ffffff' : '#201e1d');
+  }
 
   // Same treatment as baker/index.html's header image + avatar — this page
   // is reached by clicking through from the storefront, so it should still

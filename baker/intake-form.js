@@ -138,11 +138,15 @@
     + '.bkform .btn-submit {'
     + '  display: flex; align-items: center; justify-content: center;'
     + '  width: 100%; height: 52px; margin-top: 26px;'
-    + '  background: var(--accent); color: var(--accent-fg);'
+    // The section's own button colour (applyCardColors' --btn-bg / --btn-fg on
+    // the storefront; custom-order.html sets them from the Menu card), else
+    // the site accent — and always readable text (Harvey 2026-11-03).
+    + '  background: var(--btn-bg, var(--accent)); color: var(--btn-fg, var(--accent-fg, #ffffff));'
     + '  font-size: 15px; font-weight: 700;'
     + '  border-radius: 9999px; border: none; cursor: pointer;'
     + '}'
     + '.bkform .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }'
+    + '.bkform input[type=checkbox], .bkform input[type=radio] { accent-color: var(--btn-bg, var(--accent)); }'
     + '.bkform .btn-submit:active:not(:disabled) { opacity: 0.85; }'
     + '.bkform .submit-status { margin-top: 12px; text-align: center; font-size: 13px; color: var(--error); min-height: 16px; }'
     + '.bkform .pickup-note { margin-top: 16px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }'
