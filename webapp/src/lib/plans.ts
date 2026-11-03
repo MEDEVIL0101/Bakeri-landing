@@ -71,6 +71,13 @@ export function rememberPlanIntent(tier: string | null): void {
 export function storedPlanIntent(): PlanTier | null {
   try { const t = localStorage.getItem(INTENT_KEY); return t === 'pro' || t === 'starter' ? t : null; } catch { return null; }
 }
+const CYCLE_KEY = 'bakeri.cycleIntent';
+export function rememberCycleIntent(cycle: BillingInterval): void {
+  try { localStorage.setItem(CYCLE_KEY, cycle); } catch { /* private mode */ }
+}
+export function storedCycleIntent(): BillingInterval | null {
+  try { const c = localStorage.getItem(CYCLE_KEY); return c === 'month' || c === 'year' ? c : null; } catch { return null; }
+}
 export function clearPlanIntent(): void {
   try { localStorage.removeItem(INTENT_KEY); } catch { /* private mode */ }
 }

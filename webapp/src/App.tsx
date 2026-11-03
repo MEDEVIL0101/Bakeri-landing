@@ -49,6 +49,17 @@ function RequireSession() {
   return <Outlet />;
 }
 
+/** Open to visitors; a signed-in vendor still clears 2FA / password recovery first. */
+function PublicOrSession() {
+  const { session, recovering, mfaNeeded } = useAuth();
+  if (session === undefined) return <div className="full-center"><Spinner /></div>;
+  if (!session) return <Outlet />;
+  if (recovering) return <Navigate to="/reset-password" replace />;
+  if (mfaNeeded === undefined) return <div className="full-center"><Spinner /></div>;
+  if (mfaNeeded) return <MfaChallengePage />;
+  return <Outlet />;
+}
+
 function RequireVendor() {
   const { session, profile, profileLoading, recovering, plan, planLoading, mfaNeeded } = useAuth();
   const location = useLocation();
@@ -77,9 +88,14 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
-            <Route element={<RequireSession />}>
+            {/* Pricing comes before the account (Harvey 2026-11-02): visitors
+                see plans and the trial, and create their account on the trial
+                page when they continue. Signed-in vendors get the usual checks. */}
+            <Route element={<PublicOrSession />}>
               <Route path="/plan" element={<PlanPage />} />
               <Route path="/plan/trial" element={<TrialPage />} />
+            </Route>
+            <Route element={<RequireSession />}>
               <Route path="/welcome" element={<WelcomePage />} />
             </Route>
             <Route element={<RequireVendor />}>

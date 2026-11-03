@@ -32,7 +32,7 @@ export function passwordRules(pw: string) {
   ];
 }
 
-function PasswordRules({ password }: { password: string }) {
+export function PasswordRules({ password }: { password: string }) {
   return (
     <ul className="pw-rules">
       {passwordRules(password).map((r) => (
@@ -42,7 +42,7 @@ function PasswordRules({ password }: { password: string }) {
   );
 }
 
-function friendlyAuthError(message: string): string {
+export function friendlyAuthError(message: string): string {
   const m = message.toLowerCase();
   if (m.includes('invalid login credentials')) return 'That email and password don’t match. Check them and try again.';
   if (m.includes('email not confirmed')) return 'Please confirm your email first — check your inbox for the link we sent.';

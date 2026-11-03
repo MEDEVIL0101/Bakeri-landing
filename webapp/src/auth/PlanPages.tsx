@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { trackSite } from '../lib/siteTrack';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { LOGO } from '../lib/brand';
-import { Button, ErrorBanner, Spinner } from '../components/ui';
-import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, storedPlanIntent, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
+import { Button, ErrorBanner, Field, Input, Spinner } from '../components/ui';
+import { appURL, supabase } from '../lib/supabase';
+import { PasswordRules, friendlyAuthError, passwordRules } from './AuthPages';
+import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, rememberCycleIntent, rememberPlanIntent, storedCycleIntent, storedPlanIntent, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -38,9 +40,13 @@ export function PlanPage() {
   // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
   // Starting from "Try Starter free" opens every plan straight away, so Pro sits beside it.
   // The account's own sign-up choice wins over this browser's, which can be left over from another sign-up.
-  const starterIntent = (session?.user.user_metadata?.plan_intent ?? storedPlanIntent()) === 'starter';
-  if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all') && !starterIntent) {
-    return <Navigate to="/plan/trial?tier=pro" replace />;
+  // Back from confirming their email: straight to the plan and billing cycle
+  // they picked before creating the account (pricing comes first now).
+  const intent = (session?.user.user_metadata?.plan_intent ?? storedPlanIntent()) as string | null;
+  const cycleIntent = (session?.user.user_metadata?.plan_cycle ?? storedCycleIntent()) as string | null;
+  if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all')) {
+    const tier = intent === 'starter' ? 'starter' : 'pro';
+    return <Navigate to={`/plan/trial?tier=${tier}${cycleIntent === 'month' || cycleIntent === 'year' ? `&cycle=${cycleIntent}` : ''}`} replace />;
   }
 
   function pick(tier: PlanTier) {
@@ -111,7 +117,8 @@ export function PlanPage() {
       <p className="small muted plan-note">Prices in USD. Stripe card fees apply on both plans. Pro costs $20 more a month and saves you 5% on every sale — so it pays for itself once you sell about $400 a month.</p>
       <div className="auth-footer plan-footer">
         {subscribed && <><button type="button" className="link-btn" onClick={manage} disabled={!!busy}>Manage billing &amp; invoices</button> · </>}
-        {current !== 'none' ? <Link to="/">Back to Bakeri</Link> : <button type="button" className="link-btn" onClick={signOut}>Sign out</button>}
+        {!session ? <>Already have an account? <Link to="/login">Log in</Link></>
+          : current !== 'none' ? <Link to="/">Back to Bakeri</Link> : <button type="button" className="link-btn" onClick={signOut}>Sign out</button>}
       </div>
     </div>
   );
@@ -154,10 +161,19 @@ export function TrialPage() {
   const p = PLANS.find((x) => x.tier === params.get('tier')) ?? PLANS.find((x) => x.tier === 'pro')!;
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const fromPicker = params.has('picked');
+  // A visitor's referral code: from the link, or the one the homepage kept.
+  const visitorRef = (() => {
+    let r = params.get('ref') ?? '';
+    try { if (!r) r = sessionStorage.getItem('bakeri_ref') ?? ''; } catch { /* private mode */ }
+    return r.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+  })();
   // Signed up with a referral code → 10% off the first 3 months at checkout.
   const referred = !plan?.trial_used_at && !plan?.lifetime_pro
-    ? String(session?.user.user_metadata?.referral_code ?? '').trim().toUpperCase() || null
+    ? String(session?.user.user_metadata?.referral_code ?? (session ? '' : visitorRef)).trim().toUpperCase() || null
     : null;
+  // Visitors create their account here, after seeing the plan.
+  const [showAccount, setShowAccount] = useState(false);
+  useEffect(() => { if (!session) trackSite('plan_view', `${p.tier}-visitor`); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (hasSubscription(plan)) return <Navigate to="/plan" replace />;
 
   const starts = new Date(Date.now() + TRIAL_DAYS * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -166,6 +182,7 @@ export function TrialPage() {
   const then = interval === 'year' ? `${money(p.yearPrice)}/year` : monthly;
 
   async function go() {
+    if (!session) { setShowAccount(true); trackSite('signup_view', p.tier); return; }
     setBusy(true); setError(null);
     clearPlanIntent();
     try { await startCheckout(p.tier, interval); } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); setBusy(false); }
@@ -199,9 +216,71 @@ export function TrialPage() {
       </ol>
       <div className="trial-foot">
         <p className="muted small">{trial ? 'Due today: $0.00' : `Due today: ${interval === 'year' ? money(p.yearPrice) : money(p.salePrice ?? p.price)}`} · Prices in USD · Stripe card fees apply</p>
-        <Button className="trial-btn" loading={busy} onClick={go}>{trial ? 'Continue with free trial' : 'Continue to payment'}</Button>
+        {!showAccount && <Button className="trial-btn" loading={busy} onClick={go}>{trial ? 'Continue with free trial' : 'Continue to payment'}</Button>}
       </div>
+      {showAccount && !session && <TrialAccountForm tier={p.tier} interval={interval} planName={p.name} referral={visitorRef} />}
+      {!session && <p className="auth-footer" style={{ textAlign: 'center' }}>Already have an account? <Link to="/login">Log in</Link></p>}
     </div>
+  );
+}
+
+/**
+ * The account, made last: email + password on the trial page, with the
+ * plan, billing cycle and any referral code kept in user_metadata so the
+ * confirmation link brings them straight back to this trial (PlanPage).
+ */
+function TrialAccountForm({ tier, interval, planName, referral }: { tier: PlanTier; interval: BillingInterval; planName: string; referral: string }) {
+  const [params] = useSearchParams();
+  const [email, setEmail] = useState(params.get('email') ?? '');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const rulesMet = passwordRules(password).every((r) => r.met);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!rulesMet) { setError('Please choose a stronger password.'); return; }
+    setBusy(true); setError(null);
+    // signup_source: the before-user-created hook only allows web sign-ups.
+    const data: Record<string, string> = { signup_source: 'web', plan_intent: tier, plan_cycle: interval };
+    if (referral) data.referral_code = referral;
+    rememberPlanIntent(tier);
+    rememberCycleIntent(interval);
+    const { data: res, error } = await supabase.auth.signUp({
+      email: email.trim(), password, options: { data, emailRedirectTo: appURL('auth/callback') },
+    });
+    setBusy(false);
+    const exists = 'An account with this email already exists. Log in to continue, or reset your password.';
+    if (error) { setError(error.message.toLowerCase().includes('already') ? exists : friendlyAuthError(error.message)); return; }
+    if (!res.session && res.user && res.user.identities?.length === 0) { setError(exists); return; }
+    trackSite('signup_done', tier);
+    if (!res.session) setSentTo(email.trim());
+  }
+
+  if (sentTo) {
+    return (
+      <div className="trial-account">
+        <h2>Check your email</h2>
+        <p>We sent a link to <b>{sentTo}</b>. Open it and you’ll come straight back here to start your {planName} trial.</p>
+        <p className="muted small">Can’t find it? Check your spam or promotions folder.</p>
+      </div>
+    );
+  }
+
+  return (
+    <form className="trial-account stack" onSubmit={submit}>
+      <h2>Create your Bakerï account</h2>
+      <Field label="Email"><Input type="email" autoComplete="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+      <Field label="Password"><Input type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+      {password && <PasswordRules password={password} />}
+      {error && <ErrorBanner message={error} />}
+      <Button type="submit" loading={busy} className="btn-block">Create account &amp; continue</Button>
+      <p className="muted small center">
+        By creating an account you agree to the <a href="/terms-of-service.html" target="_blank" rel="noreferrer">Terms</a> and{' '}
+        <a href="/privacy-policy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.
+      </p>
+    </form>
   );
 }
 
