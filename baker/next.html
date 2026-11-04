@@ -1790,13 +1790,17 @@
     document.getElementById('sf-root').classList.toggle('name-on-dark', !!onDark);
   }
 
-  function useThemeBackground() {
+  // pendingPhoto: a header photo is on its way — paint the plain base colour
+  // (theme tokens, no pattern layer) so visitors don't see the theme pattern
+  // flash up before the photo swaps in. The pattern only appears if the
+  // photo fails to load.
+  function useThemeBackground(pendingPhoto) {
     bgMode = 'theme';
     bgShownUrl = null;
     document.getElementById('sf-bg-top').classList.add('hidden');
     document.getElementById('sf-bg-full').classList.add('hidden');
     document.documentElement.style.background = baseColor();
-    if (window.BakeriTheme) window.BakeriTheme.apply(profile, { forceLight: true });
+    if (window.BakeriTheme) window.BakeriTheme.apply(profile, { forceLight: true, suppressPatternLayer: !!pendingPhoto });
     // Full-width theme: theme.js's fixed full-screen pattern layer stays
     // where it is and the photo frame is hidden (see .bg-theme).
     document.getElementById('sf-root').classList.add('bg-theme');
@@ -1818,11 +1822,13 @@
       // repainting the theme first flashed the whole page in that colour.
       document.documentElement.style.background = fade;
     } else {
-      useThemeBackground(); // paints immediately; swapped out below once an image loads
+      useThemeBackground(!!url); // paints immediately; swapped out below once an image loads
     }
     if (!url) return;
 
     const img = new Image();
+    // No photo after all (none uploaded, or it failed): show the full theme.
+    img.onerror = function () { if (token === bgToken) useThemeBackground(); };
     img.onload = function () {
       if (token !== bgToken) return; // a newer render already replaced this
       const full = b.mode === 'image_full';
