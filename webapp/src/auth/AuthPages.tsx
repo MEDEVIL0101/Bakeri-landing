@@ -118,7 +118,10 @@ export function SignupPage() {
   // code) filled in; invite = their vendor_applications id.
   const [email, setEmail] = useState(params.get('email') ?? '');
   const [password, setPassword] = useState('');
-  const referral = params.get('ref') ?? '';
+  // A referral link lands on the homepage, which remembers the code for the
+  // visit; its sign-up buttons don't always pass it on, so fall back to that
+  // (like PlanPages does) or the referral is lost.
+  const referral = params.get('ref') || rememberedReferral();
   // From the site's "Try Pro free" / "Try Starter free" buttons.
   const planParam = params.get('plan');
   const intent = planParam === 'pro' || planParam === 'starter' ? planParam : null;
@@ -312,4 +315,16 @@ export function AuthCallbackPage() {
       <Link to="/login" className="btn btn-primary btn-block">Log in</Link>
     </AuthLayout>
   );
+}
+
+/** The referral code the site remembered for this visit ("" if none). */
+function rememberedReferral(): string {
+  try {
+    const direct = sessionStorage.getItem('bakeri_ref');
+    if (direct) return direct;
+    const attr = JSON.parse(sessionStorage.getItem('bk_attr') || '{}') as { ref?: string };
+    return attr.ref ?? '';
+  } catch {
+    return '';
+  }
 }
