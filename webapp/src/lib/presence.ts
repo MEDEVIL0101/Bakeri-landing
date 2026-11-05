@@ -21,3 +21,17 @@ export function startWebPresence(userId: string): () => void {
   document.addEventListener('visibilitychange', onVisible);
   return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
 }
+
+/** "/orders/3f2a…/edit" → "orders_detail_edit"; "/" → "home". */
+export function screenKey(pathname: string): string {
+  const parts = pathname.split('/').filter(Boolean)
+    .map((p) => (/^[0-9a-f-]{8,}$/i.test(p) || /^\d+$/.test(p) ? 'detail' : p.toLowerCase().replace(/[^a-z0-9]+/g, '_')));
+  return (parts.join('_') || 'home').slice(0, 60);
+}
+
+/** Logs a screen open for Bakeri Admin's Usage screen. Fire-and-forget. */
+export function logScreen(pathname: string): void {
+  void supabase.from('app_events')
+    .insert({ screen: screenKey(pathname), platform: 'web' })
+    .then(() => undefined, () => undefined);
+}

@@ -36,6 +36,8 @@ import { MfaChallengePage, TwoFactorPage } from './auth/TwoFactor';
 import { GetIOSPage } from './pages/settings/GetIOSPage';
 import { InsightsPage } from './pages/insights/InsightsPage';
 import { effectiveTier } from './lib/plans';
+import { logScreen } from './lib/presence';
+import { useEffect } from 'react';
 
 /** Signed in, nothing else — the plan picker and welcome page sit here. */
 function RequireSession() {
@@ -60,6 +62,13 @@ function PublicOrSession() {
   return <Outlet />;
 }
 
+/** Logs each screen a vendor opens (pathname changes only). */
+function ScreenTracker() {
+  const { pathname } = useLocation();
+  useEffect(() => { logScreen(pathname); }, [pathname]);
+  return null;
+}
+
 function RequireVendor() {
   const { session, profile, profileLoading, recovering, plan, planLoading, mfaNeeded } = useAuth();
   const location = useLocation();
@@ -74,7 +83,7 @@ function RequireVendor() {
   // plan === undefined means it couldn't be read — never block on that.
   if (plan !== undefined && effectiveTier(plan) === 'none') return <Navigate to="/plan" replace />;
   if (!profile || !profile.business_name?.trim()) return <SetupPage />;
-  return <TimerProvider><AppShell><Outlet /></AppShell></TimerProvider>;
+  return <TimerProvider><ScreenTracker /><AppShell><Outlet /></AppShell></TimerProvider>;
 }
 
 export default function App() {
