@@ -186,7 +186,11 @@ Deno.serve(async (req: Request) => {
     let q = db.from("baker_contacts")
       .select("id, email, unsubscribe_token")
       .eq("user_id", bakerId)
-      .is("unsubscribed_at", null);
+      .is("unsubscribed_at", null)
+      // Said no to marketing at sign-up (2026-11-05). null = from before
+      // consent was asked (e.g. customers) — still reachable, still with the
+      // one-click unsubscribe.
+      .or("marketing_consent.is.null,marketing_consent.eq.true");
     if (audienceIds) q = q.in("id", audienceIds.slice(i, i + pageSize));
     const { data } = await q;
     contacts = contacts.concat(data ?? []);

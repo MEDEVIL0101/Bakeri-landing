@@ -386,6 +386,21 @@
     .sf-rich-text p:empty { display: none; }
     .sf-rich-action { flex: 1 1 300px; min-width: 0; display: flex; }
     .sf-capture-form { width: 100%; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    /* Consent (2026-11-05): an optional, unticked marketing box on every
+       sign-up, plus a required terms box when the shop has terms. */
+    .sf-consents { flex: 1 1 100%; display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
+    .sf-consent { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; line-height: 1.4; color: var(--card-muted, var(--n800)); text-align: left; cursor: pointer; }
+    .sf-consent input { flex: none; width: 17px; height: 17px; margin: 1px 0 0; padding: 0; box-shadow: none; accent-color: var(--btn-bg, var(--accent)); }
+    .sf-consent-link { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
+    /* A free download's own page: photo, title, description, then the form. */
+    .lead-page-img { width: 100%; aspect-ratio: 4/3; border-radius: var(--rs); background: var(--tint) center / cover no-repeat; margin-bottom: 16px; }
+    .lead-page-note { font-size: 13px; font-weight: 700; color: var(--card-title, var(--head-ink)); margin: 10px 0 14px; }
+    /* Long descriptions (a course, a recipe book) shown in full, formatted. */
+    .rich-desc p { margin: 0 0 10px; }
+    .rich-desc h4 { font-size: 15px; font-weight: 800; color: var(--card-title, var(--head-ink)); margin: 16px 0 6px; }
+    .rich-desc ul { margin: 0 0 10px; padding-left: 0; list-style: none; }
+    .rich-desc li { margin: 0 0 6px; padding-left: 0; }
+
     .sf-capture-form input {
       flex: 1 1 180px; min-width: 0; height: 50px; padding: 0 18px; background: #fff; border: 0; border-radius: var(--rp);
       font-size: 15px; color: var(--text); box-shadow: inset 0 0 0 1.5px var(--n300);
@@ -1375,6 +1390,12 @@
     document.getElementById('item-scrim').addEventListener('click', function (e) { if (e.target === this) closeItemSheet(); });
     document.getElementById('cart-scrim').addEventListener('click', function (e) { if (e.target === this) closeCartSheet(); });
     document.getElementById('desc-scrim').addEventListener('click', function (e) { if (e.target === this) closeDescSheet(); });
+    document.addEventListener('click', function (e) {
+      const t = e.target && e.target.closest && e.target.closest('[data-terms]');
+      if (!t) return;
+      e.preventDefault();
+      openDescSheet('Terms & Conditions', shopTerms());
+    });
     document.getElementById('capture-sheet-close').addEventListener('click', closeCaptureSheet);
     document.getElementById('capture-scrim').addEventListener('click', function (e) { if (e.target === this) closeCaptureSheet(); });
 
@@ -2866,9 +2887,8 @@
     });
     root.querySelectorAll('.sf-link[data-listing-id]').forEach(function (row) {
       if (row.dataset.leadMagnet === 'true') {
-        const title = row.querySelector('.lk-title, .sf-link-label');
-        const heading = 'Get: ' + (title ? title.textContent : 'this download');
-        row.addEventListener('click', function () { closeLinkSection(); openCaptureSheet('inline', row.dataset.listingId, heading); });
+        const link = allLinks.find(function (x) { return String(x.linked_listing_id || '').toLowerCase() === String(row.dataset.listingId).toLowerCase(); });
+        row.addEventListener('click', function () { closeLinkSection(); if (link) openLeadPage(link); });
         return;
       }
       const item = allListings.find(function (x) { return String(x.id).toLowerCase() === String(row.dataset.listingId).toLowerCase(); });
@@ -3097,13 +3117,71 @@
   // popup: a button opens #capture-scrim. Both, plus the header signup
   // pill, post to capture-storefront-email → baker_contacts.
 
-  function captureFormMarkup(idPrefix, buttonLabel) {
+  function captureFormMarkup(idPrefix, buttonLabel, opts) {
+    opts = opts || {};
     return '<form class="sf-capture-form" id="' + idPrefix + '-form" novalidate>' +
+      (opts.name ? '<input type="text" autocomplete="given-name" placeholder="Your name" aria-label="Your name" id="' + idPrefix + '-name" />' : '') +
       '<input type="email" required autocomplete="email" placeholder="you@email.com" aria-label="Email address" id="' + idPrefix + '-email" />' +
       '<button type="submit" class="sf-btn">' + escapeHtml(buttonLabel) + '</button>' +
+      consentMarkup(idPrefix) +
       '<div class="sf-capture-status" id="' + idPrefix + '-status" role="status"></div>' +
       '</form>';
   }
+  // ══════════════════════ Consent + rich text ══════════════════════
+
+  function shopTerms() { return String((profile && profile.store_policies) || '').trim(); }
+
+  // Consent boxes under a sign-up form. The marketing box is optional and
+  // starts unticked; the terms box appears only when the shop has terms and
+  // must be ticked.
+  function consentMarkup(idPrefix) {
+    const shop = escapeHtml((profile && (profile.business_name || profile.user_name)) || 'this shop');
+    return '<div class="sf-consents">' +
+      '<label class="sf-consent"><input type="checkbox" id="' + idPrefix + '-mkt" />' +
+        '<span id="' + idPrefix + '-mkt-text">Send me emails from ' + shop + '. Unsubscribe any time.</span></label>' +
+      (shopTerms()
+        ? '<label class="sf-consent"><input type="checkbox" id="' + idPrefix + '-terms" />' +
+          '<span>I agree to the <button type="button" class="sf-consent-link" data-terms="1">Terms &amp; Conditions</button></span></label>'
+        : '') +
+      '</div>';
+  }
+
+  // Plain text written in an app or pasted from another site → paragraphs,
+  // short heading lines, and lists for ✔️ / • / - / 📌 lines.
+  function richText(text) {
+    const lines = String(text || '').split(/\n/).map(function (l) { return l.trim(); });
+    const bullet = /^(?:[-•*·]|✔️|✔|✅|☑️|📌|📍|⭐|🍫)\s*/;
+    let html = '', inList = false;
+    lines.forEach(function (l, i) {
+      if (!l) { if (inList) { html += '</ul>'; inList = false; } return; }
+      if (bullet.test(l)) {
+        if (!inList) { html += '<ul>'; inList = true; }
+        html += '<li>' + escapeHtml(l) + '</li>';
+        return;
+      }
+      if (inList) { html += '</ul>'; inList = false; }
+      const next = lines.slice(i + 1).find(function (x) { return x; });
+      const heading = l.length <= 70 && !/[.,;:!]$/.test(l) && !!next;
+      html += heading ? '<h4>' + escapeHtml(l) + '</h4>' : '<p>' + escapeHtml(l) + '</p>';
+    });
+    return html + (inList ? '</ul>' : '');
+  }
+
+  // A free download as its own page: photo, title, description, and the
+  // sign-up form that sends it.
+  function openLeadPage(l) {
+    const img = l.image_url || itemImgURL({ id: String(l.linked_listing_id) });
+    const desc = String(l.target_listing_description || '').trim();
+    document.getElementById('capture-sheet-body').innerHTML =
+      '<div class="lead-page-img" style="background-image:url(' + escapeHtml(img) + ')"></div>' +
+      '<h2 style="font-family:var(--display);font-weight:var(--dw);font-size:26px;line-height:1.1;color:var(--head-ink);padding-right:40px;">' + escapeHtml(l.label) + '</h2>' +
+      (desc ? '<div class="rich-desc" style="font-size:15px;line-height:1.55;color:var(--n800);margin-top:10px;">' + richText(desc) + '</div>' : '') +
+      '<p class="lead-page-note">Free · sent straight to your inbox</p>' +
+      captureFormMarkup('popup-capture', l.button_label || 'Send it to me', { name: true });
+    wireCaptureForm(document.getElementById('popup-capture-form'), 'lead_magnet', String(l.linked_listing_id));
+    document.getElementById('capture-scrim').classList.add('open');
+  }
+
 
   function wireCaptureForm(formEl, source, deliverableListingId, onDone) {
     if (!formEl) return;
@@ -3119,10 +3197,23 @@
         emailInput.focus();
         return;
       }
+      const termsBox = document.getElementById(idPrefix + '-terms');
+      if (termsBox && !termsBox.checked) {
+        statusEl.textContent = 'Please agree to the Terms & Conditions.';
+        return;
+      }
+      const mktBox = document.getElementById(idPrefix + '-mkt');
+      const nameInput = document.getElementById(idPrefix + '-name');
+      const consent = {
+        name: nameInput ? (nameInput.value || '').trim() : '',
+        marketing_consent: !!(mktBox && mktBox.checked),
+        terms_accepted: !!(termsBox && termsBox.checked),
+        consent_text: (document.getElementById(idPrefix + '-mkt-text') || {}).textContent || ''
+      };
       if (isPreviewMode) { statusEl.textContent = 'Signups are turned off in the preview.'; return; }
       submitBtn.disabled = true;
       statusEl.textContent = 'Sending…';
-      submitCapture(email, source, deliverableListingId)
+      submitCapture(email, source, deliverableListingId, consent)
         .then(function (result) {
           if (result.ok) {
             if (onDone) { onDone(result); return; }
@@ -3136,8 +3227,9 @@
     });
   }
 
-  function submitCapture(email, source, deliverableListingId) {
-    const payload = { user_id: resolvedBakerId, email: email, source: source };
+  function submitCapture(email, source, deliverableListingId, consent) {
+    const payload = Object.assign({ user_id: resolvedBakerId, email: email, source: source }, consent || {});
+    if (!payload.name) delete payload.name;
     const listingId = deliverableListingId || (designBlocksMode ? null : profile.email_capture_deliverable_listing_id);
     if (listingId) payload.deliverable_listing_id = listingId;
     return fetch(SUPABASE_URL + '/functions/v1/capture-storefront-email', {
@@ -3869,8 +3961,17 @@
     document.getElementById('item-sheet-price').innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
     const descEl = document.getElementById('item-sheet-desc');
     const descToggle = document.getElementById('item-sheet-desc-toggle');
-    descEl.textContent = item.item_description || '';
-    descEl.classList.add('clamped');
+    const longDigital = item.listing_kind === 'digital' && String(item.item_description || '').length > 240;
+    descEl.classList.toggle('rich-desc', longDigital);
+    if (longDigital) {
+      // A course or recipe book: the description is the sales page, shown
+      // in full and formatted rather than clamped behind "Read more".
+      descEl.innerHTML = richText(item.item_description);
+      descEl.classList.remove('clamped');
+    } else {
+      descEl.textContent = item.item_description || '';
+      descEl.classList.add('clamped');
+    }
     // Tapping the (clamped) text itself or "Read more" both open the full
     // description in its own popup rather than expanding inline — reading
     // a long one then never means scrolling the item sheet at all.

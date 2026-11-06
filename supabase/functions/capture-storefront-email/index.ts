@@ -73,6 +73,12 @@ Deno.serve(async (req: Request) => {
   const email = String(body.email ?? "").trim().toLowerCase();
   const name = String(body.name ?? "").trim().slice(0, MAX_NAME_LENGTH) || null;
   const source = String(body.source ?? "").trim();
+  // Consent (2026-11-05): the optional "send me emails" box and, when the
+  // shop has terms, the required terms box. consent_text is the wording the
+  // person saw, kept as the record of what they agreed to.
+  const marketingConsent = body.marketing_consent === true;
+  const termsAccepted = body.terms_accepted === true;
+  const consentText = String(body.consent_text ?? "").trim().slice(0, 400) || null;
 
   if (!UUID_RE.test(bakerID)) return json({ error: "Invalid request." }, 400);
   if (!EMAIL_RE.test(email)) return json({ error: "Please enter a valid email address." }, 400);
@@ -99,22 +105,32 @@ Deno.serve(async (req: Request) => {
     await db.from("email_capture_attempts").insert({ ip_address: ip });
   }
 
-  // Upsert: a repeat signup (including one from a previously-unsubscribed
-  // contact) clears unsubscribed_at rather than erroring on the unique
-  // (user_id, email) constraint.
+  // Upsert on (user_id, email). Only a ticked marketing box re-subscribes
+  // someone who unsubscribed (grabbing a free download is not consent to
+  // emails), an unticked box never withdraws consent given before (that's
+  // what the unsubscribe link is for), and a sign-up without a name keeps
+  // the name already on file.
+  const now = new Date().toISOString();
+  const { data: existing } = await db
+    .from("baker_contacts")
+    .select("marketing_consent")
+    .eq("user_id", bakerID)
+    .eq("email", email)
+    .maybeSingle();
+  const row: Record<string, unknown> = { user_id: bakerID, email, source, updated_at: now };
+  if (name) row.name = name;
+  if (marketingConsent) {
+    Object.assign(row, {
+      marketing_consent: true, marketing_consent_at: now, consent_source: source,
+      consent_text: consentText, unsubscribed_at: null,
+    });
+  } else if (!existing || existing.marketing_consent === null) {
+    Object.assign(row, { marketing_consent: false, consent_source: source, consent_text: consentText });
+  }
+  if (termsAccepted) row.terms_accepted_at = now;
   const { error } = await db
     .from("baker_contacts")
-    .upsert(
-      {
-        user_id: bakerID,
-        email,
-        name,
-        source,
-        unsubscribed_at: null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,email" }
-    );
+    .upsert(row, { onConflict: "user_id,email" });
 
   if (error) {
     console.error("baker_contacts upsert failed:", error.message);
