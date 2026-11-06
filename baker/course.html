@@ -34,6 +34,8 @@
     nav.curriculum { position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; }
     .mod { padding: 10px 10px 4px; }
     .mod-title { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+    .membership { margin: 18px 14px 8px; padding-top: 14px; border-top: 1px solid var(--line, rgba(0,0,0,.08)); font-size: 12px; color: var(--faint); line-height: 1.5; }
+    .membership button { background: none; border: 0; padding: 0; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }
     .mod-meta { font-size: 12px; color: var(--faint); margin-top: 2px; }
     .lesson { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; border: 0; background: none; border-radius: 10px; padding: 10px; margin: 2px 0; cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--ink); }
     .lesson:hover { background: var(--tint); }
@@ -105,7 +107,7 @@
   const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
   const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
   const q = new URLSearchParams(location.search);
-  const token = q.get('t');
+  let token = q.get('t');
   const previewId = q.get('preview');
   let data = null, current = null;
 
@@ -174,8 +176,29 @@
             (!data.enrolled && l.is_preview ? '<span class="tag">Preview</span>' : '') + '</button>';
         }).join('');
     }).join('') || '<p style="padding:14px;color:var(--muted)">Lessons are on their way.</p>';
+    nav.insertAdjacentHTML('beforeend', membershipHTML());
+    const cancel = document.getElementById('cancel-club');
+    if (cancel) cancel.addEventListener('click', cancelClub);
     nav.querySelectorAll('.lesson').forEach(function (b) {
       b.addEventListener('click', function () { open(b.dataset.id); });
+    });
+  }
+
+  // Clubs: a monthly/yearly member sees when it renews and can cancel.
+  function membershipHTML() {
+    const c = data.enrolled && data.club;
+    if (!c || !c.interval) return '';
+    const d = c.paid_through ? new Date(c.paid_through).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    return '<div class="membership">' + (c.cancel_at
+      ? 'Your membership ends ' + d + '. Join again from the shop any time.'
+      : 'Member · renews ' + (c.interval === 'year' ? 'yearly' : 'monthly') + (d ? ' (next ' + d + ')' : '') + '<br><button id="cancel-club">Cancel membership</button>') + '</div>';
+  }
+  function cancelClub() {
+    if (!confirm('Cancel your membership? You keep access until the end of the period you’ve paid for.')) return;
+    call({ token: token, cancel_club: true }).then(function (res) {
+      if (!res.ok) { alert(res.body.error || 'Please try again.'); return; }
+      data.club.cancel_at = res.body.cancel_at; data.club.paid_through = res.body.cancel_at;
+      renderCurriculum();
     });
   }
 
@@ -224,6 +247,17 @@
     document.getElementById('message').classList.remove('hidden');
   }
 
+  // Back from a club's Stripe Checkout: confirm the payment, then open with the new link.
+  const clubId = q.get('club'), clubSession = q.get('session');
+  if (!token && clubId && clubSession) {
+    showMessage('<p>Setting up your membership…</p>');
+    call({ club_session: clubSession, menu_item_id: clubId }).then(function (res) {
+      if (!res.ok || !res.body.token) { showMessage('<h2>We couldn’t finish joining</h2><p>' + esc((res.body && res.body.error) || 'Please contact the shop.') + '</p>'); return; }
+      history.replaceState(null, '', location.pathname + '?t=' + encodeURIComponent(res.body.token));
+      location.reload();
+    });
+    return;
+  }
   if (!token && !previewId) { showMessage('<h2>Open your course from your email</h2><p>The link in your purchase email takes you straight in.</p>'); return; }
   call(token ? { token: token } : { menu_item_id: previewId, preview: true }).then(function (res) {
     if (!res.ok) {

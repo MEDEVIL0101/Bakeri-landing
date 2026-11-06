@@ -18,7 +18,7 @@ const isFood = (k: ListingKind) => k === 'ready_now' || k === 'preorder' || k ==
 
 function emptyDraft(kind: ListingKind): MenuDraft {
   return {
-    name: '', item_description: '', content_blocks: [], is_course: false, addon_offer: null, category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
+    name: '', item_description: '', content_blocks: [], is_course: false, addon_offer: null, is_club: false, club_interval: null, category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
     listing_kind: kind, available_qty_today: 0, lead_days: 2, preorder_mode: 'fixed_dates', preorder_dates: [],
     preorder_weekday: 6, preorder_cutoff: null, delivery_mode: 'default', delivery_fee: 0, accepts_buyer_note: false,
     allergens: '', lead_time_note: '', shipping_fee: 0, intake_form_id: null, recipe_ids: [], recipe_names: [],
@@ -30,7 +30,7 @@ function emptyDraft(kind: ListingKind): MenuDraft {
 function draftFrom(m: MenuItemFull, profileDelivery: boolean, siteListingId: string | null | undefined): MenuDraft {
   return {
     name: m.name, item_description: m.item_description, content_blocks: blocksFromRow(m.content_blocks), is_course: !!m.is_course,
-    addon_offer: m.addon_offer ?? null,
+    addon_offer: m.addon_offer ?? null, is_club: !!m.is_club, club_interval: m.club_interval ?? null,
     category: m.category, unit: m.unit, price: m.default_price,
     is_active: m.is_active, is_listed: m.is_listed_in_marketplace, listing_kind: m.listing_kind,
     available_qty_today: m.available_qty_today, lead_days: m.lead_days, preorder_mode: m.preorder_schedule_mode ?? 'fixed_dates',
@@ -108,6 +108,11 @@ export function MenuItemEditorPage() {
             <span className="kind-title">Course</span>
             <span className="muted small">Video lessons in modules — students get lifetime access</span>
           </button>
+          <button className="kind-card" onClick={() => setDraft({ ...emptyDraft('digital'), is_course: true, is_club: true, club_interval: 'month', category: 'Clubs' })}>
+            <span className="kind-icon" aria-hidden>{KIND_ICONS.club}</span>
+            <span className="kind-title">Club</span>
+            <span className="muted small">A paid membership to your resources and posts — monthly, yearly or one-time</span>
+          </button>
           <button className="kind-card kind-card-wide" onClick={() => setDraft({ ...emptyDraft('custom'), is_storefront_form: true, use_as_site_body: true })}>
             <span className="kind-icon" aria-hidden>{KIND_ICONS.form}</span>
             <span className="kind-title">Custom Order Form (replaces storefront)</span>
@@ -174,7 +179,7 @@ export function MenuItemEditorPage() {
   }
 
   const imgSrc = preview ?? (existing?.has_image ? menuImageURL(existing) : null);
-  const kindLabel = d.is_course ? 'Course' : LISTING_KINDS.find((k) => k.kind === kind)?.label ?? '';
+  const kindLabel = d.is_club ? 'Club' : d.is_course ? 'Course' : LISTING_KINDS.find((k) => k.kind === kind)?.label ?? '';
   const previewPrice = d.is_assorted_box ? Math.min(...d.tiers.filter((t) => t.price > 0).map((t) => t.price), Infinity)
     : d.has_variants ? Math.min(...d.options.filter((o) => o.price > 0).map((o) => o.price), Infinity) : d.price;
 
@@ -266,7 +271,7 @@ export function MenuItemEditorPage() {
                 <datalist id="cats">{categories.map((c) => <option key={c} value={c} />)}</datalist>
               </Field>
               {priced && (
-                <Field label={kind === 'custom' ? 'Starting price' : 'Price'}>
+                <Field label={kind === 'custom' ? 'Starting price' : d.is_club && d.club_interval ? `Price per ${d.club_interval}` : 'Price'}>
                   <div className="money-input"><span>$</span><Input type="number" min="0" step="0.01" value={d.price || ''} placeholder="0.00" onChange={(e) => set('price', parseNumber(e.target.value))} /></div>
                 </Field>
               )}
@@ -378,14 +383,27 @@ export function MenuItemEditorPage() {
           )}
 
           {kind === 'digital' && d.is_course && (
-            <Card title="Course content">
+            <>
+            {d.is_club && (
+              <Card title="Membership">
+                <Field label="Billing" hint={d.club_interval ? 'Members are charged automatically and can cancel from their club page. Access ends when they stop paying.' : 'One payment, access for life.'}>
+                  <Select value={d.club_interval ?? 'once'} onChange={(e) => set('club_interval', e.target.value === 'once' ? null : e.target.value as 'month' | 'year')}>
+                    <option value="month">Monthly</option>
+                    <option value="year">Yearly</option>
+                    <option value="once">One-time</option>
+                  </Select>
+                </Field>
+              </Card>
+            )}
+            <Card title={d.is_club ? 'Club content' : 'Course content'}>
               {existing ? (
                 <>
-                  <p className="small muted">Modules, video lessons, files and your students.</p>
-                  <Link to={`/menu/${existing.id}/course`} className="btn btn-primary"><span>Edit lessons & students</span></Link>
+                  <p className="small muted">{d.is_club ? 'Sections, posts, videos, files and your members.' : 'Modules, video lessons, files and your students.'}</p>
+                  <Link to={`/menu/${existing.id}/course`} className="btn btn-primary"><span>{d.is_club ? 'Edit content & members' : 'Edit lessons & students'}</span></Link>
                 </>
-              ) : <p className="small muted">Save the course first, then add its modules and lessons.</p>}
+              ) : <p className="small muted">Save the {d.is_club ? 'club' : 'course'} first, then add its {d.is_club ? 'sections and posts' : 'modules and lessons'}.</p>}
             </Card>
+            </>
           )}
 
           {kind === 'digital' && !d.is_course && (
@@ -399,7 +417,7 @@ export function MenuItemEditorPage() {
             </Card>
           )}
 
-          {kind === 'digital' && (
+          {kind === 'digital' && !(d.is_club && d.club_interval) && (
             <Card title="Limited time offer">
               <Toggle checked={!!d.addon_offer} onChange={(v) => set('addon_offer', v ? { menu_item_id: '', price: 0, headline: 'Limited time offer' } : null)}
                 label="Offer an add-on at checkout" hint="When someone buys this, the cart offers another of your downloads at a special price — one tick to add it." />
@@ -430,7 +448,7 @@ export function MenuItemEditorPage() {
             </Card>
           )}
 
-          {(kind === 'physical' || kind === 'digital') && (
+          {(kind === 'physical' || (kind === 'digital' && !d.is_club)) && (
             <Card title="Options">
               <Toggle checked={d.has_variants} onChange={(v) => set('has_variants', v)} label="This has options (size, colour…)" hint="Each option has its own price and can have its own photo." />
               {d.has_variants && (
@@ -604,5 +622,6 @@ const KIND_ICONS: Record<string, ReactNode> = {
   physical: ic('M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8'),
   digital: ic('M12 3v12M7 10l5 5 5-5M5 21h14'),
   course: ic('M3 6h18v12H3zM10 9l5 3-5 3z'),
+  club: ic('M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20c0-3 3-5 6-5s6 2 6 5M14 15.5c.6-.3 1.3-.5 2-.5 3 0 6 2 6 5'),
   form: ic('M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM8 6H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-2M9 12h6M9 16h4'),
 };

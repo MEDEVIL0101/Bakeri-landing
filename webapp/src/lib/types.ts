@@ -117,6 +117,10 @@ export interface MenuItem {
   item_description: string;
   /** A course (lib/courses.ts): modules + lessons instead of a download file. */
   is_course?: boolean;
+  /** A club: a course sold as a membership (migration 20261106000003). */
+  is_club?: boolean;
+  /** 'month' / 'year' = a subscription; null = one-time. */
+  club_interval?: 'month' | 'year' | null;
   /** Editorial product page (lib/contentBlocks.ts); null = plain description. */
   content_blocks?: unknown[] | null;
   /** Limited-time add-on offered in the cart (migration 20261106000002). */

@@ -88,6 +88,9 @@ export interface MenuDraft {
   is_course: boolean;
   /** Limited-time add-on (digital only); null = none. */
   addon_offer: AddonOffer | null;
+  /** A club (is_course too): a membership, monthly/yearly or one-time. */
+  is_club: boolean;
+  club_interval: 'month' | 'year' | null;
   category: string;
   unit: string;
   price: number;
@@ -163,6 +166,8 @@ export async function saveMenuItem(
     item_description: draft.item_description.trim(),
     content_blocks: blocksForSave(draft.content_blocks),
     is_course: draft.listing_kind === 'digital' && draft.is_course,
+    is_club: draft.listing_kind === 'digital' && draft.is_course && draft.is_club,
+    club_interval: draft.listing_kind === 'digital' && draft.is_course && draft.is_club ? draft.club_interval : null,
     addon_offer: draft.listing_kind === 'digital' && draft.addon_offer?.menu_item_id ? {
       menu_item_id: draft.addon_offer.menu_item_id, price: Math.max(0, draft.addon_offer.price || 0),
       headline: draft.addon_offer.headline?.trim() || undefined, note: draft.addon_offer.note?.trim() || undefined,

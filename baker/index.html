@@ -3554,6 +3554,17 @@
       wrap.appendChild(btn);
       return;
     }
+    if (item.listing_kind === 'digital' && item.is_club && item.club_interval) {
+      // A monthly/yearly club is its own Stripe subscription — joined from
+      // the item sheet (joinClub), never through the download cart.
+      const btn = document.createElement('button');
+      btn.className = 'add-btn';
+      btn.textContent = '+';
+      btn.setAttribute('aria-label', 'Join');
+      btn.addEventListener('click', function (e) { e.stopPropagation(); openItemSheet(item); });
+      wrap.appendChild(btn);
+      return;
+    }
     if (item.listing_kind === 'digital') {
       // Digital purchases skip the pickup cart (no qty/dates/tiers to
       // track) but do get their own small cart — see digitalCart — so
@@ -3801,6 +3812,22 @@
   function digitalCartTotal() {
     return digitalCartItems().reduce(function (s, i) { return s + i.price; }, 0);
   }
+  // Clubs: straight to Stripe Checkout for the membership (course-player
+  // club_checkout); Stripe sends them back to the club with their link.
+  function joinClub(item, btn) {
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'One moment…';
+    fetch(SUPABASE_URL + '/functions/v1/course-player', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({ club_checkout: item.id })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res && res.url) { trackVisit('add_to_cart', item.id); window.location.href = res.url; return; }
+      showToast((res && res.error) || 'Couldn’t start checkout — try again.');
+      btn.disabled = false; btn.textContent = label;
+    }).catch(function () { showToast('Couldn’t start checkout — try again.'); btn.disabled = false; btn.textContent = label; });
+  }
+
   // A product's limited-time add-on, if it's live: { target, price, headline, note }.
   function addonOfferOf(item) {
     const o = item && item.addon_offer;
@@ -4139,7 +4166,8 @@
     trackVisit('item_view', item.id);
     setItemInAddressBar(item);
     document.getElementById('item-sheet-name').textContent = item.name;
-    document.getElementById('item-sheet-price').innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
+    document.getElementById('item-sheet-price').innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) }) +
+      (item.is_club && item.club_interval ? '<span class="from"> / ' + item.club_interval + '</span>' : '');
     const descEl = document.getElementById('item-sheet-desc');
     const descToggle = document.getElementById('item-sheet-desc-toggle');
     const blocks = Array.isArray(item.content_blocks) && item.content_blocks.length ? item.content_blocks : null;
@@ -4211,6 +4239,11 @@
         cta.disabled = false;
         cta.style.opacity = '1';
         cta.onclick = function () { window.location.href = customOrderURL(item); };
+      } else if (item.listing_kind === 'digital' && item.is_club && item.club_interval) {
+        cta.textContent = 'Join — $' + formatPrice(item.price) + '/' + item.club_interval;
+        cta.disabled = !stripeReady;
+        cta.style.opacity = stripeReady ? '1' : '.5';
+        cta.onclick = stripeReady ? function () { joinClub(item, cta); } : null;
       } else if (item.listing_kind === 'digital') {
         const inCart = digitalCart.indexOf(item.id) !== -1;
         cta.textContent = (inCart ? 'Remove from Cart ✓ — $' : 'Add to Cart — $') + formatPrice(item.price);
@@ -5318,7 +5351,7 @@
     // flavors" in the subtitle already signals it's a box.
     if (item.listing_kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
     if (item.listing_kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
-    if (item.listing_kind === 'digital')   return { bg: 'var(--digital)', label: item.is_course ? 'Course' : 'Digital' };
+    if (item.listing_kind === 'digital')   return { bg: 'var(--digital)', label: item.is_club ? 'Club' : (item.is_course ? 'Course' : 'Digital') };
     if (item.listing_kind === 'physical')  return { bg: 'var(--physical)', label: 'Ships' };
     return { bg: 'var(--custom)', label: 'Custom' };
   }
@@ -5336,6 +5369,7 @@
         ? 'Lead time required: ' + item.lead_time_note
         : 'Request a custom quote';
     }
+    if (item.listing_kind === 'digital' && item.is_club) return 'Membership · ' + (item.club_interval ? 'billed ' + item.club_interval + 'ly, cancel any time' : 'lifetime access');
     if (item.listing_kind === 'digital') return item.is_course ? 'Online course · lifetime access' : 'Instant digital download';
     if (item.listing_kind === 'physical') {
       if (isSoldOut(item)) return 'Sold out';
