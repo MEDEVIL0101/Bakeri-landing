@@ -390,7 +390,21 @@
        sign-up, plus a required terms box when the shop has terms. */
     .sf-consents { flex: 1 1 100%; display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
     .sf-consent { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; line-height: 1.4; color: var(--card-muted, var(--n800)); text-align: left; cursor: pointer; }
-    .sf-consent input { flex: none; width: 17px; height: 17px; margin: 1px 0 0; padding: 0; box-shadow: none; accent-color: var(--btn-bg, var(--accent)); }
+    /* Beats the form's text-field rules (.sf-capture-form input and the
+       compact-screen one), which otherwise turned the boxes into 50px pills. */
+    #sf-root .sf-capture-form .sf-consent input[type="checkbox"],
+    .sf-capture-form .sf-consent input[type="checkbox"] {
+      flex: none; width: 18px; height: 18px; min-width: 0; margin: 1px 0 0; padding: 0;
+      border: 0; border-radius: 4px; background: none; box-shadow: none; accent-color: var(--btn-bg, var(--accent));
+    }
+    .sf-consent span { flex: 1; min-width: 0; }
+    /* Sheets (free downloads, the header sign-up): one column, every field
+       and the button the same full width. */
+    .sf-capture-form.stacked { flex-direction: column; align-items: stretch; gap: 10px; }
+    #sf-root .sf-capture-form.stacked input:not([type="checkbox"]),
+    .sf-capture-form.stacked input:not([type="checkbox"]) { flex: none; width: 100%; }
+    .sf-capture-form.stacked .sf-btn { width: 100%; justify-content: center; }
+    .sf-capture-form.stacked .sf-consents { margin-top: 2px; }
     .sf-consent-link { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
     /* A free download's own page: photo, title, description, then the form. */
     .lead-page-img { width: 100%; aspect-ratio: 4/3; border-radius: var(--rs); background: var(--tint) center / cover no-repeat; margin-bottom: 16px; }
@@ -3119,7 +3133,7 @@
 
   function captureFormMarkup(idPrefix, buttonLabel, opts) {
     opts = opts || {};
-    return '<form class="sf-capture-form" id="' + idPrefix + '-form" novalidate>' +
+    return '<form class="sf-capture-form' + (opts.stacked ? ' stacked' : '') + '" id="' + idPrefix + '-form" novalidate>' +
       (opts.name ? '<input type="text" autocomplete="given-name" placeholder="Your name" aria-label="Your name" id="' + idPrefix + '-name" />' : '') +
       '<input type="email" required autocomplete="email" placeholder="you@email.com" aria-label="Email address" id="' + idPrefix + '-email" />' +
       '<button type="submit" class="sf-btn">' + escapeHtml(buttonLabel) + '</button>' +
@@ -3177,7 +3191,7 @@
       '<h2 style="font-family:var(--display);font-weight:var(--dw);font-size:26px;line-height:1.1;color:var(--head-ink);padding-right:40px;">' + escapeHtml(l.label) + '</h2>' +
       (desc ? '<div class="rich-desc" style="font-size:15px;line-height:1.55;color:var(--n800);margin-top:10px;">' + richText(desc) + '</div>' : '') +
       '<p class="lead-page-note">Free · sent straight to your inbox</p>' +
-      captureFormMarkup('popup-capture', l.button_label || 'Send it to me', { name: true });
+      captureFormMarkup('popup-capture', l.button_label || 'Send it to me', { name: true, stacked: true });
     wireCaptureForm(document.getElementById('popup-capture-form'), 'lead_magnet', String(l.linked_listing_id));
     document.getElementById('capture-scrim').classList.add('open');
   }
@@ -3288,7 +3302,7 @@
     document.getElementById('capture-sheet-body').innerHTML =
       '<h2 style="font-family:var(--display);font-weight:var(--dw);font-size:26px;line-height:1.1;color:var(--head-ink);margin-bottom:8px;padding-right:40px;">' + escapeHtml(heading) + '</h2>' +
       (body ? '<p style="font-size:15px;line-height:1.5;color:var(--n800);margin-bottom:16px;">' + escapeHtml(body) + '</p>' : '<div style="height:8px"></div>') +
-      captureFormMarkup('popup-capture', deliverableListingId ? 'Send it to me' : 'Join');
+      captureFormMarkup('popup-capture', deliverableListingId ? 'Send it to me' : 'Join', { stacked: true });
     wireCaptureForm(document.getElementById('popup-capture-form'), deliverableListingId ? 'lead_magnet' : source, deliverableListingId);
     document.getElementById('capture-scrim').classList.add('open');
   }
