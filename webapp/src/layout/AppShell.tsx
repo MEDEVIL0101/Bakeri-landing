@@ -308,8 +308,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span>Settings</span>
           </NavLink>
           <div className="sidebar-account">
-            <span className="small muted ellipsis">{session?.user.email}</span>
-            <button className="link-btn small" onClick={signOut}>Sign out</button>
+            <span className="small muted ellipsis" title={session?.user.email ?? ''}>{session?.user.email}</span>
+            <button className="sidebar-signout" onClick={() => setConfirmSignOut(true)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+              </svg>
+              <span>Sign out</span>
+            </button>
           </div>
         </div>
       </aside>

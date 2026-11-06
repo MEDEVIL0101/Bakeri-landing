@@ -445,7 +445,15 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .nav-heading { font-size: 11px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 6px 10px 4px; }
 .sidebar-foot { gap: 8px; }
 .sidebar-foot .nav-item { margin: 0 -10px; }
-.sidebar-account { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.sidebar-account { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-width: 0; }
+.sidebar-account .ellipsis { flex: 1; min-width: 0; }
+/* One line, never wraps: a small outlined pill with the sign-out icon. */
+.sidebar-signout {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 6px 11px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface);
+  font: 600 12.5px var(--font); color: var(--ink); cursor: pointer;
+}
+.sidebar-signout:hover { border-color: var(--ink); }
 
 /* ── Page widths ───────────────────────────────────────────────────────── */
 
