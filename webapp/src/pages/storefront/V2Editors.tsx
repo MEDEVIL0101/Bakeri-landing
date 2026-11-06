@@ -73,11 +73,20 @@ export function DesignEditor(props: EditorProps) {
           <PhotoPicker label="Background photo" maxSide={2400} value={bg.image_url ?? null}
             onPick={async (blob) => { try { setBg({ image_url: await uploadBuilderImage(props.userId, blob) }); } catch (e: any) { setErr(e.message); } }} />
         )}
+        {mode === 'image_full' && (
+          <>
+            <Toggle checked={design.identity?.logo !== 'none'} label="Show logo circle" hint="Off: your photo fills the top of the page instead, like a link-in-bio page."
+              onChange={(on) => setDesign({ identity: { ...(design.identity ?? {}), logo: on ? undefined : 'none' } })} />
+            <Field label={`Raise photo: ${bg.raise ?? 0}%`} hint="Lifts the photo on phones so a face sits clear of your shop name.">
+              <input type="range" min={0} max={30} step={1} value={bg.raise ?? 0} onChange={(e) => setBg({ raise: Number(e.target.value) || undefined })} />
+            </Field>
+          </>
+        )}
         <ColorField label={mode === 'theme' ? 'Background colour' : 'Fade / surround colour'} value={bg.color} onChange={(v) => setBg({ color: v })} />
         {err && <ErrorBanner message={err} />}
       </Section>
       <Section title="Profile card colours">
-        <CardColorFields value={identity} onChange={(c) => setDesign({ identity: c ? { colors: c } : undefined })} />
+        <CardColorFields value={identity} onChange={(c) => setDesign({ identity: (c || design.identity?.logo) ? { ...(c ? { colors: c } : {}), ...(design.identity?.logo ? { logo: design.identity.logo } : {}) } : undefined })} />
       </Section>
     </>
   );

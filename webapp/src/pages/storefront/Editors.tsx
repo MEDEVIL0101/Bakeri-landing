@@ -238,17 +238,25 @@ function LinkForm({ link, sections, update, data, userId, v2, draft, set }: {
       ) : (
         <Field label="Link"><Input type="url" placeholder="https://" value={link.url} onChange={(e) => update({ url: e.target.value })} /></Field>
       )}
-      <Field label="Group" hint="Links with the same group name appear together.">
+      <Field label="Group" hint="Links with the same group appear together; a group of 3 or more becomes a tile that opens it.">
         <Input list="link-sections" value={link.section} onChange={(e) => update({ section: e.target.value })} />
         <datalist id="link-sections">{[...new Set(['My Links', ...sections])].map((s) => <option key={s} value={s} />)}</datalist>
       </Field>
       <Field label="Style">
         <Select value={link.style} onChange={(e) => update({ style: e.target.value as Link['style'] })}>
           <option value="list">Button</option>
-          <option value="photoCard">Photo card</option>
-          <option value="richCard">Card with photo &amp; text</option>
+          <option value="photoCard">Row with photo</option>
+          <option value="richCard">Featured (large, at the top)</option>
         </Select>
       </Field>
+      {link.style !== 'list' && (
+        <>
+          <Field label="Short description (optional)"><Textarea rows={2} maxLength={300} value={link.subtitle ?? ''} onChange={(e) => update({ subtitle: e.target.value })} /></Field>
+          <Field label="Button text (optional)" hint="e.g. Get My Guide. A product link also shows its price, or FREE.">
+            <Input maxLength={40} value={link.button_label ?? ''} onChange={(e) => update({ button_label: e.target.value })} />
+          </Field>
+        </>
+      )}
       {link.style !== 'list' && (
         <PhotoPicker label="Card photo" maxSide={1600} value={link.image_url}
           onPick={async (blob) => { try { update({ image_url: await uploadBuilderImage(userId, blob) }); } catch (e: any) { setErr(e.message); } }} />

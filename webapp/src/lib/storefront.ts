@@ -33,6 +33,10 @@ export interface Link {
   shake: boolean;
   target_type: 'url' | 'product' | 'file';
   linked_listing_id: string | null;
+  /** Shown under the title on photo cards. */
+  subtitle?: string | null;
+  /** The card's own button text, e.g. "Get My Guide". */
+  button_label?: string | null;
 }
 export interface FAQ { id: string; question: string; answer: string }
 
@@ -79,8 +83,10 @@ export interface StorefrontDesign {
   /** Shop-name effects; a colour set = that effect on. stroke_width is px (1–8). */
   title_effect?: { stroke?: string; stroke_width?: number; shadow?: string; glow?: string };
   corners?: string;
-  background?: { mode?: 'theme' | 'image_top' | 'image_full'; color?: string; image_url?: string; focus?: { x: number; y: number } };
-  identity?: { colors?: CardColors };
+  background?: { mode?: 'theme' | 'image_top' | 'image_full'; color?: string; image_url?: string; focus?: { x: number; y: number };
+    /** Full photo only: lift by this % of the screen height (0–30). */ raise?: number };
+  /** logo 'none' = no round logo; the background photo carries the header. */
+  identity?: { colors?: CardColors; logo?: 'none' };
   /** Photo focal points, {x, y} in % — read by next.html focusPosition(). items is keyed by lowercased listing id. */
   focus?: { about?: FocusPoint; logo?: FocusPoint; items?: Record<string, FocusPoint>; [k: string]: unknown };
   links?: Record<string, LinkDesign>;
@@ -215,7 +221,7 @@ function normaliseHours(raw: any): WeekHours {
 export async function loadStorefront(userId: string): Promise<StorefrontData> {
   const [profileRes, linksRes, faqsRes, rpcRes, menuRes, referralCode] = await Promise.all([
     supabase.from('profiles').select(PROFILE_COLUMNS.join(', ')).eq('id', userId).single(),
-    supabase.from('baker_links').select('id, section, label, url, style, image_url, outline_style, shake, target_type, linked_listing_id')
+    supabase.from('baker_links').select('id, section, label, url, style, image_url, outline_style, shake, target_type, linked_listing_id, subtitle, button_label')
       .eq('user_id', userId).is('deleted_at', null).order('sort_order'),
     supabase.from('baker_faqs').select('id, question, answer').eq('user_id', userId).is('deleted_at', null).order('sort_order'),
     supabase.rpc('get_baker_web_profile_by_id', { p_user_id: userId }),
@@ -373,6 +379,8 @@ export async function publishStorefront(userId: string, d: StorefrontDraft, p: S
         shake: l.shake,
         target_type: l.target_type,
         linked_listing_id: l.linked_listing_id,
+        subtitle: l.subtitle?.trim() ? l.subtitle.trim().slice(0, 300) : null,
+        button_label: l.button_label?.trim() ? l.button_label.trim().slice(0, 40) : null,
       }));
     check(await supabase.from('baker_links').delete().eq('user_id', userId));
     if (rows.length) check(await supabase.from('baker_links').insert(rows));
