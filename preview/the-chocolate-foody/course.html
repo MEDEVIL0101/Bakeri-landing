@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- A student's course (Courses, 2026-11-06). ?t=<access token> from the
+       purchase email opens the whole course; ?preview=<listing id> opens only
+       the free-preview lessons. Backend: supabase/functions/course-player. -->
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <title>Your course</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&display=swap" />
+  <style>
+    :root {
+      --accent: #1A130F; --accent-fg: #fff; --bg: #FAF6EE; --surface: #fff; --ink: #1A130F; --muted: #6B5F54;
+      --faint: #948577; --line: #ECE3D5; --tint: #F1E9DD; --ok: #3F9F6B;
+      --r: 16px; --body: "Archivo", -apple-system, system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--body); color: var(--ink); background: var(--bg); -webkit-font-smoothing: antialiased; }
+    .hidden { display: none !important; }
+    button { font-family: inherit; }
+    header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+    .hd { max-width: 1180px; margin: 0 auto; padding: 12px 18px; display: flex; align-items: center; gap: 12px; }
+    .logo { width: 36px; height: 36px; border-radius: 50%; background: var(--tint) center / cover; flex: none; }
+    .hd-text { min-width: 0; flex: 1; }
+    .hd-shop { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .hd-course { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .progress { flex: none; width: 150px; text-align: right; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .bar { height: 6px; border-radius: 9px; background: var(--tint); margin-top: 5px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: var(--ok); width: 0; transition: width .3s; }
+    .layout { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 24px; padding: 22px 18px 80px; align-items: start; }
+    nav.curriculum { position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; }
+    .mod { padding: 10px 10px 4px; }
+    .mod-title { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+    .mod-meta { font-size: 12px; color: var(--faint); margin-top: 2px; }
+    .lesson { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; border: 0; background: none; border-radius: 10px; padding: 10px; margin: 2px 0; cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--ink); }
+    .lesson:hover { background: var(--tint); }
+    .lesson.active { background: var(--accent); color: var(--accent-fg); }
+    .dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+    .lesson.done .dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+    .lesson.active .dot { border-color: rgba(255,255,255,.6); }
+    .lesson.locked { color: var(--faint); }
+    .tag { margin-left: auto; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; background: var(--tint); color: var(--muted); flex: none; }
+    main.player { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 28px; min-height: 60vh; }
+    .crumb { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+    h1.lesson-title { font-size: 30px; line-height: 1.15; margin: 6px 0 18px; letter-spacing: -.01em; }
+    .blocks { font-size: 16px; line-height: 1.65; }
+    .blocks p { margin: 0 0 14px; }
+    .blocks h4 { font-size: 20px; font-weight: 800; margin: 26px 0 8px; }
+    .blocks ul { margin: 0 0 16px; padding-left: 22px; }
+    .blocks ul.check { list-style: none; padding-left: 0; }
+    .blocks ul.check li::before { content: "✔"; margin-right: 8px; font-weight: 800; }
+    .blocks li { margin: 0 0 6px; }
+    .blocks img { display: block; width: 100%; height: auto; border-radius: 12px; margin: 8px 0 16px; }
+    .blocks .blk-gallery { display: grid; gap: 10px; margin: 8px 0 16px; }
+    .blocks .blk-gallery img { margin: 0; }
+    .blocks video, .blocks iframe { display: block; width: 100%; aspect-ratio: 16/9; border: 0; border-radius: 12px; background: #000; margin: 8px 0 18px; }
+    .blocks .cap, .blocks .note { font-size: 13px; color: var(--muted); }
+    .blocks .callout { background: var(--accent); color: var(--accent-fg); border-radius: var(--r); padding: 20px 20px 8px; margin: 8px 0 18px; }
+    .blocks .callout h4 { color: inherit; margin-top: 0; }
+    .blocks hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
+    .blocks .file { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; margin: 8px 0 16px; text-decoration: none; color: var(--ink); font-weight: 700; }
+    .blocks .file span { margin-left: auto; font-size: 13px; color: var(--muted); }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); }
+    .btn { min-height: 48px; padding: 0 22px; border-radius: 99px; border: 0; font: 800 15px var(--body); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: var(--accent-fg); }
+    .btn-line { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
+    .locked-box { text-align: center; padding: 40px 10px; }
+    .locked-box h2 { margin: 10px 0 6px; }
+    .locked-box p { color: var(--muted); margin: 0 0 18px; }
+    .center { max-width: 460px; margin: 12vh auto; padding: 0 18px; text-align: center; }
+    .center p { color: var(--muted); line-height: 1.5; }
+    .center input { width: 100%; height: 50px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); font: 16px var(--body); margin: 10px 0; }
+    .back { display: none; }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: minmax(0, 1fr); padding: 14px 12px 60px; }
+      nav.curriculum { position: static; max-height: none; }
+      .progress { width: 90px; }
+      body.reading nav.curriculum { display: none; }
+      body:not(.reading) main.player { display: none; }
+      .back { display: inline-flex; margin-bottom: 14px; min-height: 40px; padding: 0 14px; }
+      main.player { padding: 20px 16px; }
+      h1.lesson-title { font-size: 25px; }
+    }
+  </style>
+</head>
+<body>
+<div style="background:#1A130F;color:#FAF6EE;font:600 12px -apple-system,Helvetica,Arial,sans-serif;text-align:center;padding:7px 10px">Preview: what your students see on <span style="color:#B877BC">Bak</span><span style="color:#62D6CE">er</span><span style="color:#FE698A">ï</span> · not live</div>
+  <header class="hidden" id="hd">
+    <div class="hd">
+      <div class="logo" id="logo"></div>
+      <div class="hd-text"><div class="hd-shop" id="shop"></div><div class="hd-course" id="course"></div></div>
+      <div class="progress" id="progress-wrap"><span id="progress-text"></span><div class="bar"><i id="bar"></i></div></div>
+    </div>
+  </header>
+  <div class="layout hidden" id="layout">
+    <nav class="curriculum" id="curriculum"></nav>
+    <main class="player" id="player"></main>
+  </div>
+  <div class="center" id="message"><p>Loading your course…</p></div>
+
+<script>
+(function () {
+  const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
+  const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const q = new URLSearchParams(location.search);
+  const token = 'demo';
+  const previewId = q.get('preview');
+  let data = null, current = null;
+
+  const DEMO = {
+ "course": {
+  "id": "291f55af-193d-4fa7-982d-946f6a59232c",
+  "name": "Chocolate Crafting 101",
+  "description": "Chocolate making for beginners"
+ },
+ "shop": {
+  "id": "demo",
+  "name": "The Chocolate Foody",
+  "slug": null,
+  "theme": null,
+  "accent": "#445A66",
+  "logo_url": "https://assets.stanwith.me/live/msc/26042934/xv1ml/img2476.jpeg"
+ },
+ "modules": [
+  {
+   "id": "6acf7dcf-5a81-48bb-8b36-0db480952621",
+   "title": "Welcome & Tempering Basics",
+   "description": "Start here: tools, chocolate, and tempering three ways.",
+   "lessons": [
+    {
+     "id": "e313da68-88b9-418c-a9ac-1a7abfed7028",
+     "title": "Welcome to Chocolate Crafting 101",
+     "is_preview": true,
+     "locked": false,
+     "completed": true,
+     "blocks": [
+      {
+       "text": "**Welcome!** I\u2019m so glad you\u2019re here. In this course I\u2019ll teach you everything I learned in 30 years of making chocolate \u2014 from craft show tables to my own shop, Chocolat on James.",
+       "type": "text"
+      },
+      {
+       "url": "https://assets.stanwith.me/live/msc/26042934/pgk24/videooutputf8fdcf69d9f5473f82d2d3d81a8d7560.mov",
+       "type": "video"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Watch at your own pace \u2014 lifetime access",
+        "Tick each lesson off as you go",
+        "New modules appear here automatically"
+       ],
+       "style": "check"
+      }
+     ]
+    },
+    {
+     "id": "5f75e163-dd3c-43af-bf8f-5d0092e18fae",
+     "title": "Tools & ingredients you need",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "5a21b4c7-8a41-4334-9070-38d7f5c6130b",
+     "title": "Tempering chocolate three easy ways",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ddcd2a1d-540a-4ff9-bdb4-9fa694d80d27",
+   "title": "Six Best-Selling Chocolates",
+   "description": "Step-by-step video recipes from my shop.",
+   "lessons": [
+    {
+     "id": "97fd8c22-101a-4d70-8d5a-d424a59f3f46",
+     "title": "Marshmallow Cookie Dough Oreo Bombs",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "83b26812-0f57-42c0-b36e-81b1b6cf6ce5",
+     "title": "Cherry Cordials",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "51a89e6e-aaa4-43cf-b43d-bb959cb1db58",
+     "title": "Peppermint Patties",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "1c92a563-82f2-4311-93ae-3496bf84252a",
+     "title": "Kitchen Sink Bars",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "8d583c82-6eef-47ec-98a0-cac59e17de2b",
+     "title": "Passion Vanillas",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "b38be0bc-82a3-4c42-958d-e890fafefa9f",
+     "title": "Chocolate Marshmallow Easter Eggs",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "330274d7-4aad-4ce2-b2e7-0bbca904268a",
+   "title": "Bonus Recipes & Advanced Techniques",
+   "description": "Ganaches, gianduja, fondants, caramel and more.",
+   "lessons": [
+    {
+     "id": "8d686d4f-a0b8-457c-a3b5-447e01d07294",
+     "title": "Ganache: passion fruit & vanilla milk chocolate",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "5101f05c-28b3-4262-ba57-eb4dc630ae21",
+     "title": "Peanut butter gianduja",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "22e7edb6-0624-4ca7-a660-70955f34699c",
+     "title": "Fondants, chewy caramel & marshmallow",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "a2ca11f6-a59c-4e09-993b-ffac2ddf0666",
+   "title": "NEW: The Christmas Platter Module",
+   "description": "Barks, caramels, turtles, dipped pretzels \u2014 and assembling a stunning gift platter.",
+   "lessons": [
+    {
+     "id": "8db15a1e-cd0d-4516-adc2-42800ffdb15a",
+     "title": "Chocolate barks",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "1b91b603-8138-4715-b9ab-1e6712fc8dd1",
+     "title": "Soft caramels",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "ebe5ad29-394e-4da5-acd8-cdc1ee93ffc9",
+     "title": "Turtles",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "5f38f157-438d-4866-8de8-94e0937b8dfe",
+     "title": "Dipped pretzels",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "id": "e69d33aa-40b6-41cb-8a7d-84be85a66bf6",
+     "title": "Assembling a stunning gift platter",
+     "is_preview": false,
+     "locked": false,
+     "completed": false,
+     "blocks": [
+      {
+       "text": "Lesson video goes here.",
+       "type": "text"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "enrolled": true,
+ "student": {
+  "name": "Your student",
+  "email": ""
+ }
+};
+  function call(body) {
+    if (body.lesson_id) return Promise.resolve({ ok: true, body: { ok: true } });
+    return Promise.resolve({ ok: true, body: JSON.parse(JSON.stringify(DEMO)) });
+  }
+  function callLive(body) {
+    return fetch(SUPABASE_URL + '/functions/v1/course-player', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); });
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function inline(t) {
+    return esc(t).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[\s(>])_([^_]+)_(?=[\s).,!?:;<]|$)/g, '$1<em>$2</em>').replace(/\n/g, '<br>');
+  }
+  function paras(t) { return String(t || '').split(/\n\s*\n/).map(function (p) { return p.trim() ? '<p>' + inline(p.trim()) + '</p>' : ''; }).join(''); }
+  function video(u) {
+    let m = String(u || '').match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{6,})/);
+    if (m) return '<iframe src="https://www.youtube-nocookie.com/embed/' + m[1] + '" allow="fullscreen; picture-in-picture" allowfullscreen></iframe>';
+    m = String(u || '').match(/vimeo\.com\/(\d+)/);
+    if (m) return '<iframe src="https://player.vimeo.com/video/' + m[1] + '" allow="fullscreen; picture-in-picture" allowfullscreen></iframe>';
+    return '<video src="' + esc(u) + '" controls playsinline preload="metadata" controlsList="nodownload"></video>';
+  }
+  function block(b) {
+    switch (b && b.type) {
+      case 'text': return paras(b.text);
+      case 'heading': return '<h4>' + inline(b.text) + '</h4>';
+      case 'list': return '<ul class="' + (b.style === 'check' ? 'check' : '') + '">' + (b.items || []).map(function (i) { return '<li>' + inline(i) + '</li>'; }).join('') + '</ul>';
+      case 'image': return b.url ? '<img loading="lazy" alt="" src="' + esc(b.url) + '" />' + (b.caption ? '<p class="cap">' + inline(b.caption) + '</p>' : '') : '';
+      case 'gallery': return '<div class="blk-gallery">' + (b.urls || []).map(function (u) { return '<img loading="lazy" alt="" src="' + esc(u) + '" />'; }).join('') + '</div>';
+      case 'video': return b.url ? video(b.url) : '';
+      case 'file': return b.url ? '<a class="file" href="' + esc(b.url) + '" target="_blank" rel="noopener">📄 ' + esc(b.title || b.caption || 'Download') + '<span>Download</span></a>' : '';
+      case 'callout': return '<div class="callout">' + (b.title ? '<h4>' + inline(b.title) + '</h4>' : '') + paras(b.text) + '</div>';
+      case 'note': return '<p class="note">' + inline(b.text) + '</p>';
+      case 'divider': return '<hr />';
+      default: return '';
+    }
+  }
+
+  function lessons() { return [].concat.apply([], data.modules.map(function (m) { return m.lessons.map(function (l) { return Object.assign({ module: m }, l); }); })); }
+
+  function renderHeader() {
+    document.title = data.course.name + ' · ' + (data.shop.name || 'Course');
+    document.getElementById('shop').textContent = data.shop.name || '';
+    document.getElementById('course').textContent = data.course.name;
+    document.getElementById('logo').style.backgroundImage = 'url("' + data.shop.logo_url + '")';
+    if (data.shop.accent && /^#[0-9a-f]{6}$/i.test(data.shop.accent)) {
+      document.documentElement.style.setProperty('--accent', data.shop.accent);
+    }
+    const all = lessons(), done = all.filter(function (l) { return l.completed; }).length;
+    const wrap = document.getElementById('progress-wrap');
+    wrap.classList.toggle('hidden', !data.enrolled || !all.length);
+    document.getElementById('progress-text').textContent = done + ' of ' + all.length + ' done';
+    document.getElementById('bar').style.width = (all.length ? Math.round(done / all.length * 100) : 0) + '%';
+  }
+
+  function renderCurriculum() {
+    const nav = document.getElementById('curriculum');
+    nav.innerHTML = data.modules.map(function (m) {
+      const done = m.lessons.filter(function (l) { return l.completed; }).length;
+      return '<div class="mod"><div class="mod-title">' + esc(m.title || 'Module') + '</div>' +
+        '<div class="mod-meta">' + m.lessons.length + ' lesson' + (m.lessons.length === 1 ? '' : 's') + (data.enrolled ? ' · ' + done + ' done' : '') + '</div></div>' +
+        m.lessons.map(function (l) {
+          return '<button class="lesson' + (l.completed ? ' done' : '') + (l.locked ? ' locked' : '') + (current && current.id === l.id ? ' active' : '') + '" data-id="' + l.id + '">' +
+            '<span class="dot">' + (l.completed ? '✓' : (l.locked ? '🔒' : '')) + '</span><span>' + esc(l.title || 'Lesson') + '</span>' +
+            (!data.enrolled && l.is_preview ? '<span class="tag">Preview</span>' : '') + '</button>';
+        }).join('');
+    }).join('') || '<p style="padding:14px;color:var(--muted)">Lessons are on their way.</p>';
+    nav.querySelectorAll('.lesson').forEach(function (b) {
+      b.addEventListener('click', function () { open(b.dataset.id); });
+    });
+  }
+
+  function open(id) {
+    const all = lessons();
+    current = all.find(function (l) { return l.id === id; }) || all.find(function (l) { return !l.locked; }) || all[0];
+    const p = document.getElementById('player');
+    if (!current) { p.innerHTML = '<p>Lessons are on their way.</p>'; return; }
+    const i = all.indexOf(current), next = all.slice(i + 1).find(function (l) { return !l.locked; });
+    let html = '<button class="btn btn-line back" id="back">← All lessons</button>' +
+      '<div class="crumb">' + esc(current.module.title || '') + '</div><h1 class="lesson-title">' + esc(current.title || 'Lesson') + '</h1>';
+    if (current.locked) {
+      html += '<div class="locked-box"><div style="font-size:34px">🔒</div><h2>This lesson is part of the course</h2>' +
+        '<p>Enrol to unlock every lesson, with lifetime access.</p>' +
+        (data.shop.slug ? '<a class="btn btn-primary" href="/' + esc(data.shop.slug) + '">Get the course</a>' : '') + '</div>';
+    } else {
+      html += '<div class="blocks">' + (current.blocks || []).map(block).join('') + '</div><div class="actions">' +
+        (data.enrolled ? '<button class="btn ' + (current.completed ? 'btn-line' : 'btn-primary') + '" id="done">' + (current.completed ? '✓ Completed' : (next ? 'Mark complete & next →' : 'Mark complete')) + '</button>' : '') +
+        (next && (!data.enrolled || current.completed) ? '<button class="btn btn-line" id="next">Next: ' + esc(next.title) + ' →</button>' : '') +
+        (!data.enrolled && data.shop.slug ? '<a class="btn btn-primary" href="/' + esc(data.shop.slug) + '">Get the full course</a>' : '') + '</div>';
+    }
+    p.innerHTML = html;
+    document.body.classList.add('reading');
+    document.getElementById('back').addEventListener('click', function () { document.body.classList.remove('reading'); window.scrollTo(0, 0); });
+    const doneBtn = document.getElementById('done');
+    if (doneBtn) doneBtn.addEventListener('click', function () {
+      const was = current.completed;
+      setDone(current.id, !was);
+      if (!was && next) open(next.id); else { renderCurriculum(); open(current.id); }
+    });
+    const nextBtn = document.getElementById('next');
+    if (nextBtn) nextBtn.addEventListener('click', function () { open(next.id); });
+    renderCurriculum();
+    window.scrollTo(0, 0);
+    try { if (token) localStorage.setItem('course-last-' + token, current.id); } catch (e) {}
+  }
+
+  function setDone(id, done) {
+    data.modules.forEach(function (m) { m.lessons.forEach(function (l) { if (l.id === id) l.completed = done; }); });
+    renderHeader();
+    call({ token: token, lesson_id: id, completed: done });
+  }
+
+  function showMessage(html) {
+    document.getElementById('message').innerHTML = html;
+    document.getElementById('message').classList.remove('hidden');
+  }
+
+  if (!token && !previewId) { showMessage('<h2>Open your course from your email</h2><p>The link in your purchase email takes you straight in.</p>'); return; }
+  call(token ? { token: token } : { menu_item_id: previewId, preview: true }).then(function (res) {
+    if (!res.ok) {
+      showMessage('<h2>We couldn’t open this course</h2><p>' + esc(res.body.error || 'Please try again.') + '</p>');
+      return;
+    }
+    data = res.body;
+    document.getElementById('message').classList.add('hidden');
+    document.getElementById('hd').classList.remove('hidden');
+    document.getElementById('layout').classList.remove('hidden');
+    renderHeader();
+    let last = null;
+    try { last = token && localStorage.getItem('course-last-' + token); } catch (e) {}
+    const firstOpen = lessons().find(function (l) { return !l.locked && !l.completed; });
+    open(last || (firstOpen && firstOpen.id));
+    if (window.matchMedia('(max-width: 860px)').matches && !last) document.body.classList.remove('reading');
+  }).catch(function () {
+    showMessage('<h2>Couldn’t load your course</h2><p>Check your connection and refresh.</p>');
+  });
+})();
+</script>
+</body>
+</html>
