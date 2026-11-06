@@ -84,6 +84,8 @@ export interface MenuDraft {
   item_description: string;
   /** The product page builder's blocks (empty = plain description). */
   content_blocks: ContentBlock[];
+  /** A course: digital, with lessons instead of a file (lib/courses.ts). */
+  is_course: boolean;
   category: string;
   unit: string;
   price: number;
@@ -158,6 +160,7 @@ export async function saveMenuItem(
     name: draft.name.trim(),
     item_description: draft.item_description.trim(),
     content_blocks: blocksForSave(draft.content_blocks),
+    is_course: draft.listing_kind === 'digital' && draft.is_course,
     category: draft.category,
     unit: draft.unit || 'pieces',
     recipe_ids: draft.recipe_ids,

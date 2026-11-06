@@ -18,7 +18,7 @@ const isFood = (k: ListingKind) => k === 'ready_now' || k === 'preorder' || k ==
 
 function emptyDraft(kind: ListingKind): MenuDraft {
   return {
-    name: '', item_description: '', content_blocks: [], category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
+    name: '', item_description: '', content_blocks: [], is_course: false, category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
     listing_kind: kind, available_qty_today: 0, lead_days: 2, preorder_mode: 'fixed_dates', preorder_dates: [],
     preorder_weekday: 6, preorder_cutoff: null, delivery_mode: 'default', delivery_fee: 0, accepts_buyer_note: false,
     allergens: '', lead_time_note: '', shipping_fee: 0, intake_form_id: null, recipe_ids: [], recipe_names: [],
@@ -29,7 +29,7 @@ function emptyDraft(kind: ListingKind): MenuDraft {
 
 function draftFrom(m: MenuItemFull, profileDelivery: boolean, siteListingId: string | null | undefined): MenuDraft {
   return {
-    name: m.name, item_description: m.item_description, content_blocks: blocksFromRow(m.content_blocks),
+    name: m.name, item_description: m.item_description, content_blocks: blocksFromRow(m.content_blocks), is_course: !!m.is_course,
     category: m.category, unit: m.unit, price: m.default_price,
     is_active: m.is_active, is_listed: m.is_listed_in_marketplace, listing_kind: m.listing_kind,
     available_qty_today: m.available_qty_today, lead_days: m.lead_days, preorder_mode: m.preorder_schedule_mode ?? 'fixed_dates',
@@ -102,6 +102,11 @@ export function MenuItemEditorPage() {
               <span className="muted small">{k.description}</span>
             </button>
           ))}
+          <button className="kind-card" onClick={() => setDraft({ ...emptyDraft('digital'), is_course: true, category: 'Courses' })}>
+            <span className="kind-icon" aria-hidden>{KIND_ICONS.course}</span>
+            <span className="kind-title">Course</span>
+            <span className="muted small">Video lessons in modules — students get lifetime access</span>
+          </button>
           <button className="kind-card kind-card-wide" onClick={() => setDraft({ ...emptyDraft('custom'), is_storefront_form: true, use_as_site_body: true })}>
             <span className="kind-icon" aria-hidden>{KIND_ICONS.form}</span>
             <span className="kind-title">Custom Order Form (replaces storefront)</span>
@@ -138,7 +143,7 @@ export function MenuItemEditorPage() {
       setError('A custom listing needs an order form before it can be listed. Pick one, or turn off “Show on my storefront” to save it as a draft.');
       return;
     }
-    if (d.is_listed && kind === 'digital' && !digitalFile && !existing?.digital_file_path) {
+    if (d.is_listed && kind === 'digital' && !d.is_course && !digitalFile && !existing?.digital_file_path) {
       setError('Upload the file customers will download, or save this as a draft.');
       return;
     }
@@ -159,7 +164,8 @@ export function MenuItemEditorPage() {
       toast(res.unlistedForNoFulfillment
         ? 'Saved as a draft — add a pickup address in Settings → Shop settings to list food items.'
         : res.hidOthers ? `Saved — your storefront now shows just this form (${res.hidOthers} other listing${res.hidOthers === 1 ? '' : 's'} hidden).` : 'Listing saved', res.unlistedForNoFulfillment ? 'error' : 'ok');
-      navigate('/menu');
+      // A brand-new course goes straight on to adding its lessons.
+      navigate(d.is_course && !existing ? `/menu/${res.id}/course` : '/menu');
     } catch (err: any) {
       setError(err.message);
       setBusy(false);
@@ -167,7 +173,7 @@ export function MenuItemEditorPage() {
   }
 
   const imgSrc = preview ?? (existing?.has_image ? menuImageURL(existing) : null);
-  const kindLabel = LISTING_KINDS.find((k) => k.kind === kind)?.label ?? '';
+  const kindLabel = d.is_course ? 'Course' : LISTING_KINDS.find((k) => k.kind === kind)?.label ?? '';
   const previewPrice = d.is_assorted_box ? Math.min(...d.tiers.filter((t) => t.price > 0).map((t) => t.price), Infinity)
     : d.has_variants ? Math.min(...d.options.filter((o) => o.price > 0).map((o) => o.price), Infinity) : d.price;
 
@@ -370,7 +376,18 @@ export function MenuItemEditorPage() {
             </Card>
           )}
 
-          {kind === 'digital' && (
+          {kind === 'digital' && d.is_course && (
+            <Card title="Course content">
+              {existing ? (
+                <>
+                  <p className="small muted">Modules, video lessons, files and your students.</p>
+                  <Link to={`/menu/${existing.id}/course`} className="btn btn-primary"><span>Edit lessons & students</span></Link>
+                </>
+              ) : <p className="small muted">Save the course first, then add its modules and lessons.</p>}
+            </Card>
+          )}
+
+          {kind === 'digital' && !d.is_course && (
             <Card title="Download file">
               <label className="file-drop">
                 <input type="file" hidden onChange={(e) => setDigitalFile(e.target.files?.[0] ?? null)} />
@@ -554,5 +571,6 @@ const KIND_ICONS: Record<string, ReactNode> = {
   custom: ic('M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'),
   physical: ic('M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8'),
   digital: ic('M12 3v12M7 10l5 5 5-5M5 21h14'),
+  course: ic('M3 6h18v12H3zM10 9l5 3-5 3z'),
   form: ic('M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM8 6H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-2M9 12h6M9 16h4'),
 };

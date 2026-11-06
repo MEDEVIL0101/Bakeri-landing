@@ -9,7 +9,7 @@ import { compressImage } from './menu';
  * the plain description; iOS reads and writes the same JSON
  * (ContentBlock.swift), so keep the two in step.
  */
-export type ContentBlockType = 'text' | 'heading' | 'list' | 'image' | 'gallery' | 'video' | 'callout' | 'note' | 'divider';
+export type ContentBlockType = 'text' | 'heading' | 'list' | 'image' | 'gallery' | 'video' | 'file' | 'callout' | 'note' | 'divider';
 
 export interface ContentBlock {
   /** Stable id for editing (React keys, SwiftUI lists); ignored by the storefront. */
@@ -37,9 +37,16 @@ export const BLOCK_KINDS: { type: ContentBlockType; label: string; style?: 'bull
   { type: 'divider', label: 'Divider' },
 ];
 
+/** Course lessons can also carry a downloadable file (a recipe PDF, a template). */
+export const COURSE_BLOCK_KINDS: typeof BLOCK_KINDS = [
+  ...BLOCK_KINDS.slice(0, 7),
+  { type: 'file', label: 'File' },
+  ...BLOCK_KINDS.slice(7),
+];
+
 export function blockLabel(b: ContentBlock): string {
   if (b.type === 'list') return b.style === 'check' ? 'Checklist' : 'Bullet list';
-  return BLOCK_KINDS.find((k) => k.type === b.type)?.label ?? b.type;
+  return COURSE_BLOCK_KINDS.find((k) => k.type === b.type)?.label ?? b.type;
 }
 
 export function newBlock(type: ContentBlockType, style?: 'bullet' | 'check'): ContentBlock {
@@ -66,7 +73,7 @@ export function blocksForSave(blocks: ContentBlock[]): ContentBlock[] | null {
         case 'text': case 'heading': case 'note': return !!b.text;
         case 'callout': return !!(b.text || b.title);
         case 'list': return !!b.items?.length;
-        case 'image': case 'video': return !!b.url;
+        case 'image': case 'video': case 'file': return !!b.url;
         case 'gallery': return !!b.urls?.length;
         default: return true;
       }

@@ -1363,3 +1363,27 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .cb-preview .callout { background: var(--ink); color: #fff; border-radius: var(--radius-sm); padding: 14px 14px 4px; margin: 6px 0 12px; }
 .cb-preview .callout h4 { margin-top: 0; color: inherit; }
 .cb-preview hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+
+.cb-progress { height: 6px; border-radius: 9px; background: var(--line); overflow: hidden; }
+.cb-progress i { display: block; height: 100%; background: var(--ink); transition: width .2s; }
+.cb-preview .vid-ph { aspect-ratio: 16/9; border-radius: 8px; background: #1a130f; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; margin: 6px 0 12px; }
+.cb-preview .file { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-weight: 700; }
+
+/* ── Course builder (pages/menu/CourseBuilderPage.tsx) ── */
+.row-gap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.course-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .course-grid { grid-template-columns: minmax(0, 1fr); } }
+.course-outline { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 16px; }
+.co-module { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+.co-module-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.co-module-title { flex: 1; min-width: 0; border: 0; background: transparent; font: 800 14px var(--font); color: var(--ink); padding: 6px 4px; border-radius: 6px; }
+.co-module-title:focus { outline: 2px solid var(--line-strong); background: var(--bg); }
+.co-lesson { display: flex; align-items: center; gap: 4px; border-radius: 10px; }
+.co-lesson.active { background: var(--ink); }
+.co-lesson.active .co-lesson-open { color: #fff; }
+.co-lesson.active .co-num { background: rgba(255,255,255,.18); color: #fff; }
+.co-lesson-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 9px 8px; cursor: pointer; text-align: left; font: 600 13.5px var(--font); color: var(--ink); }
+.co-lesson-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-num { width: 22px; height: 22px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: var(--muted); flex: none; }
+.co-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: 99px; background: var(--gold-soft); color: var(--gold); flex: none; }
+.co-module .cb-add-btn { align-self: flex-start; margin: 4px 0 2px 6px; }

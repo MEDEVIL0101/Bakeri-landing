@@ -115,6 +115,8 @@ export interface MenuItem {
   recipe_ids: string[];
   name: string;
   item_description: string;
+  /** A course (lib/courses.ts): modules + lessons instead of a download file. */
+  is_course?: boolean;
   /** Editorial product page (lib/contentBlocks.ts); null = plain description. */
   content_blocks?: unknown[] | null;
   category: string;

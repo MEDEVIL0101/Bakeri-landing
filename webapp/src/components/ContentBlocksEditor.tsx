@@ -1,18 +1,21 @@
 import { useRef, useState } from 'react';
 import { Button, Input, Select, Textarea } from './ui';
 import {
-  BLOCK_KINDS, blockLabel, newBlock, uploadContentImage, videoEmbedURL,
+  BLOCK_KINDS, COURSE_BLOCK_KINDS, blockLabel, newBlock, uploadContentImage, videoEmbedURL,
   type ContentBlock, type ContentBlockType,
 } from '../lib/contentBlocks';
+import { isCourseMedia, uploadCourseMedia } from '../lib/courses';
 
 /**
  * The product-page builder: an ordered list of blocks (text, heading, lists,
  * photos, a gallery, a video, a callout panel, small print, dividers). Mirrors
  * iOS ContentBlocksEditorView — same block types, same JSON.
  */
-export function ContentBlocksEditor({ userId, blocks, onChange }: {
+export function ContentBlocksEditor({ userId, blocks, onChange, course }: {
   userId: string;
   blocks: ContentBlock[];
+  /** A course lesson: adds video-file uploads and the File block (private course-media). */
+  course?: boolean;
   /** Gets an updater, so a photo upload that finishes later applies to the
    *  blocks as they are then, not as they were when it started. */
   onChange: (update: (prev: ContentBlock[]) => ContentBlock[]) => void;
@@ -46,13 +49,13 @@ export function ContentBlocksEditor({ userId, blocks, onChange }: {
               <button type="button" onClick={() => remove(b.id)} aria-label="Remove">✕</button>
             </div>
           </div>
-          <BlockFields userId={userId} block={b} onChange={(patch) => update(b.id, patch)}
+          <BlockFields userId={userId} block={b} course={course} onChange={(patch) => update(b.id, patch)}
             onAppend={(added) => onChange((prev) => prev.map((x) => (x.id === b.id ? { ...x, urls: [...(x.urls ?? []), ...added] } : x)))} />
         </div>
       ))}
       <div className="cb-add">
         <span className="small muted">Add</span>
-        {BLOCK_KINDS.map((k) => (
+        {(course ? COURSE_BLOCK_KINDS : BLOCK_KINDS).map((k) => (
           <button type="button" key={k.label} className="cb-add-btn" onClick={() => add(k.type, k.style)}>{k.label}</button>
         ))}
       </div>
@@ -60,8 +63,8 @@ export function ContentBlocksEditor({ userId, blocks, onChange }: {
   );
 }
 
-function BlockFields({ userId, block: b, onChange, onAppend }: {
-  userId: string; block: ContentBlock; onChange: (p: Partial<ContentBlock>) => void; onAppend: (urls: string[]) => void;
+function BlockFields({ userId, block: b, onChange, onAppend, course }: {
+  userId: string; block: ContentBlock; onChange: (p: Partial<ContentBlock>) => void; onAppend: (urls: string[]) => void; course?: boolean;
 }) {
   switch (b.type) {
     case 'text':
@@ -91,8 +94,19 @@ function BlockFields({ userId, block: b, onChange, onAppend }: {
     case 'video':
       return (
         <>
-          <Input value={b.url ?? ''} onChange={(e) => onChange({ url: e.target.value })} placeholder="YouTube or Vimeo link, or a link to a video file" />
-          {b.url && <p className="small muted">{videoEmbedURL(b.url) ? 'Plays right on the page.' : 'Plays as a video file — make sure the link ends in .mp4 or .mov.'}</p>}
+          {isCourseMedia(b.url)
+            ? <p className="small"><strong>✓ Video uploaded</strong> <span className="muted">— only enrolled students can watch it.</span></p>
+            : <Input value={b.url ?? ''} onChange={(e) => onChange({ url: e.target.value })} placeholder="YouTube or Vimeo link, or a link to a video file" />}
+          {b.url && !isCourseMedia(b.url) && <p className="small muted">{videoEmbedURL(b.url) ? 'Plays right on the page.' : 'Plays as a video file — make sure the link ends in .mp4 or .mov.'}</p>}
+          {course && <MediaUpload userId={userId} accept="video/*" label={b.url ? 'Upload a different video' : 'Or upload a video file'} onDone={(url) => onChange({ url })} />}
+        </>
+      );
+    case 'file':
+      return (
+        <>
+          <Input value={b.title ?? ''} onChange={(e) => onChange({ title: e.target.value })} placeholder="Name shown to students — e.g. Cherry Cordials recipe (PDF)" />
+          {b.url ? <p className="small"><strong>✓ File attached</strong></p> : null}
+          <MediaUpload userId={userId} accept="*/*" label={b.url ? 'Replace file' : 'Upload a file'} onDone={(url) => onChange({ url })} />
         </>
       );
     case 'callout':
@@ -109,6 +123,30 @@ function BlockFields({ userId, block: b, onChange, onAppend }: {
     default:
       return null;
   }
+}
+
+/** Uploads a lesson video or file to the private course-media bucket, with progress. */
+function MediaUpload({ userId, accept, label, onDone }: { userId: string; accept: string; label: string; onDone: (url: string) => void }) {
+  const [pct, setPct] = useState<number | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  async function pick(file?: File) {
+    if (!file) return;
+    setErr(null); setPct(0);
+    try { onDone(await uploadCourseMedia(userId, file, setPct)); } catch (x: any) { setErr(x?.message ?? 'Upload failed.'); } finally { setPct(null); }
+  }
+  return (
+    <div className="cb-photos">
+      <label className="cb-photo-add">
+        <input type="file" accept={accept} hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
+        <Button type="button" variant="secondary" className="btn-sm" disabled={pct !== null}
+          onClick={(e) => ((e.currentTarget.parentElement as HTMLLabelElement).querySelector('input') as HTMLInputElement).click()}>
+          {pct !== null ? `Uploading… ${Math.round(pct * 100)}%` : label}
+        </Button>
+      </label>
+      {pct !== null && <div className="cb-progress"><i style={{ width: `${Math.round(pct * 100)}%` }} /></div>}
+      {err && <p className="small warn-text">{err}</p>}
+    </div>
+  );
 }
 
 /** A textarea with Bold / Italic buttons that wrap the selection in ** or _. */
@@ -198,8 +236,10 @@ function blockHTML(b: ContentBlock): string {
     case 'list': return `<ul class="${b.style === 'check' ? 'check' : ''}">${(b.items ?? []).filter((i) => i.trim()).map((i) => `<li>${inline(i)}</li>`).join('')}</ul>`;
     case 'image': return b.url ? `<img src="${esc(b.url)}" alt="" />${b.caption ? `<p class="cap">${inline(b.caption)}</p>` : ''}` : '';
     case 'gallery': return (b.urls ?? []).map((u) => `<img src="${esc(u)}" alt="" />`).join('');
+    case 'file': return b.url ? `<p class="file">📄 ${esc(b.title || 'File')}</p>` : '';
     case 'video': {
       if (!b.url) return '';
+      if (b.url.startsWith('course-media:')) return '<div class="vid-ph">▶ Uploaded video</div>';
       const embed = videoEmbedURL(b.url);
       return embed ? `<iframe src="${esc(embed)}" allowfullscreen></iframe>` : `<video src="${esc(b.url)}" controls playsinline preload="metadata"></video>`;
     }
