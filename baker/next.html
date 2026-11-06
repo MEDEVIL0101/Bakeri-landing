@@ -166,6 +166,10 @@
       color: var(--accent-fg); font: var(--dw) calc(var(--logo) * .42) var(--display);
     }
     #pb-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; background: #fff; }
+    /* Logo turned off (storefront_design.identity.logo = 'none'): no circle;
+       the background photo carries the header, so the name sits lower and
+       the photo shows above it. */
+    #sf-root.no-logo #shop-name { margin-top: calc(var(--logo) * 1.15); }
     #shop-name {
       font-family: var(--title-font, var(--display)); font-weight: var(--title-w, var(--dw));
       font-size: calc(var(--h1) * var(--title-scale, 1)); line-height: 1.2; letter-spacing: 0;
@@ -2099,6 +2103,10 @@
     const logoURL = (profile && profile.__preview_logo_data_url)
       || assetURL('/business-logos/' + resolvedBakerId.toUpperCase() + '/logo.jpg');
     const el = document.getElementById('pb-avatar');
+    const noLogo = !!(design && design.identity && design.identity.logo === 'none');
+    document.getElementById('sf-root').classList.toggle('no-logo', noLogo);
+    el.classList.toggle('hidden', noLogo);
+    if (noLogo) return;
     const letterEl = document.getElementById('pb-avatar-letter');
     letterEl.textContent = name.charAt(0).toUpperCase();
     // Every builder re-render (each edit, autosave, sync) runs this — keep the
