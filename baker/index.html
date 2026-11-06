@@ -432,50 +432,77 @@
     /* A link's glow may spill past the card edge rather than being cut off. */
     #links-feed { overflow: visible; }
     #links-feed .sf-card-head { border-radius: var(--r) var(--r) 0 0; }
-    /* One centred column on every screen: link cards differ in height
-       (descriptions, buttons), so a multi-column grid left ragged rows. */
-    .sf-links { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; width: 100%; max-width: 640px; margin: 0 auto; }
-    .sf-link { position: relative; border-radius: var(--r); text-decoration: none; color: var(--text); font: inherit; text-align: left; border: 0; cursor: pointer; }
-    .sf-link.pill { border-radius: var(--rp); }
-    /* Photo link cards (Stan-style, 2026-11-05): square photo, bold title,
-       optional description, price or a Free tag, and an optional full-width
-       button with the vendor's own label. */
-    .sf-link.rich {
-      display: flex; flex-direction: column; gap: 14px;
-      padding: 14px; background: var(--n100);
+    /* Same grid as Digital downloads: one column on a phone, two when wide. */
+    .sf-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); column-gap: 32px; row-gap: 0; align-items: start; }
+    .sf-links .lk-group { grid-column: 1 / -1; margin: 22px 0 2px; padding: 0; }
+    .sf-links .lk-group:first-child { margin-top: 0; }
+    .sf-links .lk-more { grid-column: 1 / -1; margin-top: 14px; }
+    .sf-link { position: relative; text-decoration: none; color: var(--text); font: inherit; text-align: left; border: 0; cursor: pointer; }
+    /* Row: a Digital downloads row, with the vendor's button wording in the pill. */
+    .sf-link.lk-row {
+      display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+      width: 100%; padding: 10px 0; background: none; border-radius: 0; border-bottom: 1px solid var(--card-line, var(--n200));
     }
-    .sf-link-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 16px; align-items: center; }
-    .sf-link.rich .sf-link-img { width: 76px; height: 76px; border-radius: 14px; font-size: 26px; }
-    .sf-link-sub { font-size: 13.5px; line-height: 1.4; color: var(--link-sub, var(--n700)); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-    .sf-link-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 15px; font-weight: 800; }
-    .sf-link-meta .orig { font-weight: 600; opacity: .55; text-decoration: line-through; margin-right: 6px; }
+    .lk-thumb { background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .lk-sub { font-size: 12.5px; line-height: 1.35; color: var(--link-sub, var(--card-muted, var(--n700))); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .lk-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 14px; font-weight: 800; color: var(--card-title, var(--head-ink)); }
+    .lk-meta .orig { font-weight: 600; opacity: .55; text-decoration: line-through; margin-right: 6px; }
     .sf-link-free { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 3px 9px; border-radius: var(--rp); background: var(--btn-bg, var(--accent)); color: var(--btn-fg, var(--accent-fg)); }
-    .sf-link-cta {
-      display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; padding: 0 18px;
-      border-radius: var(--rs); background: var(--btn-bg, var(--accent)); color: var(--btn-fg, var(--accent-fg));
-      font: 800 16px var(--body);
+    .lk-cta { display: inline-flex; align-items: center; justify-content: center; }
+    .lk-row:hover .lk-cta { border-color: var(--accent); color: var(--head-ink); }
+    /* Feature: a big-photo link across the full width — photo beside the
+       text on wider screens, stacked on a phone. */
+    .sf-link.lk-feature {
+      grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px;
+      margin: 6px 0 8px; padding: 12px; border-radius: var(--r); background: var(--tint);
     }
-    .sf-link-cta svg { width: 18px; height: 18px; }
-    .sf-link-section {
-      grid-column: 1 / -1; justify-self: center; margin-top: 10px; padding: 11px 26px;
-      border-radius: var(--rp); background: var(--n100); font: 800 17px var(--body); text-align: center; overflow-wrap: anywhere;
+    #sf-root:not(.compact) .sf-link.lk-feature { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 28px; padding: 14px; }
+    .lk-feature-img { aspect-ratio: 16/9; border-radius: var(--rs); background: var(--n100) center / cover no-repeat; display: flex; align-items: center; justify-content: center; font-size: 34px; }
+    .lk-feature-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 0 4px 4px; }
+    .lk-feature-title { font-size: 21px; font-weight: 800; line-height: 1.2; color: var(--card-title, var(--head-ink)); overflow-wrap: anywhere; }
+    .lk-feature .lk-sub { font-size: 14px; -webkit-line-clamp: 3; }
+    .lk-cta-solid {
+      align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; margin-top: 10px;
+      min-height: 46px; padding: 0 22px; border-radius: var(--rp);
+      background: var(--btn-bg, var(--accent)); color: var(--btn-fg, var(--accent-fg)); font: 800 15px var(--body);
     }
-    .sf-link-section:first-child { margin-top: 0; }
-    .sf-link.rich:hover, .sf-link.photo:hover { background: var(--tint); }
-    .sf-link-img { width: 96px; height: 72px; border-radius: var(--rs); background: var(--tint); background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 26px; }
-    .sf-link-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .sf-link-title { font-size: 16px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
-    .sf-link-domain { font-size: 12px; color: var(--link-sub, var(--n700)); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sf-link.photo { display: flex; flex-direction: column; background: var(--n100); padding: 8px; gap: 10px; }
-    .sf-link.photo .sf-link-img { width: 100%; height: auto; aspect-ratio: 16/9; font-size: 34px; }
-    .sf-link.photo .sf-link-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 8px 6px; }
-    .sf-link.photo .sf-link-cta { margin: 0 6px 6px; }
+    .lk-cta-solid svg { width: 16px; height: 16px; }
+    #sf-root.compact .lk-cta-solid { align-self: stretch; justify-content: center; }
+    /* Plain button links ('list' style). */
+    .sf-link.pill { border-radius: var(--rp); }
     .sf-link.pill {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       min-height: 52px; padding: 0 20px; border: 2px solid var(--n300); background: #fff;
-      color: var(--text); font: 800 16px var(--body);
+      color: var(--text); font: 800 16px var(--body); margin: 6px 0;
     }
     .sf-link.pill:hover { filter: brightness(.96); }
+    /* Order-form rows (renderFormStorefront, several forms on one site) use
+       the original link-card look; link cards themselves are .lk-row /
+       .lk-feature above. */
+    .sf-link.rich {
+      display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+      padding: 8px 16px 8px 8px; background: var(--n100); border-radius: var(--r);
+    }
+    .sf-link.rich:hover { background: var(--tint); }
+    .sf-link-img { width: 96px; height: 72px; border-radius: var(--rs); background: var(--tint); background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 26px; }
+    .sf-link-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .sf-link-title { font-size: 15px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+    .sf-link-domain { font-size: 12px; color: var(--link-sub, var(--n700)); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Link directory: one tile per section (cover photo, name, count); a
+       tap opens the section as a sheet of rows. */
+    .sf-links .lk-dir { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(46%, 190px), 1fr)); gap: 12px; margin-top: 4px; }
+    .lk-dir-tile {
+      position: relative; aspect-ratio: 1; border: 0; padding: 0; cursor: pointer; overflow: hidden;
+      border-radius: var(--r); background: var(--tint) center / cover no-repeat; text-align: left; font: inherit;
+    }
+    .lk-dir-tile::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.62) 100%); }
+    .lk-dir-tile.noimg::after { display: none; }
+    .lk-dir-text { position: absolute; left: 14px; right: 14px; bottom: 12px; z-index: 1; display: flex; flex-direction: column; gap: 2px; color: #fff; }
+    .lk-dir-tile.noimg .lk-dir-text { color: var(--card-title, var(--head-ink)); }
+    .lk-dir-name { font-size: 17px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+    .lk-dir-count { font-size: 12.5px; font-weight: 700; opacity: .9; }
+    .lk-dir-tile:hover { filter: brightness(1.04); }
+    #links-sheet-body .sf-links { margin-top: 6px; }
     .sf-link-label { min-width: 0; overflow-wrap: anywhere; }
     .sf-link.disabled { opacity: .45; pointer-events: none; }
     /* Stroke / glow / shake — on the link card itself, never the section card. */
@@ -2744,6 +2771,15 @@
 
   // ══════════════════════ Links (More from …) ══════════════════════
 
+  // Links card, built like the Digital downloads card (2026-11-05). One
+  // section: compact rows inline (folded behind "View all" when long). Two
+  // or more sections: a directory — featured links (big-photo style) stay
+  // on the page, and each section is a tile that opens as a sheet of rows.
+  // Plain button links ('list' style) keep their pill look.
+  const LINK_SECTION_FOLD = 8;   // a single long list folds…
+  const LINK_SECTION_SHOW = 6;   // …to this many rows until "View all"
+  let linksExpanded = false;
+
   function renderLinkSections() {
     const card = document.getElementById('links-feed');
     const items = allLinks.filter(function (l) { return !isSocialSection(l.section); });
@@ -2751,32 +2787,90 @@
     if (items.length === 0) { card.classList.add('hidden'); list.innerHTML = ''; return; }
     card.classList.remove('hidden');
     document.getElementById('sf-links-title').textContent = cardTitle('links');
-    // Two or more sections ("Free recipes", "My courses"…) each get a heading,
-    // like Stan; a single section needs none.
+
     const sections = [];
     items.forEach(function (l) { const s = (l.section || '').trim(); if (sections.indexOf(s) === -1) sections.push(s); });
+
     if (sections.length > 1) {
-      list.innerHTML = sections.map(function (s) {
-        const rows = items.filter(function (l) { return (l.section || '').trim() === s; });
-        return (s ? '<div class="sf-link-section">' + escapeHtml(s) + '</div>' : '') + rows.map(renderLinkRow).join('');
+      // Featured links (big-photo style) lead; sections with 3+ other links
+      // become directory tiles; smaller sections stay as short lists.
+      const featured = items.filter(function (l) { return l.style === 'richCard'; });
+      const rest = function (s) { return items.filter(function (l) { return (l.section || '').trim() === s && l.style !== 'richCard'; }); };
+      const tileSections = sections.filter(function (s) { return rest(s).length >= 3; });
+      const listSections = sections.filter(function (s) { const n = rest(s).length; return n > 0 && n < 3; });
+      const tiles = tileSections.map(function (s) {
+        const rows = rest(s);
+        const cover = (rows.find(function (l) { return l.image_url; }) || {}).image_url;
+        const allFree = rows.every(function (l) { return l.target_listing_is_lead_magnet; });
+        const count = rows.length + ' ' + (allFree ? 'free downloads' : 'items');
+        return '<button type="button" class="lk-dir-tile' + (cover ? '' : ' noimg') + '" data-section="' + escapeHtml(s) + '"' +
+          (cover ? ' style="background-image:url(' + escapeHtml(cover) + ')"' : '') + '>' +
+          '<span class="lk-dir-text"><span class="lk-dir-name">' + escapeHtml(s || 'More') + '</span><span class="lk-dir-count">' + count + '</span></span></button>';
       }).join('');
+      list.innerHTML = featured.map(renderLinkRow).join('') +
+        (tiles ? '<div class="lk-dir">' + tiles + '</div>' : '') +
+        listSections.map(function (s) {
+          return (s ? '<h4 class="sf-group-title lk-group">' + escapeHtml(s) + '</h4>' : '') + rest(s).map(renderLinkRow).join('');
+        }).join('');
+      list.querySelectorAll('.lk-dir-tile').forEach(function (t) {
+        t.addEventListener('click', function () { openLinkSection(t.dataset.section); });
+      });
     } else {
-      list.innerHTML = items.map(renderLinkRow).join('');
+      const folds = items.length > LINK_SECTION_FOLD;
+      const shown = folds && !linksExpanded ? items.slice(0, LINK_SECTION_SHOW) : items;
+      list.innerHTML = shown.map(renderLinkRow).join('') + (folds
+        ? '<button type="button" class="sf-dl-morebtn lk-more">' + (linksExpanded ? 'Show fewer' : 'View all ' + items.length + ' ' + ARROW_SVG) + '</button>'
+        : '');
+      const more = list.querySelector('.lk-more');
+      if (more) more.addEventListener('click', function () {
+        linksExpanded = !linksExpanded;
+        renderLinkSections();
+        if (!linksExpanded) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     }
-    list.querySelectorAll('.sf-link-img[data-img]').forEach(function (el, i) {
-      const l = items.filter(function (x) { return x.image_url; })[i];
+    wireLinkRows(list);
+  }
+
+  // A section from the directory, as a sheet of rows.
+  function openLinkSection(section) {
+    let scrim = document.getElementById('links-scrim');
+    if (!scrim) {
+      scrim = document.createElement('div');
+      scrim.className = 'scrim';
+      scrim.id = 'links-scrim';
+      scrim.innerHTML = '<div class="sheet"><div style="position:relative;"><button class="sheet-close" id="links-sheet-close">✕</button></div>' +
+        '<div id="links-sheet-body" style="padding:24px 20px 28px;"></div></div>';
+      document.body.appendChild(scrim);
+      scrim.addEventListener('click', function (e) { if (e.target === scrim) closeLinkSection(); });
+      document.getElementById('links-sheet-close').addEventListener('click', closeLinkSection);
+    }
+    const rows = allLinks.filter(function (l) { return !isSocialSection(l.section) && (l.section || '').trim() === section && l.style !== 'richCard'; });
+    const body = document.getElementById('links-sheet-body');
+    body.innerHTML = '<h2 style="font-family:var(--display);font-weight:var(--dw);font-size:26px;line-height:1.1;color:var(--head-ink);padding-right:40px;">' +
+      escapeHtml(section || 'More') + '</h2><div class="sf-links">' +
+      rows.map(function (l) { return renderLinkRow(Object.assign({}, l, { style: l.style === 'list' ? 'list' : 'photoCard' })); }).join('') + '</div>';
+    wireLinkRows(body);
+    scrim.classList.add('open');
+  }
+  function closeLinkSection() {
+    const scrim = document.getElementById('links-scrim');
+    if (scrim) scrim.classList.remove('open');
+  }
+
+  function wireLinkRows(root) {
+    root.querySelectorAll('[data-img]').forEach(function (el) {
+      const l = allLinks.find(function (x) { return String(x.id) === el.dataset.linkId; });
       focusBackground(el, el.dataset.img, l && linkDesign(l).focus);
     });
-
-    list.querySelectorAll('.sf-link[data-listing-id]').forEach(function (row) {
+    root.querySelectorAll('.sf-link[data-listing-id]').forEach(function (row) {
       if (row.dataset.leadMagnet === 'true') {
-        const title = row.querySelector('.sf-link-title, .sf-link-label');
+        const title = row.querySelector('.lk-title, .sf-link-label');
         const heading = 'Get: ' + (title ? title.textContent : 'this download');
-        row.addEventListener('click', function () { openCaptureSheet('inline', row.dataset.listingId, heading); });
+        row.addEventListener('click', function () { closeLinkSection(); openCaptureSheet('inline', row.dataset.listingId, heading); });
         return;
       }
       const item = allListings.find(function (x) { return String(x.id).toLowerCase() === String(row.dataset.listingId).toLowerCase(); });
-      if (item) row.addEventListener('click', function () { openItemSheet(item); });
+      if (item) row.addEventListener('click', function () { closeLinkSection(); openItemSheet(item); });
       else row.classList.add('disabled');
     });
   }
@@ -2826,7 +2920,7 @@
 
   function renderLinkRow(l) {
     const kind = l.style === 'photoCard' ? 'rich' : (l.style === 'richCard' ? 'photo' : 'pill');
-    const classes = ['sf-link', kind];
+    const classes = ['sf-link', kind === 'pill' ? 'pill' : (kind === 'photo' ? 'lk-feature' : 'lk-row')];
     if (l.shake) classes.push('shake');
     // Border and glow are independent — either, both or neither — each with
     // its own colour (storefront_design.links[id].border / .glow). Without
@@ -2836,33 +2930,38 @@
     const isFile = l.target_type === 'file' && l.url;
     const icon = isFile ? DOWNLOAD_SVG : (l.target_type === 'product' ? ARROW_SVG : ARROW_UR_SVG);
     const label = escapeHtml(l.label);
-    const domain = escapeHtml(linkDomain(l));
-    const imgStyle = l.image_url ? ' data-img="' + escapeHtml(l.image_url) + '" style="background-image:url(' + escapeHtml(l.image_url) + ')"' : '';
+    const img = l.image_url
+      ? ' data-img="' + escapeHtml(l.image_url) + '" data-link-id="' + escapeHtml(l.id) + '" style="background-image:url(' + escapeHtml(l.image_url) + ')"'
+      : '';
     const emoji = l.image_url ? '' : (isFile ? '📄' : '🔗');
 
-    // Under the title: the vendor's description, then the price of a linked
-    // product (or a Free tag for a free download); a plain web link with no
-    // description still shows its domain. A button label adds a full-width
-    // button and replaces the arrow.
-    const sub = l.subtitle ? '<span class="sf-link-sub">' + escapeHtml(l.subtitle) + '</span>' : '';
+    // Under the title: the description, then the linked product's price (or
+    // a Free tag for a free download); a plain web link with neither shows
+    // its domain.
+    const sub = l.subtitle ? '<span class="lk-sub">' + escapeHtml(l.subtitle) + '</span>' : '';
     let meta = '';
     if (l.target_type === 'product') {
       const target = allListings.find(function (x) { return String(x.id).toLowerCase() === String(l.linked_listing_id || '').toLowerCase(); });
-      if (l.target_listing_is_lead_magnet) meta = '<span class="sf-link-meta"><span class="sf-link-free">Free</span></span>';
-      else if (target) meta = '<span class="sf-link-meta tabular">' + priceHTML(target.original_price, target.price, { from: priceIsFrom(target) }) + '</span>';
+      if (l.target_listing_is_lead_magnet) meta = '<span class="lk-meta"><span class="sf-link-free">Free</span></span>';
+      else if (target) meta = '<span class="lk-meta tabular">' + priceHTML(target.original_price, target.price, { from: priceIsFrom(target) }) + '</span>';
     }
-    const domainLine = !sub && !meta && domain ? '<span class="sf-link-domain">' + domain + '</span>' : '';
-    const cta = l.button_label ? '<span class="sf-link-cta">' + escapeHtml(l.button_label) + ARROW_SVG + '</span>' : '';
-    const text = '<span class="sf-link-text"><span class="sf-link-title">' + label + '</span>' + sub + meta + domainLine + '</span>';
+    const domain = linkDomain(l);
+    const domainLine = !sub && !meta && domain && l.target_type !== 'product' ? '<span class="lk-sub">' + escapeHtml(domain) + '</span>' : '';
+    // The vendor's own button wording, else a plain verb for what the link does.
+    const ctaText = l.button_label ||
+      (isFile ? 'Download' : l.target_type === 'product' ? (l.target_listing_is_lead_magnet ? 'Get it' : 'View') : 'Open');
 
     let inner;
     if (kind === 'pill') {
       inner = '<span class="sf-link-label">' + label + '</span>' + icon;
     } else if (kind === 'rich') {
-      inner = '<span class="sf-link-row"><span class="sf-link-img"' + imgStyle + '>' + emoji + '</span>' + text + (cta ? '' : icon) + '</span>' + cta;
+      inner = '<span class="sf-dl-thumb lk-thumb"' + img + '>' + emoji + '</span>' +
+        '<span class="sf-dl-info"><span class="sf-dl-name lk-title">' + label + '</span>' + sub + meta + domainLine + '</span>' +
+        '<span class="sf-dl-add lk-cta">' + escapeHtml(ctaText) + '</span>';
     } else {
-      inner = '<span class="sf-link-img"' + imgStyle + '>' + emoji + '</span>' +
-        '<span class="sf-link-foot">' + text + (cta ? '' : icon) + '</span>' + cta;
+      inner = '<span class="lk-feature-img"' + img + '>' + emoji + '</span>' +
+        '<span class="lk-feature-body"><span class="lk-title lk-feature-title">' + label + '</span>' + sub + meta + domainLine +
+        '<span class="lk-cta-solid">' + escapeHtml(ctaText) + ' ' + ARROW_SVG + '</span></span>';
     }
 
     // File target: Storage's ?download= forces Content-Disposition with the
