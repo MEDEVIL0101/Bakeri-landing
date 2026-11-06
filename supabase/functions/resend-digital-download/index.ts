@@ -45,6 +45,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //      or harvest someone else's files). Here so a storefront "resend my
 //      download" button can be wired to it later.
 
+import { courseURL } from "../_shared/course.ts";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -176,7 +178,7 @@ async function resolveOrderFiles(
   return { lines, unresolved };
 }
 
-async function sendDeliveryEmail(orderId: string, downloads: { item_name: string; download_url: string }[]): Promise<boolean> {
+async function sendDeliveryEmail(orderId: string, downloads: { item_name: string; download_url: string; kind?: string }[]): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 500 * attempt));
     try {
@@ -316,8 +318,18 @@ Deno.serve(async (req: Request) => {
 
   for (const order of scoped) {
     const { lines, unresolved } = await resolveOrderFiles(db, order);
+    // Courses bought on this order: their links are the buyer's enrollments.
+    const { data: enrollments } = await db
+      .from("course_enrollments")
+      .select("access_token, menu_item_id, menu_items(name)")
+      .eq("order_id", order.id)
+      .is("revoked_at", null);
+    const courseDownloads = (enrollments ?? []).map((e: any) => ({
+      item_name: e.menu_items?.name ?? "Your course", download_url: courseURL(e.access_token),
+      menu_item_id: e.menu_item_id, kind: "course",
+    }));
 
-    if (lines.length === 0) {
+    if (lines.length === 0 && courseDownloads.length === 0) {
       // Sweep scans every marketplace order — a genuine pickup/shipping
       // order resolves nothing and is simply not our concern, so don't
       // report it or count it as a failure. An explicitly named order or
@@ -361,8 +373,8 @@ Deno.serve(async (req: Request) => {
     const downloads = signFailed ? [] : lines.map((l) => {
       const base = signedByPath.get(l.file_path)!;
       const url = dryRun ? base : `${base}&download=${encodeURIComponent(buildDownloadFilename(l.item_name, l.file_path))}`;
-      return { item_name: l.item_name, download_url: url, menu_item_id: l.menu_item_id };
-    });
+      return { item_name: l.item_name, download_url: url, menu_item_id: l.menu_item_id } as { item_name: string; download_url: string; menu_item_id: string | null; kind?: string };
+    }).concat(courseDownloads);
 
     if (signFailed) {
       failed++;

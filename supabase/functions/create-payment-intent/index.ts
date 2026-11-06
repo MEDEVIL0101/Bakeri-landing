@@ -198,7 +198,7 @@ Deno.serve(async (req: Request) => {
       const digitalCartItems = items.filter((i) => i.listing_kind === "digital");
       const { data: digitalItems, error: digitalItemsErr } = await supabase
         .from("menu_items")
-        .select("id, name, listing_kind, is_listed_in_marketplace, digital_file_path, has_variants, default_price, marketplace_price_from")
+        .select("id, name, listing_kind, is_listed_in_marketplace, digital_file_path, is_course, has_variants, default_price, marketplace_price_from")
         .in("id", digitalCartItems.map((i) => i.listing_id));
 
       const itemsById = new Map((digitalItems ?? []).map((d) => [d.id, d]));
@@ -226,7 +226,7 @@ Deno.serve(async (req: Request) => {
         if (!digitalItem.is_listed_in_marketplace) {
           throw new ValidationError(`"${digitalItem.name}" is no longer available.`);
         }
-        if (!digitalItem.digital_file_path) {
+        if (!digitalItem.digital_file_path && !digitalItem.is_course) {
           throw new ValidationError(`"${digitalItem.name}" has no file attached yet — contact the baker.`);
         }
         if (cartItem.variant_id) {

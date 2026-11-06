@@ -38,6 +38,8 @@ interface DownloadEntry {
   item_name?: string;
   download_url: string;
   menu_item_id?: string | null;
+  /** "course": the link opens the course (baker/course.html), not a file. */
+  kind?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -77,6 +79,7 @@ Deno.serve(async (req: Request) => {
   const bakerId = order.user_id as string;
   const bakerName = (order.baker_display_name || "").trim() || "the baker";
   const multi = downloads.length > 1;
+  const allCourses = downloads.every((d) => d.kind === "course");
 
   // One image lookup per line — same resolver the receipt emails use
   // (menu_item_id when known, else an unambiguous name match; null when the
@@ -102,7 +105,7 @@ Deno.serve(async (req: Request) => {
         <td style="width:56px;padding:12px 0;vertical-align:top;">${img}</td>
         <td style="padding:12px 0 12px 12px;vertical-align:top;">
           <div style="font-size:14.5px;font-weight:600;color:#241712;line-height:1.35;">${name}</div>
-          <a href="${d.download_url}" style="display:inline-block;margin-top:8px;padding:9px 18px;background:#241712;color:#fff;border-radius:9999px;text-decoration:none;font-weight:700;font-size:13px;">Download</a>
+          <a href="${d.download_url}" style="display:inline-block;margin-top:8px;padding:9px 18px;background:#241712;color:#fff;border-radius:9999px;text-decoration:none;font-weight:700;font-size:13px;">${d.kind === "course" ? "Start the course" : "Download"}</a>${d.kind === "course" ? `<div style="font-size:12px;color:#8A7F76;margin-top:6px;">Lifetime access — bookmark this link or keep this email.</div>` : ""}
         </td>
       </tr>`;
     })
@@ -114,7 +117,7 @@ Deno.serve(async (req: Request) => {
   const html = `
     <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:28px 24px;color:#241712;background:#fff;">
       <div style="font-size:13px;font-weight:700;letter-spacing:.04em;color:#A89B8C;text-transform:uppercase;">Bakerï</div>
-      <h1 style="margin:14px 0 2px;font-size:24px;">Your download${multi ? "s are" : " is"} ready</h1>
+      <h1 style="margin:14px 0 2px;font-size:24px;">${allCourses ? (multi ? "Your courses are ready" : "Your course is ready") : `Your download${multi ? "s are" : " is"} ready`}</h1>
       <div style="font-size:15px;margin-bottom:14px;color:#6B5F54;">from <strong style="color:#241712;">${escapeHtml(bakerName)}</strong></div>
       <table style="width:100%;border-collapse:collapse;font-size:13px;color:#6B5F54;">
         ${dateStr ? `<tr><td style="padding:2px 0;"><strong style="color:#241712;">Date:</strong> ${escapeHtml(dateStr)}</td></tr>` : ""}
@@ -147,7 +150,7 @@ Deno.serve(async (req: Request) => {
       from: identity.from,
       reply_to: identity.reply_to,
       to: order.customer_email,
-      subject: `Your download — ${order.order_name || "your purchase"}`,
+      subject: `${allCourses ? "Your course" : "Your download"} — ${order.order_name || "your purchase"}`,
       html,
     }),
   });
