@@ -187,7 +187,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 function inline(t = ''): string {
   return esc(t)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[\s(])_([^_]+)_(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>')
+    .replace(/(^|[\s(>])_([^_]+)_(?=[\s).,!?:;<]|$)/g, '$1<em>$2</em>')
     .replace(/\n/g, '<br>');
 }
 const paras = (t = '') => t.split(/\n\s*\n/).map((p) => (p.trim() ? `<p>${inline(p.trim())}</p>` : '')).join('');

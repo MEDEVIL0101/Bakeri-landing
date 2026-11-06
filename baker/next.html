@@ -669,17 +669,28 @@
     .btn-primary { height: 50px; background: var(--accent); color: var(--accent-fg); }
     .btn-outline { height: 48px; background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
     #item-sheet { display: flex; flex-direction: column; overflow: hidden; height: 96%; max-height: 96%; }
-    #item-sheet-inner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-    #item-sheet-photo { position: relative; aspect-ratio: 1/1; background: var(--line-soft); flex: none; min-height: 0; overflow: hidden; touch-action: none; }
+    /* The whole sheet scrolls as one page (photo, name, button, full
+       content, then a second buy button) — a fixed photo and header left
+       about an inch for the content (2026-11-06). */
+    #item-sheet-inner { display: block; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    #item-sheet-photo { position: relative; aspect-ratio: 1/1; background: var(--line-soft); flex: none; min-height: 0; overflow: hidden; touch-action: pan-y; }
     #item-sheet-photo img { width: 100%; height: 100%; object-fit: cover; display: none; }
     .p-badge {
       position: absolute; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
       border-radius: 9999px; color: #fff; font-size: 11px; font-weight: 700;
     }
     .p-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; }
-    #item-sheet-body { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 14px 20px 14px; }
+    #item-sheet-body { display: block; padding: 14px 20px 28px; }
     #item-sheet-fixed { flex: none; }
-    #item-sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    #item-sheet-scroll { overflow: visible; }
+    /* Second checkout under the content, for a product page used as a funnel. */
+    #item-sheet-bottom { display: none; margin-top: 22px; padding: 18px; border-radius: var(--r); background: var(--tint); }
+    #item-sheet-bottom.show { display: block; }
+    #item-sheet-bottom-name { font-size: 16px; font-weight: 800; color: var(--ink); }
+    #item-sheet-bottom-price { font-size: 15px; font-weight: 800; color: var(--head-ink); margin-top: 2px; }
+    #item-sheet-bottom .btn { margin-top: 12px; }
+    #item-sheet-checkout { display: none; width: 100%; margin-top: 10px; background: none; border: 0; font: 800 14px var(--body); color: var(--head-ink); text-decoration: underline; cursor: pointer; }
+    #item-sheet-checkout.show { display: block; }
     #item-sheet-name { font-size: 20px; font-weight: 800; color: var(--ink); margin-top: 6px; }
     #item-sheet-price { font-size: 16px; font-weight: 800; color: var(--head-ink); margin-top: 2px; }
     #item-sheet-price:has(.orig) { color: var(--sale-ink); }
@@ -919,6 +930,12 @@
           <div id="item-sheet-desc"></div>
           <button type="button" id="item-sheet-desc-toggle">Read more</button>
           <div class="spec-list" id="item-sheet-specs"></div>
+          <div id="item-sheet-bottom">
+            <div id="item-sheet-bottom-name"></div>
+            <div id="item-sheet-bottom-price" class="tabular"></div>
+            <button class="btn btn-primary" id="item-sheet-cta2" type="button"></button>
+            <button id="item-sheet-checkout" type="button">Checkout →</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3176,7 +3193,7 @@
   function inlineText(t) {
     return escapeHtml(String(t || ''))
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/(^|[\s(])_([^_]+)_(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>')
+      .replace(/(^|[\s(>])_([^_]+)_(?=[\s).,!?:;<]|$)/g, '$1<em>$2</em>')
       .replace(/\n/g, '<br>');
   }
   function videoEmbed(url) {
@@ -4066,7 +4083,7 @@
       descEl.classList.remove('clamped');
     } else {
       descEl.textContent = item.item_description || '';
-      descEl.classList.add('clamped');
+      descEl.classList.remove('clamped');
     }
     // Tapping the (clamped) text itself or "Read more" both open the full
     // description in its own popup rather than expanding inline — reading
@@ -4186,6 +4203,13 @@
     descToggle.style.display = descOverflows ? 'block' : 'none';
     descEl.classList.toggle('tappable', descOverflows);
     if (!descOverflows) descEl.onclick = null;
+    // Opens at the top; the second checkout shows once there's enough
+    // content to scroll past the first button.
+    document.getElementById('item-sheet-inner').scrollTop = 0;
+    const longPage = (Array.isArray(item.content_blocks) && item.content_blocks.length > 0) ||
+      String(item.item_description || '').length > 280;
+    document.getElementById('item-sheet-bottom').classList.toggle('show', longPage);
+    if (window.__itemSheetBottomSync) window.__itemSheetBottomSync();
   }
   function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); sheetItem = null; setItemInAddressBar(null); }
 
@@ -4197,9 +4221,40 @@
   // top (scrollTop <= 0) — otherwise this would fight normal scrolling of
   // long descriptions. A touch starting on the photo or the fixed
   // name/price/button block arms immediately since neither scrolls.
+  (function setupItemSheetBottomCheckout() {
+    const cta = document.getElementById('item-sheet-cta');
+    const cta2 = document.getElementById('item-sheet-cta2');
+    const checkout = document.getElementById('item-sheet-checkout');
+    // "Add to Cart — $77" reads "Buy now — $77" here; already in the cart,
+    // it goes straight to checkout.
+    const inCartLabel = function () { return /^Remove from/.test(cta.textContent); };
+    function sync() {
+      cta2.textContent = inCartLabel() ? 'Checkout' : cta.textContent.replace(/^Add to (Cart|Order)/, 'Buy now');
+      cta2.disabled = cta.disabled;
+      cta2.style.opacity = cta.style.opacity;
+      checkout.classList.toggle('show', cartSize() > 0);
+      document.getElementById('item-sheet-bottom-name').textContent = document.getElementById('item-sheet-name').textContent;
+      document.getElementById('item-sheet-bottom-price').innerHTML = document.getElementById('item-sheet-price').innerHTML;
+    }
+    new MutationObserver(sync).observe(cta, { attributes: true, childList: true, characterData: true, subtree: true });
+    cta2.addEventListener('click', function () {
+      const already = inCartLabel();
+      if (!already) cta.click();   // adds (and closes the sheet), or a custom order opens its form
+      setTimeout(function () {
+        if (cartSize() > 0 && (already || !document.getElementById('item-scrim').classList.contains('open') || !sheetItem)) {
+          closeItemSheet();
+          openCartSheet();
+        } else sync();
+      }, 50);
+    });
+    cta.addEventListener('click', function () { setTimeout(sync, 0); });
+    checkout.addEventListener('click', function () { closeItemSheet(); openCartSheet(); });
+    window.__itemSheetBottomSync = sync;
+  })();
+
   (function setupItemSheetSwipeDismiss() {
     const sheet = document.getElementById('item-sheet');
-    const scrollArea = document.getElementById('item-sheet-scroll');
+    const scrollArea = document.getElementById('item-sheet-inner');
     let startY = 0;
     let currentY = 0;
     let dragging = false;
@@ -4220,8 +4275,7 @@
       if (deltaY <= 0) { armed = false; sheet.style.transform = ''; return; }
 
       if (!armed) {
-        const inScrollArea = scrollArea.contains(e.target);
-        if (inScrollArea && scrollArea.scrollTop > 0) return;
+        if (scrollArea.scrollTop > 0) return;
         armed = true;
       }
 
