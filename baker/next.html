@@ -120,6 +120,10 @@
       position: sticky; top: 0; height: 100vh; height: 100lvh; z-index: 1;
       background-position: center; background-size: cover; background-repeat: no-repeat;
     }
+    /* A photo stretched well past its own width (a phone-sized photo on a
+       desktop) would look soft and pixelated, so it becomes a blurred
+       backdrop instead, like a link-in-bio page on a computer. */
+    #sf-bg-full.soft { filter: blur(26px) saturate(1.05); }
 
     /* ══════════════ Page column + responsive tokens ══════════════
        Compact mode is driven by the column's own width (ResizeObserver →
@@ -430,7 +434,9 @@
     /* A link's glow may spill past the card edge rather than being cut off. */
     #links-feed { overflow: visible; }
     #links-feed .sf-card-head { border-radius: var(--r) var(--r) 0 0; }
-    .sf-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--ggap); align-items: start; }
+    /* One centred column on every screen: link cards differ in height
+       (descriptions, buttons), so a multi-column grid left ragged rows. */
+    .sf-links { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; width: 100%; max-width: 640px; margin: 0 auto; }
     .sf-link { position: relative; border-radius: var(--r); text-decoration: none; color: var(--text); font: inherit; text-align: left; border: 0; cursor: pointer; }
     .sf-link.pill { border-radius: var(--rp); }
     /* Photo link cards (Stan-style, 2026-11-05): square photo, bold title,
@@ -1877,9 +1883,30 @@
       // its size (no extra enlarging) and slides up; its bottom edge fades
       // into the page colour behind the cards. On a phone a square or
       // landscape photo has no spare height, so focus alone can't move it up.
-      const raise = full ? Math.max(0, Math.min(30, Number(b.raise) || 0)) : 0;
+      const frameW = document.getElementById('sf-frame').clientWidth || window.innerWidth;
+      const soft = full && img.naturalWidth > 0 && frameW > img.naturalWidth * 1.25;
+      on.classList.toggle('soft', soft);
+      // Logo turned off, but on a wide screen the photo is only a soft
+      // backdrop, so the same photo shows sharp in the logo circle instead
+      // (the phone keeps the full photo and no circle).
+      if (full && design.identity && design.identity.logo === 'none') {
+        const av = document.getElementById('pb-avatar');
+        document.getElementById('sf-root').classList.toggle('no-logo', !soft);
+        av.classList.toggle('hidden', !soft);
+        if (soft && !av.querySelector('img[data-bg-portrait]')) {
+          av.querySelectorAll('img').forEach(function (n) { n.remove(); });
+          const pic = document.createElement('img');
+          pic.dataset.bgPortrait = '1';
+          pic.alt = '';
+          pic.src = url;
+          pic.style.display = 'block';
+          av.appendChild(pic);
+          document.getElementById('pb-avatar-letter').style.display = 'none';
+        }
+      }
+      const raise = full && !soft ? Math.max(0, Math.min(30, Number(b.raise) || 0)) : 0;
       const raiseMask = raise ? 'linear-gradient(180deg, #000 0, #000 calc(100% - ' + (raise + 12) + 'svh), transparent calc(100% - ' + raise + 'svh))' : '';
-      on.style.transform = raise ? 'translateY(-' + raise + 'svh)' : '';
+      on.style.transform = soft ? 'scale(1.12)' : (raise ? 'translateY(-' + raise + 'svh)' : '');
       on.style.webkitMaskImage = raiseMask;
       on.style.maskImage = raiseMask;
       on.classList.remove('hidden');
