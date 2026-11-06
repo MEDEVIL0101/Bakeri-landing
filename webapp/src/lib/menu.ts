@@ -2,6 +2,7 @@ import { supabase, STORAGE_PUBLIC_URL } from './supabase';
 import { check, ApiError } from './api';
 import { isoNoMillis, newId, nowISO, up } from './format';
 import type { BoxVariant, IntakeForm, ListingKind, ListingVariant, MenuItem, PreorderMode, Profile, SizeTier } from './types';
+import { blocksForSave, type ContentBlock } from './contentBlocks';
 
 export const LISTING_KINDS: { kind: ListingKind; label: string; description: string }[] = [
   { kind: 'ready_now', label: 'Ready Now', description: 'In stock, ready to buy now' },
@@ -81,6 +82,8 @@ export interface OptionDraft { id?: string; label: string; price: number; stock_
 export interface MenuDraft {
   name: string;
   item_description: string;
+  /** The product page builder's blocks (empty = plain description). */
+  content_blocks: ContentBlock[];
   category: string;
   unit: string;
   price: number;
@@ -154,6 +157,7 @@ export async function saveMenuItem(
     user_id: userId,
     name: draft.name.trim(),
     item_description: draft.item_description.trim(),
+    content_blocks: blocksForSave(draft.content_blocks),
     category: draft.category,
     unit: draft.unit || 'pieces',
     recipe_ids: draft.recipe_ids,

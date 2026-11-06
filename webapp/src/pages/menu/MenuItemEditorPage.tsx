@@ -10,13 +10,15 @@ import {
 import { listRecipes } from '../../lib/data';
 import { formatMoney, fromLocalInput, parseNumber, toDateInput, toDateTimeInput } from '../../lib/format';
 import type { ListingKind } from '../../lib/types';
+import { blocksFromRow } from '../../lib/contentBlocks';
+import { ContentBlocksEditor, ContentBlocksPreview } from '../../components/ContentBlocksEditor';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const isFood = (k: ListingKind) => k === 'ready_now' || k === 'preorder' || k === 'custom';
 
 function emptyDraft(kind: ListingKind): MenuDraft {
   return {
-    name: '', item_description: '', category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
+    name: '', item_description: '', content_blocks: [], category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
     listing_kind: kind, available_qty_today: 0, lead_days: 2, preorder_mode: 'fixed_dates', preorder_dates: [],
     preorder_weekday: 6, preorder_cutoff: null, delivery_mode: 'default', delivery_fee: 0, accepts_buyer_note: false,
     allergens: '', lead_time_note: '', shipping_fee: 0, intake_form_id: null, recipe_ids: [], recipe_names: [],
@@ -27,7 +29,8 @@ function emptyDraft(kind: ListingKind): MenuDraft {
 
 function draftFrom(m: MenuItemFull, profileDelivery: boolean, siteListingId: string | null | undefined): MenuDraft {
   return {
-    name: m.name, item_description: m.item_description, category: m.category, unit: m.unit, price: m.default_price,
+    name: m.name, item_description: m.item_description, content_blocks: blocksFromRow(m.content_blocks),
+    category: m.category, unit: m.unit, price: m.default_price,
     is_active: m.is_active, is_listed: m.is_listed_in_marketplace, listing_kind: m.listing_kind,
     available_qty_today: m.available_qty_today, lead_days: m.lead_days, preorder_mode: m.preorder_schedule_mode ?? 'fixed_dates',
     preorder_dates: (m.preorder_dates ?? []).map((d) => toDateInput(d)), preorder_weekday: m.preorder_weekday ?? 6,
@@ -269,6 +272,13 @@ export function MenuItemEditorPage() {
             )}
           </Card>
 
+          {userId && (
+            <Card title="Product page" actions={d.content_blocks.length > 0 ? <span className="small muted">{d.content_blocks.length} block{d.content_blocks.length === 1 ? '' : 's'}</span> : undefined}>
+              <ContentBlocksEditor userId={userId} blocks={d.content_blocks}
+                onChange={(fn) => setDraft((prev) => (prev ? { ...prev, content_blocks: fn(prev.content_blocks) } : prev))} />
+            </Card>
+          )}
+
           {kind === 'ready_now' && !d.has_variants && (
             <Card title="Availability">
               <Field label="Available today" hint="Sells out and hides automatically at 0.">
@@ -455,6 +465,12 @@ export function MenuItemEditorPage() {
             </label>
             {imgSrc && <p className="small muted">Click or drop to replace.</p>}
           </Card>
+
+          {d.content_blocks.length > 0 && (
+            <Card title="Product page preview">
+              <ContentBlocksPreview blocks={d.content_blocks} />
+            </Card>
+          )}
 
           <Card title="How customers see it">
             <div className="listing-preview">
