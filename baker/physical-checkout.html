@@ -7,7 +7,58 @@
   <meta name="description" content="Buy a physical item directly from a baker on Bakeri." />
   <link rel="icon" type="image/png" href="../assets/favicon.png" />
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
-  <script src="https://js.stripe.com/v3/"></script>
+  <script>
+// Terms & Conditions above Pay (2026-11-05): shown when the shop has terms
+// (profiles.store_policies); Pay does nothing until it's ticked. The link
+// opens the terms in an overlay.
+(function () {
+  const css = document.createElement('style');
+  css.textContent =
+    '.bk-terms{display:flex;gap:9px;align-items:flex-start;margin:14px 0 4px;font-size:13px;line-height:1.45;color:var(--muted,#6b625c);cursor:pointer;text-align:left}' +
+    '.bk-terms input{flex:none;width:17px;height:17px;margin:1px 0 0}' +
+    '.bk-terms a{color:inherit;text-decoration:underline}' +
+    '.bk-terms-msg{font-size:13px;color:#C0392B;margin:2px 0 6px}' +
+    '.bk-terms-ov{position:fixed;inset:0;background:rgba(20,15,10,.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center}' +
+    '.bk-terms-sheet{background:#fff;width:min(100%,640px);max-height:85vh;overflow:auto;border-radius:22px 22px 0 0;padding:22px 20px 28px;position:relative}' +
+    '.bk-terms-sheet h3{font-size:20px;font-weight:800;margin:0 40px 12px 0}' +
+    '.bk-terms-sheet div{white-space:pre-wrap;font-size:13.5px;line-height:1.55;color:#3b3430}' +
+    '.bk-terms-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;border:0;background:#eee;font-size:15px;cursor:pointer}';
+  document.head.appendChild(css);
+  window.__shopTerms = window.__shopTerms || '';
+  window.bkTermsSlot = function () { return '<div class="bk-terms-slot"></div>'; };
+  window.bkFillTerms = function () {
+    document.querySelectorAll('.bk-terms-slot').forEach(function (el) {
+      if (!window.__shopTerms || el.dataset.filled) return;
+      el.dataset.filled = '1';
+      el.innerHTML = '<label class="bk-terms"><input type="checkbox" class="bk-terms-box" />' +
+        '<span>I agree to the <a href="#" class="bk-terms-link">Terms &amp; Conditions</a></span></label>' +
+        '<div class="bk-terms-msg" hidden>Please agree to the Terms &amp; Conditions.</div>';
+    });
+  };
+  window.bkTermsOK = function () {
+    if (!window.__shopTerms) return true;
+    const box = document.querySelector('.bk-terms-box');
+    const ok = !!(box && box.checked);
+    const msg = document.querySelector('.bk-terms-msg');
+    if (msg) msg.hidden = ok;
+    return ok;
+  };
+  window.bkSetTerms = function (text) { window.__shopTerms = String(text || '').trim(); window.bkFillTerms(); };
+  document.addEventListener('click', function (e) {
+    const a = e.target.closest && e.target.closest('.bk-terms-link');
+    if (!a) return;
+    e.preventDefault();
+    const ov = document.createElement('div');
+    ov.className = 'bk-terms-ov';
+    ov.innerHTML = '<div class="bk-terms-sheet"><button type="button" class="bk-terms-close" aria-label="Close">✕</button><h3>Terms &amp; Conditions</h3><div></div></div>';
+    ov.querySelector('.bk-terms-sheet div').textContent = window.__shopTerms;
+    ov.addEventListener('click', function (ev) { if (ev.target === ov || ev.target.closest('.bk-terms-close')) ov.remove(); });
+    document.body.appendChild(ov);
+  });
+  new MutationObserver(window.bkFillTerms).observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
+<script src="https://js.stripe.com/v3/"></script>
   <script src="theme.js"></script>
 
   <style>
@@ -256,6 +307,7 @@
   .then(function (r) { return r.json(); })
   .then(function (data) {
     if (!data || !data.profile) { showMessage('Not found', 'This storefront could not be found.'); return; }
+    window.bkSetTerms(data.profile.store_policies);
     // Drop any line whose base listing has since vanished/been unlisted
     // entirely, or (for a variant line) whose picked option no longer
     // exists at all — those genuinely have nothing to show. A sold-out
@@ -438,6 +490,7 @@
       '<div class="eyebrow">Pay</div>' +
       '<div class="heading">$' + total.toFixed(2) + '</div>' +
       '<div id="payment-element"></div>' +
+      bkTermsSlot() +
       '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
@@ -452,6 +505,7 @@
     document.getElementById('pay-btn').addEventListener('click', function () {
       const btn = document.getElementById('pay-btn');
       const status = document.getElementById('submit-status');
+      if (!window.bkTermsOK()) return;
       btn.disabled = true;
       status.textContent = '';
 

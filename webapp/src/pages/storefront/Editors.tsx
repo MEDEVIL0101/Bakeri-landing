@@ -33,7 +33,7 @@ function storageURL(bucket: string, userId: string, file: string, updatedAt: str
 }
 
 /** Click-to-replace photo. `value` is a data: URL (new) or the live URL. */
-export function PhotoPicker({ label, value, onPick, maxSide = 900, round }: {
+export function PhotoPicker({ label, value, onPick, maxSide = 2000, round }: {
   label: string; value: string | null; onPick: (blob: Blob) => Promise<void> | void; maxSide?: number; round?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
@@ -68,7 +68,7 @@ export function ProfileEditor({ draft, set, data, userId }: EditorProps) {
   return (
     <>
       <Section title="Logo">
-        <PhotoPicker label="Logo" round value={draft.images.logo ?? storageURL('business-logos', userId, 'logo.jpg', data.updatedAt)} onPick={pickImage('logo')} />
+        <PhotoPicker label="Logo" round maxSide={800} value={draft.images.logo ?? storageURL('business-logos', userId, 'logo.jpg', data.updatedAt)} onPick={pickImage('logo')} />
       </Section>
       <Section title="Your business">
         <Field label="Business name"><Input value={draft.business_name} onChange={(e) => set({ business_name: e.target.value })} /></Field>
@@ -250,7 +250,7 @@ function LinkForm({ link, sections, update, data, userId, v2, draft, set }: {
         </Select>
       </Field>
       {link.style !== 'list' && (
-        <PhotoPicker label="Card photo" maxSide={1200} value={link.image_url}
+        <PhotoPicker label="Card photo" maxSide={1600} value={link.image_url}
           onPick={async (blob) => { try { update({ image_url: await uploadBuilderImage(userId, blob) }); } catch (e: any) { setErr(e.message); } }} />
       )}
       <Field label="Outline">

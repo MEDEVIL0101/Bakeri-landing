@@ -70,7 +70,7 @@ export function DesignEditor(props: EditorProps) {
           </Select>
         </Field>
         {mode !== 'theme' && (
-          <PhotoPicker label="Background photo" maxSide={1600} value={bg.image_url ?? null}
+          <PhotoPicker label="Background photo" maxSide={2400} value={bg.image_url ?? null}
             onPick={async (blob) => { try { setBg({ image_url: await uploadBuilderImage(props.userId, blob) }); } catch (e: any) { setErr(e.message); } }} />
         )}
         <ColorField label={mode === 'theme' ? 'Background colour' : 'Fade / surround colour'} value={bg.color} onChange={(v) => setBg({ color: v })} />
@@ -336,7 +336,7 @@ export function CardSettings(props: EditorProps & { type: V2CardType }) {
 
       {(props.type === 'leadMagnet' || props.type === 'emailCapture') && (
         <Section title="Card picture">
-          <PhotoPicker label="Picture (optional)" maxSide={1200} value={block.image_url ?? null}
+          <PhotoPicker label="Picture (optional)" maxSide={1600} value={block.image_url ?? null}
             onPick={async (blob) => { try { upd({ image_url: await uploadBuilderImage(props.userId, blob) }); } catch (e: any) { setErr(e.message); } }} />
           {block.image_url && <button type="button" className="link-btn small" onClick={() => upd({ image_url: undefined })}>Remove picture</button>}
         </Section>

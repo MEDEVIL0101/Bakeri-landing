@@ -53,8 +53,9 @@ export function variantImageURL(userId: string, itemId: string, variant: { id: s
 
 // ── Image prep ────────────────────────────────────────────────────────────
 
-/** Same as the iOS upload settings: longest side 900px, JPEG quality 0.65. */
-export async function compressImage(file: File, maxSide = 900, quality = 0.65): Promise<Blob> {
+/** Same as the iOS upload settings: longest side 2000px, JPEG quality 0.82 —
+ *  sharp on a 3× phone screen (900px at 0.65 looked soft, 2026-11-05). */
+export async function compressImage(file: File, maxSide = 2000, quality = 0.82): Promise<Blob> {
   const bitmap = await createImageBitmap(file).catch(() => null);
   if (!bitmap) throw new ApiError('That file isn’t an image we can read. Try a JPEG or PNG.');
   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
