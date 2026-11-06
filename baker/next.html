@@ -169,7 +169,7 @@
     /* Logo turned off (storefront_design.identity.logo = 'none'): no circle;
        the background photo carries the header, so the name sits lower and
        the photo shows above it. */
-    #sf-root.no-logo #shop-name { margin-top: calc(var(--logo) * 1.15); }
+    #sf-root.no-logo #shop-name { margin-top: max(calc(var(--logo) * 1.15), 52vh); margin-top: max(calc(var(--logo) * 1.15), 52svh); }
     #shop-name {
       font-family: var(--title-font, var(--display)); font-weight: var(--title-w, var(--dw));
       font-size: calc(var(--h1) * var(--title-scale, 1)); line-height: 1.2; letter-spacing: 0;
