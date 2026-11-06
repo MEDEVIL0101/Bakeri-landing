@@ -429,18 +429,39 @@
     .sf-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--ggap); align-items: start; }
     .sf-link { position: relative; border-radius: var(--r); text-decoration: none; color: var(--text); font: inherit; text-align: left; border: 0; cursor: pointer; }
     .sf-link.pill { border-radius: var(--rp); }
+    /* Photo link cards (Stan-style, 2026-11-05): square photo, bold title,
+       optional description, price or a Free tag, and an optional full-width
+       button with the vendor's own label. */
     .sf-link.rich {
-      display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 14px; align-items: center;
-      padding: 8px 16px 8px 8px; background: var(--n100);
+      display: flex; flex-direction: column; gap: 14px;
+      padding: 14px; background: var(--n100);
     }
+    .sf-link-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 16px; align-items: center; }
+    .sf-link.rich .sf-link-img { width: 76px; height: 76px; border-radius: 14px; font-size: 26px; }
+    .sf-link-sub { font-size: 13.5px; line-height: 1.4; color: var(--link-sub, var(--n700)); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .sf-link-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 15px; font-weight: 800; }
+    .sf-link-meta .orig { font-weight: 600; opacity: .55; text-decoration: line-through; margin-right: 6px; }
+    .sf-link-free { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 3px 9px; border-radius: var(--rp); background: var(--btn-bg, var(--accent)); color: var(--btn-fg, var(--accent-fg)); }
+    .sf-link-cta {
+      display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; padding: 0 18px;
+      border-radius: var(--rs); background: var(--btn-bg, var(--accent)); color: var(--btn-fg, var(--accent-fg));
+      font: 800 16px var(--body);
+    }
+    .sf-link-cta svg { width: 18px; height: 18px; }
+    .sf-link-section {
+      grid-column: 1 / -1; justify-self: center; margin-top: 10px; padding: 11px 26px;
+      border-radius: var(--rp); background: var(--n100); font: 800 17px var(--body); text-align: center; overflow-wrap: anywhere;
+    }
+    .sf-link-section:first-child { margin-top: 0; }
     .sf-link.rich:hover, .sf-link.photo:hover { background: var(--tint); }
     .sf-link-img { width: 96px; height: 72px; border-radius: var(--rs); background: var(--tint); background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 26px; }
     .sf-link-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .sf-link-title { font-size: 15px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+    .sf-link-title { font-size: 16px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
     .sf-link-domain { font-size: 12px; color: var(--link-sub, var(--n700)); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sf-link.photo { display: flex; flex-direction: column; background: var(--n100); padding: 8px; gap: 10px; }
     .sf-link.photo .sf-link-img { width: 100%; height: auto; aspect-ratio: 16/10; font-size: 34px; }
     .sf-link.photo .sf-link-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 8px 6px; }
+    .sf-link.photo .sf-link-cta { margin: 0 6px 6px; }
     .sf-link.pill {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       min-height: 52px; padding: 0 20px; border: 2px solid var(--n300); background: #fff;
@@ -2687,7 +2708,18 @@
     if (items.length === 0) { card.classList.add('hidden'); list.innerHTML = ''; return; }
     card.classList.remove('hidden');
     document.getElementById('sf-links-title').textContent = cardTitle('links');
-    list.innerHTML = items.map(renderLinkRow).join('');
+    // Two or more sections ("Free recipes", "My courses"…) each get a heading,
+    // like Stan; a single section needs none.
+    const sections = [];
+    items.forEach(function (l) { const s = (l.section || '').trim(); if (sections.indexOf(s) === -1) sections.push(s); });
+    if (sections.length > 1) {
+      list.innerHTML = sections.map(function (s) {
+        const rows = items.filter(function (l) { return (l.section || '').trim() === s; });
+        return (s ? '<div class="sf-link-section">' + escapeHtml(s) + '</div>' : '') + rows.map(renderLinkRow).join('');
+      }).join('');
+    } else {
+      list.innerHTML = items.map(renderLinkRow).join('');
+    }
     list.querySelectorAll('.sf-link-img[data-img]').forEach(function (el, i) {
       const l = items.filter(function (x) { return x.image_url; })[i];
       focusBackground(el, el.dataset.img, l && linkDesign(l).focus);
@@ -2765,15 +2797,29 @@
     const imgStyle = l.image_url ? ' data-img="' + escapeHtml(l.image_url) + '" style="background-image:url(' + escapeHtml(l.image_url) + ')"' : '';
     const emoji = l.image_url ? '' : (isFile ? '📄' : '🔗');
 
+    // Under the title: the vendor's description, then the price of a linked
+    // product (or a Free tag for a free download); a plain web link with no
+    // description still shows its domain. A button label adds a full-width
+    // button and replaces the arrow.
+    const sub = l.subtitle ? '<span class="sf-link-sub">' + escapeHtml(l.subtitle) + '</span>' : '';
+    let meta = '';
+    if (l.target_type === 'product') {
+      const target = allListings.find(function (x) { return String(x.id).toLowerCase() === String(l.linked_listing_id || '').toLowerCase(); });
+      if (l.target_listing_is_lead_magnet) meta = '<span class="sf-link-meta"><span class="sf-link-free">Free</span></span>';
+      else if (target) meta = '<span class="sf-link-meta tabular">' + priceHTML(target.original_price, target.price, { from: priceIsFrom(target) }) + '</span>';
+    }
+    const domainLine = !sub && !meta && domain ? '<span class="sf-link-domain">' + domain + '</span>' : '';
+    const cta = l.button_label ? '<span class="sf-link-cta">' + escapeHtml(l.button_label) + ARROW_SVG + '</span>' : '';
+    const text = '<span class="sf-link-text"><span class="sf-link-title">' + label + '</span>' + sub + meta + domainLine + '</span>';
+
     let inner;
     if (kind === 'pill') {
       inner = '<span class="sf-link-label">' + label + '</span>' + icon;
     } else if (kind === 'rich') {
-      inner = '<span class="sf-link-img"' + imgStyle + '>' + emoji + '</span>' +
-        '<span class="sf-link-text"><span class="sf-link-title">' + label + '</span><span class="sf-link-domain">' + domain + '</span></span>' + icon;
+      inner = '<span class="sf-link-row"><span class="sf-link-img"' + imgStyle + '>' + emoji + '</span>' + text + (cta ? '' : icon) + '</span>' + cta;
     } else {
       inner = '<span class="sf-link-img"' + imgStyle + '>' + emoji + '</span>' +
-        '<span class="sf-link-foot"><span class="sf-link-text"><span class="sf-link-title">' + label + '</span><span class="sf-link-domain">' + domain + '</span></span>' + icon + '</span>';
+        '<span class="sf-link-foot">' + text + (cta ? '' : icon) + '</span>' + cta;
     }
 
     // File target: Storage's ?download= forces Content-Disposition with the
