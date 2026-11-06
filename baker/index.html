@@ -419,6 +419,23 @@
     .lead-page-img { width: 100%; aspect-ratio: 4/3; border-radius: var(--rs); background: var(--tint) center / cover no-repeat; margin-bottom: 16px; }
     .lead-page-note { font-size: 13px; font-weight: 700; color: var(--card-title, var(--head-ink)); margin: 10px 0 14px; }
     /* Long descriptions (a course, a recipe book) shown in full, formatted. */
+    /* Editorial product pages (menu_items.content_blocks). */
+    .blocks { font-size: 15px; line-height: 1.6; color: var(--text); }
+    .blocks p { margin: 0 0 12px; }
+    .blocks h4 { font-size: 18px; font-weight: 800; line-height: 1.25; color: var(--card-title, var(--head-ink)); margin: 22px 0 8px; }
+    .blocks ul { margin: 0 0 14px; padding-left: 20px; }
+    .blocks ul.check { list-style: none; padding-left: 0; }
+    .blocks ul.check li::before { content: "✔"; margin-right: 8px; color: var(--card-title, var(--head-ink)); font-weight: 800; }
+    .blocks li { margin: 0 0 6px; }
+    .blocks .blk-img { display: block; width: 100%; height: auto; border-radius: var(--rs); margin: 8px 0 16px; }
+    .blocks .blk-cap { font-size: 12.5px; color: var(--n700); margin: -10px 0 16px; }
+    .blocks .blk-gallery { display: grid; gap: 10px; margin: 8px 0 16px; }
+    .blocks .blk-gallery img { display: block; width: 100%; height: auto; border-radius: var(--rs); }
+    .blocks .blk-video { display: block; width: 100%; aspect-ratio: 16/9; border: 0; border-radius: var(--rs); background: #000; margin: 8px 0 16px; }
+    .blocks .blk-callout { background: var(--btn-bg, var(--accent)); color: var(--btn-fg, var(--accent-fg)); border-radius: var(--r); padding: 20px 20px 8px; margin: 8px 0 18px; }
+    .blocks .blk-callout h4 { color: inherit; margin-top: 0; }
+    .blocks .blk-note { font-size: 12.5px; color: var(--n700); margin: 16px 0 6px; }
+    .blocks hr { border: 0; border-top: 1px solid var(--card-line, var(--n200)); margin: 18px 0; }
     .rich-desc p { margin: 0 0 10px; }
     .rich-desc h4 { font-size: 15px; font-weight: 800; color: var(--card-title, var(--head-ink)); margin: 16px 0 6px; }
     .rich-desc ul { margin: 0 0 10px; padding-left: 0; list-style: none; }
@@ -3151,6 +3168,53 @@
       '<div class="sf-capture-status" id="' + idPrefix + '-status" role="status"></div>' +
       '</form>';
   }
+  // ══════════════════════ Editorial product pages ══════════════════════
+
+  // **bold**, _italic_ and line breaks inside a block's text.
+  function inlineText(t) {
+    return escapeHtml(String(t || ''))
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[\s(])_([^_]+)_(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>')
+      .replace(/\n/g, '<br>');
+  }
+  function videoEmbed(url) {
+    const u = String(url || '');
+    let m = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{6,})/);
+    if (m) return '<iframe class="blk-video" src="https://www.youtube-nocookie.com/embed/' + m[1] + '" allow="fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe>';
+    m = u.match(/vimeo\.com\/(\d+)/);
+    if (m) return '<iframe class="blk-video" src="https://player.vimeo.com/video/' + m[1] + '" allow="fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe>';
+    return '<video class="blk-video" src="' + escapeHtml(u) + '" controls playsinline preload="metadata"></video>';
+  }
+  // menu_items.content_blocks → the product page body (see migration
+  // 20261105000005 for the block types).
+  function renderContentBlocks(blocks) {
+    return blocks.map(function (b) {
+      if (!b || typeof b !== 'object') return '';
+      switch (b.type) {
+        case 'text':
+          return String(b.text || '').split(/\n\s*\n/).map(function (p) { return p.trim() ? '<p>' + inlineText(p.trim()) + '</p>' : ''; }).join('');
+        case 'heading': return '<h4>' + inlineText(b.text) + '</h4>';
+        case 'list':
+          return '<ul class="' + (b.style === 'check' ? 'check' : '') + '">' +
+            (b.items || []).map(function (i) { return '<li>' + inlineText(i) + '</li>'; }).join('') + '</ul>';
+        case 'image':
+          return b.url ? '<img class="blk-img" loading="lazy" alt="" src="' + escapeHtml(b.url) + '" />' +
+            (b.caption ? '<p class="blk-cap">' + inlineText(b.caption) + '</p>' : '') : '';
+        case 'gallery':
+          return '<div class="blk-gallery">' + (b.urls || []).map(function (u) {
+            return '<img loading="lazy" alt="" src="' + escapeHtml(u) + '" />';
+          }).join('') + '</div>';
+        case 'video': return b.url ? videoEmbed(b.url) : '';
+        case 'callout':
+          return '<div class="blk-callout">' + (b.title ? '<h4>' + inlineText(b.title) + '</h4>' : '') +
+            String(b.text || '').split(/\n\s*\n/).map(function (p) { return p.trim() ? '<p>' + inlineText(p.trim()) + '</p>' : ''; }).join('') + '</div>';
+        case 'note': return '<p class="blk-note">' + inlineText(b.text) + '</p>';
+        case 'divider': return '<hr />';
+        default: return '';
+      }
+    }).join('');
+  }
+
   // ══════════════════════ Consent + rich text ══════════════════════
 
   function shopTerms() { return String((profile && profile.store_policies) || '').trim(); }
@@ -3985,9 +4049,15 @@
     document.getElementById('item-sheet-price').innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
     const descEl = document.getElementById('item-sheet-desc');
     const descToggle = document.getElementById('item-sheet-desc-toggle');
-    const longDigital = item.listing_kind === 'digital' && String(item.item_description || '').length > 240;
+    const blocks = Array.isArray(item.content_blocks) && item.content_blocks.length ? item.content_blocks : null;
+    const longDigital = !blocks && item.listing_kind === 'digital' && String(item.item_description || '').length > 240;
     descEl.classList.toggle('rich-desc', longDigital);
-    if (longDigital) {
+    descEl.classList.toggle('blocks', !!blocks);
+    if (blocks) {
+      // An editorial product page: the creator's own layout, in full.
+      descEl.innerHTML = renderContentBlocks(blocks);
+      descEl.classList.remove('clamped');
+    } else if (longDigital) {
       // A course or recipe book: the description is the sales page, shown
       // in full and formatted rather than clamped behind "Read more".
       descEl.innerHTML = richText(item.item_description);
