@@ -1872,6 +1872,16 @@
       on.style.backgroundPosition = full
         ? focusPosition(bgFocus, img.naturalWidth, img.naturalHeight)
         : (bgFocus ? focusPosition(bgFocus).split(' ')[0] + ' top' : 'center top');
+      // Full-page photo raised by b.raise % of the screen height (0–30), so a
+      // face that sits low in the photo clears the shop name. The photo keeps
+      // its size (no extra enlarging) and slides up; its bottom edge fades
+      // into the page colour behind the cards. On a phone a square or
+      // landscape photo has no spare height, so focus alone can't move it up.
+      const raise = full ? Math.max(0, Math.min(30, Number(b.raise) || 0)) : 0;
+      const raiseMask = raise ? 'linear-gradient(180deg, #000 0, #000 calc(100% - ' + (raise + 12) + 'svh), transparent calc(100% - ' + raise + 'svh))' : '';
+      on.style.transform = raise ? 'translateY(-' + raise + 'svh)' : '';
+      on.style.webkitMaskImage = raiseMask;
+      on.style.maskImage = raiseMask;
       on.classList.remove('hidden');
       off.classList.add('hidden');
       document.getElementById('sf-root').classList.add('name-on-photo');
