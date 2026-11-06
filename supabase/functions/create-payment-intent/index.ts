@@ -6,6 +6,7 @@ import { vendorFeeRate, vendorPlanPaused } from "../_shared/vendorPlan.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 import { resolvePromotions, type BaseLine } from "../_shared/promotions.ts";
+import { addonPrices } from "../_shared/addon.ts";
 
 const stripe = getStripeClient();
 
@@ -33,6 +34,8 @@ interface CartItemPayload {
   // variant's own price fetched fresh below, same reasoning as re-fetching
   // the base listing itself instead of trusting the client's price_from.
   variant_id?: string | null;
+  /** A limited-time add-on taken with this product (_shared/addon.ts). */
+  bump_of?: string | null;
 }
 
 interface RequestBody {
@@ -373,6 +376,10 @@ Deno.serve(async (req: Request) => {
     promo.lines.forEach((rl, idx) => {
       authoritativePriceByIndex.set(idx, rl.effective_unit_price_cents / 100);
     });
+    // Add-ons at their offer price (digital lines only).
+    (await addonPrices(getSupabaseClient(), items.map((i) => ({
+      menu_item_id: i.listing_id, variant_id: i.variant_id ?? null, bump_of: i.listing_kind === "digital" ? (i.bump_of ?? null) : null,
+    })))).forEach((cents, idx) => authoritativePriceByIndex.set(idx, cents / 100));
 
     const itemsTotalCents = Math.round(
       items.reduce((sum, item, idx) => sum + (authoritativePriceByIndex.get(idx) ?? item.price_from) * item.quantity, 0) * 100

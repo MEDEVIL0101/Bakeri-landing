@@ -754,6 +754,12 @@
     .cart-line .stepper button { width: 28px; height: 100%; border: none; background: none; font-size: 15px; cursor: pointer; color: var(--ink); }
     .cart-line .stepper .qty { font-size: 12px; min-width: 16px; text-align: center; }
     .cart-line .total { font-size: 13px; color: var(--ink); width: 56px; text-align: right; }
+    .addon-offer { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 4px; padding: 12px 14px; border: 2px dashed var(--head-ink, var(--ink)); border-radius: 14px; cursor: pointer; font-size: 13px; line-height: 1.4; color: var(--ink); }
+    .addon-offer input { width: 18px; height: 18px; margin: 1px 0 0; flex-shrink: 0; accent-color: var(--head-ink, var(--ink)); }
+    .addon-offer b { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+    .addon-offer-line { display: block; margin-top: 2px; }
+    .addon-offer-line s { color: var(--muted); }
+    .addon-offer-note { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
     .cart-line .remove-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 13px; cursor: pointer; flex-shrink: 0; }
     .cart-section-label { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--muted); margin: 16px 0 8px; }
     .cart-financial-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--bio); }
@@ -1089,6 +1095,10 @@
   // to digital-checkout.html, or combine with the pickup cart into one
   // mixed checkout.html flow when both have items (see goToCheckout).
   let digitalCart = [];
+  // Limited-time add-ons taken in the cart: { addonItemId: offeringItemId }.
+  // The add-on line is charged menu_items.addon_offer.price while the
+  // offering product is still in the cart (re-checked on the server).
+  let digitalBumps = {};
   // Ships (physical) items also get their own small cart, same reasoning as
   // digitalCart above (checks out independently, or chains into the pickup
   // checkout when mixed — see goToCheckout) — but unlike digital these are
@@ -1128,6 +1138,7 @@
         boxCartLines = raw.boxLines || [];
         preorderCartLines = raw.preorderLines || [];
         digitalCart = raw.digitalCart || [];
+        digitalBumps = raw.digitalBumps || {};
         shipCart = raw.shipCart || {};
         shipVariantCartLines = raw.shipVariantLines || [];
         digitalVariantCartLines = raw.digitalVariantLines || [];
@@ -1152,7 +1163,7 @@
     try {
       sessionStorage.setItem(cartStorageKey(), JSON.stringify({
         cart: cart, boxLines: boxCartLines, preorderLines: preorderCartLines,
-        digitalCart: digitalCart, shipCart: shipCart,
+        digitalCart: digitalCart, digitalBumps: digitalBumps, shipCart: shipCart,
         shipVariantLines: shipVariantCartLines, digitalVariantLines: digitalVariantCartLines
       }));
     } catch (e) {}
@@ -3772,7 +3783,12 @@
   function digitalCartItems() {
     const plain = digitalCart.map(function (id) {
       const item = allListings.find(function (l) { return l.id === id; });
-      return item ? Object.assign({}, item, { lineKey: item.id, variantId: null, variantLabel: null }) : null;
+      if (!item) return null;
+      const line = Object.assign({}, item, { lineKey: item.id, variantId: null, variantLabel: null, bumpOf: null });
+      const parent = digitalBumps[id];
+      const offer = parent && digitalCart.indexOf(parent) !== -1 ? addonOfferOf(allListings.find(function (l) { return l.id === parent; })) : null;
+      if (offer && offer.target.id === id) { line.price = offer.price; line.bumpOf = parent; }
+      return line;
     }).filter(Boolean);
     const variantLines = digitalVariantCartLines.map(function (ln) {
       const base = allListings.find(function (l) { return l.id === ln.menuItemId; });
@@ -3787,9 +3803,47 @@
   function digitalCartTotal() {
     return digitalCartItems().reduce(function (s, i) { return s + i.price; }, 0);
   }
+  // A product's limited-time add-on, if it's live: { target, price, headline, note }.
+  function addonOfferOf(item) {
+    const o = item && item.addon_offer;
+    if (!o || !o.menu_item_id || o.price == null) return null;
+    if (o.ends_at && new Date(o.ends_at).getTime() < Date.now()) return null;
+    const target = allListings.find(function (l) { return l.id === o.menu_item_id; });
+    if (!target || target.id === item.id || target.listing_kind !== 'digital' || target.has_variants) return null;
+    return { target: target, price: Number(o.price), headline: o.headline || '', note: o.note || '' };
+  }
+  function toggleAddon(parentId) {
+    const offer = addonOfferOf(allListings.find(function (l) { return l.id === parentId; }));
+    if (!offer) return;
+    const id = offer.target.id, idx = digitalCart.indexOf(id);
+    if (idx !== -1 && digitalBumps[id] === parentId) { digitalCart.splice(idx, 1); delete digitalBumps[id]; }
+    else { if (idx === -1) digitalCart.push(id); digitalBumps[id] = parentId; }
+    saveCart(); renderDigitalFeed(); updateDigitalCartUI();
+  }
+  // Cart-sheet boxes offering each add-on (Stan-style order bump).
+  function addonOffersHTML() {
+    return digitalCart.map(function (pid) {
+      const offer = addonOfferOf(allListings.find(function (l) { return l.id === pid; }));
+      if (!offer) return '';
+      const taken = digitalBumps[offer.target.id] === pid && digitalCart.indexOf(offer.target.id) !== -1;
+      if (!taken && digitalCart.indexOf(offer.target.id) !== -1) return '';   // already buying it outright
+      const was = offer.target.price > offer.price ? ' <s>$' + formatPrice(offer.target.price) + '</s>' : '';
+      return '<label class="addon-offer" data-parent="' + pid + '">' +
+        '<input type="checkbox"' + (taken ? ' checked' : '') + ' />' +
+        '<span><b>' + escapeHtml(offer.headline || 'Limited time offer') + '</b>' +
+        '<span class="addon-offer-line">Add ' + escapeHtml(offer.target.name) + ' for $' + formatPrice(offer.price) + was + '</span>' +
+        (offer.note ? '<span class="addon-offer-note">' + escapeHtml(offer.note) + '</span>' : '') +
+        '</span></label>';
+    }).join('');
+  }
   function toggleDigitalCartItem(item) {
     const idx = digitalCart.indexOf(item.id);
     if (idx === -1) digitalCart.push(item.id); else digitalCart.splice(idx, 1);
+    delete digitalBumps[item.id];
+    // Taking the offering product out takes its add-on with it.
+    Object.keys(digitalBumps).forEach(function (k) {
+      if (digitalBumps[k] === item.id) { digitalCart = digitalCart.filter(function (x) { return x !== k; }); delete digitalBumps[k]; }
+    });
     saveCart();
     renderDigitalFeed();
     updateDigitalCartUI();
@@ -3816,7 +3870,13 @@
   // know which one a given lineKey belongs to.
   function removeDigitalCartLine(lineKey) {
     const idx = digitalCart.indexOf(lineKey);
-    if (idx !== -1) { digitalCart.splice(idx, 1); saveCart(); return; }
+    if (idx !== -1) {
+      digitalCart.splice(idx, 1); delete digitalBumps[lineKey];
+      Object.keys(digitalBumps).forEach(function (k) {
+        if (digitalBumps[k] === lineKey) { digitalCart = digitalCart.filter(function (x) { return x !== k; }); delete digitalBumps[k]; }
+      });
+      saveCart(); return;
+    }
     digitalVariantCartLines = digitalVariantCartLines.filter(function (l) { return l.lineId !== lineKey; });
     saveCart();
   }
@@ -3826,8 +3886,9 @@
   }
   // itemId, or itemId~variantId for a variant pick — parsed back out by
   // digital-checkout.html.
+  // itemId^offeringId for an add-on taken at its offer price.
   function digitalCartLineToken(entry) {
-    return entry.variantId ? (entry.id + '~' + entry.variantId) : entry.id;
+    return entry.variantId ? (entry.id + '~' + entry.variantId) : (entry.bumpOf ? entry.id + '^' + entry.bumpOf : entry.id);
   }
   function digitalCartCheckoutURL() {
     const tokens = digitalCartItems().map(digitalCartLineToken);
@@ -4928,7 +4989,7 @@
       ) : '') +
       (digitalItems.length > 0 ? (
         '<div class="cart-section-label">Digital Downloads</div>' +
-        digitalRows +
+        digitalRows + addonOffersHTML() +
         '<div class="cart-financial-row"><span>Downloads subtotal</span><span class="tabular">$' + formatPrice(digitalCartTotal()) + '</span></div>'
       ) : '') +
       (shipLinesData.length > 0 ? (
@@ -4994,6 +5055,9 @@
         }
         renderCartSheet();
       });
+    });
+    document.querySelectorAll('.addon-offer input').forEach(function (box) {
+      box.addEventListener('change', function () { toggleAddon(box.closest('.addon-offer').dataset.parent); renderCartSheet(); });
     });
     document.querySelectorAll('.cart-line[data-line-kind="digital"] .remove-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -5112,7 +5176,7 @@
       // for why they can't share a PaymentIntent), then shows one combined
       // confirmation screen.
       digitalItems: digitalCartItems().map(function (item) {
-        return { id: item.id, name: item.name, price: item.price, variantId: item.variantId || null, variantLabel: item.variantLabel || null };
+        return { id: item.id, name: item.name, price: item.price, variantId: item.variantId || null, variantLabel: item.variantLabel || null, bumpOf: item.bumpOf || null };
       }),
       // A third, independent leg — same reasoning as digitalItems above,
       // but stock-bound (qty can be >1) and needs a shipping address,

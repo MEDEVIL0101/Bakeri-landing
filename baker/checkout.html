@@ -705,7 +705,7 @@
     if (status) status.textContent = '';
 
     const items = digitalItems.map(function (i) {
-      return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: 1, price_from: (i.originalPrice != null ? i.originalPrice : i.price), listing_kind: 'digital', variant_id: i.variantId || null };
+      return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: 1, price_from: (i.originalPrice != null ? i.originalPrice : i.price), listing_kind: 'digital', variant_id: i.variantId || null, bump_of: i.bumpOf || null };
     }).concat(shipItems.map(function (i) {
       return { listing_id: i.id, baker_id: cart.baker, name: i.name, quantity: i.qty, price_from: (i.originalPrice != null ? i.originalPrice : i.price), listing_kind: 'physical', variant_id: i.variantId || null };
     }));
@@ -785,7 +785,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         payment_intent_id: paymentIntentId,
-        digital_items: digitalItems.map(function (i) { return { id: i.id, variant_id: i.variantId || null }; }),
+        digital_items: digitalItems.map(function (i) { return { id: i.id, variant_id: i.variantId || null, bump_of: i.bumpOf || null }; }),
         physical_items: shipItems.map(function (i) { return { menu_item_id: i.id, quantity: i.qty, variant_id: i.variantId || null }; }),
         customer_name: cart.customer.name,
         customer_email: cart.customer.email,

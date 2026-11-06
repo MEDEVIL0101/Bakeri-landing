@@ -1,7 +1,7 @@
 import { supabase, STORAGE_PUBLIC_URL } from './supabase';
 import { check, ApiError } from './api';
 import { isoNoMillis, newId, nowISO, up } from './format';
-import type { BoxVariant, IntakeForm, ListingKind, ListingVariant, MenuItem, PreorderMode, Profile, SizeTier } from './types';
+import type { AddonOffer, BoxVariant, IntakeForm, ListingKind, ListingVariant, MenuItem, PreorderMode, Profile, SizeTier } from './types';
 import { blocksForSave, type ContentBlock } from './contentBlocks';
 
 export const LISTING_KINDS: { kind: ListingKind; label: string; description: string }[] = [
@@ -86,6 +86,8 @@ export interface MenuDraft {
   content_blocks: ContentBlock[];
   /** A course: digital, with lessons instead of a file (lib/courses.ts). */
   is_course: boolean;
+  /** Limited-time add-on (digital only); null = none. */
+  addon_offer: AddonOffer | null;
   category: string;
   unit: string;
   price: number;
@@ -161,6 +163,11 @@ export async function saveMenuItem(
     item_description: draft.item_description.trim(),
     content_blocks: blocksForSave(draft.content_blocks),
     is_course: draft.listing_kind === 'digital' && draft.is_course,
+    addon_offer: draft.listing_kind === 'digital' && draft.addon_offer?.menu_item_id ? {
+      menu_item_id: draft.addon_offer.menu_item_id, price: Math.max(0, draft.addon_offer.price || 0),
+      headline: draft.addon_offer.headline?.trim() || undefined, note: draft.addon_offer.note?.trim() || undefined,
+      ends_at: draft.addon_offer.ends_at || null,
+    } : null,
     category: draft.category,
     unit: draft.unit || 'pieces',
     recipe_ids: draft.recipe_ids,

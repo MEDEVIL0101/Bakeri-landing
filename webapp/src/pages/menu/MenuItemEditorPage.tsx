@@ -18,7 +18,7 @@ const isFood = (k: ListingKind) => k === 'ready_now' || k === 'preorder' || k ==
 
 function emptyDraft(kind: ListingKind): MenuDraft {
   return {
-    name: '', item_description: '', content_blocks: [], is_course: false, category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
+    name: '', item_description: '', content_blocks: [], is_course: false, addon_offer: null, category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
     listing_kind: kind, available_qty_today: 0, lead_days: 2, preorder_mode: 'fixed_dates', preorder_dates: [],
     preorder_weekday: 6, preorder_cutoff: null, delivery_mode: 'default', delivery_fee: 0, accepts_buyer_note: false,
     allergens: '', lead_time_note: '', shipping_fee: 0, intake_form_id: null, recipe_ids: [], recipe_names: [],
@@ -30,6 +30,7 @@ function emptyDraft(kind: ListingKind): MenuDraft {
 function draftFrom(m: MenuItemFull, profileDelivery: boolean, siteListingId: string | null | undefined): MenuDraft {
   return {
     name: m.name, item_description: m.item_description, content_blocks: blocksFromRow(m.content_blocks), is_course: !!m.is_course,
+    addon_offer: m.addon_offer ?? null,
     category: m.category, unit: m.unit, price: m.default_price,
     is_active: m.is_active, is_listed: m.is_listed_in_marketplace, listing_kind: m.listing_kind,
     available_qty_today: m.available_qty_today, lead_days: m.lead_days, preorder_mode: m.preorder_schedule_mode ?? 'fixed_dates',
@@ -395,6 +396,37 @@ export function MenuItemEditorPage() {
                   : existing?.digital_file_path ? <><strong>File attached</strong><span className="small muted">Click to upload a new one</span></>
                     : <><strong>Upload the file customers download</strong><span className="small muted">PDF, PNG, ZIP… up to 100 MB</span></>}
               </label>
+            </Card>
+          )}
+
+          {kind === 'digital' && (
+            <Card title="Limited time offer">
+              <Toggle checked={!!d.addon_offer} onChange={(v) => set('addon_offer', v ? { menu_item_id: '', price: 0, headline: 'Limited time offer' } : null)}
+                label="Offer an add-on at checkout" hint="When someone buys this, the cart offers another of your downloads at a special price — one tick to add it." />
+              {d.addon_offer && (() => {
+                const offer = d.addon_offer;
+                const upd = (p: Partial<typeof offer>) => set('addon_offer', { ...offer, ...p });
+                const choices = (items.data ?? []).filter((m) => m.listing_kind === 'digital' && !m.has_variants && m.id !== existing?.id);
+                const target = choices.find((m) => m.id === offer.menu_item_id);
+                return (
+                  <>
+                    <Field label="Add-on product">
+                      <Select value={offer.menu_item_id} onChange={(e) => upd({ menu_item_id: e.target.value })}>
+                        <option value="">Choose a download or course…</option>
+                        {choices.map((m) => <option key={m.id} value={m.id}>{m.name} — {formatMoney(m.default_price)}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Offer price" hint={target ? `Normally ${formatMoney(target.default_price)}` : undefined}>
+                      <Input type="number" min="0" step="0.01" value={offer.price || ''} onChange={(e) => upd({ price: parseNumber(e.target.value) })} />
+                    </Field>
+                    <Field label="Headline"><Input value={offer.headline ?? ''} placeholder="Limited time offer" onChange={(e) => upd({ headline: e.target.value })} /></Field>
+                    <Field label="Note (optional)"><Input value={offer.note ?? ''} placeholder="Only available with this order" onChange={(e) => upd({ note: e.target.value })} /></Field>
+                    <Field label="Offer ends (optional)">
+                      <Input type="datetime-local" value={toDateTimeInput(offer.ends_at ?? null)} onChange={(e) => upd({ ends_at: e.target.value ? fromLocalInput(e.target.value) : null })} />
+                    </Field>
+                  </>
+                );
+              })()}
             </Card>
           )}
 

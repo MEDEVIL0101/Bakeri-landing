@@ -184,8 +184,10 @@
   const requestedLines = (params.get('items') || params.get('item') || '')
     .split(',').map(function (s) { return s.trim(); }).filter(Boolean)
     .map(function (token) {
-      const parts = token.split('~');
-      return { id: parts[0], variantId: parts[1] || null };
+      // id, id~variantId, or id^offeringId for a limited-time add-on.
+      const bump = token.split('^');
+      const parts = bump[0].split('~');
+      return { id: parts[0], variantId: parts[1] || null, bumpOf: bump[1] || null };
     });
   const itemIDs = [...new Set(requestedLines.map(function (l) { return l.id; }))];
   const content = document.getElementById('content');
@@ -233,6 +235,13 @@
           if (!variant) return null;
           return Object.assign({}, base, { price: promoAdjust(base, variant.price), originalPrice: variant.price, variantId: variant.id, variantLabel: variant.label, name: base.name + ' — ' + variant.label });
         }
+        // An add-on at its offer price — the server re-checks the same rules.
+        const parent = line.bumpOf && requestedLines.some(function (l) { return l.id === line.bumpOf; })
+          ? (data.listings || []).find(function (l) { return l.id === line.bumpOf; }) : null;
+        const offer = parent && parent.addon_offer;
+        if (offer && offer.menu_item_id === base.id && offer.price != null && !(offer.ends_at && new Date(offer.ends_at) < new Date())) {
+          return Object.assign({}, base, { price: Number(offer.price), originalPrice: base.price, variantId: null, variantLabel: null, bumpOf: parent.id });
+        }
         return Object.assign({}, base, { price: (base.sale_price != null ? base.sale_price : base.price), originalPrice: base.price, variantId: null, variantLabel: null });
       })
       .filter(Boolean);
@@ -279,7 +288,7 @@
       }
       appliedCode = code.toUpperCase();
       (res.lines || []).forEach(function (ln, idx) {
-        if (items[idx] && ln.effective_unit_price != null) items[idx].price = parseFloat(ln.effective_unit_price);
+        if (items[idx] && !items[idx].bumpOf && ln.effective_unit_price != null) items[idx].price = parseFloat(ln.effective_unit_price);
       });
       codeDiscount = parseFloat(res.total_discount || 0);
       st.textContent = 'Code ' + appliedCode + ' applied — $' + codeDiscount.toFixed(2) + ' off';
@@ -349,7 +358,7 @@
       headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
       body: JSON.stringify({
         items: items.map(function (i) {
-          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: 1, price_from: (i.originalPrice != null ? i.originalPrice : i.price), listing_kind: 'digital', variant_id: i.variantId || null };
+          return { listing_id: i.id, baker_id: bakerID, name: i.name, quantity: 1, price_from: (i.originalPrice != null ? i.originalPrice : i.price), listing_kind: 'digital', variant_id: i.variantId || null, bump_of: i.bumpOf || null };
         }),
         currency: 'cad',
         promo_code: appliedCode
@@ -429,7 +438,7 @@
         payment_intent_id: paymentIntentId,
         free_order: !!freePromoCode,
         promo_code: freePromoCode || null,
-        items: items.map(function (i) { return { id: i.id, variant_id: i.variantId || null }; }),
+        items: items.map(function (i) { return { id: i.id, variant_id: i.variantId || null, bump_of: i.bumpOf || null }; }),
         customer_name: name,
         customer_email: email
       })

@@ -119,6 +119,8 @@ export interface MenuItem {
   is_course?: boolean;
   /** Editorial product page (lib/contentBlocks.ts); null = plain description. */
   content_blocks?: unknown[] | null;
+  /** Limited-time add-on offered in the cart (migration 20261106000002). */
+  addon_offer?: AddonOffer | null;
   category: string;
   default_quantity: number;
   unit: string;
@@ -288,3 +290,6 @@ export interface IntakeForm {
   id: string;
   title: string;
 }
+
+/** menu_items.addon_offer — another digital product sold at `price` when bought with this one. */
+export interface AddonOffer { menu_item_id: string; price: number; headline?: string; note?: string; ends_at?: string | null }

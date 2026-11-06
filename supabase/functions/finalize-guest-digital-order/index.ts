@@ -30,6 +30,7 @@ import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 import { postWithRetry } from "../_shared/postWithRetry.ts";
 import { fillCourseLinks } from "../_shared/course.ts";
+import { addonPrices } from "../_shared/addon.ts";
 import { resolvePromotions, redeemPromoCode } from "../_shared/promotions.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -114,9 +115,9 @@ Deno.serve(async (req: Request) => {
   // has_variants listing can appear more than once with a different option
   // picked (one shared digital file, but each option still needs its own
   // variant_id/variant_label recorded on its order_items row).
-  const requestedLines: { menu_item_id: string; variant_id: string | null }[] = Array.isArray(body.items)
+  const requestedLines: { menu_item_id: string; variant_id: string | null; bump_of?: string | null }[] = Array.isArray(body.items)
     ? (body.items as Record<string, unknown>[])
-        .map((i) => ({ menu_item_id: String(i.id ?? "").trim(), variant_id: i.variant_id ? String(i.variant_id).trim() : null }))
+        .map((i) => ({ menu_item_id: String(i.id ?? "").trim(), variant_id: i.variant_id ? String(i.variant_id).trim() : null, bump_of: i.bump_of ? String(i.bump_of).trim() : null }))
         .filter((i) => i.menu_item_id)
     : (Array.isArray(body.menu_item_ids)
         ? [...new Set(body.menu_item_ids.map((id) => String(id).trim()).filter(Boolean))]
@@ -262,6 +263,7 @@ Deno.serve(async (req: Request) => {
       freeOrder ? freePromoCode : ((intent.metadata?.promo_code as string) ?? null),
     );
     promo.lines.forEach((rl, i) => { digitalLines[i].unitPriceCents = rl.effective_unit_price_cents; });
+    (await addonPrices(db, requestedLines)).forEach((cents, i) => { digitalLines[i].unitPriceCents = cents; });
     if (freeOrder) {
       if (promo.codeStatus !== "valid" || digitalLines.some((l) => l.unitPriceCents > 0)) {
         return json({ error: "This code no longer covers the full price — please go back and try again." }, 400);
