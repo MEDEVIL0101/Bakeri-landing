@@ -463,11 +463,13 @@
     const downloads = data.downloads || [];
     const links = downloads.map(function (d) {
       return '<a class="btn-download" href="' + d.download_url + '">' +
-        (downloads.length > 1 ? 'Download ' + escapeHtml(d.item_name) : 'Download now') + '</a>';
+        (d.kind === 'course'
+          ? (downloads.length > 1 ? 'Start ' + escapeHtml(d.item_name) : 'Start the course')
+          : (downloads.length > 1 ? 'Download ' + escapeHtml(d.item_name) : 'Download now')) + '</a>';
     }).join('');
     content.innerHTML =
       '<div class="success-state">' +
-        '<h2>Your download' + (downloads.length > 1 ? 's are' : ' is') + ' ready</h2>' +
+        '<h2>' + (downloads.every(function (d) { return d.kind === 'course'; }) ? 'Your course' + (downloads.length > 1 ? 's are' : ' is') : 'Your download' + (downloads.length > 1 ? 's are' : ' is')) + ' ready</h2>' +
         '<p>Thanks for your purchase' + (data.baker_name ? ' from ' + escapeHtml(data.baker_name) : '') + '. ' + (downloads.length > 1 ? 'Copies of these links were' : 'A copy of this link was') + ' also emailed to you.</p>' +
         links +
       '</div>';

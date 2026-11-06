@@ -861,7 +861,9 @@
       '<p>' + (digitalResult.downloads.length > 1 ? 'Copies of these links were' : 'A copy of this link was') + ' also emailed to you.</p>' +
       digitalResult.downloads.map(function (d) {
         return '<a class="btn-download" href="' + d.download_url + '">' +
-          (digitalResult.downloads.length > 1 ? 'Download ' + escapeHtml(d.item_name) : 'Download now') + '</a>';
+          (d.kind === 'course'
+            ? (digitalResult.downloads.length > 1 ? 'Start ' + escapeHtml(d.item_name) : 'Start the course')
+            : (digitalResult.downloads.length > 1 ? 'Download ' + escapeHtml(d.item_name) : 'Download now')) + '</a>';
       }).join('')
     ) : (digitalError && !bothInstantKinds ? (
       '<h2 style="margin-top:' + (physicalResult ? '26px' : '0') + ';color:var(--error);">Downloads charge failed</h2>' +

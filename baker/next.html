@@ -684,6 +684,20 @@
     #item-sheet-fixed { flex: none; }
     #item-sheet-scroll { overflow: visible; }
     /* Second checkout under the content, for a product page used as a funnel. */
+    /* Course curriculum on a course's product page (Courses, 2026-11-06). */
+    #item-sheet-course { display: none; margin-top: 22px; }
+    #item-sheet-course.show { display: block; }
+    .cc-head { font-size: 18px; font-weight: 800; color: var(--ink); }
+    .cc-sub { font-size: 13px; color: var(--muted); margin: 2px 0 12px; }
+    .cc-mod { border: 1px solid var(--line); border-radius: var(--rs); margin-bottom: 10px; overflow: hidden; }
+    .cc-mod summary { list-style: none; cursor: pointer; padding: 13px 14px; display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 14.5px; color: var(--ink); }
+    .cc-mod summary::-webkit-details-marker { display: none; }
+    .cc-mod summary .n { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--muted); }
+    .cc-mod summary::after { content: "+"; font-weight: 700; color: var(--muted); }
+    .cc-mod[open] summary::after { content: "–"; }
+    .cc-lesson { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink); }
+    .cc-lesson .ic { width: 18px; text-align: center; color: var(--muted); flex: none; }
+    .cc-lesson a { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--head-ink); text-decoration: underline; flex: none; }
     #item-sheet-bottom { display: none; margin-top: 22px; padding: 18px; border-radius: var(--r); background: var(--tint); }
     #item-sheet-bottom.show { display: block; }
     #item-sheet-bottom-name { font-size: 16px; font-weight: 800; color: var(--ink); }
@@ -930,6 +944,7 @@
           <div id="item-sheet-desc"></div>
           <button type="button" id="item-sheet-desc-toggle">Read more</button>
           <div class="spec-list" id="item-sheet-specs"></div>
+          <div id="item-sheet-course"></div>
           <div id="item-sheet-bottom">
             <div id="item-sheet-bottom-name"></div>
             <div id="item-sheet-bottom-price" class="tabular"></div>
@@ -4210,6 +4225,7 @@
       String(item.item_description || '').length > 280;
     document.getElementById('item-sheet-bottom').classList.toggle('show', longPage);
     if (window.__itemSheetBottomSync) window.__itemSheetBottomSync();
+    renderCourseOutline(item);
   }
   function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); sheetItem = null; setItemInAddressBar(null); }
 
@@ -4221,6 +4237,36 @@
   // top (scrollTop <= 0) — otherwise this would fight normal scrolling of
   // long descriptions. A touch starting on the photo or the fixed
   // name/price/button block arms immediately since neither scrolls.
+  // A course's curriculum on its product page: module and lesson titles, with
+  // a link into any free-preview lesson.
+  function renderCourseOutline(item) {
+    const box = document.getElementById('item-sheet-course');
+    box.classList.remove('show');
+    box.innerHTML = '';
+    if (!item.is_course) return;
+    const forItem = item.id;
+    fetch(SUPABASE_URL + '/rest/v1/rpc/get_course_outline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+      body: JSON.stringify({ p_menu_item_id: item.id })
+    }).then(function (r) { return r.json(); }).then(function (mods) {
+      if (!Array.isArray(mods) || !mods.length || !sheetItem || sheetItem.id !== forItem) return;
+      const lessons = mods.reduce(function (n, m) { return n + (m.lessons || []).length; }, 0);
+      box.innerHTML = '<div class="cc-head">What’s inside</div>' +
+        '<div class="cc-sub">' + mods.length + ' module' + (mods.length === 1 ? '' : 's') + ' · ' + lessons + ' lesson' + (lessons === 1 ? '' : 's') + ' · lifetime access</div>' +
+        mods.map(function (m, i) {
+          return '<details class="cc-mod"' + (i === 0 ? ' open' : '') + '><summary>' + escapeHtml(m.title || 'Module') +
+            '<span class="n">' + (m.lessons || []).length + '</span></summary>' +
+            (m.lessons || []).map(function (l) {
+              return '<div class="cc-lesson"><span class="ic">' + (l.is_preview ? '▶' : '🔒') + '</span><span>' + escapeHtml(l.title || 'Lesson') + '</span>' +
+                (l.is_preview ? '<a href="/baker/course.html?preview=' + encodeURIComponent(item.id) + '" target="_blank" rel="noopener">Free preview</a>' : '') + '</div>';
+            }).join('') + '</details>';
+        }).join('');
+      box.classList.add('show');
+      document.getElementById('item-sheet-bottom').classList.add('show');
+    }).catch(function () {});
+  }
+
   (function setupItemSheetBottomCheckout() {
     const cta = document.getElementById('item-sheet-cta');
     const cta2 = document.getElementById('item-sheet-cta2');
@@ -5210,7 +5256,7 @@
     // flavors" in the subtitle already signals it's a box.
     if (item.listing_kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
     if (item.listing_kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
-    if (item.listing_kind === 'digital')   return { bg: 'var(--digital)', label: 'Digital' };
+    if (item.listing_kind === 'digital')   return { bg: 'var(--digital)', label: item.is_course ? 'Course' : 'Digital' };
     if (item.listing_kind === 'physical')  return { bg: 'var(--physical)', label: 'Ships' };
     return { bg: 'var(--custom)', label: 'Custom' };
   }
@@ -5228,7 +5274,7 @@
         ? 'Lead time required: ' + item.lead_time_note
         : 'Request a custom quote';
     }
-    if (item.listing_kind === 'digital') return 'Instant digital download';
+    if (item.listing_kind === 'digital') return item.is_course ? 'Online course · lifetime access' : 'Instant digital download';
     if (item.listing_kind === 'physical') {
       if (isSoldOut(item)) return 'Sold out';
       const n = item.lead_days || 3;
