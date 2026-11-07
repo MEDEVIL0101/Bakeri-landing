@@ -233,7 +233,7 @@ export function CourseBuilderPage() {
   );
 }
 
-function CommunitySettings({ item, ownerURL, club, onSaved }: { item: any; ownerURL: string; club: boolean; onSaved: () => void }) {
+export function CommunitySettings({ item, ownerURL, club, onSaved }: { item: any; ownerURL: string; club: boolean; onSaved: () => void }) {
   const toast = useToast();
   const [on, setOn] = useState(item.channel_enabled !== false);
   const [open, setOpen] = useState(item.members_can_post !== false);
@@ -245,7 +245,7 @@ function CommunitySettings({ item, ownerURL, club, onSaved }: { item: any; owner
   const who = club ? 'members' : 'students';
   return (
     <div className="stack-lg">
-      <Card title="Community" actions={<a className="btn btn-primary" href={`${ownerURL}#community`} target="_blank" rel="noreferrer"><span>Open the community ↗</span></a>}>
+      <Card title="Community" actions={<Link className="btn btn-primary" to={`/communities/${item.id}`}><span>Manage the conversation</span></Link>}>
         <p className="muted" style={{ marginTop: 0 }}>
           A chat for everyone in this {club ? 'club' : 'course'}, like a Slack channel: {who} post, reply in threads and react.
           You post as your shop, pin important messages to the top, and remove anything that doesn’t belong.

@@ -30,6 +30,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
   { heading: 'Customers', items: [
     { to: '/customers', label: 'Customers', icon: <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.87M16 3.13a3.5 3.5 0 0 1 0 6.75" /> },
     { to: '/campaigns', label: 'Email Campaigns', pro: true, icon: <path d="M3 6h18v12H3zM3 6l9 7 9-7" /> },
+    { to: '/communities', label: 'Communities', icon: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12zM8.5 12h.01M12 12h.01M15.5 12h.01" /> },
   ] },
   { heading: 'Kitchen', items: [
     { to: '/schedule', label: 'Schedule', icon: <path d="M4 5h16v15H4zM4 10h16M8 3v4M16 3v4" /> },
@@ -72,6 +73,7 @@ const PHONE_MENU: NavItem[] = [
   { to: '/payments', label: 'Payments', icon: <path fill="currentColor" stroke="none" fillRule="evenodd" d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1H2zm0 3.5h20V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM5 15h5v1.5H5z" /> },
 ];
 const PHONE_MENU_MORE: NavItem[] = [
+  { to: '/communities', label: 'Communities', icon: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12zM8.5 12h.01M12 12h.01M15.5 12h.01" /> },
   { to: '/customers', label: 'Customers', icon: <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.87M16 3.13a3.5 3.5 0 0 1 0 6.75" /> },
   { to: '/campaigns', label: 'Email Campaigns', pro: true, icon: <path d="M3 6h18v12H3zM3 6l9 7 9-7" /> },
   { to: '/promotions', label: 'Promotions', icon: <path d="M19 5 5 19M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM16.5 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /> },

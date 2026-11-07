@@ -11,6 +11,8 @@ import { OrderEditorPage } from './pages/orders/OrderEditorPage';
 import { MenuPage } from './pages/menu/MenuPage';
 import { MenuItemEditorPage } from './pages/menu/MenuItemEditorPage';
 import { CourseBuilderPage } from './pages/menu/CourseBuilderPage';
+import { CommunitiesPage, CommunityDesignPage } from './pages/communities/CommunitiesPage';
+import { CommunityManagePage } from './pages/communities/CommunityManagePage';
 import { CustomersPage } from './pages/customers/CustomersPage';
 import { CustomerProfilePage } from './pages/customers/CustomerProfilePage';
 import { CampaignEditorPage, CampaignsPage } from './pages/customers/CampaignsPage';
@@ -119,6 +121,9 @@ export default function App() {
               <Route path="menu/new" element={<MenuItemEditorPage />} />
               <Route path="menu/:id" element={<MenuItemEditorPage />} />
               <Route path="menu/:id/course" element={<CourseBuilderPage />} />
+              <Route path="communities" element={<CommunitiesPage />} />
+              <Route path="communities/:id" element={<CommunityManagePage />} />
+              <Route path="communities/:id/design" element={<CommunityDesignPage />} />
               <Route path="customers" element={<CustomersPage />} />
               <Route path="customers/:id" element={<CustomerProfilePage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
