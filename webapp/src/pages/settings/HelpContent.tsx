@@ -18,7 +18,7 @@ const SECTIONS: { heading: string; rows: { title: string; body: string }[] }[] =
     heading: 'Fees',
     rows: [
       { title: 'Bakeri service fee', body: FEE_BODY },
-      { title: 'Tips', body: 'Tips are 100% yours, whether customers add them at checkout, when paying a quote or invoice, or on the Payment Terminal in the iPhone app. Bakeri takes no fee on them.' },
+      { title: 'Tips', body: 'Tips are 100% yours. Bakeri takes nothing from tips.' },
     ],
   },
   {
