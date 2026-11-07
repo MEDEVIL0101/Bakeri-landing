@@ -331,13 +331,31 @@
   }
   function shopLogo(bid) { return SUPABASE_URL + '/storage/v1/object/public/business-logos/' + String(bid).toUpperCase() + '/logo.jpg'; }
 
+  // The shop's name and storefront link, for the sign-in page.
+  let shopInfo = null;
+  function loadShopInfo() {
+    if (shopInfo) return Promise.resolve(shopInfo);
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/get_baker_web_profile_by_id', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+      body: JSON.stringify({ p_user_id: shopId })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      const p = (d && d.profile) || {};
+      shopInfo = { name: String(p.business_name || p.user_name || '').replace(/\.$/, ''), slug: p.profile_slug || null };
+      return shopInfo;
+    }).catch(function () { shopInfo = { name: '', slug: null }; return shopInfo; });
+  }
+  function backToShop() {
+    return shopInfo && shopInfo.slug ? '<p style="margin-top:22px"><a class="link-btn" href="/' + esc(shopInfo.slug) + '">← Back to ' + esc(shopInfo.name || 'the shop') + '</a></p>' : '';
+  }
+
   function renderSignIn(note) {
     let email = '';
     function stepEmail(err) {
       showMessage(shopHeaderHTML({ logo: shopLogo(shopId) }) +
-        '<h2>Sign in to your memberships</h2><p>' + esc(note || 'Enter the email you used when you bought or joined. We’ll send you a 6-digit code.') + '</p>' +
+        '<h2>' + (shopInfo && shopInfo.name ? 'Log in to ' + esc(shopInfo.name) : 'Log in') + '</h2>' +
+        '<p>' + esc(note || 'For your courses and memberships. Enter the email you used when you bought or joined, and we’ll send you a 6-digit code. No password needed.') + '</p>' +
         '<input id="si-email" type="email" autocomplete="email" placeholder="you@email.com" value="' + esc(email) + '" />' +
-        '<div class="err">' + esc(err || '') + '</div><button class="btn btn-primary" id="si-go">Email me a code</button>');
+        '<div class="err">' + esc(err || '') + '</div><button class="btn btn-primary" id="si-go">Email me a code</button>' + backToShop());
       const input = document.getElementById('si-email'), go = document.getElementById('si-go');
       input.focus();
       function send() {
@@ -374,7 +392,7 @@
       input.addEventListener('input', function () { if (input.value.replace(/\D/g, '').length === 6) verify(); });
       document.getElementById('si-back').addEventListener('click', function () { stepEmail(); });
     }
-    stepEmail();
+    loadShopInfo().then(function () { stepEmail(); });
   }
 
   function renderSpaces(spaces, email) {
