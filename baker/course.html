@@ -763,7 +763,7 @@
       hideMessage();
       document.getElementById('hd').classList.remove('hidden');
       const tabs = tabsFor().map(function (t) { return t[0]; });
-      const want = location.hash.slice(1);
+      const want = q.get('tab') || location.hash.slice(1);
       if (q.get('welcome')) {
         const w = document.getElementById('welcome');
         w.innerHTML = '<div><span>Welcome to ' + esc(data.course.name) + '! 🎉 We’ve emailed you a link too — or sign in anytime with your email.</span><button aria-label="Close">✕</button></div>';
