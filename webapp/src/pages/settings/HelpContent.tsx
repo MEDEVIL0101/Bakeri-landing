@@ -10,7 +10,7 @@ const SECTIONS: { heading: string; rows: { title: string; body: string }[] }[] =
     rows: [
       { title: 'Ready Now orders', body: 'The customer’s card is authorized at checkout and charged when you accept the order. If you don’t accept within 15 minutes, it’s declined automatically and the customer isn’t charged.' },
       { title: 'Pre-orders', body: 'Charged at checkout, like any sale — the pickup date is just later. If you decline a pre-order, or don’t accept it within 24 hours, the customer is refunded automatically.' },
-      { title: 'Custom orders', body: 'The customer pays a 50% deposit when they place the order. You charge the remaining balance from the order when you’re ready.' },
+      { title: 'Custom orders', body: 'When a customer sends a request, you reply with a quote and choose how much they pay up front: nothing, any deposit you like, or the full price. They pay that amount when they accept the quote, and you send the balance as a final invoice whenever you’re ready.' },
       { title: 'Digital downloads and shipped products', body: 'Charged right away at checkout. Downloads are emailed to the customer automatically.' },
     ],
   },
@@ -18,7 +18,7 @@ const SECTIONS: { heading: string; rows: { title: string; body: string }[] }[] =
     heading: 'Fees',
     rows: [
       { title: 'Bakeri service fee', body: FEE_BODY },
-      { title: 'Tips', body: 'Tips taken with the Payment Terminal in the iPhone app are 100% yours. Bakeri takes no fee on them.' },
+      { title: 'Tips', body: 'Tips are 100% yours, whether customers add them at checkout, when paying a quote or invoice, or on the Payment Terminal in the iPhone app. Bakeri takes no fee on them.' },
     ],
   },
   {
