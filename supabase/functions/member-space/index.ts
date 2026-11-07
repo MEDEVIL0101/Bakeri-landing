@@ -6,6 +6,7 @@ import { sendEmail } from "../_shared/resend.ts";
 import { COURSE_PAGE, courseURL } from "../_shared/course.ts";
 import { UUID_RE, memberSession, resolveAccess, type Access } from "../_shared/memberAccess.ts";
 import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
+import { postWithRetry } from "../_shared/postWithRetry.ts";
 
 // Member spaces (migration 20261107000001) — sign-in and the channel behind
 // baker/course.html. Public; each action checks its own credential.
@@ -30,6 +31,8 @@ import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PAGE = 50;
 const MAX_BODY = 8000;
@@ -130,12 +133,22 @@ async function emailUpdate(db: any, access: Access, message: any) {
 }
 
 /**
- * Tells the shop a member posted — by email, once per burst: only when no
- * other member message arrived in this space in the half hour before, so a
- * lively thread is one email, not twenty. (The app also shows a count of
- * new messages on each community.)
+ * Tells the shop a member posted: a push to their phone every time (the
+ * same OneSignal route as order alerts; tapping it opens that community in
+ * the app), and an email once per burst — only when no other member message
+ * arrived in this space in the half hour before, so a lively thread is one
+ * email, not twenty.
  */
 async function notifyShop(db: any, access: Access, message: any) {
+  const { data: it } = await db.from("menu_items").select("name").eq("id", access.menuItemId).maybeSingle();
+  const text = String(message.body).replace(/\s+/g, " ").trim();
+  await postWithRetry(`${SUPABASE_URL}/functions/v1/notify-marketplace`, {
+    recipient_user_id: access.bakerId,
+    title: it?.name ?? "Your community",
+    body: `${access.name}${message.parent_id ? " (reply)" : ""}: ${text.length > 140 ? text.slice(0, 139) + "…" : text}`,
+    data: { type: "community_message", menu_item_id: access.menuItemId },
+  }, { anonKey: SUPABASE_ANON_KEY, webhookSecret: WEBHOOK_SECRET }).catch((e: unknown) => console.error("community push failed:", e));
+
   const since = new Date(new Date(message.created_at).getTime() - 30 * 60 * 1000).toISOString();
   const { count } = await db.from("channel_messages").select("id", { count: "exact", head: true })
     .eq("menu_item_id", access.menuItemId).not("enrollment_id", "is", null).neq("id", message.id)
