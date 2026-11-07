@@ -4518,18 +4518,27 @@
       headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
       body: JSON.stringify({ p_menu_item_id: item.id })
     }).then(function (r) { return r.json(); }).then(function (mods) {
-      if (!Array.isArray(mods) || !mods.length || !sheetItem || sheetItem.id !== forItem) return;
+      if (!sheetItem || sheetItem.id !== forItem) return;
+      if (!Array.isArray(mods)) mods = [];
+      const club = !!item.is_club;
+      if (!mods.length && !club) return;
       const lessons = mods.reduce(function (n, m) { return n + (m.lessons || []).length; }, 0);
-      box.innerHTML = '<div class="cc-head">What’s inside</div>' +
-        '<div class="cc-sub">' + mods.length + ' module' + (mods.length === 1 ? '' : 's') + ' · ' + lessons + ' lesson' + (lessons === 1 ? '' : 's') + ' · lifetime access</div>' +
+      const signIn = '<div class="cc-sub" style="margin-top:12px">Already a member? <a href="/baker/course.html?shop=' + encodeURIComponent(resolvedBakerId) + '">Sign in</a></div>';
+      const sub = club
+        ? ['A private community chat with ' + escapeHtml(String((profile && (profile.business_name || profile.user_name)) || 'the shop').replace(/\.$/, '')) + ' and other members']
+            .concat(lessons ? [lessons + ' resource' + (lessons === 1 ? '' : 's') + ' in the library'] : [])
+            .concat([item.club_interval ? 'Cancel anytime' : 'Lifetime access'])
+        : [mods.length + ' module' + (mods.length === 1 ? '' : 's'), lessons + ' lesson' + (lessons === 1 ? '' : 's'), 'lifetime access', 'a discussion with other students'];
+      box.innerHTML = '<div class="cc-head">' + (club ? 'What members get' : 'What’s inside') + '</div>' +
+        '<div class="cc-sub">' + sub.join(' · ') + '</div>' +
         mods.map(function (m, i) {
-          return '<details class="cc-mod"' + (i === 0 ? ' open' : '') + '><summary>' + escapeHtml(m.title || 'Module') +
+          return '<details class="cc-mod"' + (i === 0 ? ' open' : '') + '><summary>' + escapeHtml(m.title || (club ? 'Section' : 'Module')) +
             '<span class="n">' + (m.lessons || []).length + '</span></summary>' +
             (m.lessons || []).map(function (l) {
-              return '<div class="cc-lesson"><span class="ic">' + (l.is_preview ? '▶' : '🔒') + '</span><span>' + escapeHtml(l.title || 'Lesson') + '</span>' +
+              return '<div class="cc-lesson"><span class="ic">' + (l.is_preview ? '▶' : '🔒') + '</span><span>' + escapeHtml(l.title || (club ? 'Post' : 'Lesson')) + '</span>' +
                 (l.is_preview ? '<a href="/baker/course.html?preview=' + encodeURIComponent(item.id) + '" target="_blank" rel="noopener">Free preview</a>' : '') + '</div>';
             }).join('') + '</details>';
-        }).join('');
+        }).join('') + signIn;
       box.classList.add('show');
       document.getElementById('item-sheet-bottom').classList.add('show');
     }).catch(function () {});
