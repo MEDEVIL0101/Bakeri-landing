@@ -465,7 +465,8 @@
     document.getElementById('bar').style.width = (all.length ? Math.round(done / all.length * 100) : 0) + '%';
     const ob = document.getElementById('owner-bar');
     if (data.owner) {
-      ob.innerHTML = 'Owner preview — this is exactly what your ' + (isClub() ? 'members' : 'students') + ' see. You post here as ' + esc(data.shop.name || 'your shop') + '.';
+      ob.innerHTML = 'Preview — this is what your ' + (isClub() ? 'members' : 'students') + ' see. To post as ' +
+        esc(String(data.shop.name || 'your shop').replace(/\.$/, '')) + ', open <a href="/app/communities/' + esc(data.course.id) + '" target="_top">Manage</a>.';
       ob.classList.remove('hidden');
     } else if (!data.enrolled) {
       ob.innerHTML = 'You’re looking at the free preview. ' + (data.shop.slug ? '<a href="/' + esc(data.shop.slug) + '">Get full access →</a>' : '');
@@ -575,7 +576,7 @@
   function messageHTML(m, inThread) {
     const removed = m.deleted;
     const canDelete = !removed && (feed.me && (feed.me.owner || m.mine));
-    const tools = removed ? '' : '<div class="tools">' +
+    const tools = removed || (feed.me && feed.me.owner) ? '' : '<div class="tools">' +
       '<span class="emoji-pop">' + EMOJI.map(function (e) { return '<button data-act="react" data-emoji="' + e + '" title="React">' + e + '</button>'; }).join('') + '</span>' +
       (!inThread && !m.parent_id ? '<button data-act="thread" title="Reply in thread">💬</button>' : '') +
       (feed.me && feed.me.owner && !m.parent_id ? '<button data-act="pin" title="' + (m.is_pinned ? 'Unpin' : 'Pin to the top') + '">📌</button>' : '') +
@@ -596,6 +597,15 @@
 
   function composerHTML(id, placeholder) {
     if (!feed.me) return '';
+    if (feed.me.owner) {
+      // Preview: the box students type in, shown as they see it but inert —
+      // the shop posts from Manage (web app / iPhone app → Communities).
+      return data.space && data.space.members_can_post !== false
+        ? '<div class="composer"><div class="composer-box" style="opacity:.6"><textarea rows="1" disabled placeholder="' + esc(placeholder) + '"></textarea>' +
+          '<div class="composer-row"><span class="hint">' + (isClub() ? 'Members' : 'Students') + ' write here · preview only</span><span class="grow"></span>' +
+          '<button class="btn btn-primary btn-sm" disabled>Send</button></div></div></div>'
+        : '<div class="composer-off">Only ' + esc(String(data.shop.name || 'the shop').replace(/\.$/, '')) + ' posts here. React to join in.</div>';
+    }
     if (!feed.me.can_post) return '<div class="composer-off">Only ' + esc(data.shop.name || 'the shop') + ' posts here. React to join in.</div>';
     const ownerTop = feed.me.owner && id === 'c-main';
     return '<div class="composer"><div class="composer-box"><textarea id="' + id + '" rows="1" placeholder="' + esc(placeholder) + '"></textarea>' +
@@ -638,9 +648,8 @@
     pins.innerHTML = feed.pinned.length ? '<details class="pins"' + (feed.pinned.length <= 2 ? ' open' : '') + '><summary>📌 ' + feed.pinned.length + ' pinned</summary>' +
       feed.pinned.map(function (m) { return messageHTML(m, true); }).join('') + '</details>' : '';
     if (!feed.messages.length) {
-      el.innerHTML = heroHTML() + '<div class="empty"><h3>Say hello 👋</h3>' + (feed.me && feed.me.owner
-        ? 'Welcome your ' + (isClub() ? 'members' : 'students') + ', share what’s coming, or pin the house rules.'
-        : 'This is the place to ask questions, share what you made, and hear from ' + esc(String(data.shop.name || 'the shop').replace(/\.$/, '')) + '.') + '</div>';
+      el.innerHTML = heroHTML() + '<div class="empty"><h3>Say hello 👋</h3>' + (
+        'This is the place to ask questions, share what you made, and hear from ' + esc(String(data.shop.name || 'the shop').replace(/\.$/, '')) + '.') + '</div>';
       return;
     }
     let html = (feed.more ? '' : heroHTML()) + (feed.more ? '<button class="btn btn-line btn-sm more-btn" id="older">Load earlier messages</button>' : '');
