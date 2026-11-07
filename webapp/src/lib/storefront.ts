@@ -46,7 +46,7 @@ export const PATTERNS = ['Standard', 'Polka Dot', 'Stripes', 'Gingham', 'Pumpkin
 
 // v2 (profiles.storefront_design — Models/StorefrontDesign.swift)
 export interface CardColors { background?: string; title?: string; button?: string; text?: string }
-export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'links' | 'about' | 'info' | 'emailCapture' | 'referral';
+export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'links' | 'about' | 'info' | 'emailCapture' | 'referral' | 'offer';
 export interface V2Block {
   type: V2CardType;
   hidden?: boolean;
@@ -68,6 +68,24 @@ export interface V2Block {
   forms_expanded?: string;
   /** Menu block on a form site: form listing ids (lowercased) in display order. */
   forms_order?: string[];
+  // Course / club card ('offer', one per listing_id): its words and look.
+  blurb?: string;
+  button_label?: string;
+  border?: boolean;
+  border_color?: string;
+  glow?: boolean;
+  glow_color?: string;
+  shake?: boolean;
+}
+
+/** A block's identity: its type, or 'offer:<listing id>' for a course/club card. */
+export function blockKey(b: Pick<V2Block, 'type' | 'listing_id'>): string {
+  return b.type === 'offer' ? `offer:${String(b.listing_id ?? '').toLowerCase()}` : b.type;
+}
+
+/** Listed courses and clubs — each gets its own card (next.html offerListings). */
+export function offerListings(data: Pick<StorefrontData, 'listings'>): any[] {
+  return (data.listings ?? []).filter((l: any) => l.listing_kind === 'digital' && l.is_course);
 }
 export interface FocusPoint { x: number; y: number }
 export interface LinkDesign { background?: string; text?: string; border?: boolean; border_color?: string; glow?: boolean; glow_color?: string; /** Order-form cards only. */ shake?: boolean }
@@ -105,6 +123,7 @@ export const V2_CARDS: { type: V2CardType; label: string; navByDefault: boolean;
   { type: 'info', label: 'Before You Order', navByDefault: true, parts: [{ key: 'policies', label: 'Store policies' }, { key: 'faq', label: 'FAQ' }, { key: 'hours', label: 'Pickup hours' }] },
   { type: 'emailCapture', label: 'Mailing List Signup', navByDefault: false },
   { type: 'referral', label: 'Bakerï Referral', navByDefault: false },
+  { type: 'offer', label: 'Course / club', navByDefault: false },
 ];
 /** Same names, weights and Google Fonts specs as next.html DISPLAY_FONTS. */
 export const V2_FONT_DEFS: { name: string; w: number; gf: string | null; group: 'Classic' | 'Clean' | 'Fun' | 'Script' }[] = [
@@ -156,7 +175,7 @@ export function v2DefaultTitle(t: V2CardType, firstName: string): string {
   return {
     leadMagnet: 'Free download', menu: 'Shop my Menu', products: 'Shop my Products', links: `More from ${firstName}`,
     about: `Meet ${firstName}`, info: 'Before you order', emailCapture: 'Join my list',
-    referral: 'Start your own shop on Bakerï!',
+    referral: 'Start your own shop on Bakerï!', offer: '',
   }[t];
 }
 
@@ -471,7 +490,23 @@ function referralStartsOn(): boolean {
   return !!accountCreatedAt && accountCreatedAt >= REFERRAL_CARD_LAUNCH;
 }
 
-export function ensureDesign(d: StorefrontDraft): StorefrontDesign {
+export function ensureDesign(d: StorefrontDraft, data?: Pick<StorefrontData, 'listings'>): StorefrontDesign {
+  const design = ensureDesignBase(d);
+  if (!data) return design;
+  // Every listed course/club has a card; ones the layout doesn't mention go
+  // after Products (or the last course card), as on the page (addMissingOffers).
+  const blocks = [...(design.blocks ?? [])];
+  const missing = offerListings(data).map((l) => String(l.id).toLowerCase())
+    .filter((id) => !blocks.some((b) => b.type === 'offer' && String(b.listing_id ?? '').toLowerCase() === id));
+  if (!missing.length) return design;
+  let at = blocks.findIndex((b) => b.type === 'products');
+  blocks.forEach((b, i) => { if (b.type === 'offer' && i > at) at = i; });
+  if (at === -1) { const ref = blocks.findIndex((b) => b.type === 'referral'); at = ref === -1 ? blocks.length - 1 : ref - 1; }
+  blocks.splice(at + 1, 0, ...missing.map((id) => ({ type: 'offer' as const, listing_id: id })));
+  return { ...design, blocks };
+}
+
+function ensureDesignBase(d: StorefrontDraft): StorefrontDesign {
   const stored = d.storefront_design?.blocks;
   if (stored?.length) {
     // next.html appends any card type the saved list omits, visible, at the

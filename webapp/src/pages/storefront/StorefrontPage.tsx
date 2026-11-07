@@ -11,16 +11,17 @@ import {
   AboutEditor, FAQEditor, HoursEditor, LinksEditor, ListingsInfo, MailingEditor, PoliciesEditor,
   ProfileEditor, ThemeEditor, type EditorProps,
 } from './Editors';
-import { CardSettings, DesignEditor, ReferralCardInfo } from './V2Editors';
+import { CardSettings, DesignEditor, OfferCardSettings, ReferralCardInfo } from './V2Editors';
 
 type Panel =
   | 'home' | 'profile' | 'theme' | 'links' | 'about' | 'faq' | 'policies' | 'hours' | 'mailing'
-  | 'menu' | 'physical' | 'digital' | 'form' | 'design' | `card:${V2CardType}`;
+  | 'menu' | 'physical' | 'digital' | 'form' | 'design' | `card:${V2CardType}` | `card:offer:${string}`;
 
 /** Where a tap in the preview should land in the editor. */
 function panelForTap(blockType: string, v2: boolean): Panel {
   if (blockType === 'identity') return 'profile';
   if (blockType === 'design') return 'design';
+  if (v2 && blockType.startsWith('offer:')) return `card:${blockType}` as Panel;
   if (v2 && ['leadMagnet', 'menu', 'products', 'links', 'about', 'info', 'emailCapture'].includes(blockType)) return `card:${blockType as V2CardType}`;
   const map: Record<string, Panel> = {
     menu: 'menu', physical: 'physical', digital: 'digital', form: 'form', links: 'links', about: 'about',
@@ -113,6 +114,7 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
     case 'design': editor = <DesignEditor {...props} />; break;
     case 'home': editor = null; break;
     default: {
+      if (panel.startsWith('card:offer:')) { editor = <OfferCardSettings {...props} listingId={panel.slice(11)} />; break; }
       const t = panel.slice(5) as V2CardType;
       const content: Record<string, ReactNode> = {
         links: <LinksEditor {...props} />, about: <AboutEditor {...props} />, menu: <ListingsInfo kind="menu" />,

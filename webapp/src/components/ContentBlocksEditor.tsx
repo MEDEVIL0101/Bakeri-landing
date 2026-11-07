@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Input, Select, Textarea } from './ui';
 import {
   BLOCK_KINDS, COURSE_BLOCK_KINDS, blockLabel, newBlock, uploadContentImage, videoEmbedURL,
@@ -213,6 +213,76 @@ function PhotoUpload({ userId, urls, onChange, onAdded, single, hint }: {
       {hint && <p className="small muted">{hint}</p>}
       {err && <p className="small warn-text">{err}</p>}
     </div>
+  );
+}
+
+/**
+ * The content of a product page, lesson or post, as a field: collapsed to a
+ * preview of what's written (with "Open editor"), and a full-screen writing
+ * view — a wide document with the live result beside it — so a vendor sees
+ * the whole piece while they write, like a page in Pages or Word.
+ */
+export function ContentBlocksField({ userId, blocks, onChange, course, title, heading, actions, emptyHint }: {
+  userId: string;
+  blocks: ContentBlock[];
+  onChange: (update: (prev: ContentBlock[]) => ContentBlock[]) => void;
+  course?: boolean;
+  /** Shown in the editor's top bar. */
+  title: string;
+  /** Extra fields at the top of the document (e.g. the lesson title). */
+  heading?: ReactNode;
+  /** Buttons in the editor's top bar (e.g. Save). */
+  actions?: ReactNode;
+  emptyHint?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); };
+  }, [open]);
+  const words = blocks.reduce((n, b) => n + [b.text, b.title, ...(b.items ?? [])].join(' ').split(/\s+/).filter(Boolean).length, 0);
+  return (
+    <>
+      <div className="cb-field">
+        {blocks.length ? (
+          <button type="button" className="cb-collapsed" onClick={() => setOpen(true)} aria-label="Open the editor">
+            <ContentBlocksPreview blocks={blocks} />
+          </button>
+        ) : (
+          <button type="button" className="cb-empty" onClick={() => setOpen(true)}>
+            <strong>Start writing</strong>
+            <span className="small muted">{emptyHint ?? 'Text, headings, lists, photos, video and files — laid out like a page.'}</span>
+          </button>
+        )}
+        <div className="cb-field-bar">
+          <span className="small muted">{blocks.length ? `${blocks.length} block${blocks.length === 1 ? '' : 's'} · ${words} word${words === 1 ? '' : 's'}` : 'Empty'}</span>
+          <Button type="button" variant="secondary" onClick={() => setOpen(true)}>{blocks.length ? 'Open editor' : 'Start writing'}</Button>
+        </div>
+      </div>
+      {open && (
+        <div className="cb-fullscreen" role="dialog" aria-modal="true" aria-label={title}>
+          <header className="cb-fs-bar">
+            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>← Done</button>
+            <span className="cb-fs-title">{title}</span>
+            <div className="row-gap">{actions}</div>
+          </header>
+          <div className="cb-fs-body">
+            <div className="cb-fs-doc">
+              {heading}
+              <ContentBlocksEditor userId={userId} blocks={blocks} onChange={onChange} course={course} />
+            </div>
+            <aside className="cb-fs-live">
+              <div className="cb-fs-live-label">How it looks</div>
+              {blocks.length ? <ContentBlocksPreview blocks={blocks} /> : <p className="small muted">Your content appears here as you write.</p>}
+            </aside>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

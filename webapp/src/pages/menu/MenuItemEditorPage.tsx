@@ -11,7 +11,7 @@ import { listRecipes } from '../../lib/data';
 import { formatMoney, fromLocalInput, parseNumber, toDateInput, toDateTimeInput } from '../../lib/format';
 import type { ListingKind } from '../../lib/types';
 import { blocksFromRow } from '../../lib/contentBlocks';
-import { ContentBlocksEditor, ContentBlocksPreview } from '../../components/ContentBlocksEditor';
+import { ContentBlocksField, ContentBlocksPreview } from '../../components/ContentBlocksEditor';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const isFood = (k: ListingKind) => k === 'ready_now' || k === 'preorder' || k === 'custom';
@@ -285,8 +285,14 @@ export function MenuItemEditorPage() {
           </Card>
 
           {userId && (
-            <Card title="Product page" actions={d.content_blocks.length > 0 ? <span className="small muted">{d.content_blocks.length} block{d.content_blocks.length === 1 ? '' : 's'}</span> : undefined}>
-              <ContentBlocksEditor userId={userId} blocks={d.content_blocks}
+            <Card title={d.is_club ? 'Sales page' : d.is_course ? 'Sales page' : 'Product page'}>
+              <p className="small muted" style={{ marginTop: 0 }}>
+                {d.is_course
+                  ? `What people read before they ${d.is_club ? 'join' : 'buy'}: who it’s for, what’s inside, what they’ll get. The ${d.is_club ? 'library sections' : 'lesson list'} and free previews show below it automatically.`
+                  : 'The page customers see when they open this product. Without one, they see the description above.'}
+              </p>
+              <ContentBlocksField userId={userId} blocks={d.content_blocks} title={d.name || 'Product page'}
+                heading={<div className="cb-fs-heading">{d.name || 'Untitled'}</div>}
                 onChange={(fn) => setDraft((prev) => (prev ? { ...prev, content_blocks: fn(prev.content_blocks) } : prev))} />
             </Card>
           )}

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { SortableList } from '../../components/Sortable';
 import {
-  BLOCK_LABELS, V2_CARDS, ensureDesign, v2DefaultTitle, type BlockType, type LayoutBlock, type V2Block,
+  BLOCK_LABELS, V2_CARDS, blockKey, ensureDesign, offerListings, v2DefaultTitle, type BlockType, type LayoutBlock, type V2Block,
 } from '../../lib/storefront';
 import type { EditorProps } from './Editors';
 
@@ -35,19 +35,24 @@ export function HomeSections({ v2, props, changes, open }: {
 
   let blocks: ReactNode;
   if (v2) {
-    const design = ensureDesign(draft);
-    const list = design.blocks ?? [];
+    const design = ensureDesign(draft, data);
+    const offers = offerListings(data);
+    // A course/club card whose listing was deleted or unlisted isn't on the page.
+    const list = (design.blocks ?? []).filter((b) => b.type !== 'offer' || offers.some((o) => String(o.id).toLowerCase() === String(b.listing_id).toLowerCase()));
     const setBlocks = (next: V2Block[]) => set({ storefront_design: { ...design, blocks: next } });
     blocks = (
-      <SortableList items={list} keyOf={(b) => b.type} onReorder={setBlocks} className="site-blocks"
-        renderRow={(b, handle) => (
-          <BlockRow handle={handle} hidden={!!b.hidden}
-            kind={b.type === 'info' ? 'Policies, FAQ & hours' : V2_CARDS.find((c) => c.type === b.type)?.label}
-            title={b.title || v2DefaultTitle(b.type, data.firstName)}
-            sub=""
-            onOpen={() => open(`card:${b.type}`)}
-            onToggle={(show) => setBlocks(list.map((x) => (x.type === b.type ? { ...x, hidden: !show } : x)))} />
-        )} />
+      <SortableList items={list} keyOf={blockKey} onReorder={setBlocks} className="site-blocks"
+        renderRow={(b, handle) => {
+          const offer = b.type === 'offer' ? offers.find((o) => String(o.id).toLowerCase() === String(b.listing_id).toLowerCase()) : null;
+          return (
+            <BlockRow handle={handle} hidden={!!b.hidden}
+              kind={offer ? (offer.is_club ? 'Club' : 'Course') : b.type === 'info' ? 'Policies, FAQ & hours' : V2_CARDS.find((c) => c.type === b.type)?.label}
+              title={b.title || (offer ? offer.name : v2DefaultTitle(b.type, data.firstName))}
+              sub=""
+              onOpen={() => open(`card:${blockKey(b)}`)}
+              onToggle={(show) => setBlocks(list.map((x) => (blockKey(x) === blockKey(b) ? { ...x, hidden: !show } : x)))} />
+          );
+        }} />
     );
   } else {
     const list = draft.storefront_block_layout;

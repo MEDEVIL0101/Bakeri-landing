@@ -121,6 +121,9 @@ export interface MenuItem {
   is_club?: boolean;
   /** 'month' / 'year' = a subscription; null = one-time. */
   club_interval?: 'month' | 'year' | null;
+  /** The members' channel (migration 20261107000001). */
+  channel_enabled?: boolean;
+  members_can_post?: boolean;
   /** Editorial product page (lib/contentBlocks.ts); null = plain description. */
   content_blocks?: unknown[] | null;
   /** Limited-time add-on offered in the cart (migration 20261106000002). */

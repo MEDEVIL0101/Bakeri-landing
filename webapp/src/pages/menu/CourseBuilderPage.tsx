@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
 import { Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, Input, PageHeader, Spinner, Toggle, useLoad, useToast } from '../../components/ui';
-import { ContentBlocksEditor } from '../../components/ContentBlocksEditor';
+import { ContentBlocksField } from '../../components/ContentBlocksEditor';
+import { supabase } from '../../lib/supabase';
 import { listMenuItems } from '../../lib/menu';
 import {
   COURSE_PAGE, addLesson, addModule, addStudent, deleteLesson, deleteModule, emailStudentLink, listStudents, loadCourse,
@@ -10,9 +11,12 @@ import {
 } from '../../lib/courses';
 
 /**
- * Course builder (Courses, 2026-11-06): modules and lessons on the left, the
- * selected lesson on the right (title, free preview, content blocks — video,
- * text, photos, files), and a Students tab. iOS: CourseBuilderView.swift.
+ * Course / club builder (2026-11-06, member spaces 2026-11-07): sections and
+ * lessons (a club's library) on the left, the selected one on the right —
+ * its content opens in a full-screen writing view — plus Members and
+ * Community tabs. "Preview as a member" opens the real member page as the
+ * owner (course.html?owner=), which always shows everything.
+ * iOS: CourseBuilderView.swift.
  */
 export function CourseBuilderPage() {
   const { id = '' } = useParams();
@@ -20,7 +24,7 @@ export function CourseBuilderPage() {
   const toast = useToast();
   const items = useLoad(() => (userId ? listMenuItems(userId) : Promise.resolve([])), [userId]);
   const item = items.data?.find((m) => m.id === id);
-  const [tab, setTab] = useState<'lessons' | 'students'>('lessons');
+  const [tab, setTab] = useState<'lessons' | 'students' | 'community'>('lessons');
   const [modules, setModules] = useState<CourseModule[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -98,32 +102,61 @@ export function CourseBuilderPage() {
   if (items.loading || !modules) return <div className="page"><Spinner /></div>;
   if (!item) return <div className="page"><ErrorBanner message="This course couldn’t be found." /></div>;
 
+  const club = !!item.is_club;
+  const W = club
+    ? { section: 'Section', sections: 'sections', lesson: 'Post', lessons: 'posts', people: 'Members', person: 'member', content: 'Library' }
+    : { section: 'Module', sections: 'modules', lesson: 'Lesson', lessons: 'lessons', people: 'Students', person: 'student', content: 'Lessons' };
+  const ownerURL = `${COURSE_PAGE}?owner=${id}`;
   const header = (
     <PageHeader
       back={<Link to={`/menu/${id}`} className="back-link">{item.name}</Link>}
-      title="Course content"
-      subtitle={`${modules.length} module${modules.length === 1 ? '' : 's'} · ${lessonCount} lesson${lessonCount === 1 ? '' : 's'}`}
+      title={club ? 'Club' : 'Course'}
+      subtitle={`${modules.length} ${modules.length === 1 ? W.section.toLowerCase() : W.sections} · ${lessonCount} ${lessonCount === 1 ? W.lesson.toLowerCase() : W.lessons}${item.is_listed_in_marketplace ? '' : ' · not listed yet'}`}
       actions={
         <div className="row-gap">
           <div className="seg">
-            <button className={tab === 'lessons' ? 'active' : ''} onClick={() => setTab('lessons')}>Lessons</button>
-            <button className={tab === 'students' ? 'active' : ''} onClick={() => setTab('students')}>Students</button>
+            <button className={tab === 'lessons' ? 'active' : ''} onClick={() => setTab('lessons')}>{W.content}</button>
+            <button className={tab === 'community' ? 'active' : ''} onClick={() => setTab('community')}>Community</button>
+            <button className={tab === 'students' ? 'active' : ''} onClick={() => setTab('students')}>{W.people}</button>
           </div>
-          <a className="btn btn-secondary" href={`${COURSE_PAGE}?preview=${id}`} target="_blank" rel="noreferrer"><span>Preview</span></a>
+          <a className="btn btn-secondary" href={ownerURL} target="_blank" rel="noreferrer"><span>Preview as a {W.person} ↗</span></a>
         </div>
       }
     />
   );
+  const steps = [
+    { done: modules.length > 0 && lessonCount > 0, label: `Add your first ${W.lesson.toLowerCase()}`, hint: club ? 'Resources members get: guides, videos, recipes, files.' : 'A module is a section; lessons go inside it.' },
+    { done: !!item.is_listed_in_marketplace, label: 'List it on your storefront', hint: 'It gets its own card on your page, with the join/buy button.', to: `/menu/${id}` },
+    { done: false, label: `Preview it as a ${W.person}`, hint: 'See exactly what buyers get, before anyone has paid.', href: ownerURL },
+  ];
+  const showGuide = lessonCount < 2 || !item.is_listed_in_marketplace;
 
   return (
     <div className="page">
       {header}
       {error && <ErrorBanner message={error} />}
-      {tab === 'students' ? <Students menuItemId={id} userId={userId!} /> : (
+      {showGuide && tab === 'lessons' && (
+        <Card title={`Set up your ${club ? 'club' : 'course'}`}>
+          <ol className="setup-steps">
+            {steps.map((s) => (
+              <li key={s.label} className={s.done ? 'done' : ''}>
+                <span className="setup-dot">{s.done ? '✓' : ''}</span>
+                <span className="grow"><strong>{s.label}</strong><span className="small muted">{s.hint}</span></span>
+                {s.to && !s.done && <Link className="link-btn small" to={s.to}>Open</Link>}
+                {s.href && <a className="link-btn small" href={s.href} target="_blank" rel="noreferrer">Open ↗</a>}
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
+      {tab === 'community' ? <CommunitySettings item={item} ownerURL={ownerURL} club={club} onSaved={() => items.reload()} /> :
+       tab === 'students' ? <Students menuItemId={id} userId={userId!} club={club} /> : (
         <div className="course-grid">
           <div className="course-outline">
             {modules.length === 0 && (
-              <EmptyState title="Start with a module" body="A module is a section of your course — e.g. “Tempering basics”. Add lessons inside it." />
+              <EmptyState title={`Start with a ${W.section.toLowerCase()}`} body={club
+                ? 'A section groups your library — e.g. “Holiday recipes” or “Monthly live replays”. Add posts inside it.'
+                : 'A module is a section of your course — e.g. “Tempering basics”. Add lessons inside it.'} />
             )}
             {modules.map((m, mi) => (
               <div className="co-module" key={m.id}>
@@ -152,26 +185,28 @@ export function CourseBuilderPage() {
                     </div>
                   </div>
                 ))}
-                <button type="button" className="cb-add-btn" onClick={() => newLesson(m)}>+ Lesson</button>
+                <button type="button" className="cb-add-btn" onClick={() => newLesson(m)}>+ {W.lesson}</button>
               </div>
             ))}
-            <Button type="button" variant="secondary" onClick={newModule}>+ Add module</Button>
+            <Button type="button" variant="secondary" onClick={newModule}>+ Add {W.section.toLowerCase()}</Button>
           </div>
 
           <div className="course-lesson">
             {!draft ? (
-              <Card><p className="muted">Pick a lesson on the left, or add one.</p></Card>
+              <Card><p className="muted">Pick a {W.lesson.toLowerCase()} on the left, or add one.</p></Card>
             ) : (
-              <Card title="Lesson" actions={
+              <Card title={W.lesson} actions={
                 <div className="row-gap">
                   {dirty && <span className="small muted">Unsaved changes</span>}
-                  <Button type="button" onClick={save} loading={saving} disabled={!dirty}>Save lesson</Button>
+                  <Button type="button" onClick={save} loading={saving} disabled={!dirty}>Save</Button>
                 </div>
               }>
-                <Field label="Title"><Input value={draft.title} onChange={(e) => setD({ title: e.target.value })} placeholder="Tempering chocolate three easy ways" /></Field>
+                <Field label="Title"><Input value={draft.title} onChange={(e) => setD({ title: e.target.value })} placeholder={club ? 'December recipe pack' : 'Tempering chocolate three easy ways'} /></Field>
                 <Toggle checked={draft.is_preview} onChange={(v) => setD({ is_preview: v })} label="Free preview"
-                  hint="Anyone can watch this lesson from your product page — a taster before they buy." />
-                <ContentBlocksEditor userId={userId!} blocks={draft.blocks} course
+                  hint={`Anyone can open this from your sales page — a taster before they ${club ? 'join' : 'buy'}.`} />
+                <ContentBlocksField userId={userId!} blocks={draft.blocks} course title={draft.title || `Untitled ${W.lesson.toLowerCase()}`}
+                  heading={<input className="cb-fs-heading" value={draft.title} placeholder="Title" onChange={(e) => setD({ title: e.target.value })} />}
+                  actions={<>{dirty && <span className="small muted">Unsaved</span>}<Button type="button" onClick={save} loading={saving} disabled={!dirty}>Save</Button></>}
                   onChange={(fn) => { setDraft((d) => (d ? { ...d, blocks: fn(d.blocks) } : d)); setDirty(true); }} />
                 <div className="row-gap" style={{ justifyContent: 'space-between', marginTop: 12 }}>
                   <button type="button" className="link-btn small" onClick={() => setConfirm({
@@ -181,8 +216,8 @@ export function CourseBuilderPage() {
                       setModules((ms) => (ms ?? []).map((m) => ({ ...m, lessons: m.lessons.filter((x) => x.id !== draft.id) })));
                       setSelected(null); setDraft(null); setDirty(false);
                     },
-                  })}>Delete lesson</button>
-                  <Button type="button" onClick={save} loading={saving} disabled={!dirty}>Save lesson</Button>
+                  })}>Delete {W.lesson.toLowerCase()}</button>
+                  <Button type="button" onClick={save} loading={saving} disabled={!dirty}>Save</Button>
                 </div>
               </Card>
             )}
@@ -197,7 +232,36 @@ export function CourseBuilderPage() {
   );
 }
 
-function Students({ menuItemId, userId }: { menuItemId: string; userId: string }) {
+function CommunitySettings({ item, ownerURL, club, onSaved }: { item: any; ownerURL: string; club: boolean; onSaved: () => void }) {
+  const toast = useToast();
+  const [on, setOn] = useState(item.channel_enabled !== false);
+  const [open, setOpen] = useState(item.members_can_post !== false);
+  async function save(patch: Record<string, boolean>) {
+    const { error } = await supabase.from('menu_items').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', item.id);
+    if (error) { toast(error.message); return; }
+    toast('Saved'); onSaved();
+  }
+  const who = club ? 'members' : 'students';
+  return (
+    <div className="stack-lg">
+      <Card title="Community" actions={<a className="btn btn-primary" href={`${ownerURL}#community`} target="_blank" rel="noreferrer"><span>Open the community ↗</span></a>}>
+        <p className="muted" style={{ marginTop: 0 }}>
+          A chat for everyone in this {club ? 'club' : 'course'}, like a Slack channel: {who} post, reply in threads and react.
+          You post as your shop, pin important messages to the top, and remove anything that doesn’t belong.
+          Tick “Post as an Update” and your post is also emailed to every {club ? 'member' : 'student'}.
+        </p>
+        <Toggle checked={on} onChange={(v) => { setOn(v); save({ channel_enabled: v }); }} label="Community on"
+          hint={on ? `${club ? 'Members' : 'Students'} see a ${club ? 'Community' : 'Discussion'} tab.` : 'Hidden from members. You can still open it.'} />
+        {on && (
+          <Toggle checked={open} onChange={(v) => { setOpen(v); save({ members_can_post: v }); }} label={`${club ? 'Members' : 'Students'} can post`}
+            hint={open ? 'Everyone can start conversations and reply.' : 'Announcements only: just you post; everyone can react.'} />
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function Students({ menuItemId, userId, club }: { menuItemId: string; userId: string; club: boolean }) {
   const toast = useToast();
   const students = useLoad(() => listStudents(menuItemId), [menuItemId]);
   const [email, setEmail] = useState('');
@@ -215,7 +279,7 @@ function Students({ menuItemId, userId }: { menuItemId: string; userId: string }
 
   return (
     <div className="stack-lg">
-      <Card title="Add a student" actions={<span className="small muted">For gifts, comps, or someone who paid another way</span>}>
+      <Card title={club ? 'Add a member' : 'Add a student'} actions={<span className="small muted">For gifts, comps, or someone who paid another way</span>}>
         <div className="grid-2">
           <Field label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="student@email.com" /></Field>
           <Field label="Name (optional)"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
@@ -223,9 +287,9 @@ function Students({ menuItemId, userId }: { menuItemId: string; userId: string }
         {err && <p className="small warn-text">{err}</p>}
         <Button type="button" onClick={add} loading={busy} disabled={!email.trim()}>Give access & email their link</Button>
       </Card>
-      <Card title={`Students${students.data ? ` (${students.data.filter((s) => !s.revoked_at).length})` : ''}`}>
+      <Card title={`${club ? 'Members' : 'Students'}${students.data ? ` (${students.data.filter((s) => !s.revoked_at).length})` : ''}`}>
         {students.loading ? <Spinner /> : !students.data?.length ? (
-          <p className="muted">No students yet. Everyone who buys this course appears here.</p>
+          <p className="muted">{club ? 'No members yet. Everyone who joins appears here.' : 'No students yet. Everyone who buys this course appears here.'}</p>
         ) : (
           <table className="table">
             <thead><tr><th>Student</th><th>Joined</th><th>Last opened</th><th>Lessons done</th><th /></tr></thead>

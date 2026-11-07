@@ -4,13 +4,13 @@ import { getOrCreateReferralCode } from '../../lib/account';
 import { Button, Field, Input, Modal, Select, Textarea, Toggle, ErrorBanner } from '../../components/ui';
 import { menuImageURL } from '../../lib/menu';
 import {
-  V2_CARDS, V2_FONT_DEFS, V2_FONT_GROUPS, ensureDesign, loadV2FontPreviews, uploadBuilderImage, v2DefaultTitle,
+  V2_CARDS, V2_FONT_DEFS, V2_FONT_GROUPS, blockKey, ensureDesign, offerListings, loadV2FontPreviews, uploadBuilderImage, v2DefaultTitle,
   type CardColors, type FocusPoint, type LinkDesign, type StorefrontData, type StorefrontDesign, type V2Block, type V2CardType,
 } from '../../lib/storefront';
 import { ColorField, PhotoPicker, Section, type EditorProps } from './Editors';
 
-function useDesign({ draft, set }: Pick<EditorProps, 'draft' | 'set'>) {
-  const design = ensureDesign(draft);
+function useDesign({ draft, set, data }: Pick<EditorProps, 'draft' | 'set' | 'data'>) {
+  const design = ensureDesign(draft, data);
   const setDesign = (patch: Partial<StorefrontDesign>) => set({ storefront_design: { ...design, ...patch } });
   return { design, setDesign };
 }
@@ -442,6 +442,72 @@ export function FocalPointModal({ title, src, point, onSave, onClose }: {
 }
 
 /** Bakerï Referral card: what it shows, with the vendor's own code. */
+/**
+ * A course or club's own card on the page (block type 'offer'): whether it
+ * shows, its words, its colours and border / glow / shake — plus the way to
+ * its content and the member view.
+ */
+export function OfferCardSettings(props: EditorProps & { listingId: string }) {
+  const { design, setDesign } = useDesign(props);
+  const id = props.listingId.toLowerCase();
+  const offer = offerListings(props.data).find((o) => String(o.id).toLowerCase() === id);
+  const blocks = design.blocks ?? [];
+  const block: V2Block = blocks.find((b) => blockKey(b) === `offer:${id}`) ?? { type: 'offer', listing_id: id };
+  const upd = (p: Partial<V2Block>) => {
+    const next = { ...block, ...p };
+    (Object.keys(next) as (keyof V2Block)[]).forEach((k) => { if (next[k] === undefined || next[k] === '' || next[k] === false) delete next[k]; });
+    const has = blocks.some((b) => blockKey(b) === `offer:${id}`);
+    setDesign({ blocks: has ? blocks.map((b) => (blockKey(b) === `offer:${id}` ? next : b)) : [...blocks, next] });
+  };
+  if (!offer) return <p className="muted">This course or club isn’t listed any more.</p>;
+  const kind = offer.is_club ? 'club' : 'course';
+  const price = `$${Number(offer.price).toFixed(2)}`;
+  const defaultButton = offer.is_club ? (offer.club_interval ? `Join — ${price}/${offer.club_interval === 'year' ? 'yr' : 'mo'}` : `Join — ${price}`) : `Get the course — ${price}`;
+  return (
+    <>
+      <Section title={`${offer.is_club ? 'Club' : 'Course'} card`}>
+        <Toggle checked={!block.hidden} onChange={(v) => upd({ hidden: !v || undefined })} label="Show this card"
+          hint={block.hidden ? `Hidden — people can still reach the ${kind} from a direct link.` : `Its own card on your page, with the ${offer.is_club ? 'join' : 'buy'} button and “Already a member? Sign in”.`} />
+        <div className="row-gap">
+          <Link className="btn btn-secondary" to={`/menu/${offer.id}/course`}><span>Edit {kind} content</span></Link>
+          <a className="btn btn-ghost" href={`/baker/course.html?owner=${offer.id}`} target="_blank" rel="noreferrer">Preview as a member ↗</a>
+        </div>
+      </Section>
+      {!block.hidden && (
+        <>
+          <Section title="Words" hint="Leave blank to use the listing’s name and description.">
+            <Field label="Title"><Input value={block.title ?? ''} placeholder={offer.name} onChange={(e) => upd({ title: e.target.value || undefined })} /></Field>
+            <Field label="Short pitch"><Textarea rows={3} value={block.blurb ?? ''} placeholder={String(offer.item_description ?? '').slice(0, 160)}
+              onChange={(e) => upd({ blurb: e.target.value || undefined })} /></Field>
+            <Field label="Button text"><Input value={block.button_label ?? ''} placeholder={defaultButton} onChange={(e) => upd({ button_label: e.target.value || undefined })} /></Field>
+          </Section>
+          <Section title="Look" hint="The card’s colours, plus a border, glow or shake to make it stand out.">
+            <CardColorFields value={block.colors ?? {}} onChange={(c) => upd({ colors: c })} />
+            <Toggle checked={!!block.border} onChange={(v) => upd({ border: v || undefined })} label="Border" />
+            {block.border && <ColorField label="Border colour" value={block.border_color} onChange={(v) => upd({ border_color: v })} />}
+            <Toggle checked={!!block.glow} onChange={(v) => upd({ glow: v || undefined })} label="Glow" />
+            {block.glow && <ColorField label="Glow colour" value={block.glow_color} onChange={(v) => upd({ glow_color: v })} />}
+            <Toggle checked={!!block.shake} onChange={(v) => upd({ shake: v || undefined })} label="Shake to draw attention" />
+          </Section>
+          <Section title="Navigation menu button" hint="A button for this card in the menu at the top of your page.">
+            <Toggle checked={!!block.nav} onChange={(v) => upd({ nav: v || undefined })} label="Show in the menu" />
+            {block.nav && (
+              <>
+                <Field label="Button text"><Input value={block.nav_label ?? ''} placeholder={block.title || offer.name} onChange={(e) => upd({ nav_label: e.target.value || undefined })} /></Field>
+                <div className="grid-2">
+                  <ColorField label="Button colour" value={block.nav_color} onChange={(v) => upd({ nav_color: v })} />
+                  <ColorField label="Text colour" value={block.nav_text_color} onChange={(v) => upd({ nav_text_color: v })} />
+                </div>
+                <Toggle checked={!!block.nav_shake} onChange={(v) => upd({ nav_shake: v || undefined })} label="Shake to draw attention" />
+              </>
+            )}
+          </Section>
+        </>
+      )}
+    </>
+  );
+}
+
 export function ReferralCardInfo() {
   const [code, setCode] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
