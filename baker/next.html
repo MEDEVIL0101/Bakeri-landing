@@ -571,8 +571,37 @@
       83% { transform: rotate(-2deg); } 86% { transform: rotate(2deg); }
       89% { transform: rotate(-1.5deg); } 92% { transform: rotate(1.5deg); } 95% { transform: rotate(-.5deg); }
     }
-    .sf-link.shake, .sf-navbtn.shake { animation: sf-shake 3.2s ease-in-out infinite; }
-    @media (prefers-reduced-motion: reduce) { .sf-link.shake, .sf-navbtn.shake { animation: none; } }
+    .sf-link.shake, .sf-navbtn.shake, .sf-offer.shake { animation: sf-shake 3.2s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .sf-link.shake, .sf-navbtn.shake, .sf-offer.shake { animation: none; } }
+
+    /* ══════════════ Course / club cards ══════════════ */
+    /* One standalone card per course or club (block type 'offer'), like
+       the Referral card: cover, what it is, a line of proof, the button,
+       and a way back in for people who already bought. */
+    .sf-offer {
+      display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 0; overflow: hidden; cursor: pointer;
+      background: var(--card-bg, #fff); color: var(--card-text, var(--text)); border-radius: var(--r); box-shadow: var(--shadow-md);
+      scroll-margin-top: 16px;
+    }
+    .sf-offer.hidden { display: none; }
+    .sf-offer-img { position: relative; min-height: 200px; background: var(--n100) center / cover; }
+    .sf-offer-img.noimg { display: flex; align-items: center; justify-content: center; font-size: 46px; }
+    .sf-offer-body { padding: var(--cpad2) var(--cpad); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    .sf-offer-kicker { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--card-muted, var(--muted)); }
+    .sf-offer-title { margin: 0; font: var(--display-weight, 800) 24px/1.15 var(--display); color: var(--card-title, var(--head-ink)); overflow-wrap: anywhere; }
+    .sf-offer-desc { margin: 0; font-size: 15px; line-height: 1.55; color: var(--card-muted, var(--muted));
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .sf-offer-stats { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; font-weight: 700; color: var(--card-text, var(--text)); }
+    .sf-offer-stats:empty { display: none; }
+    .sf-offer-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 6px; }
+    .sf-offer-actions .sf-btn { justify-content: center; flex: 1 1 220px; }
+    .sf-offer-more { flex: 0 0 auto; border: 0; background: none; padding: 6px 2px; font: 800 14px var(--body); color: var(--card-title, var(--head-ink)); text-decoration: underline; cursor: pointer; }
+    .sf-offer-signin { font-size: 13px; color: var(--card-muted, var(--muted)); }
+    .sf-offer-signin a { color: inherit; font-weight: 800; }
+    @media (max-width: 620px) {
+      .sf-offer { grid-template-columns: minmax(0, 1fr); }
+      .sf-offer-img { min-height: 0; aspect-ratio: 16 / 9; }
+    }
 
     /* ══════════════ 6. About ══════════════ */
     #pb-about { display: flex; flex-wrap: wrap; }
@@ -1450,6 +1479,7 @@
     renderInfoCard(p);
     renderEmailCapture(p);
     renderReferralCard();
+    renderOfferCards();
     renderHeaderSignupButton(p);
     document.getElementById('footer-copy').textContent = '© ' + new Date().getFullYear() + ' ' + name;
 
@@ -1522,7 +1552,26 @@
     // Bakerï Referral — never a default card (not in V2_DEFAULT_ORDER): it
     // shows only where the vendor's design includes it switched on.
     referral: 'sf-referral'
+    // Course / club cards are keyed 'offer:<listing id>' (see offerKey) and
+    // built by renderOfferCards as #sf-offer-<listing id>.
   };
+  const offerKey = function (id) { return 'offer:' + String(id).toLowerCase(); };
+  const isOfferKey = function (t) { return typeof t === 'string' && t.indexOf('offer:') === 0; };
+  // Listed courses and clubs, each of which gets its own card.
+  function offerListings() {
+    return allListings.filter(function (l) { return l.listing_kind === 'digital' && l.is_course; });
+  }
+  // Every listed course/club has a card: the ones the vendor's layout
+  // doesn't mention yet go right after the Products card (or at the end).
+  function addMissingOffers(order, cfg) {
+    const missing = offerListings().map(function (l) { return offerKey(l.id); }).filter(function (k) { return !cfg[k]; });
+    if (!missing.length) return;
+    missing.forEach(function (k) { cfg[k] = { type: 'offer', listing_id: k.slice(6), hidden: false }; });
+    let at = order.indexOf('products');
+    for (let i = order.length - 1; i > at; i--) { if (isOfferKey(order[i])) { at = i; break; } }
+    if (at === -1) { const ref = order.indexOf('referral'); at = ref === -1 ? order.length - 1 : ref - 1; }
+    order.splice.apply(order, [at + 1, 0].concat(missing));
+  }
   // Default nav set (spec): the shopping/info cards; About, Lead magnet and
   // Email capture only when the baker turns their button on (entry.nav).
   const NAV_DEFAULT = {
@@ -1543,6 +1592,13 @@
     const cfg = {};
     const sub = {};
     list.forEach(function (b) {
+      if (b && b.type === 'offer' && b.listing_id) {
+        const k = offerKey(b.listing_id);
+        if (cfg[k]) return;
+        cfg[k] = Object.assign({}, b, { hidden: !!b.hidden });
+        order.push(k);
+        return;
+      }
       if (!b || !b.type || CARD_IDS[b.type] === undefined || b.type === 'form' || cfg[b.type]) return;
       cfg[b.type] = Object.assign({}, b, { hidden: !!b.hidden });
       order.push(b.type);
@@ -1553,6 +1609,7 @@
       cfg[t] = { type: t, hidden: false };
       order.push(t);
     });
+    addMissingOffers(order, cfg);
     blockOrder = order;
     blockCfg = cfg;
     subHidden = sub;
@@ -1603,6 +1660,7 @@
       }
       order.splice(at, 0, t);
     });
+    addMissingOffers(order, cfg);
     blockOrder = order;
     blockCfg = cfg;
     subHidden = sub;
@@ -1615,6 +1673,10 @@
 
   // Every card title is renamable (entry.title); these are the defaults.
   function cardTitle(type) {
+    if (isOfferKey(type)) {
+      const o = offerItem(type);
+      return ((blockCfg[type] && blockCfg[type].title) || '').trim() || (o ? o.name : '');
+    }
     const key = type === 'form' ? 'menu' : type;
     const custom = ((blockCfg[key] && blockCfg[key].title) || '').trim();
     if (custom) return custom;
@@ -1635,6 +1697,7 @@
   }
 
   function cardElement(type) {
+    if (isOfferKey(type)) return document.getElementById('sf-offer-' + type.slice(6));
     if (type === 'menu' && sfListing) return document.getElementById(CARD_IDS.form);
     return document.getElementById(CARD_IDS[type]);
   }
@@ -2389,7 +2452,8 @@
   // ══════════════════════ Menu (Shop my Menu) ══════════════════════
 
   function menuListings() { return allListings.filter(function (l) { return l.listing_kind !== 'digital' && l.listing_kind !== 'physical'; }); }
-  function digitalListings() { return allListings.filter(function (l) { return l.listing_kind === 'digital'; }); }
+  // Courses and clubs aren't in the downloads list — each has its own card.
+  function digitalListings() { return allListings.filter(function (l) { return l.listing_kind === 'digital' && !l.is_course; }); }
   function physicalListings() { return allListings.filter(function (l) { return l.listing_kind === 'physical'; }); }
 
   function slugify(str) {
@@ -3108,6 +3172,118 @@
     btn.href = 'https://bakeriapp.com/?ref=' + encodeURIComponent(code) + '&utm_source=storefront&utm_medium=referral';
     card.classList.remove('hidden');
   }
+  // ══════════════════════ Course / club cards ══════════════════════
+  //
+  // Block entries { type: 'offer', listing_id, title?, blurb?, button_label?,
+  // colors, border, border_color, glow, glow_color, shake }. Tapping the card
+  // opens the item sheet (the sales page); the button joins a monthly/yearly
+  // club straight away or opens the sales page; "Sign in" goes to the
+  // shop's member page.
+  function offerItem(key) {
+    const id = key.slice(6);
+    return offerListings().find(function (l) { return String(l.id).toLowerCase() === id; }) || null;
+  }
+  let offerStats = {};
+  let offerStatsAsked = false;
+  function loadOfferStats() {
+    if (offerStatsAsked) return;
+    const ids = offerListings().map(function (l) { return l.id; });
+    if (!ids.length) return;
+    offerStatsAsked = true;
+    fetch(SUPABASE_URL + '/rest/v1/rpc/get_member_space_summaries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+      body: JSON.stringify({ p_ids: ids })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && typeof d === 'object') { offerStats = d; renderOfferCards(); }
+    }).catch(function () {});
+  }
+  function offerStatsLine(item) {
+    const st = offerStats[item.id] || offerStats[String(item.id).toLowerCase()] || null;
+    if (!st) return '';
+    const bits = [];
+    if (item.is_club) {
+      if (st.lessons > 0) bits.push(st.lessons + ' resource' + (st.lessons === 1 ? '' : 's'));
+      if (st.posts_30d > 0) bits.push(st.posts_30d + ' post' + (st.posts_30d === 1 ? '' : 's') + ' this month');
+      if (st.members >= 10) bits.push(st.members + ' members');
+      bits.push('Private community');
+    } else {
+      if (st.modules > 1) bits.push(st.modules + ' modules');
+      if (st.lessons > 0) bits.push(st.lessons + ' lesson' + (st.lessons === 1 ? '' : 's'));
+      if (st.previews > 0) bits.push(st.previews + ' free preview' + (st.previews === 1 ? '' : 's'));
+      if (st.members >= 10) bits.push(st.members + ' students');
+    }
+    return bits.map(function (b) { return '<span>' + escapeHtml(b) + '</span>'; }).join('');
+  }
+  function offerButtonLabel(item, cfg) {
+    const custom = ((cfg && cfg.button_label) || '').trim();
+    if (custom) return custom;
+    const price = '$' + formatPrice(item.price);
+    if (item.is_club) return item.club_interval ? 'Join — ' + price + '/' + (item.club_interval === 'year' ? 'yr' : 'mo') : 'Join — ' + price;
+    return 'Get the course — ' + price;
+  }
+  function renderOfferCards() {
+    const shell = document.getElementById('page-shell');
+    const footer = document.getElementById('site-footer');
+    loadOfferStats();
+    blockOrder.filter(isOfferKey).forEach(function (key) {
+      const item = offerItem(key);
+      const elId = 'sf-offer-' + key.slice(6);
+      let el = document.getElementById(elId);
+      if (!item) { if (el) el.classList.add('hidden'); return; }
+      const cfg = blockCfg[key] || {};
+      if (!el) {
+        el = document.createElement('section');
+        el.id = elId;
+        el.className = 'sf-offer';
+        el.dataset.block = key;
+        shell.insertBefore(el, footer);
+        el.addEventListener('click', function (e) {
+          if (isPreviewMode) return;   // the builder's tap-to-select handles it
+          if (e.target.closest('a')) return;
+          const it = offerItem(key);
+          if (!it) return;
+          if (e.target.closest('.sf-offer-join') && it.is_club && it.club_interval) { joinClub(it, e.target.closest('.sf-offer-join')); return; }
+          openItemSheet(it);
+        });
+        if (builderTapTargetsWired) {
+          el.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            bakeriBridgePost({ type: 'select', blockType: key });
+          }, { capture: true });
+        }
+      }
+      const desc = ((cfg.blurb || '').trim() || String(item.item_description || '').trim()).replace(/\s+/g, ' ').slice(0, 260);
+      const kicker = item.is_club
+        ? (item.club_interval ? 'Membership · $' + formatPrice(item.price) + ' / ' + item.club_interval : 'Membership')
+        : 'Online course · lifetime access';
+      el.innerHTML =
+        '<div class="sf-offer-img noimg">' + (item.is_club ? '✨' : '🎓') + '</div>' +
+        '<div class="sf-offer-body">' +
+          '<div class="sf-offer-kicker">' + escapeHtml(kicker) + '</div>' +
+          '<h3 class="sf-offer-title">' + escapeHtml(cardTitle(key)) + '</h3>' +
+          (desc ? '<p class="sf-offer-desc">' + escapeHtml(desc) + '</p>' : '') +
+          '<div class="sf-offer-stats">' + offerStatsLine(item) + '</div>' +
+          '<div class="sf-offer-actions">' +
+            '<button type="button" class="sf-btn sf-offer-join"' + (stripeReady ? '' : ' disabled') + '>' + escapeHtml(offerButtonLabel(item, cfg)) + '</button>' +
+            '<button type="button" class="sf-offer-more">' + (item.is_club ? 'What’s inside' : 'See the lessons') + '</button>' +
+          '</div>' +
+          '<div class="sf-offer-signin">Already a member? <a href="/baker/course.html?shop=' + encodeURIComponent(resolvedBakerId) + '">Sign in</a></div>' +
+        '</div>';
+      const img = el.querySelector('.sf-offer-img');
+      const probe = new Image();
+      probe.onload = function () { img.classList.remove('noimg'); img.textContent = ''; img.style.backgroundImage = 'url("' + probe.src + '")'; };
+      probe.src = itemImgURL(item);
+      // Look: card colours like any section, plus border / glow / shake like a link card.
+      applyCardColors(el, cfg.colors);
+      const look = cardLookStyle('rich', cfg, null);
+      const m = look.match(/box-shadow:([^;"]+)/);
+      el.style.boxShadow = m ? m[1] : '';
+      el.classList.toggle('shake', cfg.shake === true);
+      el.classList.toggle('hidden', !!cfg.hidden);
+    });
+  }
+
   function renderReferralCard() {
     const cfg = blockCfg.referral;
     if (!cfg || cfg.hidden) { fillReferralCard(null); return; }
