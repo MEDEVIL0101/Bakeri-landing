@@ -2,40 +2,60 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- A student's course (Courses, 2026-11-06). ?t=<access token> from the
-       purchase email opens the whole course; ?preview=<listing id> opens only
-       the free-preview lessons. Backend: supabase/functions/course-player. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- A member's space for a course or club (2026-11-07). Ways in:
+         ?t=<access token>               the emailed link
+         ?space=<id>&shop=<baker id>     a signed-in member (email code, kept on this device)
+         ?shop=<baker id>                "My memberships": sign in, then pick a space
+         ?owner=<id>                     the shop itself, signed in to bakeriapp.com/app
+                                         (or #at=<access token> from the iPhone app):
+                                         sees everything, posts as the shop
+         ?preview=<id>                   free-preview lessons only
+         ?club=<id>&session=<cs_…>       back from a club's Stripe Checkout
+       Backends: supabase/functions/course-player (content) and member-space
+       (sign-in + the channel). -->
   <meta name="robots" content="noindex, nofollow" />
-  <title>Your course</title>
+  <title>Members</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&display=swap" />
   <style>
     :root {
       --accent: #1A130F; --accent-fg: #fff; --bg: #FAF6EE; --surface: #fff; --ink: #1A130F; --muted: #6B5F54;
-      --faint: #948577; --line: #ECE3D5; --tint: #F1E9DD; --ok: #3F9F6B;
+      --faint: #948577; --line: #ECE3D5; --tint: #F1E9DD; --ok: #3F9F6B; --warn: #B4581E;
       --r: 16px; --body: "Archivo", -apple-system, system-ui, sans-serif;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body { margin: 0; font-family: var(--body); color: var(--ink); background: var(--bg); -webkit-font-smoothing: antialiased; }
     .hidden { display: none !important; }
     button { font-family: inherit; }
-    header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
-    .hd { max-width: 1180px; margin: 0 auto; padding: 12px 18px; display: flex; align-items: center; gap: 12px; }
-    .logo { width: 36px; height: 36px; border-radius: 50%; background: var(--tint) center / cover; flex: none; }
+    a { color: inherit; }
+
+    /* ── Header + tabs ── */
+    header { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); }
+    .hd { max-width: 1180px; margin: 0 auto; padding: 12px 18px 0; display: flex; align-items: center; gap: 12px; }
+    .logo { width: 38px; height: 38px; border-radius: 50%; background: var(--tint) center / cover; flex: none; }
     .hd-text { min-width: 0; flex: 1; }
     .hd-shop { font-size: 12px; font-weight: 700; color: var(--muted); }
-    .hd-course { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hd-shop a { text-decoration: none; }
+    .hd-course { font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .progress { flex: none; width: 150px; text-align: right; font-size: 12px; font-weight: 700; color: var(--muted); }
     .bar { height: 6px; border-radius: 9px; background: var(--tint); margin-top: 5px; overflow: hidden; }
     .bar i { display: block; height: 100%; background: var(--ok); width: 0; transition: width .3s; }
+    .tabs { max-width: 1180px; margin: 0 auto; padding: 0 12px; display: flex; gap: 4px; overflow-x: auto; }
+    .tab { border: 0; background: none; padding: 12px 10px 11px; font: 800 14px var(--body); color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+    .tab.on { color: var(--ink); border-bottom-color: var(--accent); }
+    .tab .badge { display: inline-block; min-width: 18px; padding: 1px 6px; margin-left: 6px; border-radius: 99px; background: var(--accent); color: var(--accent-fg); font-size: 11px; }
+    .owner-bar { background: #FFF6D6; color: #6A4B00; font-size: 13px; font-weight: 700; text-align: center; padding: 8px 14px; }
+    .owner-bar a { font-weight: 800; }
+
+    /* ── Library (lessons) ── */
     .layout { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 24px; padding: 22px 18px 80px; align-items: start; }
-    nav.curriculum { position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; }
+    nav.curriculum { position: sticky; top: 120px; max-height: calc(100vh - 140px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; }
+    .continue { margin: 6px 6px 10px; }
     .mod { padding: 10px 10px 4px; }
     .mod-title { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-    .membership { margin: 18px 14px 8px; padding-top: 14px; border-top: 1px solid var(--line, rgba(0,0,0,.08)); font-size: 12px; color: var(--faint); line-height: 1.5; }
-    .membership button { background: none; border: 0; padding: 0; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }
     .mod-meta { font-size: 12px; color: var(--faint); margin-top: 2px; }
     .lesson { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; border: 0; background: none; border-radius: 10px; padding: 10px; margin: 2px 0; cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--ink); }
     .lesson:hover { background: var(--tint); }
@@ -45,10 +65,10 @@
     .lesson.active .dot { border-color: rgba(255,255,255,.6); }
     .lesson.locked { color: var(--faint); }
     .tag { margin-left: auto; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; background: var(--tint); color: var(--muted); flex: none; }
-    main.player { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 28px; min-height: 60vh; }
+    main.player { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 32px 36px; min-height: 60vh; }
     .crumb { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
     h1.lesson-title { font-size: 30px; line-height: 1.15; margin: 6px 0 18px; letter-spacing: -.01em; }
-    .blocks { font-size: 16px; line-height: 1.65; }
+    .blocks { font-size: 16.5px; line-height: 1.7; max-width: 720px; }
     .blocks p { margin: 0 0 14px; }
     .blocks h4 { font-size: 20px; font-weight: 800; margin: 26px 0 8px; }
     .blocks ul { margin: 0 0 16px; padding-left: 22px; }
@@ -56,8 +76,8 @@
     .blocks ul.check li::before { content: "✔"; margin-right: 8px; font-weight: 800; }
     .blocks li { margin: 0 0 6px; }
     .blocks img { display: block; width: 100%; height: auto; border-radius: 12px; margin: 8px 0 16px; }
-    .blocks .blk-gallery { display: grid; gap: 10px; margin: 8px 0 16px; }
-    .blocks .blk-gallery img { margin: 0; }
+    .blocks .blk-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin: 8px 0 16px; }
+    .blocks .blk-gallery img { margin: 0; aspect-ratio: 1; object-fit: cover; }
     .blocks video, .blocks iframe { display: block; width: 100%; aspect-ratio: 16/9; border: 0; border-radius: 12px; background: #000; margin: 8px 0 18px; }
     .blocks .cap, .blocks .note { font-size: 13px; color: var(--muted); }
     .blocks .callout { background: var(--accent); color: var(--accent-fg); border-radius: var(--r); padding: 20px 20px 8px; margin: 8px 0 18px; }
@@ -66,16 +86,95 @@
     .blocks .file { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; margin: 8px 0 16px; text-decoration: none; color: var(--ink); font-weight: 700; }
     .blocks .file span { margin-left: auto; font-size: 13px; color: var(--muted); }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); }
-    .btn { min-height: 48px; padding: 0 22px; border-radius: 99px; border: 0; font: 800 15px var(--body); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+    .btn { min-height: 46px; padding: 0 22px; border-radius: 99px; border: 0; font: 800 15px var(--body); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+    .btn[disabled] { opacity: .5; cursor: default; }
     .btn-primary { background: var(--accent); color: var(--accent-fg); }
     .btn-line { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
+    .btn-sm { min-height: 36px; padding: 0 14px; font-size: 13px; }
     .locked-box { text-align: center; padding: 40px 10px; }
     .locked-box h2 { margin: 10px 0 6px; }
     .locked-box p { color: var(--muted); margin: 0 0 18px; }
-    .center { max-width: 460px; margin: 12vh auto; padding: 0 18px; text-align: center; }
-    .center p { color: var(--muted); line-height: 1.5; }
-    .center input { width: 100%; height: 50px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); font: 16px var(--body); margin: 10px 0; }
     .back { display: none; }
+    .empty { text-align: center; color: var(--muted); padding: 48px 20px; line-height: 1.6; }
+    .empty h3 { color: var(--ink); margin: 0 0 6px; }
+
+    /* ── Community (channel) ── */
+    .chat { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; height: calc(100vh - 106px); height: calc(100dvh - 106px); }
+    .chat.with-thread { grid-template-columns: minmax(0, 1fr) 400px; }
+    .chat-main, .thread { display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
+    .thread { border-left: 1px solid var(--line); }
+    .pins { border-bottom: 1px solid var(--line); background: #FFFCF4; }
+    .pins summary { cursor: pointer; padding: 10px 18px; font-size: 13px; font-weight: 800; color: var(--muted); list-style: none; }
+    .pins summary::-webkit-details-marker { display: none; }
+    .pins .msg { background: transparent; }
+    .feed { flex: 1; overflow-y: auto; padding: 8px 0 12px; overscroll-behavior: contain; }
+    .day { display: flex; align-items: center; gap: 12px; margin: 14px 18px 4px; font-size: 12px; font-weight: 800; color: var(--faint); }
+    .day::before, .day::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+    .msg { position: relative; display: flex; gap: 10px; padding: 8px 18px; }
+    .msg:hover { background: #FBF8F2; }
+    .msg.update { background: #F7F3FF; box-shadow: inset 3px 0 0 #8A3FC0; }
+    .av { width: 36px; height: 36px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; color: #fff; background: #8a7f88 center / cover; }
+    .msg-body { min-width: 0; flex: 1; }
+    .msg-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .msg-name { font-weight: 800; font-size: 14.5px; }
+    .shop-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; background: var(--accent); color: var(--accent-fg); }
+    .upd-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; background: #8A3FC0; color: #fff; }
+    .pin-tag { font-size: 11px; color: var(--muted); font-weight: 700; }
+    .msg-time { font-size: 12px; color: var(--faint); }
+    .msg-text { font-size: 15px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 2px; }
+    .msg-text a { color: #2D63C8; }
+    .msg-removed { font-style: italic; color: var(--faint); font-size: 14px; }
+    .msg .blocks { font-size: 15px; margin-top: 8px; }
+    .msg .blocks img, .msg .blocks video, .msg .blocks iframe { max-width: 520px; }
+    .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .react { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 2px 9px; font-size: 13px; cursor: pointer; }
+    .react.me { border-color: var(--accent); background: var(--tint); }
+    .replies-link { margin-top: 6px; border: 0; background: none; padding: 0; color: #2D63C8; font: 800 13px var(--body); cursor: pointer; }
+    .tools { position: absolute; top: -12px; right: 18px; display: none; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.08); padding: 2px; }
+    .msg:hover .tools, .msg.tools-open .tools { display: flex; }
+    .tools button { border: 0; background: none; padding: 6px 8px; font-size: 15px; cursor: pointer; border-radius: 8px; }
+    .tools button:hover { background: var(--tint); }
+    .emoji-pop { display: flex; gap: 2px; }
+    .composer { border-top: 1px solid var(--line); padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); background: var(--surface); }
+    .composer-box { border: 1.5px solid var(--line); border-radius: 14px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+    .composer-box:focus-within { border-color: var(--ink); }
+    .composer textarea { width: 100%; border: 0; outline: 0; resize: none; font: 15px/1.5 var(--body); min-height: 24px; max-height: 220px; background: transparent; }
+    .composer-row { display: flex; align-items: center; gap: 10px; }
+    .composer-row .grow { flex: 1; }
+    .composer label { font-size: 13px; font-weight: 700; color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .composer .hint { font-size: 12px; color: var(--faint); }
+    .composer-off { padding: 16px 18px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); text-align: center; }
+    .thread-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); font-weight: 800; }
+    .thread-head button { border: 0; background: none; font-size: 18px; cursor: pointer; }
+    .thread .feed .msg:first-child { border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 6px; }
+    .more-btn { display: block; margin: 8px auto; }
+
+    /* ── Membership / sign-in ── */
+    .page { max-width: 720px; margin: 0 auto; padding: 26px 18px 80px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 22px 24px; margin-bottom: 16px; }
+    .card h2 { font-size: 18px; margin: 0 0 12px; }
+    .kv { display: grid; grid-template-columns: 140px 1fr; gap: 8px 12px; font-size: 14.5px; }
+    .kv dt { color: var(--muted); }
+    .kv dd { margin: 0; font-weight: 600; }
+    .link-btn { border: 0; background: none; padding: 0; color: var(--muted); font: 700 14px var(--body); text-decoration: underline; cursor: pointer; }
+    .center { max-width: 440px; margin: 9vh auto; padding: 0 18px; text-align: center; }
+    .center .logo { width: 64px; height: 64px; margin: 0 auto 14px; }
+    .center h2 { margin: 0 0 6px; font-size: 24px; }
+    .center p { color: var(--muted); line-height: 1.55; margin: 0 0 16px; }
+    .center input { width: 100%; height: 52px; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--line); font: 17px var(--body); margin: 4px 0 12px; text-align: center; }
+    .center input.code { letter-spacing: .4em; font-size: 24px; font-weight: 800; }
+    .center .btn { width: 100%; }
+    .err { color: var(--warn); font-size: 14px; min-height: 20px; margin: 4px 0 8px; }
+    .space-list { display: grid; gap: 12px; text-align: left; margin-top: 8px; }
+    .space { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); text-decoration: none; color: var(--ink); }
+    .space:hover { border-color: var(--ink); }
+    .space-img { width: 56px; height: 56px; border-radius: 12px; background: var(--tint) center / cover; flex: none; }
+    .space-name { font-weight: 800; }
+    .space-meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .welcome { max-width: 1180px; margin: 14px auto 0; padding: 0 18px; }
+    .welcome div { background: var(--accent); color: var(--accent-fg); border-radius: var(--r); padding: 16px 20px; font-weight: 700; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .welcome button { border: 0; background: none; color: inherit; font-size: 18px; cursor: pointer; }
+
     @media (max-width: 860px) {
       .layout { grid-template-columns: minmax(0, 1fr); padding: 14px 12px 60px; }
       nav.curriculum { position: static; max-height: none; }
@@ -85,44 +184,87 @@
       .back { display: inline-flex; margin-bottom: 14px; min-height: 40px; padding: 0 14px; }
       main.player { padding: 20px 16px; }
       h1.lesson-title { font-size: 25px; }
+      .chat.with-thread { grid-template-columns: minmax(0, 1fr); }
+      .chat.with-thread .chat-main { display: none; }
+      .thread { border-left: 0; }
+      .tools { right: 10px; }
+      .msg { padding: 8px 12px; }
+      .kv { grid-template-columns: 1fr; gap: 2px 0; }
+      .kv dd { margin-bottom: 8px; }
     }
   </style>
 </head>
 <body>
   <header class="hidden" id="hd">
+    <div class="owner-bar hidden" id="owner-bar"></div>
     <div class="hd">
       <div class="logo" id="logo"></div>
       <div class="hd-text"><div class="hd-shop" id="shop"></div><div class="hd-course" id="course"></div></div>
-      <div class="progress" id="progress-wrap"><span id="progress-text"></span><div class="bar"><i id="bar"></i></div></div>
+      <div class="progress hidden" id="progress-wrap"><span id="progress-text"></span><div class="bar"><i id="bar"></i></div></div>
     </div>
+    <nav class="tabs" id="tabs"></nav>
   </header>
-  <div class="layout hidden" id="layout">
-    <nav class="curriculum" id="curriculum"></nav>
-    <main class="player" id="player"></main>
-  </div>
-  <div class="center" id="message"><p>Loading your course…</p></div>
+  <div class="welcome hidden" id="welcome"></div>
+  <div id="view"></div>
+  <div class="center" id="message"><p>Loading…</p></div>
 
 <script>
 (function () {
   const SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
   const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  const EMOJI = ['👍', '❤️', '😂', '🎉', '🙌', '😮'];
   const q = new URLSearchParams(location.search);
   let token = q.get('t');
   const previewId = q.get('preview');
-  let data = null, current = null;
+  const ownerId = q.get('owner');
+  let spaceId = q.get('space');
+  let shopId = q.get('shop');
+  let data = null, current = null, tab = null;
 
-  function call(body) {
-    return fetch(SUPABASE_URL + '/functions/v1/course-player', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY },
-      body: JSON.stringify(body)
-    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); });
+  // ── Storage (per device) ──
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  const sessionKey = function (bid) { return 'bakeri-member-session-' + bid; };
+
+  // The shop's own sign-in: the iPhone app passes #at=<access token>; the web
+  // app (same origin) keeps its Supabase session in localStorage.
+  function ownerJWT() {
+    const h = new URLSearchParams(location.hash.slice(1)).get('at');
+    if (h) { try { sessionStorage.setItem('bakeri-owner-at', h); } catch (e) {} history.replaceState(null, '', location.pathname + location.search); return h; }
+    try { const s = sessionStorage.getItem('bakeri-owner-at'); if (s) return s; } catch (e) {}
+    try {
+      const raw = JSON.parse(localStorage.getItem('sb-aqhebjxaynvtvurwedrl-auth-token') || 'null');
+      if (raw && raw.access_token) return raw.access_token;
+    } catch (e) {}
+    return null;
   }
+  const ownerToken = ownerId ? ownerJWT() : null;
+
+  function post(fn, body, jwt) {
+    return fetch(SUPABASE_URL + '/functions/v1/' + fn, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: 'Bearer ' + (jwt || ANON_KEY) },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); });
+  }
+  // How this visitor proves access to the open space.
+  function cred(extra) {
+    let c;
+    if (ownerId) c = { owner: true, menu_item_id: ownerId };
+    else if (token) c = { token: token };
+    else c = { session: load(sessionKey(shopId)), menu_item_id: spaceId };
+    return Object.assign(c, extra || {});
+  }
+  const player = function (extra) { return post('course-player', cred(extra), ownerToken); };
+  const space = function (extra) { return post('member-space', cred(extra), ownerToken); };
+
+  // ── Formatting ──
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function inline(t) {
     return esc(t).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[\s(>])_([^_]+)_(?=[\s).,!?:;<]|$)/g, '$1<em>$2</em>').replace(/\n/g, '<br>');
   }
+  function linkify(t) { return esc(t).replace(/(https?:\/\/[^\s<]+[^\s<.,!?)])/g, '<a href="$1" target="_blank" rel="noopener nofollow">$1</a>'); }
   function paras(t) { return String(t || '').split(/\n\s*\n/).map(function (p) { return p.trim() ? '<p>' + inline(p.trim()) + '</p>' : ''; }).join(''); }
   function video(u) {
     let m = String(u || '').match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{6,})/);
@@ -146,79 +288,219 @@
       default: return '';
     }
   }
+  function when(iso) {
+    const d = new Date(iso), now = new Date();
+    const t = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return d.toDateString() === now.toDateString() ? t : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + t;
+  }
+  function dayLabel(iso) {
+    const d = new Date(iso), now = new Date(), y = new Date(Date.now() - 864e5);
+    if (d.toDateString() === now.toDateString()) return 'Today';
+    if (d.toDateString() === y.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+  function fmtDate(iso) { return iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : ''; }
+  const PALETTE = ['#B24FE8', '#00A5BA', '#E91E63', '#3F9F6B', '#E07B2E', '#5C6BC0', '#8D6E63'];
+  function avatar(m) {
+    if (m.from_shop && data && data.shop) return '<div class="av" style="background-image:url(&quot;' + esc(data.shop.logo_url) + '&quot;);background-color:var(--accent)"></div>';
+    const name = String(m.author || '?');
+    let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    return '<div class="av" style="background-color:' + PALETTE[h % PALETTE.length] + '">' + esc(name.trim().charAt(0).toUpperCase() || '?') + '</div>';
+  }
 
+  function showMessage(html) {
+    document.getElementById('hd').classList.add('hidden');
+    document.getElementById('view').innerHTML = '';
+    const m = document.getElementById('message');
+    m.innerHTML = html; m.classList.remove('hidden');
+  }
+  function hideMessage() { document.getElementById('message').classList.add('hidden'); }
+
+  // ══════════ Sign in (email code) + My memberships ══════════
+  function shopHeaderHTML(shop) {
+    return '<div class="logo" style="background-image:url(&quot;' + esc(shop.logo) + '&quot;)"></div>';
+  }
+  function shopLogo(bid) { return SUPABASE_URL + '/storage/v1/object/public/business-logos/' + String(bid).toUpperCase() + '/logo.jpg'; }
+
+  function renderSignIn(note) {
+    let email = '';
+    function stepEmail(err) {
+      showMessage(shopHeaderHTML({ logo: shopLogo(shopId) }) +
+        '<h2>Sign in to your memberships</h2><p>' + esc(note || 'Enter the email you used when you bought or joined. We’ll send you a 6-digit code.') + '</p>' +
+        '<input id="si-email" type="email" autocomplete="email" placeholder="you@email.com" value="' + esc(email) + '" />' +
+        '<div class="err">' + esc(err || '') + '</div><button class="btn btn-primary" id="si-go">Email me a code</button>');
+      const input = document.getElementById('si-email'), go = document.getElementById('si-go');
+      input.focus();
+      function send() {
+        email = input.value.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { stepEmail('Please enter a valid email address.'); return; }
+        go.disabled = true; go.textContent = 'Sending…';
+        post('member-space', { send_code: true, baker_id: shopId, email: email }).then(function (r) {
+          if (!r.ok) { stepEmail(r.body.error || 'Please try again.'); return; }
+          stepCode();
+        }).catch(function () { stepEmail('Check your connection and try again.'); });
+      }
+      go.addEventListener('click', send);
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') send(); });
+    }
+    function stepCode(err) {
+      showMessage(shopHeaderHTML({ logo: shopLogo(shopId) }) +
+        '<h2>Check your email</h2><p>If <b>' + esc(email) + '</b> has a course or membership here, a code is on its way. It can take a minute.</p>' +
+        '<input id="si-code" class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" />' +
+        '<div class="err">' + esc(err || '') + '</div><button class="btn btn-primary" id="si-verify">Sign in</button>' +
+        '<p style="margin-top:16px"><button class="link-btn" id="si-back">Use a different email</button></p>');
+      const input = document.getElementById('si-code'), go = document.getElementById('si-verify');
+      input.focus();
+      function verify() {
+        const code = input.value.replace(/\D/g, '');
+        if (code.length !== 6) { stepCode('Enter the 6-digit code from your email.'); return; }
+        go.disabled = true; go.textContent = 'Checking…';
+        post('member-space', { verify_code: true, baker_id: shopId, email: email, code: code }).then(function (r) {
+          if (!r.ok) { stepCode(r.body.error || 'Please try again.'); return; }
+          store(sessionKey(shopId), r.body.session);
+          if (spaceId) bootSpace(); else renderSpaces(r.body.spaces, r.body.email);
+        });
+      }
+      go.addEventListener('click', verify);
+      input.addEventListener('input', function () { if (input.value.replace(/\D/g, '').length === 6) verify(); });
+      document.getElementById('si-back').addEventListener('click', function () { stepEmail(); });
+    }
+    stepEmail();
+  }
+
+  function renderSpaces(spaces, email) {
+    if (!spaces.length) {
+      showMessage(shopHeaderHTML({ logo: shopLogo(shopId) }) + '<h2>Nothing here yet</h2><p>We couldn’t find any courses or memberships for ' + esc(email) + ' at this shop.</p>' +
+        '<button class="btn btn-line" id="so">Sign out</button>');
+      document.getElementById('so').addEventListener('click', signOut);
+      return;
+    }
+    if (spaces.length === 1 && !q.get('list')) { spaceId = spaces[0].menu_item_id; history.replaceState(null, '', '?space=' + spaceId + '&shop=' + shopId); bootSpace(); return; }
+    showMessage(shopHeaderHTML({ logo: shopLogo(shopId) }) + '<h2>Your memberships</h2><p>Signed in as ' + esc(email) + '</p>' +
+      '<div class="space-list">' + spaces.map(function (s) {
+        return '<a class="space" href="?space=' + s.menu_item_id + '&shop=' + shopId + '"><div class="space-img"' + (s.image_url ? ' style="background-image:url(&quot;' + esc(s.image_url) + '&quot;)"' : '') + '></div>' +
+          '<div><div class="space-name">' + esc(s.name) + '</div><div class="space-meta">' + (s.is_club ? 'Club' + (s.interval ? ' · ' + s.interval + 'ly' : '') : 'Course') + ' · joined ' + fmtDate(s.joined_at) + '</div></div></a>';
+      }).join('') + '</div><p style="margin-top:22px"><button class="link-btn" id="so">Sign out</button></p>');
+    document.getElementById('so').addEventListener('click', signOut);
+  }
+  function signOut() {
+    const s = load(sessionKey(shopId));
+    if (s) post('member-space', { sign_out: true, session: s });
+    store(sessionKey(shopId), null);
+    location.href = '?shop=' + shopId;
+  }
+
+  // ══════════ The space ══════════
   function lessons() { return [].concat.apply([], data.modules.map(function (m) { return m.lessons.map(function (l) { return Object.assign({ module: m }, l); }); })); }
+  const isClub = function () { return !!(data && data.course.is_club); };
+  const channelOn = function () { return !!(data && data.enrolled && data.space && (data.space.channel_enabled || data.owner)); };
+
+  function tabsFor() {
+    const t = [];
+    if (isClub()) {
+      if (channelOn()) t.push(['community', 'Community']);
+      t.push(['library', 'Library']);
+    } else {
+      t.push(['library', 'Lessons']);
+      if (channelOn()) t.push(['community', 'Discussion']);
+    }
+    if (data.enrolled && !data.owner) t.push(['membership', isClub() ? 'Membership' : 'Account']);
+    return t;
+  }
 
   function renderHeader() {
-    document.title = data.course.name + ' · ' + (data.shop.name || 'Course');
-    document.getElementById('shop').textContent = data.shop.name || '';
+    document.title = data.course.name + ' · ' + (data.shop.name || 'Members');
+    const shopLink = data.shop.slug ? '<a href="/' + esc(data.shop.slug) + '">' + esc(data.shop.name || '') + '</a>' : esc(data.shop.name || '');
+    document.getElementById('shop').innerHTML = shopLink;
     document.getElementById('course').textContent = data.course.name;
     document.getElementById('logo').style.backgroundImage = 'url("' + data.shop.logo_url + '")';
-    if (data.shop.accent && /^#[0-9a-f]{6}$/i.test(data.shop.accent)) {
-      document.documentElement.style.setProperty('--accent', data.shop.accent);
-    }
+    if (data.shop.accent && /^#[0-9a-f]{6}$/i.test(data.shop.accent)) document.documentElement.style.setProperty('--accent', data.shop.accent);
     const all = lessons(), done = all.filter(function (l) { return l.completed; }).length;
-    const wrap = document.getElementById('progress-wrap');
-    wrap.classList.toggle('hidden', !data.enrolled || !all.length);
+    document.getElementById('progress-wrap').classList.toggle('hidden', !data.enrolled || data.owner || isClub() || !all.length);
     document.getElementById('progress-text').textContent = done + ' of ' + all.length + ' done';
     document.getElementById('bar').style.width = (all.length ? Math.round(done / all.length * 100) : 0) + '%';
+    const ob = document.getElementById('owner-bar');
+    if (data.owner) {
+      ob.innerHTML = 'Owner preview — this is exactly what your ' + (isClub() ? 'members' : 'students') + ' see. You post here as ' + esc(data.shop.name || 'your shop') + '.';
+      ob.classList.remove('hidden');
+    } else if (!data.enrolled) {
+      ob.innerHTML = 'You’re looking at the free preview. ' + (data.shop.slug ? '<a href="/' + esc(data.shop.slug) + '">Get full access →</a>' : '');
+      ob.classList.remove('hidden');
+    }
+    const tabs = tabsFor();
+    document.getElementById('tabs').innerHTML = tabs.length > 1 ? tabs.map(function (t) {
+      return '<button class="tab' + (t[0] === tab ? ' on' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>';
+    }).join('') : '';
+    document.querySelectorAll('.tab').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.tab); }); });
+  }
+
+  function show(name) {
+    tab = name;
+    try { history.replaceState(null, '', location.pathname + location.search + '#' + name); } catch (e) {}
+    stopPolling();
+    renderHeader();
+    if (name === 'community') renderCommunity();
+    else if (name === 'membership') renderMembership();
+    else renderLibrary();
+  }
+
+  // ── Library ──
+  function renderLibrary() {
+    document.getElementById('view').innerHTML = '<div class="layout"><nav class="curriculum" id="curriculum"></nav><main class="player" id="player"></main></div>';
+    let last = null;
+    const key = 'course-last-' + (token || spaceId || ownerId);
+    try { last = localStorage.getItem(key); } catch (e) {}
+    const all = lessons();
+    if (!all.length) {
+      document.getElementById('view').innerHTML = '<div class="page"><div class="card empty"><h3>' + (isClub() ? 'The library is on its way' : 'Lessons are on their way') + '</h3>' +
+        (data.owner ? 'Add sections and posts from the builder in your Bakerï app.' : 'Check back soon.') + '</div></div>';
+      return;
+    }
+    const firstOpen = all.find(function (l) { return !l.locked && !l.completed; });
+    openLesson(current ? current.id : (last || (firstOpen && firstOpen.id)));
+    if (window.matchMedia('(max-width: 860px)').matches && !current) document.body.classList.remove('reading');
   }
 
   function renderCurriculum() {
     const nav = document.getElementById('curriculum');
-    nav.innerHTML = data.modules.map(function (m) {
-      const done = m.lessons.filter(function (l) { return l.completed; }).length;
-      return '<div class="mod"><div class="mod-title">' + esc(m.title || 'Module') + '</div>' +
-        '<div class="mod-meta">' + m.lessons.length + ' lesson' + (m.lessons.length === 1 ? '' : 's') + (data.enrolled ? ' · ' + done + ' done' : '') + '</div></div>' +
-        m.lessons.map(function (l) {
-          return '<button class="lesson' + (l.completed ? ' done' : '') + (l.locked ? ' locked' : '') + (current && current.id === l.id ? ' active' : '') + '" data-id="' + l.id + '">' +
-            '<span class="dot">' + (l.completed ? '✓' : (l.locked ? '🔒' : '')) + '</span><span>' + esc(l.title || 'Lesson') + '</span>' +
-            (!data.enrolled && l.is_preview ? '<span class="tag">Preview</span>' : '') + '</button>';
-        }).join('');
-    }).join('') || '<p style="padding:14px;color:var(--muted)">Lessons are on their way.</p>';
-    nav.insertAdjacentHTML('beforeend', membershipHTML());
-    const cancel = document.getElementById('cancel-club');
-    if (cancel) cancel.addEventListener('click', cancelClub);
-    nav.querySelectorAll('.lesson').forEach(function (b) {
-      b.addEventListener('click', function () { open(b.dataset.id); });
-    });
+    if (!nav) return;
+    const all = lessons(), next = all.find(function (l) { return !l.locked && !l.completed; });
+    nav.innerHTML = (data.enrolled && !data.owner && !isClub() && next && next !== all[0] && (!current || current.id !== next.id)
+      ? '<div class="continue"><button class="btn btn-primary btn-sm" style="width:100%" id="cont">Continue: ' + esc(next.title) + ' →</button></div>' : '') +
+      data.modules.map(function (m) {
+        const done = m.lessons.filter(function (l) { return l.completed; }).length;
+        return '<div class="mod"><div class="mod-title">' + esc(m.title || 'Section') + '</div>' +
+          '<div class="mod-meta">' + m.lessons.length + ' ' + (isClub() ? 'item' : 'lesson') + (m.lessons.length === 1 ? '' : 's') + (data.enrolled && !data.owner && !isClub() ? ' · ' + done + ' done' : '') + '</div></div>' +
+          m.lessons.map(function (l) {
+            return '<button class="lesson' + (l.completed ? ' done' : '') + (l.locked ? ' locked' : '') + (current && current.id === l.id ? ' active' : '') + '" data-id="' + l.id + '">' +
+              '<span class="dot">' + (l.completed ? '✓' : (l.locked ? '🔒' : '')) + '</span><span>' + esc(l.title || 'Untitled') + '</span>' +
+              (l.is_preview && (!data.enrolled || data.owner) ? '<span class="tag">Free preview</span>' : '') + '</button>';
+          }).join('');
+      }).join('');
+    const c = document.getElementById('cont');
+    if (c) c.addEventListener('click', function () { openLesson(next.id); });
+    nav.querySelectorAll('.lesson').forEach(function (b) { b.addEventListener('click', function () { openLesson(b.dataset.id); }); });
   }
 
-  // Clubs: a monthly/yearly member sees when it renews and can cancel.
-  function membershipHTML() {
-    const c = data.enrolled && data.club;
-    if (!c || !c.interval) return '';
-    const d = c.paid_through ? new Date(c.paid_through).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-    return '<div class="membership">' + (c.cancel_at
-      ? 'Your membership ends ' + d + '. Join again from the shop any time.'
-      : 'Member · renews ' + (c.interval === 'year' ? 'yearly' : 'monthly') + (d ? ' (next ' + d + ')' : '') + '<br><button id="cancel-club">Cancel membership</button>') + '</div>';
-  }
-  function cancelClub() {
-    if (!confirm('Cancel your membership? You keep access until the end of the period you’ve paid for.')) return;
-    call({ token: token, cancel_club: true }).then(function (res) {
-      if (!res.ok) { alert(res.body.error || 'Please try again.'); return; }
-      data.club.cancel_at = res.body.cancel_at; data.club.paid_through = res.body.cancel_at;
-      renderCurriculum();
-    });
-  }
-
-  function open(id) {
+  function openLesson(id) {
     const all = lessons();
     current = all.find(function (l) { return l.id === id; }) || all.find(function (l) { return !l.locked; }) || all[0];
     const p = document.getElementById('player');
-    if (!current) { p.innerHTML = '<p>Lessons are on their way.</p>'; return; }
+    if (!current || !p) return;
     const i = all.indexOf(current), next = all.slice(i + 1).find(function (l) { return !l.locked; });
-    let html = '<button class="btn btn-line back" id="back">← All lessons</button>' +
-      '<div class="crumb">' + esc(current.module.title || '') + '</div><h1 class="lesson-title">' + esc(current.title || 'Lesson') + '</h1>';
+    const tracks = data.enrolled && !data.owner && !isClub();
+    let html = '<button class="btn btn-line back" id="back">← ' + (isClub() ? 'Library' : 'All lessons') + '</button>' +
+      '<div class="crumb">' + esc(current.module.title || '') + '</div><h1 class="lesson-title">' + esc(current.title || 'Untitled') + '</h1>';
     if (current.locked) {
-      html += '<div class="locked-box"><div style="font-size:34px">🔒</div><h2>This lesson is part of the course</h2>' +
-        '<p>Enrol to unlock every lesson, with lifetime access.</p>' +
-        (data.shop.slug ? '<a class="btn btn-primary" href="/' + esc(data.shop.slug) + '">Get the course</a>' : '') + '</div>';
+      html += '<div class="locked-box"><div style="font-size:34px">🔒</div><h2>' + (isClub() ? 'For members' : 'Part of the full course') + '</h2>' +
+        '<p>' + (isClub() ? 'Join to unlock everything in the library and the community.' : 'Get the course to unlock every lesson, for life.') + '</p>' +
+        (data.shop.slug ? '<a class="btn btn-primary" href="/' + esc(data.shop.slug) + '">' + (isClub() ? 'Join' : 'Get the course') + '</a>' : '') + '</div>';
     } else {
-      html += '<div class="blocks">' + (current.blocks || []).map(block).join('') + '</div><div class="actions">' +
-        (data.enrolled ? '<button class="btn ' + (current.completed ? 'btn-line' : 'btn-primary') + '" id="done">' + (current.completed ? '✓ Completed' : (next ? 'Mark complete & next →' : 'Mark complete')) + '</button>' : '') +
-        (next && (!data.enrolled || current.completed) ? '<button class="btn btn-line" id="next">Next: ' + esc(next.title) + ' →</button>' : '') +
-        (!data.enrolled && data.shop.slug ? '<a class="btn btn-primary" href="/' + esc(data.shop.slug) + '">Get the full course</a>' : '') + '</div>';
+      const blocks = (current.blocks || []).map(block).join('');
+      html += '<div class="blocks">' + (blocks || '<p class="note">' + (data.owner ? 'Nothing here yet — add content to this lesson in the builder.' : 'Nothing here yet.') + '</p>') + '</div><div class="actions">' +
+        (tracks ? '<button class="btn ' + (current.completed ? 'btn-line' : 'btn-primary') + '" id="done">' + (current.completed ? '✓ Completed' : (next ? 'Mark complete & next →' : 'Mark complete')) + '</button>' : '') +
+        (next && (!tracks || current.completed) ? '<button class="btn btn-line" id="next">Next: ' + esc(next.title) + ' →</button>' : '') +
+        (!data.enrolled && data.shop.slug ? '<a class="btn btn-primary" href="/' + esc(data.shop.slug) + '">Get full access</a>' : '') + '</div>';
     }
     p.innerHTML = html;
     document.body.classList.add('reading');
@@ -227,56 +509,295 @@
     if (doneBtn) doneBtn.addEventListener('click', function () {
       const was = current.completed;
       setDone(current.id, !was);
-      if (!was && next) open(next.id); else { renderCurriculum(); open(current.id); }
+      if (!was && next) openLesson(next.id); else openLesson(current.id);
     });
     const nextBtn = document.getElementById('next');
-    if (nextBtn) nextBtn.addEventListener('click', function () { open(next.id); });
+    if (nextBtn) nextBtn.addEventListener('click', function () { openLesson(next.id); });
     renderCurriculum();
     window.scrollTo(0, 0);
-    try { if (token) localStorage.setItem('course-last-' + token, current.id); } catch (e) {}
+    try { localStorage.setItem('course-last-' + (token || spaceId || ownerId), current.id); } catch (e) {}
   }
-
   function setDone(id, done) {
     data.modules.forEach(function (m) { m.lessons.forEach(function (l) { if (l.id === id) l.completed = done; }); });
     renderHeader();
-    call({ token: token, lesson_id: id, completed: done });
+    player({ lesson_id: id, completed: done });
   }
 
-  function showMessage(html) {
-    document.getElementById('message').innerHTML = html;
-    document.getElementById('message').classList.remove('hidden');
+  // ── Community (Slack-style channel) ──
+  let feed = { messages: [], pinned: [], more: false, me: null };
+  let threadId = null, threadMsgs = [], pollTimer = null, lastSig = '', threadSig = '';
+  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  function messageHTML(m, inThread) {
+    const removed = m.deleted;
+    const canDelete = !removed && (feed.me && (feed.me.owner || m.mine));
+    const tools = removed ? '' : '<div class="tools">' +
+      '<span class="emoji-pop">' + EMOJI.map(function (e) { return '<button data-act="react" data-emoji="' + e + '" title="React">' + e + '</button>'; }).join('') + '</span>' +
+      (!inThread && !m.parent_id ? '<button data-act="thread" title="Reply in thread">💬</button>' : '') +
+      (feed.me && feed.me.owner && !m.parent_id ? '<button data-act="pin" title="' + (m.is_pinned ? 'Unpin' : 'Pin to the top') + '">📌</button>' : '') +
+      (canDelete ? '<button data-act="delete" title="Remove">🗑</button>' : '') + '</div>';
+    return '<div class="msg' + (m.is_update ? ' update' : '') + '" data-id="' + m.id + '">' + avatar(m) +
+      '<div class="msg-body"><div class="msg-head"><span class="msg-name">' + esc(m.author) + '</span>' +
+      (m.from_shop ? '<span class="shop-tag">Shop</span>' : '') + (m.is_update ? '<span class="upd-tag">Update</span>' : '') +
+      '<span class="msg-time">' + when(m.created_at) + (m.edited_at ? ' · edited' : '') + '</span>' +
+      (m.is_pinned && !inThread ? '<span class="pin-tag">📌 Pinned</span>' : '') + '</div>' +
+      (removed ? '<div class="msg-removed">This message was removed.</div>' : '<div class="msg-text">' + linkify(m.body) + '</div>' +
+        ((m.attachments || []).length ? '<div class="blocks">' + m.attachments.map(block).join('') + '</div>' : '')) +
+      (m.reactions.length ? '<div class="reacts">' + m.reactions.map(function (r) {
+        return '<button class="react' + (r.me ? ' me' : '') + '" data-act="react" data-emoji="' + esc(r.emoji) + '">' + esc(r.emoji) + ' ' + r.count + '</button>';
+      }).join('') + '</div>' : '') +
+      (!inThread && m.reply_count ? '<button class="replies-link" data-act="thread">' + m.reply_count + ' repl' + (m.reply_count === 1 ? 'y' : 'ies') + ' →</button>' : '') +
+      '</div>' + tools + '</div>';
   }
 
-  // Back from a club's Stripe Checkout: confirm the payment, then open with the new link.
+  function composerHTML(id, placeholder) {
+    if (!feed.me) return '';
+    if (!feed.me.can_post) return '<div class="composer-off">Only ' + esc(data.shop.name || 'the shop') + ' posts here. React to join in.</div>';
+    const ownerTop = feed.me.owner && id === 'c-main';
+    return '<div class="composer"><div class="composer-box"><textarea id="' + id + '" rows="1" placeholder="' + esc(placeholder) + '"></textarea>' +
+      '<div class="composer-row">' + (ownerTop ? '<label><input type="checkbox" id="c-update" /> Post as an Update <span class="hint">(also emails every ' + (isClub() ? 'member' : 'student') + ')</span></label>' : '<span class="hint">Enter to send · Shift+Enter for a new line</span>') +
+      '<span class="grow"></span><button class="btn btn-primary btn-sm" data-send="' + id + '">Send</button></div></div></div>';
+  }
+
+  function renderCommunity() {
+    document.getElementById('view').innerHTML =
+      '<div class="chat" id="chat"><section class="chat-main"><div id="pins"></div><div class="feed" id="feed"><div class="empty">Loading the conversation…</div></div><div id="c-wrap"></div></section>' +
+      '<aside class="thread hidden" id="thread"></aside></div>';
+    wireMessageActions(document.getElementById('chat'));
+    loadFeed(true);
+    pollTimer = setInterval(function () { if (!document.hidden) { loadFeed(false); if (threadId) loadThread(false); } }, 5000);
+  }
+
+  function loadFeed(first) {
+    return space({ channel: 'list' }).then(function (r) {
+      if (!r.ok) { if (first) document.getElementById('feed').innerHTML = '<div class="empty">' + esc(r.body.error || 'Couldn’t load the conversation.') + '</div>'; return; }
+      const sig = JSON.stringify([r.body.messages, r.body.pinned]);
+      const firstMe = !feed.me;
+      feed.me = r.body.me; feed.more = r.body.more; feed.pinned = r.body.pinned;
+      if (sig === lastSig && !first) return;
+      lastSig = sig;
+      const older = feed.messages.filter(function (m) { return !r.body.messages.some(function (x) { return x.id === m.id; }) && m.created_at < (r.body.messages[0] || {}).created_at; });
+      feed.messages = older.concat(r.body.messages);
+      drawFeed(first);
+      if (firstMe || first) {
+        document.getElementById('c-wrap').innerHTML = composerHTML('c-main', 'Message ' + (data.course.name || ''));
+        wireComposer('c-main', null);
+      }
+    });
+  }
+
+  function drawFeed(scrollToEnd) {
+    const el = document.getElementById('feed');
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const pins = document.getElementById('pins');
+    pins.innerHTML = feed.pinned.length ? '<details class="pins"' + (feed.pinned.length <= 2 ? ' open' : '') + '><summary>📌 ' + feed.pinned.length + ' pinned</summary>' +
+      feed.pinned.map(function (m) { return messageHTML(m, true); }).join('') + '</details>' : '';
+    if (!feed.messages.length) {
+      el.innerHTML = '<div class="empty"><h3>Say hello 👋</h3>' + (feed.me && feed.me.owner
+        ? 'Welcome your ' + (isClub() ? 'members' : 'students') + ', share what’s coming, or pin the house rules.'
+        : 'This is the place to ask questions, share what you made, and hear from ' + esc(data.shop.name || 'the shop') + '.') + '</div>';
+      return;
+    }
+    let html = feed.more ? '<button class="btn btn-line btn-sm more-btn" id="older">Load earlier messages</button>' : '';
+    let lastDay = '';
+    feed.messages.forEach(function (m) {
+      const d = new Date(m.created_at).toDateString();
+      if (d !== lastDay) { html += '<div class="day">' + dayLabel(m.created_at) + '</div>'; lastDay = d; }
+      html += messageHTML(m, false);
+    });
+    el.innerHTML = html;
+    const older = document.getElementById('older');
+    if (older) older.addEventListener('click', function () {
+      space({ channel: 'list', before: feed.messages[0].created_at }).then(function (r) {
+        if (!r.ok) return;
+        const h = el.scrollHeight;
+        feed.messages = r.body.messages.concat(feed.messages); feed.more = r.body.more;
+        drawFeed(false);
+        el.scrollTop = el.scrollHeight - h;
+      });
+    });
+    if (scrollToEnd || atBottom) el.scrollTop = el.scrollHeight;
+  }
+
+  function openThread(id) {
+    threadId = id; threadSig = '';
+    document.getElementById('chat').classList.add('with-thread');
+    const t = document.getElementById('thread');
+    t.classList.remove('hidden');
+    t.innerHTML = '<div class="thread-head"><span>Thread</span><button id="t-close" aria-label="Close">✕</button></div><div class="feed" id="t-feed"><div class="empty">Loading…</div></div>' + composerHTML('c-thread', 'Reply…');
+    document.getElementById('t-close').addEventListener('click', closeThread);
+    wireComposer('c-thread', id);
+    loadThread(true);
+  }
+  function closeThread() {
+    threadId = null;
+    document.getElementById('chat').classList.remove('with-thread');
+    document.getElementById('thread').classList.add('hidden');
+  }
+  function loadThread(first) {
+    const id = threadId;
+    return space({ channel: 'list', thread: id }).then(function (r) {
+      if (!r.ok || id !== threadId) return;
+      const sig = JSON.stringify(r.body.messages);
+      if (sig === threadSig && !first) return;
+      threadSig = sig; threadMsgs = r.body.messages;
+      const el = document.getElementById('t-feed');
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      el.innerHTML = threadMsgs.map(function (m) { return messageHTML(m, true); }).join('') ||
+        '<div class="empty">That conversation isn’t available.</div>';
+      if (first || atBottom) el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  function findMsg(id) {
+    return feed.messages.concat(feed.pinned, threadMsgs).find(function (m) { return m.id === id; });
+  }
+  function refreshAll() { lastSig = ''; threadSig = ''; loadFeed(false); if (threadId) loadThread(false); }
+
+  function wireMessageActions(root) {
+    root.addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-act]');
+      const row = e.target.closest('.msg');
+      if (!btn) {
+        // Tap a message on a phone to show its tools.
+        if (row && window.matchMedia('(hover: none)').matches) {
+          root.querySelectorAll('.msg.tools-open').forEach(function (x) { if (x !== row) x.classList.remove('tools-open'); });
+          row.classList.toggle('tools-open');
+        }
+        return;
+      }
+      const id = row && row.dataset.id;
+      const m = id && findMsg(id);
+      if (!m) return;
+      const act = btn.dataset.act;
+      if (act === 'thread') { openThread(m.id); return; }
+      if (act === 'react') { space({ channel: 'react', message_id: m.id, emoji: btn.dataset.emoji }).then(refreshAll); return; }
+      if (act === 'pin') { space({ channel: 'pin', message_id: m.id, pinned: !m.is_pinned }).then(refreshAll); return; }
+      if (act === 'delete') {
+        if (!window.confirm('Remove this message for everyone?')) return;
+        space({ channel: 'delete', message_id: m.id }).then(function () { if (m.id === threadId) closeThread(); refreshAll(); });
+      }
+    });
+  }
+
+  function wireComposer(id, parentId) {
+    const ta = document.getElementById(id);
+    if (!ta) return;
+    const btn = document.querySelector('[data-send="' + id + '"]');
+    function grow() { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 220) + 'px'; }
+    ta.addEventListener('input', grow);
+    function send() {
+      const text = ta.value.trim();
+      if (!text) return;
+      const upd = !parentId && document.getElementById('c-update') && document.getElementById('c-update').checked;
+      if (upd && !window.confirm('Post this as an Update? It will also be emailed to every ' + (isClub() ? 'member' : 'student') + '.')) return;
+      btn.disabled = true;
+      space({ channel: 'post', body: text, parent_id: parentId || undefined, is_update: upd || undefined }).then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert(r.body.error || 'Couldn’t send that.'); return; }
+        ta.value = ''; grow();
+        if (document.getElementById('c-update')) document.getElementById('c-update').checked = false;
+        refreshAll();
+        if (!parentId) setTimeout(function () { const f = document.getElementById('feed'); if (f) f.scrollTop = f.scrollHeight; }, 300);
+      });
+    }
+    btn.addEventListener('click', send);
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && window.matchMedia('(hover: hover)').matches) { e.preventDefault(); send(); }
+    });
+  }
+
+  // ── Membership ──
+  function renderMembership() {
+    const c = data.club, s = data.student || {};
+    const recurring = c && c.interval;
+    let html = '<div class="page"><div class="card"><h2>' + (isClub() ? 'Your membership' : 'Your course') + '</h2><dl class="kv">' +
+      '<dt>Signed in as</dt><dd>' + esc(s.email || '') + '</dd>' +
+      '<dt>' + (isClub() ? 'Plan' : 'Access') + '</dt><dd>' + (recurring ? '$' + Number(data.course.price).toFixed(2) + ' / ' + c.interval : 'Lifetime access') + '</dd>';
+    if (recurring) {
+      html += c.cancel_at
+        ? '<dt>Ends</dt><dd>' + fmtDate(c.paid_through) + ' — you keep access until then.</dd>'
+        : '<dt>Renews</dt><dd>' + fmtDate(c.paid_through) + '</dd>';
+    }
+    html += '</dl>';
+    if (recurring && !c.cancel_at) html += '<p style="margin:18px 0 0"><button class="link-btn" id="cancel-club">Cancel membership</button></p>';
+    if (recurring && c.cancel_at && data.shop.slug) html += '<p style="margin:18px 0 0"><a class="btn btn-line btn-sm" href="/' + esc(data.shop.slug) + '">Rejoin from the shop</a></p>';
+    html += '</div><div class="card"><h2>Need help?</h2><p style="margin:0 0 10px;color:var(--muted);line-height:1.55">Questions about your ' + (isClub() ? 'membership' : 'course') +
+      ' go straight to ' + esc(data.shop.name || 'the shop') + '. Reply to any email from them, or post in the ' + (isClub() ? 'community' : 'discussion') + '.</p></div>' +
+      '<div class="card"><h2>On another device?</h2><p style="margin:0 0 12px;color:var(--muted);line-height:1.55">Go to this shop’s member page and sign in with your email — we’ll send you a code. No password needed.</p>' +
+      '<a class="btn btn-line btn-sm" href="?shop=' + esc(data.shop.id) + '&list=1">All my memberships here</a>' +
+      (load(sessionKey(data.shop.id)) ? ' <button class="link-btn" id="so" style="margin-left:12px">Sign out on this device</button>' : '') + '</div></div>';
+    document.getElementById('view').innerHTML = html;
+    const cancel = document.getElementById('cancel-club');
+    if (cancel) cancel.addEventListener('click', function () {
+      if (!window.confirm('Cancel your membership? You keep access until ' + fmtDate(c.paid_through) + '.')) return;
+      player({ cancel_club: true }).then(function (r) {
+        if (!r.ok) { window.alert(r.body.error || 'Please try again.'); return; }
+        data.club.cancel_at = r.body.cancel_at; data.club.paid_through = r.body.cancel_at;
+        renderMembership();
+      });
+    });
+    const so = document.getElementById('so');
+    if (so) so.addEventListener('click', function () { shopId = data.shop.id; signOut(); });
+  }
+
+  // ── Boot a space ──
+  function bootSpace() {
+    showMessage('<p>Loading…</p>');
+    const req = previewId && !token && !spaceId && !ownerId ? post('course-player', { menu_item_id: previewId, preview: true }) : player();
+    req.then(function (res) {
+      if (!res.ok) {
+        if (res.status === 401 && shopId) { store(sessionKey(shopId), null); renderSignIn('Your sign-in expired. Enter your email and we’ll send a new code.'); return; }
+        if (ownerId && res.status === 403) {
+          showMessage('<h2>Sign in to preview</h2><p>Open this from the builder while you’re signed in to Bakerï, and you’ll see everything your members see.</p>' +
+            '<a class="btn btn-primary" href="/app/login">Sign in to Bakerï</a>');
+          return;
+        }
+        showMessage('<h2>We couldn’t open this</h2><p>' + esc(res.body.error || 'Please try again.') + '</p>' +
+          (shopId || (res.body && res.body.shop_id) ? '<a class="btn btn-line" href="?shop=' + esc(shopId) + '">Sign in another way</a>' : ''));
+        return;
+      }
+      data = res.body;
+      shopId = shopId || data.shop.id;
+      hideMessage();
+      document.getElementById('hd').classList.remove('hidden');
+      const tabs = tabsFor().map(function (t) { return t[0]; });
+      const want = location.hash.slice(1);
+      if (q.get('welcome')) {
+        const w = document.getElementById('welcome');
+        w.innerHTML = '<div><span>Welcome to ' + esc(data.course.name) + '! 🎉 We’ve emailed you a link too — or sign in anytime with your email.</span><button aria-label="Close">✕</button></div>';
+        w.classList.remove('hidden');
+        w.querySelector('button').addEventListener('click', function () { w.classList.add('hidden'); });
+      }
+      show(tabs.indexOf(want) !== -1 ? want : tabs[0]);
+    }).catch(function () {
+      showMessage('<h2>Couldn’t load this</h2><p>Check your connection and refresh.</p>');
+    });
+  }
+
+  // ══════════ Routing ══════════
   const clubId = q.get('club'), clubSession = q.get('session');
   if (!token && clubId && clubSession) {
     showMessage('<p>Setting up your membership…</p>');
-    call({ club_session: clubSession, menu_item_id: clubId }).then(function (res) {
+    post('course-player', { club_session: clubSession, menu_item_id: clubId }).then(function (res) {
       if (!res.ok || !res.body.token) { showMessage('<h2>We couldn’t finish joining</h2><p>' + esc((res.body && res.body.error) || 'Please contact the shop.') + '</p>'); return; }
-      history.replaceState(null, '', location.pathname + '?t=' + encodeURIComponent(res.body.token));
-      location.reload();
+      location.replace(location.pathname + '?t=' + encodeURIComponent(res.body.token) + '&welcome=1');
     });
     return;
   }
-  if (!token && !previewId) { showMessage('<h2>Open your course from your email</h2><p>The link in your purchase email takes you straight in.</p>'); return; }
-  call(token ? { token: token } : { menu_item_id: previewId, preview: true }).then(function (res) {
-    if (!res.ok) {
-      showMessage('<h2>We couldn’t open this course</h2><p>' + esc(res.body.error || 'Please try again.') + '</p>');
-      return;
-    }
-    data = res.body;
-    document.getElementById('message').classList.add('hidden');
-    document.getElementById('hd').classList.remove('hidden');
-    document.getElementById('layout').classList.remove('hidden');
-    renderHeader();
-    let last = null;
-    try { last = token && localStorage.getItem('course-last-' + token); } catch (e) {}
-    const firstOpen = lessons().find(function (l) { return !l.locked && !l.completed; });
-    open(last || (firstOpen && firstOpen.id));
-    if (window.matchMedia('(max-width: 860px)').matches && !last) document.body.classList.remove('reading');
-  }).catch(function () {
-    showMessage('<h2>Couldn’t load your course</h2><p>Check your connection and refresh.</p>');
-  });
+  if (token || ownerId || previewId) { bootSpace(); return; }
+  if (shopId) {
+    const s = load(sessionKey(shopId));
+    if (!s) { renderSignIn(); return; }
+    if (spaceId) { bootSpace(); return; }
+    post('member-space', { spaces: true, session: s }).then(function (r) {
+      if (!r.ok) { store(sessionKey(shopId), null); renderSignIn(); return; }
+      renderSpaces(r.body.spaces, r.body.email);
+    });
+    return;
+  }
+  showMessage('<h2>Open your course or membership</h2><p>Use the link in your email, or tap “Already a member? Sign in” on the shop’s page.</p>');
 })();
 </script>
 </body>
