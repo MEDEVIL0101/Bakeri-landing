@@ -98,6 +98,9 @@ async function loadCourse(db: any, menuItemId: string, unlocked: (lesson: any) =
     shop: {
       id: item.user_id, name: shop?.business_name || shop?.user_name || "", slug: shop?.profile_slug ?? null,
       theme: shop?.selected_theme ?? null, accent: shop?.storefront_design?.colors?.accent ?? null,
+      // The website's style, which a space uses unless it's set to custom.
+      background: shop?.storefront_design?.background?.color ?? null,
+      font: shop?.storefront_design?.title_font ?? shop?.storefront_design?.display_font ?? null,
       logo_url: `${SUPABASE_URL}/storage/v1/object/public/business-logos/${String(item.user_id).toUpperCase()}/logo.jpg`,
     },
     modules: outModules,

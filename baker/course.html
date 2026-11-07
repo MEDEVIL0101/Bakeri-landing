@@ -39,7 +39,7 @@
     .hd-text { min-width: 0; flex: 1; }
     .hd-shop { font-size: 12px; font-weight: 700; color: var(--muted); }
     .hd-shop a { text-decoration: none; }
-    .hd-course { font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hd-course { font-family: var(--display, var(--body)); font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .progress { flex: none; width: 150px; text-align: right; font-size: 12px; font-weight: 700; color: var(--muted); }
     .bar { height: 6px; border-radius: 9px; background: var(--tint); margin-top: 5px; overflow: hidden; }
     .bar i { display: block; height: 100%; background: var(--ok); width: 0; transition: width .3s; }
@@ -152,7 +152,7 @@
     .space-hero { margin: 12px 18px 6px; border-radius: var(--r); overflow: hidden; background: var(--tint); }
     .space-hero-img { aspect-ratio: 3 / 1; max-height: 200px; width: 100%; background: var(--tint) center / cover; }
     .space-hero-text { padding: 16px 18px; }
-    .space-hero-text h2 { margin: 0 0 6px; font-size: 20px; }
+    .space-hero-text h2 { margin: 0 0 6px; font-size: 22px; font-family: var(--display, var(--body)); }
     .space-hero-text p { margin: 0; color: var(--muted); line-height: 1.55; white-space: pre-wrap; }
     .space-hero details { margin-top: 10px; }
     .space-hero summary { cursor: pointer; font-weight: 800; font-size: 14px; }
@@ -440,13 +440,25 @@
     document.getElementById('shop').innerHTML = shopLink;
     document.getElementById('course').textContent = data.course.name;
     document.getElementById('logo').style.backgroundImage = 'url("' + data.shop.logo_url + '")';
+    // Style: the shop's website look (default), or this space's own colours
+    // when the vendor set it to custom (space_design.style = 'custom').
     const sd = spaceDesign();
-    const accent = [sd.accent, data.shop.accent].find(function (c) { return c && /^#[0-9a-f]{6}$/i.test(c); });
+    const custom = sd.style === 'custom';
+    const hex = function (c) { return c && /^#[0-9a-f]{6}$/i.test(c) ? c : null; };
+    const accent = (custom && hex(sd.accent)) || hex(data.shop.accent);
     if (accent) {
       document.documentElement.style.setProperty('--accent', accent);
       document.documentElement.style.setProperty('--accent-fg', readableOn(accent));
     }
-    if (sd.background && /^#[0-9a-f]{6}$/i.test(sd.background)) document.documentElement.style.setProperty('--bg', sd.background);
+    const bg = custom ? hex(sd.background) : hex(data.shop.background);
+    if (bg) document.documentElement.style.setProperty('--bg', bg);
+    if (!custom && data.shop.font && !document.getElementById('shop-font')) {
+      const link = document.createElement('link');
+      link.id = 'shop-font'; link.rel = 'stylesheet';
+      link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(data.shop.font).replace(/%20/g, '+') + ':wght@400;700&display=swap';
+      document.head.appendChild(link);
+      document.documentElement.style.setProperty('--display', '"' + data.shop.font.replace(/"/g, '') + '", var(--body)');
+    }
     const all = lessons(), done = all.filter(function (l) { return l.completed; }).length;
     document.getElementById('progress-wrap').classList.toggle('hidden', !data.enrolled || data.owner || isClub() || !all.length);
     document.getElementById('progress-text').textContent = done + ' of ' + all.length + ' done';

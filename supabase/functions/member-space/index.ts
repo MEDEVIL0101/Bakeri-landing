@@ -3,8 +3,9 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { escapeHtml } from "../_shared/receiptEmailStyle.ts";
 import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 import { sendEmail } from "../_shared/resend.ts";
-import { courseURL } from "../_shared/course.ts";
+import { COURSE_PAGE, courseURL } from "../_shared/course.ts";
 import { UUID_RE, memberSession, resolveAccess, type Access } from "../_shared/memberAccess.ts";
+import { resolveBakerEmail } from "../_shared/bakerEmail.ts";
 
 // Member spaces (migration 20261107000001) — sign-in and the channel behind
 // baker/course.html. Public; each action checks its own credential.
@@ -126,6 +127,36 @@ async function emailUpdate(db: any, access: Access, message: any) {
     });
     await new Promise((r) => setTimeout(r, 120));   // stay under Resend's rate limit
   }
+}
+
+/**
+ * Tells the shop a member posted — by email, once per burst: only when no
+ * other member message arrived in this space in the half hour before, so a
+ * lively thread is one email, not twenty. (The app also shows a count of
+ * new messages on each community.)
+ */
+async function notifyShop(db: any, access: Access, message: any) {
+  const since = new Date(new Date(message.created_at).getTime() - 30 * 60 * 1000).toISOString();
+  const { count } = await db.from("channel_messages").select("id", { count: "exact", head: true })
+    .eq("menu_item_id", access.menuItemId).not("enrollment_id", "is", null).neq("id", message.id)
+    .gte("created_at", since);
+  if ((count ?? 0) > 0) return;
+  const to = await resolveBakerEmail(db, access.bakerId);
+  if (!to) return;
+  const { data: item } = await db.from("menu_items").select("name, is_club").eq("id", access.menuItemId).maybeSingle();
+  const space = item?.name ?? "your community";
+  const preview = escapeHtml(String(message.body).slice(0, 600)).replace(/\n/g, "<br/>");
+  const kind = message.parent_id ? "replied in a thread" : "posted";
+  await sendEmail({
+    from: "Bakerï <hello@bakeriapp.com>", to,
+    subject: `${access.name} ${kind} in ${space}`,
+    html: emailShell(`New in ${escapeHtml(space)}`,
+      `<p style="margin:0 0 6px;font-size:14px;color:#8a7f88;"><b style="color:#14110e;">${escapeHtml(access.name)}</b> ${kind}:</p>
+       <p style="margin:0 0 20px;font-size:15px;line-height:1.65;padding:12px 14px;background:#f6f1e8;border-radius:12px;">${preview}</p>
+       <a href="${COURSE_PAGE}?owner=${access.menuItemId}#community" style="display:inline-block;padding:12px 22px;background:#14110e;color:#fff;border-radius:9999px;text-decoration:none;font-weight:700;">Reply</a>
+       <p style="margin:16px 0 0;font-size:13px;color:#8a7f88;">Or open the Bakerï app → Communities.</p>`,
+      "You get one email when members start talking, not one per message."),
+  });
 }
 
 Deno.serve(async (req: Request) => {
@@ -254,6 +285,7 @@ Deno.serve(async (req: Request) => {
     }).select(msgCols).single();
     if (error || !row) return json({ error: "Couldn’t post that. Please try again." }, 500);
     if (isUpdate) EdgeRuntime.waitUntil(emailUpdate(db, access, row).catch((e) => console.error("update email failed:", e)));
+    if (!access.owner) EdgeRuntime.waitUntil(notifyShop(db, access, row).catch((e) => console.error("shop notify failed:", e)));
     return json({ message: (await withReactions(db, [row], access))[0] });
   }
 

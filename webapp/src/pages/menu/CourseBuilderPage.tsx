@@ -264,7 +264,7 @@ function CommunitySettings({ item, ownerURL, club, onSaved }: { item: any; owner
 }
 
 /** menu_items.space_design — the member page's look and welcome (course.html). */
-interface SpaceDesign { cover_url?: string; accent?: string; background?: string; community_name?: string; welcome_title?: string; welcome_body?: string; rules?: string }
+interface SpaceDesign { style?: string; cover_url?: string; accent?: string; background?: string; community_name?: string; welcome_title?: string; welcome_body?: string; rules?: string }
 
 function SpaceDesignCard({ item, club, ownerURL, onSaved }: { item: any; club: boolean; ownerURL: string; onSaved: () => void }) {
   const toast = useToast();
@@ -291,7 +291,7 @@ function SpaceDesignCard({ item, club, ownerURL, onSaved }: { item: any; club: b
   }
   const hex = (v?: string) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : '#1a130f');
   return (
-    <Card title="Look & welcome" actions={<div className="row-gap">
+    <Card title="Design" actions={<div className="row-gap">
       <a className="btn btn-ghost" href={`${ownerURL}#community`} target="_blank" rel="noreferrer">Preview ↗</a>
       <Button type="button" onClick={save} loading={busy} disabled={!dirty}>Save</Button></div>}>
       <p className="small muted" style={{ marginTop: 0 }}>
@@ -308,11 +308,13 @@ function SpaceDesignCard({ item, club, ownerURL, onSaved }: { item: any; club: b
           {d.cover_url && <button type="button" className="link-btn small" onClick={() => upd({ cover_url: '' })}>Remove</button>}
         </div>
       </Field>
+      <Toggle checked={d.style !== 'custom'} onChange={(v) => upd({ style: v ? '' : 'custom' })} label="Use my website’s style"
+        hint={d.style !== 'custom' ? 'Your storefront’s colours and title font. Changes to your site show here too.' : 'This page has its own colours.'} />
       <div className="grid-2">
         <Field label={`Name for the ${club ? 'community' : 'discussion'} tab`}>
           <Input value={d.community_name ?? ''} placeholder={club ? 'Community' : 'Discussion'} onChange={(e) => upd({ community_name: e.target.value })} />
         </Field>
-        <div className="grid-2">
+        {d.style === 'custom' && <div className="grid-2">
           <Field label="Accent colour" hint={d.accent ? undefined : 'Your storefront’s'}>
             <div className="row-gap"><input type="color" value={hex(d.accent)} onChange={(e) => upd({ accent: e.target.value })} />
               {d.accent && <button type="button" className="link-btn small" onClick={() => upd({ accent: '' })}>Reset</button>}</div>
@@ -321,7 +323,7 @@ function SpaceDesignCard({ item, club, ownerURL, onSaved }: { item: any; club: b
             <div className="row-gap"><input type="color" value={d.background && /^#[0-9a-f]{6}$/i.test(d.background) ? d.background : '#faf6ee'} onChange={(e) => upd({ background: e.target.value })} />
               {d.background && <button type="button" className="link-btn small" onClick={() => upd({ background: '' })}>Reset</button>}</div>
           </Field>
-        </div>
+        </div>}
       </div>
       <Field label="Welcome title"><Input value={d.welcome_title ?? ''} placeholder={`Welcome to ${item.name}!`} onChange={(e) => upd({ welcome_title: e.target.value })} /></Field>
       <Field label="Welcome message"><Textarea rows={4} value={d.welcome_body ?? ''}
