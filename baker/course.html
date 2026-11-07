@@ -596,7 +596,7 @@
     if (!feed.messages.length) {
       el.innerHTML = '<div class="empty"><h3>Say hello 👋</h3>' + (feed.me && feed.me.owner
         ? 'Welcome your ' + (isClub() ? 'members' : 'students') + ', share what’s coming, or pin the house rules.'
-        : 'This is the place to ask questions, share what you made, and hear from ' + esc(data.shop.name || 'the shop') + '.') + '</div>';
+        : 'This is the place to ask questions, share what you made, and hear from ' + esc(String(data.shop.name || 'the shop').replace(/\.$/, '')) + '.') + '</div>';
       return;
     }
     let html = feed.more ? '<button class="btn btn-line btn-sm more-btn" id="older">Load earlier messages</button>' : '';
