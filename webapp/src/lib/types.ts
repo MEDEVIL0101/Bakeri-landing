@@ -124,6 +124,8 @@ export interface MenuItem {
   /** The members' channel (migration 20261107000001). */
   channel_enabled?: boolean;
   members_can_post?: boolean;
+  /** The member page's look and welcome (migration 20261107000002). */
+  space_design?: Record<string, string> | null;
   /** Editorial product page (lib/contentBlocks.ts); null = plain description. */
   content_blocks?: unknown[] | null;
   /** Limited-time add-on offered in the cart (migration 20261106000002). */

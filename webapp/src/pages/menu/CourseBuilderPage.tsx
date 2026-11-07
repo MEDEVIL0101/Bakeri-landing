@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
-import { Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, Input, PageHeader, Spinner, Toggle, useLoad, useToast } from '../../components/ui';
+import { Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, Input, PageHeader, Spinner, Textarea, Toggle, useLoad, useToast } from '../../components/ui';
 import { ContentBlocksField } from '../../components/ContentBlocksEditor';
 import { supabase } from '../../lib/supabase';
+import { uploadContentImage } from '../../lib/contentBlocks';
 import { listMenuItems } from '../../lib/menu';
 import {
   COURSE_PAGE, addLesson, addModule, addStudent, deleteLesson, deleteModule, emailStudentLink, listStudents, loadCourse,
@@ -257,7 +258,78 @@ function CommunitySettings({ item, ownerURL, club, onSaved }: { item: any; owner
             hint={open ? 'Everyone can start conversations and reply.' : 'Announcements only: just you post; everyone can react.'} />
         )}
       </Card>
+      <SpaceDesignCard item={item} club={club} ownerURL={ownerURL} onSaved={onSaved} />
     </div>
+  );
+}
+
+/** menu_items.space_design — the member page's look and welcome (course.html). */
+interface SpaceDesign { cover_url?: string; accent?: string; background?: string; community_name?: string; welcome_title?: string; welcome_body?: string; rules?: string }
+
+function SpaceDesignCard({ item, club, ownerURL, onSaved }: { item: any; club: boolean; ownerURL: string; onSaved: () => void }) {
+  const toast = useToast();
+  const userId = useUserId();
+  const [d, setD] = useState<SpaceDesign>(item.space_design ?? {});
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const upd = (p: Partial<SpaceDesign>) => { setD((x) => ({ ...x, ...p })); setDirty(true); };
+  async function save() {
+    setBusy(true);
+    const clean = Object.fromEntries(Object.entries(d).filter(([, v]) => typeof v === 'string' && v.trim())) as SpaceDesign;
+    const { error } = await supabase.from('menu_items')
+      .update({ space_design: Object.keys(clean).length ? clean : null, updated_at: new Date().toISOString() }).eq('id', item.id);
+    setBusy(false);
+    if (error) { toast(error.message); return; }
+    setDirty(false); toast('Saved — open the preview to see it'); onSaved();
+  }
+  async function pickCover(file: File | undefined) {
+    if (!file || !userId) return;
+    setUploading(true);
+    try { upd({ cover_url: await uploadContentImage(userId, file) }); } catch (e: any) { toast(e.message ?? 'Upload failed'); }
+    setUploading(false);
+  }
+  const hex = (v?: string) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : '#1a130f');
+  return (
+    <Card title="Look & welcome" actions={<div className="row-gap">
+      <a className="btn btn-ghost" href={`${ownerURL}#community`} target="_blank" rel="noreferrer">Preview ↗</a>
+      <Button type="button" onClick={save} loading={busy} disabled={!dirty}>Save</Button></div>}>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        Make the {club ? 'club' : 'course'} feel like yours. The cover, welcome and guidelines sit at the top of the
+        {club ? ' community' : ' discussion'}; your colours run through the whole member page.
+      </p>
+      <Field label="Cover photo">
+        <div className="row-gap">
+          {d.cover_url && <img src={d.cover_url} alt="" style={{ width: 180, aspectRatio: '3 / 1', objectFit: 'cover', borderRadius: 10 }} />}
+          <label className="btn btn-secondary">
+            <input type="file" accept="image/*" hidden onChange={(e) => pickCover(e.target.files?.[0])} />
+            <span>{uploading ? 'Uploading…' : d.cover_url ? 'Replace' : 'Add a cover photo'}</span>
+          </label>
+          {d.cover_url && <button type="button" className="link-btn small" onClick={() => upd({ cover_url: '' })}>Remove</button>}
+        </div>
+      </Field>
+      <div className="grid-2">
+        <Field label={`Name for the ${club ? 'community' : 'discussion'} tab`}>
+          <Input value={d.community_name ?? ''} placeholder={club ? 'Community' : 'Discussion'} onChange={(e) => upd({ community_name: e.target.value })} />
+        </Field>
+        <div className="grid-2">
+          <Field label="Accent colour" hint={d.accent ? undefined : 'Your storefront’s'}>
+            <div className="row-gap"><input type="color" value={hex(d.accent)} onChange={(e) => upd({ accent: e.target.value })} />
+              {d.accent && <button type="button" className="link-btn small" onClick={() => upd({ accent: '' })}>Reset</button>}</div>
+          </Field>
+          <Field label="Background" hint={d.background ? undefined : 'Cream'}>
+            <div className="row-gap"><input type="color" value={d.background && /^#[0-9a-f]{6}$/i.test(d.background) ? d.background : '#faf6ee'} onChange={(e) => upd({ background: e.target.value })} />
+              {d.background && <button type="button" className="link-btn small" onClick={() => upd({ background: '' })}>Reset</button>}</div>
+          </Field>
+        </div>
+      </div>
+      <Field label="Welcome title"><Input value={d.welcome_title ?? ''} placeholder={`Welcome to ${item.name}!`} onChange={(e) => upd({ welcome_title: e.target.value })} /></Field>
+      <Field label="Welcome message"><Textarea rows={4} value={d.welcome_body ?? ''}
+        placeholder={club ? 'Say hi below and tell us what you’re baking this week. New recipes drop on the 1st of every month.' : 'Start with lesson 1, and post your questions here — I answer every day.'}
+        onChange={(e) => upd({ welcome_body: e.target.value })} /></Field>
+      <Field label="Community guidelines (optional)"><Textarea rows={3} value={d.rules ?? ''}
+        placeholder={'Be kind. Share your bakes. No selling in the chat.'} onChange={(e) => upd({ rules: e.target.value })} /></Field>
+    </Card>
   );
 }
 

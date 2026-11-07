@@ -148,6 +148,15 @@
     .thread-head button { border: 0; background: none; font-size: 18px; cursor: pointer; }
     .thread .feed .msg:first-child { border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 6px; }
     .more-btn { display: block; margin: 8px auto; }
+    /* The vendor's welcome at the top of the community (space_design). */
+    .space-hero { margin: 12px 18px 6px; border-radius: var(--r); overflow: hidden; background: var(--tint); }
+    .space-hero-img { aspect-ratio: 3 / 1; background: var(--tint) center / cover; }
+    .space-hero-text { padding: 16px 18px; }
+    .space-hero-text h2 { margin: 0 0 6px; font-size: 20px; }
+    .space-hero-text p { margin: 0; color: var(--muted); line-height: 1.55; white-space: pre-wrap; }
+    .space-hero details { margin-top: 10px; }
+    .space-hero summary { cursor: pointer; font-weight: 800; font-size: 14px; }
+    .space-hero details p { margin-top: 6px; }
 
     /* ── Membership / sign-in ── */
     .page { max-width: 720px; margin: 0 auto; padding: 26px 18px 80px; }
@@ -391,18 +400,35 @@
   }
 
   // ══════════ The space ══════════
+  // The vendor's look for this space (builder → Community tab).
+  function spaceDesign() { return (data && data.space && data.space.design) || {}; }
+  function readableOn(hex) {
+    const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (r * 299 + g * 587 + b * 114) / 1000 > 160 ? '#1A130F' : '#ffffff';
+  }
+  function heroHTML() {
+    const sd = spaceDesign();
+    const title = (sd.welcome_title || '').trim(), body = (sd.welcome_body || '').trim(), rules = (sd.rules || '').trim();
+    if (!sd.cover_url && !title && !body && !rules) return '';
+    return '<div class="space-hero">' + (sd.cover_url ? '<div class="space-hero-img" style="background-image:url(&quot;' + esc(sd.cover_url) + '&quot;)"></div>' : '') +
+      (title || body || rules ? '<div class="space-hero-text">' + (title ? '<h2>' + esc(title) + '</h2>' : '') + (body ? '<p>' + linkify(body) + '</p>' : '') +
+        (rules ? '<details><summary>Community guidelines</summary><p>' + linkify(rules) + '</p></details>' : '') + '</div>' : '') + '</div>';
+  }
+
   function lessons() { return [].concat.apply([], data.modules.map(function (m) { return m.lessons.map(function (l) { return Object.assign({ module: m }, l); }); })); }
   const isClub = function () { return !!(data && data.course.is_club); };
   const channelOn = function () { return !!(data && data.enrolled && data.space && (data.space.channel_enabled || data.owner)); };
 
+  function communityName(fallback) { return esc((spaceDesign().community_name || '').trim() || fallback); }
+
   function tabsFor() {
     const t = [];
     if (isClub()) {
-      if (channelOn()) t.push(['community', 'Community']);
+      if (channelOn()) t.push(['community', communityName('Community')]);
       t.push(['library', 'Library']);
     } else {
       t.push(['library', 'Lessons']);
-      if (channelOn()) t.push(['community', 'Discussion']);
+      if (channelOn()) t.push(['community', communityName('Discussion')]);
     }
     if (data.enrolled && !data.owner) t.push(['membership', isClub() ? 'Membership' : 'Account']);
     return t;
@@ -414,7 +440,13 @@
     document.getElementById('shop').innerHTML = shopLink;
     document.getElementById('course').textContent = data.course.name;
     document.getElementById('logo').style.backgroundImage = 'url("' + data.shop.logo_url + '")';
-    if (data.shop.accent && /^#[0-9a-f]{6}$/i.test(data.shop.accent)) document.documentElement.style.setProperty('--accent', data.shop.accent);
+    const sd = spaceDesign();
+    const accent = [sd.accent, data.shop.accent].find(function (c) { return c && /^#[0-9a-f]{6}$/i.test(c); });
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-fg', readableOn(accent));
+    }
+    if (sd.background && /^#[0-9a-f]{6}$/i.test(sd.background)) document.documentElement.style.setProperty('--bg', sd.background);
     const all = lessons(), done = all.filter(function (l) { return l.completed; }).length;
     document.getElementById('progress-wrap').classList.toggle('hidden', !data.enrolled || data.owner || isClub() || !all.length);
     document.getElementById('progress-text').textContent = done + ' of ' + all.length + ' done';
@@ -594,12 +626,12 @@
     pins.innerHTML = feed.pinned.length ? '<details class="pins"' + (feed.pinned.length <= 2 ? ' open' : '') + '><summary>📌 ' + feed.pinned.length + ' pinned</summary>' +
       feed.pinned.map(function (m) { return messageHTML(m, true); }).join('') + '</details>' : '';
     if (!feed.messages.length) {
-      el.innerHTML = '<div class="empty"><h3>Say hello 👋</h3>' + (feed.me && feed.me.owner
+      el.innerHTML = heroHTML() + '<div class="empty"><h3>Say hello 👋</h3>' + (feed.me && feed.me.owner
         ? 'Welcome your ' + (isClub() ? 'members' : 'students') + ', share what’s coming, or pin the house rules.'
         : 'This is the place to ask questions, share what you made, and hear from ' + esc(String(data.shop.name || 'the shop').replace(/\.$/, '')) + '.') + '</div>';
       return;
     }
-    let html = feed.more ? '<button class="btn btn-line btn-sm more-btn" id="older">Load earlier messages</button>' : '';
+    let html = (feed.more ? '' : heroHTML()) + (feed.more ? '<button class="btn btn-line btn-sm more-btn" id="older">Load earlier messages</button>' : '');
     let lastDay = '';
     feed.messages.forEach(function (m) {
       const d = new Date(m.created_at).toDateString();

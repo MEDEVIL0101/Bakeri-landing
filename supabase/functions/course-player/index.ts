@@ -291,13 +291,14 @@ Deno.serve(async (req: Request) => {
   const data = await loadCourse(db, menuItemId, () => true, new Set((done ?? []).map((d: any) => d.lesson_id)));
   if (!data) return json({ error: "This isn’t available any more. Contact the shop for help." }, 404);
   if (enrollment) await db.from("course_enrollments").update({ last_opened_at: new Date().toISOString() }).eq("id", enrollment.id);
-  const { data: meta } = await db.from("menu_items").select("is_club, club_interval, channel_enabled, members_can_post").eq("id", menuItemId).maybeSingle();
+  const { data: meta } = await db.from("menu_items").select("is_club, club_interval, channel_enabled, members_can_post, space_design").eq("id", menuItemId).maybeSingle();
   return json({
     ...data, enrolled: true, owner,
     student: enrollment ? { name: enrollment.name, email: enrollment.email } : null,
     space: {
       is_club: !!meta?.is_club, interval: meta?.club_interval ?? null,
       channel_enabled: meta?.channel_enabled !== false, members_can_post: meta?.members_can_post !== false,
+      design: meta?.space_design ?? null,
     },
     club: meta?.is_club && enrollment ? {
       interval: enrollment.stripe_subscription_id ? meta.club_interval : null,

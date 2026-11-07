@@ -37,7 +37,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
     { to: '/calculator', label: 'Calculator', icon: <path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" /> },
   ] },
   { heading: 'Costs', items: [
-    { to: '/ingredients', label: 'Ingredients', icon: <path d="M12 3c3 2.5 4.5 5 4.5 8.5a4.5 4.5 0 0 1-9 0C7.5 8 9 5.5 12 3zM12 16v5M8 21h8" /> },
+    { to: '/ingredients', label: 'Ingredients', icon: <path d="M14.5 9.5 4 20M14.5 9.5c1.5-1.5 4-1.5 5 0s0 3.5-1.5 5L8.5 20H4v-4.5zM15 4c0 2 1 3.5 3 4M20 4c-2 0-3.5 1-4 3" /> },
     { to: '/packaging', label: 'Packaging', icon: <path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8" /> },
   ] },
   { heading: 'Money', items: [
