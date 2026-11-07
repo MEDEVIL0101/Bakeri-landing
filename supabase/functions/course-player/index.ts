@@ -6,10 +6,14 @@ import { COURSE_PAGE, courseURL, enrollInCourse } from "../_shared/course.ts";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 import { vendorFeeRate } from "../_shared/vendorPlan.ts";
+import { resolveAccess } from "../_shared/memberAccess.ts";
 
 // The course player's backend (baker/course.html). Public — the access token
 // IS the credential (one per enrollment, emailed at purchase).
-//   { token }                         → the whole course, the student's progress
+//   { token } | { session, menu_item_id } | { owner: true, menu_item_id }
+//                                     → the whole course/club, the member's progress
+//                                       (see _shared/memberAccess.ts; the owner
+//                                       always sees everything)
 //   { menu_item_id, preview: true }   → the course with only free-preview lessons open
 //   { token, lesson_id, completed }   → mark a lesson done / not done
 //   { menu_item_id, email, resend: true } → email this person their link
@@ -62,7 +66,7 @@ async function resolveMedia(db: any, blocks: any[] | null): Promise<any[]> {
 async function loadCourse(db: any, menuItemId: string, unlocked: (lesson: any) => boolean, progress: Set<string>) {
   const { data: item } = await db
     .from("menu_items")
-    .select("id, user_id, name, item_description, is_course, deleted_at, is_listed_in_marketplace")
+    .select("id, user_id, name, item_description, is_course, is_club, club_interval, has_image, default_price, marketplace_price_from, deleted_at, is_listed_in_marketplace")
     .eq("id", menuItemId)
     .maybeSingle();
   if (!item || !item.is_course || item.deleted_at) return null;
@@ -86,7 +90,11 @@ async function loadCourse(db: any, menuItemId: string, unlocked: (lesson: any) =
     outModules.push({ id: m.id, title: m.title, description: m.description, lessons: ls });
   }
   return {
-    course: { id: item.id, name: item.name, description: item.item_description },
+    course: {
+      id: item.id, name: item.name, description: item.item_description, is_club: !!item.is_club, interval: item.club_interval ?? null,
+      price: Number((item.marketplace_price_from ?? 0) > 0 ? item.marketplace_price_from : item.default_price) || 0,
+      image_url: item.has_image ? `${SUPABASE_URL}/storage/v1/object/public/menu-item-images/${String(item.user_id).toUpperCase()}/${String(item.id).toUpperCase()}.jpg` : null,
+    },
     shop: {
       id: item.user_id, name: shop?.business_name || shop?.user_name || "", slug: shop?.profile_slug ?? null,
       theme: shop?.selected_theme ?? null, accent: shop?.storefront_design?.colors?.accent ?? null,
@@ -242,16 +250,15 @@ Deno.serve(async (req: Request) => {
     return json({ ...data, enrolled: false });
   }
 
-  // ── Enrolled ──
-  const token = String(body.token ?? "");
-  if (!UUID_RE.test(token)) return json({ error: "This course link isn’t valid." }, 400);
-  const { data: enrollment } = await db.from("course_enrollments")
-    .select("id, user_id, menu_item_id, name, email, revoked_at, stripe_subscription_id, paid_through, cancel_at").eq("access_token", token).maybeSingle();
-  if (!enrollment || enrollment.revoked_at) return json({ error: "This link isn’t valid any more. Contact the shop for help." }, 403);
-  if (!(await checkMembership(db, enrollment))) return json({ error: "Your membership has ended. Join again from the shop to get back in." }, 403);
+  // ── Enrolled (or the owner) ──
+  const res = await resolveAccess(db, req, body);
+  if ("error" in res) return json({ error: res.error }, res.status);
+  const { owner } = res.access;
+  const enrollment = res.access.enrollment;
+  if (enrollment && !(await checkMembership(db, enrollment))) return json({ error: "Your membership has ended. Join again from the shop to get back in." }, 403);
 
   if (body.cancel_club === true) {
-    if (!enrollment.stripe_subscription_id) return json({ error: "Invalid request." }, 400);
+    if (!enrollment?.stripe_subscription_id) return json({ error: "Invalid request." }, 400);
     try {
       const sub: any = await getStripeClient().subscriptions.update(enrollment.stripe_subscription_id, { cancel_at_period_end: true },
         { stripeAccount: (await connectedAccount(db, enrollment.user_id)) ?? undefined });
@@ -265,6 +272,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (body.lesson_id) {
+    if (!enrollment) return json({ ok: true });   // the owner's clicks aren't progress
     const lessonId = String(body.lesson_id);
     if (!UUID_RE.test(lessonId)) return json({ error: "Invalid request." }, 400);
     if (body.completed === false) {
@@ -276,15 +284,23 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true });
   }
 
-  const { data: done } = await db.from("course_progress").select("lesson_id").eq("enrollment_id", enrollment.id);
-  const data = await loadCourse(db, enrollment.menu_item_id, () => true, new Set((done ?? []).map((d: any) => d.lesson_id)));
-  if (!data) return json({ error: "This course isn’t available any more. Contact the shop for help." }, 404);
-  await db.from("course_enrollments").update({ last_opened_at: new Date().toISOString() }).eq("id", enrollment.id);
-  const { data: club } = await db.from("menu_items").select("is_club, club_interval").eq("id", enrollment.menu_item_id).maybeSingle();
+  const menuItemId = res.access.menuItemId;
+  const { data: done } = enrollment
+    ? await db.from("course_progress").select("lesson_id").eq("enrollment_id", enrollment.id)
+    : { data: [] };
+  const data = await loadCourse(db, menuItemId, () => true, new Set((done ?? []).map((d: any) => d.lesson_id)));
+  if (!data) return json({ error: "This isn’t available any more. Contact the shop for help." }, 404);
+  if (enrollment) await db.from("course_enrollments").update({ last_opened_at: new Date().toISOString() }).eq("id", enrollment.id);
+  const { data: meta } = await db.from("menu_items").select("is_club, club_interval, channel_enabled, members_can_post").eq("id", menuItemId).maybeSingle();
   return json({
-    ...data, enrolled: true, student: { name: enrollment.name, email: enrollment.email },
-    club: club?.is_club ? {
-      interval: enrollment.stripe_subscription_id ? club.club_interval : null,
+    ...data, enrolled: true, owner,
+    student: enrollment ? { name: enrollment.name, email: enrollment.email } : null,
+    space: {
+      is_club: !!meta?.is_club, interval: meta?.club_interval ?? null,
+      channel_enabled: meta?.channel_enabled !== false, members_can_post: meta?.members_can_post !== false,
+    },
+    club: meta?.is_club && enrollment ? {
+      interval: enrollment.stripe_subscription_id ? meta.club_interval : null,
       paid_through: enrollment.paid_through, cancel_at: enrollment.cancel_at,
     } : null,
   });
