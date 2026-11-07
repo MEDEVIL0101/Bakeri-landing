@@ -4528,7 +4528,7 @@
         ? ['A private community chat with ' + escapeHtml(String((profile && (profile.business_name || profile.user_name)) || 'the shop').replace(/\.$/, '')) + ' and other members']
             .concat(lessons ? [lessons + ' resource' + (lessons === 1 ? '' : 's') + ' in the library'] : [])
             .concat([item.club_interval ? 'Cancel anytime' : 'Lifetime access'])
-        : [mods.length + ' module' + (mods.length === 1 ? '' : 's'), lessons + ' lesson' + (lessons === 1 ? '' : 's'), 'lifetime access', 'a discussion with other students'];
+        : [mods.length + ' module' + (mods.length === 1 ? '' : 's'), lessons + ' lesson' + (lessons === 1 ? '' : 's'), 'lifetime access'];
       box.innerHTML = '<div class="cc-head">' + (club ? 'What members get' : 'What’s inside') + '</div>' +
         '<div class="cc-sub">' + sub.join(' · ') + '</div>' +
         mods.map(function (m, i) {
