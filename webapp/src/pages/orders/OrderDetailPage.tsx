@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, PageHeader, Select, Spinner, useLoad, useToast } from '../../components/ui';
 import {
   MANUAL_STATUS_FLOW, createInvoice, deleteOrder, effectiveTotal, emailInvoice, getOrder, invoiceURL, isStorefrontOrder,
-  itemsTotal, setManualStatus, setPaid, statusLabel, statusTone, dueText, effectiveDue, setDueDate,
+  itemsTotal, setManualStatus, setOrderPrice, setPaid, statusLabel, statusTone, dueText, effectiveDue, setDueDate,
 } from '../../lib/orders';
 import { STORAGE_PUBLIC_URL } from '../../lib/supabase';
 import { formatDate, formatDateTime, formatMoney, fromLocalInput, parseNumber, toDateInput } from '../../lib/format';
@@ -83,7 +83,7 @@ export function OrderDetailPage() {
               {order.delivery_details && <><dt>Details</dt><dd className="prewrap">{order.delivery_details}</dd></>}
             </dl>
           </Card>
-          <PaymentCard order={order} />
+          <PaymentCard order={order} onChanged={reload} />
           {order.fulfillment_type !== 'Digital' && <OrderPackagingCard userId={order.user_id} orderId={order.id} />}
           {!storefront && <InvoiceCard order={order} onChanged={reload} />}
         </div>
@@ -145,7 +145,10 @@ function safeParse(v: unknown): any[] {
   try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; }
 }
 
-function PaymentCard({ order }: { order: Order }) {
+function PaymentCard({ order, onChanged }: { order: Order; onChanged: () => void }) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const [priceStr, setPriceStr] = useState('');
   const total = effectiveTotal(order);
   const storefront = isStorefrontOrder(order);
   const deposit = storefront ? (order.deposit_amount_cents ?? 0) / 100 : order.deposit_amount;
@@ -154,9 +157,27 @@ function PaymentCard({ order }: { order: Order }) {
     ? ps === 'captured' ? 'Paid' : ps === 'deposit_paid' ? 'Deposit paid' : ps === 'authorized' ? 'Card on hold' : ps === 'refunded' ? 'Refunded' : order.is_paid ? 'Paid' : 'Unpaid'
     : order.is_paid ? 'Paid' : deposit > 0 && order.deposit_paid_at ? 'Deposit paid' : 'Unpaid';
   return (
-    <Card title="Payment">
+    <Card title="Payment" actions={!storefront && !order.is_paid && (
+      <Button variant="secondary" onClick={() => { setPriceStr(total ? total.toFixed(2) : ''); setEditing(true); }}>Change price</Button>
+    )}>
+      {editing && (
+        <ConfirmModal title="Change the price" confirmLabel="Save price"
+          body={`The items on this order add up to ${formatMoney(itemsTotal(order))}. Set the total you’re charging — a discount, an extra, a quote. Clear it to go back to the items’ total.`}
+          onClose={() => setEditing(false)}
+          onConfirm={async () => {
+            const v = priceStr.trim() === '' ? null : parseNumber(priceStr);
+            await setOrderPrice(order, v);
+            setEditing(false);
+            toast(v ? `Price set to ${formatMoney(v)}` : 'Price back to the items’ total');
+            onChanged();
+          }}>
+          <Field label="Order total">
+            <input className="input" inputMode="decimal" value={priceStr} placeholder={itemsTotal(order).toFixed(2)} onChange={(e) => setPriceStr(e.target.value)} autoFocus />
+          </Field>
+        </ConfirmModal>
+      )}
       <dl className="kv">
-        {order.quoted_price ? <><dt>Items</dt><dd>{formatMoney(itemsTotal(order))}</dd><dt>Quoted</dt><dd>{formatMoney(order.quoted_price)}</dd></> : null}
+        {order.quoted_price ? <><dt>Items</dt><dd>{formatMoney(itemsTotal(order))}</dd><dt>{storefront ? 'Quoted' : 'Price'}</dt><dd>{formatMoney(order.quoted_price)}</dd></> : null}
         <dt>Total</dt><dd><strong>{formatMoney(total)}</strong></dd>
         {order.tax_amount_cents > 0 && <><dt>Tax</dt><dd>{formatMoney(order.tax_amount_cents / 100)}</dd></>}
         {deposit > 0 && <><dt>Deposit</dt><dd>{formatMoney(deposit)}{order.deposit_paid_at ? ` · paid ${formatDate(order.deposit_paid_at)}` : ''}</dd></>}

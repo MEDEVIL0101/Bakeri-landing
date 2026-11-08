@@ -145,6 +145,9 @@ export interface OrderDraft {
   deposit_amount: number;
   deposit_paid: boolean;
   deposit_note: string;
+  /** The order's price when it isn't just the items added up (orders.quoted_price,
+   *  same as iOS Order.effectiveTotal); null = the items' total. */
+  total_price: number | null;
   items: ItemDraft[];
 }
 
@@ -188,6 +191,7 @@ export async function saveOrder(userId: string, draft: OrderDraft, existing?: Or
     deposit_amount: draft.deposit_amount,
     deposit_paid_at: depositPaidAt,
     deposit_note: draft.deposit_note,
+    quoted_price: draft.total_price && draft.total_price > 0 ? draft.total_price : null,
     updated_at: ts,
     ...(existing
       ? { status: autoStatus(existing.status, draft.is_paid) }
@@ -246,6 +250,11 @@ export async function patchOrder(o: Order, patch: Partial<Order>): Promise<void>
 // that is both delivered and paid is Completed; un-paying reverts it.
 export async function setManualStatus(o: Order, status: OrderStatus): Promise<void> {
   await patchOrder(o, { status: status === 'Delivered' && o.is_paid ? 'Completed' : status });
+}
+
+/** A manual order's price, set directly (null = back to the items' total). */
+export async function setOrderPrice(o: Order, price: number | null): Promise<void> {
+  await patchOrder(o, { quoted_price: price && price > 0 ? price : null });
 }
 
 export async function setPaid(o: Order, paid: boolean): Promise<void> {

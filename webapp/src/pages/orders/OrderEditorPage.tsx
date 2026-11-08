@@ -15,7 +15,7 @@ function emptyDraft(): OrderDraft {
     order_name: '', customer_name: '', customer_phone: '', customer_email: '',
     due_date: due.toISOString(), start_date: null, notes: '', fulfillment_type: 'Pickup',
     delivery_details: '', color_name: 'red', is_paid: false, payment_note: '',
-    deposit_amount: 0, deposit_paid: false, deposit_note: '', items: [],
+    deposit_amount: 0, deposit_paid: false, deposit_note: '', total_price: null, items: [],
   };
 }
 
@@ -26,6 +26,7 @@ function draftFrom(o: Order): OrderDraft {
     fulfillment_type: o.fulfillment_type, delivery_details: o.delivery_details, color_name: o.color_name,
     is_paid: o.is_paid, payment_note: o.payment_note, deposit_amount: o.deposit_amount,
     deposit_paid: !!o.deposit_paid_at, deposit_note: o.deposit_note,
+    total_price: o.quoted_price && o.quoted_price > 0 ? Number(o.quoted_price) : null,
     items: (o.order_items ?? []).map((i) => ({
       id: i.id, custom_name: i.custom_name, quantity: i.quantity, unit: i.unit, price_per_unit: i.price_per_unit,
       notes: i.notes, menu_item_id: i.menu_item_id, recipe_id: i.recipe_id,
@@ -112,7 +113,7 @@ export function OrderEditorPage() {
             </Field>
           </Card>
 
-          <Card title="Items" actions={<span className="muted">Total {formatMoney(total)}</span>}>
+          <Card title="Items" actions={<span className="muted">Total {formatMoney(draft.total_price ?? total)}</span>}>
             {draft.items.length > 0 && (
               <div className="item-editor">
                 <div className="item-edit-head small muted"><span className="grow">Item</span><span className="w-num">Qty</span><span className="w-num">Each</span><span /></div>
@@ -163,6 +164,12 @@ export function OrderEditorPage() {
           </Card>
 
           <Card title="Payment">
+            <Field label="Price" hint={draft.total_price != null
+              ? (draft.items.length ? `The items add up to ${formatMoney(total)}. Clear this to use that instead.` : undefined)
+              : (draft.items.length ? `Blank = the items added up (${formatMoney(total)}). Set it to charge a different price.` : 'What you’re charging for this order.')}>
+              <Input type="number" min="0" step="0.01" placeholder={total ? total.toFixed(2) : '0.00'} value={draft.total_price ?? ''}
+                onChange={(e) => set('total_price', e.target.value === '' ? null : parseNumber(e.target.value))} />
+            </Field>
             <Field label="Deposit">
               <Input type="number" min="0" step="0.01" value={draft.deposit_amount || ''} placeholder="0.00" onChange={(e) => set('deposit_amount', parseNumber(e.target.value))} />
             </Field>
