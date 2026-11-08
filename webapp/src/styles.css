@@ -1503,3 +1503,7 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .cx-empty-art { font-size: 54px; }
 .cx-empty h2 { margin: 0; }
 @media (max-width: 720px) { .cx-totals { grid-template-columns: repeat(2, 1fr); } .cx-grid { grid-template-columns: 1fr; } }
+
+.sp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto; }
+.sp-actions .btn { justify-content: center; }
+.sp-actions .btn-primary { grid-column: 1 / -1; }

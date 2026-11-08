@@ -24,7 +24,9 @@ export function MenuPage() {
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
+    // Courses and clubs have their own pages (Courses / Clubs).
     return (data ?? [])
+      .filter((m) => !m.is_course)
       .filter((m) => filter === 'all' || (filter === 'listed' ? m.is_listed_in_marketplace : !m.is_listed_in_marketplace))
       .filter((m) => !term || m.name.toLowerCase().includes(term) || m.category.toLowerCase().includes(term));
   }, [data, filter, q]);
@@ -85,6 +87,11 @@ export function MenuPage() {
       )}
       {profile?.storefront_listing_id && (
         <div className="banner banner-info">Your storefront is currently a single custom-order form, so other listings aren’t shown. Change this in the app’s storefront builder.</div>
+      )}
+      {(data ?? []).some((m) => m.is_course) && (
+        <div className="banner banner-info">
+          Your courses and clubs have their own pages now: <Link to="/courses">Courses</Link> · <Link to="/clubs">Clubs</Link>.
+        </div>
       )}
       <div className="toolbar">
         <div className="pills">

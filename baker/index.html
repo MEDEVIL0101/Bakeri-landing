@@ -261,6 +261,8 @@
     .sf-sub { font-size: 14px; font-weight: 600; color: var(--card-muted, var(--n800)); }
     .sf-sub:empty { display: none; }
     .sf-card-body { padding: var(--cpad); }
+    .sf-sec-signin { padding: 0 var(--cpad) var(--cpad2); font-size: 13px; color: var(--card-muted, var(--muted)); }
+    .sf-sec-signin a { color: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
     .sf-kicker { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--card-title, var(--head-ink)); }
 
     .sf-chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -900,6 +902,25 @@
   <div id="digital-feed" class="hidden" data-bt="digital"></div>
 </section>
 
+<!-- Courses and Clubs — their own sections (block types 'courses' /
+     'clubs'), placed anywhere and with their own menu buttons. A course or
+     club featured as its own card ('offer' block) isn't repeated here. -->
+<section id="sf-courses" class="sf-card hidden" data-block="courses">
+  <div class="sf-card-head">
+    <div class="titles"><h2 id="sf-courses-title"></h2><span class="sf-sub" id="sf-courses-sub"></span></div>
+  </div>
+  <div class="sf-card-body" id="sf-courses-grid"></div>
+  <div class="sf-sec-signin">Already a student? <a class="sf-member-link">Log in</a></div>
+</section>
+
+<section id="sf-clubs" class="sf-card hidden" data-block="clubs">
+  <div class="sf-card-head">
+    <div class="titles"><h2 id="sf-clubs-title"></h2><span class="sf-sub" id="sf-clubs-sub"></span></div>
+  </div>
+  <div class="sf-card-body" id="sf-clubs-grid"></div>
+  <div class="sf-sec-signin">Already a member? <a class="sf-member-link">Log in</a></div>
+</section>
+
 <section id="links-feed" class="sf-card hidden" data-block="links">
   <div class="sf-card-head">
     <div class="titles"><h2 id="sf-links-title"></h2></div>
@@ -1486,6 +1507,7 @@
     renderEmailCapture(p);
     renderReferralCard();
     renderOfferCards();
+    renderSpaceSections();
     renderMemberLogin();
     renderHeaderSignupButton(p);
     document.getElementById('footer-copy').textContent = '© ' + new Date().getFullYear() + ' ' + name;
@@ -1547,15 +1569,16 @@
   // first one in the baker's order. Extra keys on an entry (title, nav,
   // nav_label, colors, …) are v2-only; index.html ignores them.
 
-  const V2_DEFAULT_ORDER = ['leadMagnet', 'menu', 'products', 'links', 'about', 'info', 'emailCapture'];
+  const V2_DEFAULT_ORDER = ['leadMagnet', 'menu', 'products', 'courses', 'clubs', 'links', 'about', 'info', 'emailCapture'];
   const V1_TO_V2 = {
     menu: 'menu', physical: 'products', digital: 'products', products: 'products',
     links: 'links', about: 'about', faq: 'info', policies: 'info', hours: 'info', info: 'info',
-    emailCapture: 'emailCapture', leadMagnet: 'leadMagnet'
+    emailCapture: 'emailCapture', leadMagnet: 'leadMagnet', courses: 'courses', clubs: 'clubs'
   };
   const CARD_IDS = {
     leadMagnet: 'sf-magnet', menu: 'feed', form: 'form-storefront', products: 'sf-products',
     links: 'links-feed', about: 'pb-about', info: 'sf-info', emailCapture: 'email-capture',
+    courses: 'sf-courses', clubs: 'sf-clubs',
     // Bakerï Referral — never a default card (not in V2_DEFAULT_ORDER): it
     // shows only where the vendor's design includes it switched on.
     referral: 'sf-referral'
@@ -1571,6 +1594,9 @@
   // Every listed course/club has a card: the ones the vendor's layout
   // doesn't mention yet go right after the Products card (or at the end).
   function addMissingOffers(order, cfg) {
+    // Courses and clubs live in their own sections now ('courses' /
+    // 'clubs'); a single one is only a standalone card when featured.
+    return;
     const missing = offerListings().map(function (l) { return offerKey(l.id); }).filter(function (k) { return !cfg[k]; });
     if (!missing.length) return;
     missing.forEach(function (k) { cfg[k] = { type: 'offer', listing_id: k.slice(6), hidden: false }; });
@@ -1582,7 +1608,7 @@
   // Default nav set (spec): the shopping/info cards; About, Lead magnet and
   // Email capture only when the baker turns their button on (entry.nav).
   const NAV_DEFAULT = {
-    menu: true, form: true, products: true, links: true, info: true,
+    menu: true, form: true, products: true, links: true, info: true, courses: true, clubs: true,
     about: false, leadMagnet: false, emailCapture: false, referral: false
   };
 
@@ -1610,6 +1636,14 @@
       cfg[b.type] = Object.assign({}, b, { hidden: !!b.hidden });
       order.push(b.type);
       (Array.isArray(b.parts_hidden) ? b.parts_hidden : []).forEach(function (part) { sub[part] = true; });
+    });
+    // Courses / Clubs (2026-11-08) go right after Products in a design saved
+    // before they existed, rather than at the bottom.
+    ['courses', 'clubs'].forEach(function (t) {
+      if (cfg[t]) return;
+      cfg[t] = { type: t, hidden: false };
+      const after = Math.max(order.indexOf('products'), order.indexOf('courses'));
+      order.splice(after === -1 ? order.length : after + 1, 0, t);
     });
     V2_DEFAULT_ORDER.forEach(function (t) {
       if (cfg[t]) return;
@@ -1690,6 +1724,8 @@
     switch (type) {
       case 'menu': return 'Shop my Menu';
       case 'products': return 'Shop my Products';
+      case 'courses': return 'Courses';
+      case 'clubs': return 'Join the club';
       case 'links': return 'More from ' + firstName();
       case 'info': return 'Before you order';
       case 'about': return ((profile && profile.about_heading) || '').trim() || 'Meet ' + firstName();
@@ -2173,7 +2209,9 @@
     faq:      ['faq-col'],
     policies: ['pb-policies'],
     hours:    ['hours-card'],
-    emailCapture: ['email-capture', 'sf-magnet']
+    emailCapture: ['email-capture', 'sf-magnet'],
+    courses: ['sf-courses'],
+    clubs: ['sf-clubs']
   };
   let builderTapTargetsWired = false;
   let rectReportScheduled = false;
@@ -3179,6 +3217,36 @@
     btn.href = 'https://bakeriapp.com/?ref=' + encodeURIComponent(code) + '&utm_source=storefront&utm_medium=referral';
     card.classList.remove('hidden');
   }
+  // Courses / Clubs sections: every listed course or club of that kind that
+  // isn't featured on its own card, as product tiles (one fills the width).
+  function featuredOfferIDs() {
+    return Object.keys(blockCfg).filter(function (k) { return isOfferKey(k) && !blockCfg[k].hidden; }).map(function (k) { return k.slice(6); });
+  }
+  function renderSpaceSections() {
+    const featured = featuredOfferIDs();
+    [['courses', false], ['clubs', true]].forEach(function (pair) {
+      const type = pair[0], club = pair[1];
+      const card = document.getElementById(type === 'courses' ? 'sf-courses' : 'sf-clubs');
+      const grid = document.getElementById(type === 'courses' ? 'sf-courses-grid' : 'sf-clubs-grid');
+      const items = offerListings().filter(function (l) { return !!l.is_club === club && featured.indexOf(String(l.id).toLowerCase()) === -1; });
+      grid.innerHTML = '';
+      if (!items.length) { card.classList.add('hidden'); return; }
+      card.classList.remove('hidden');
+      document.getElementById(type === 'courses' ? 'sf-courses-title' : 'sf-clubs-title').textContent = cardTitle(type);
+      document.getElementById(type === 'courses' ? 'sf-courses-sub' : 'sf-clubs-sub').textContent = club
+        ? 'Members-only community · cancel anytime'
+        : 'Learn at your own pace · lifetime access';
+      card.querySelectorAll('.sf-member-link').forEach(function (a) {
+        a.href = '/baker/course.html?shop=' + encodeURIComponent(resolvedBakerId);
+      });
+      if (items.length === 1) { grid.appendChild(buildWideTile(items[0])); return; }
+      const g = document.createElement('div');
+      g.className = 'sf-grid';
+      items.forEach(function (it) { g.appendChild(buildTile(it)); });
+      grid.appendChild(g);
+    });
+  }
+
   // Log in (top bar): members of this shop's courses and clubs sign in with
   // their email and a code on the member page (course.html?shop=).
   function renderMemberLogin() {
@@ -3685,7 +3753,8 @@
     priceRow.className = 'sf-price-row';
     const priceEl = document.createElement('span');
     priceEl.className = 'sf-price tabular';
-    priceEl.innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) });
+    priceEl.innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) }) +
+      (item.is_club && item.club_interval ? '<span class="from"> /' + (item.club_interval === 'year' ? 'yr' : 'mo') + '</span>' : '');
     priceRow.appendChild(priceEl);
     priceRow.appendChild(buildAddControl(item));
     body.appendChild(priceRow);

@@ -508,6 +508,42 @@ export function OfferCardSettings(props: EditorProps & { listingId: string }) {
   );
 }
 
+/**
+ * What's in the Courses / Clubs section: every listed course or club of that
+ * kind, each of which can be featured on its own big card instead (an
+ * 'offer' block, placed right after this section — drag it anywhere).
+ */
+export function SpacesSectionContent(props: EditorProps & { club: boolean }) {
+  const { design, setDesign } = useDesign(props);
+  const blocks = design.blocks ?? [];
+  const items = offerListings(props.data).filter((o) => !!o.is_club === props.club);
+  const kind = props.club ? 'club' : 'course';
+  const featured = (id: string) => blocks.some((b) => b.type === 'offer' && String(b.listing_id).toLowerCase() === id && !b.hidden);
+  const toggle = (id: string, on: boolean) => {
+    const rest = blocks.filter((b) => !(b.type === 'offer' && String(b.listing_id).toLowerCase() === id));
+    if (!on) { setDesign({ blocks: rest }); return; }
+    const at = rest.findIndex((b) => b.type === (props.club ? 'clubs' : 'courses'));
+    rest.splice(at === -1 ? rest.length : at + 1, 0, { type: 'offer', listing_id: id });
+    setDesign({ blocks: rest });
+  };
+  return (
+    <Section title={`Your ${kind}s`} hint={items.length
+      ? `Every listed ${kind} shows in this section. Feature one to give it its own big card — then drag that card anywhere on your page.`
+      : `You have no listed ${kind}s yet, so this section is hidden on your page.`}>
+      {items.map((o) => {
+        const id = String(o.id).toLowerCase();
+        return (
+          <div key={id} className="row-between">
+            <span className="ellipsis">{o.name}</span>
+            <Toggle checked={featured(id)} onChange={(v) => toggle(id, v)} label="Feature on its own card" />
+          </div>
+        );
+      })}
+      <Link className="btn btn-secondary" to={props.club ? '/clubs' : '/courses'}><span>{props.club ? 'Manage clubs' : 'Manage courses'}</span></Link>
+    </Section>
+  );
+}
+
 export function ReferralCardInfo() {
   const [code, setCode] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);

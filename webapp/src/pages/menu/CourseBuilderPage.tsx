@@ -110,7 +110,7 @@ export function CourseBuilderPage() {
   const ownerURL = `${COURSE_PAGE}?owner=${id}`;
   const header = (
     <PageHeader
-      back={<Link to={`/menu/${id}`} className="back-link">{item.name}</Link>}
+      back={<Link to={item.is_club ? '/clubs' : '/courses'} className="back-link">{item.is_club ? 'Clubs' : 'Courses'}</Link>}
       title={club ? 'Club' : 'Course'}
       subtitle={`${modules.length} ${modules.length === 1 ? W.section.toLowerCase() : W.sections} · ${lessonCount} ${lessonCount === 1 ? W.lesson.toLowerCase() : W.lessons}${item.is_listed_in_marketplace ? '' : ' · not listed yet'}`}
       actions={

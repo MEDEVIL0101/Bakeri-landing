@@ -69,6 +69,8 @@ export function MenuItemEditorPage() {
   const forms = useLoad(() => listIntakeForms(userId), [userId]);
   const recipes = useLoad(() => listRecipes(userId), [userId]);
   const existing = useMemo(() => items.data?.find((m) => m.id === id), [items.data, id]);
+  // /menu/new?type=course|club (from Courses / Clubs) skips the type picker.
+  const newType = new URLSearchParams(location.search).get('type');
 
   const [draft, setDraft] = useState<MenuDraft | null>(null);
   const [image, setImage] = useState<Blob | null>(null);
@@ -78,6 +80,12 @@ export function MenuItemEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [newDate, setNewDate] = useState('');
+
+  useEffect(() => {
+    if (!id && !draft && newType === 'course') setDraft({ ...emptyDraft('digital'), is_course: true, category: 'Courses' });
+    if (!id && !draft && newType === 'club') setDraft({ ...emptyDraft('digital'), is_course: true, is_club: true, club_interval: 'month', category: 'Clubs' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, newType]);
 
   useEffect(() => {
     if (id && existing && !draft) setDraft(draftFrom(existing, !!profile?.delivery_enabled, profile?.storefront_listing_id));
@@ -171,7 +179,7 @@ export function MenuItemEditorPage() {
         ? 'Saved as a draft — add a pickup address in Settings → Shop settings to list food items.'
         : res.hidOthers ? `Saved — your storefront now shows just this form (${res.hidOthers} other listing${res.hidOthers === 1 ? '' : 's'} hidden).` : 'Listing saved', res.unlistedForNoFulfillment ? 'error' : 'ok');
       // A brand-new course goes straight on to adding its lessons.
-      navigate(d.is_course && !existing ? `/menu/${res.id}/course` : '/menu');
+      navigate(d.is_course && !existing ? `/menu/${res.id}/course` : d.is_club ? '/clubs' : d.is_course ? '/courses' : '/menu');
     } catch (err: any) {
       setError(err.message);
       setBusy(false);
@@ -185,7 +193,7 @@ export function MenuItemEditorPage() {
 
   const header = (
     <PageHeader
-      back={<Link to="/menu" className="back-link">Products</Link>}
+      back={d.is_course ? <Link to={d.is_club ? '/clubs' : '/courses'} className="back-link">{d.is_club ? 'Clubs' : 'Courses'}</Link> : <Link to="/menu" className="back-link">Products</Link>}
       title={id ? d.name || 'Edit listing' : formListing ? 'New custom order form' : `New ${kindLabel.toLowerCase()} listing`}
       subtitle={<span className="kind-pill">{formListing ? 'Custom order form' : kindLabel}</span>}
       actions={<>

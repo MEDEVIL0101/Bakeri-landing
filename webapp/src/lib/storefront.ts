@@ -46,7 +46,7 @@ export const PATTERNS = ['Standard', 'Polka Dot', 'Stripes', 'Gingham', 'Pumpkin
 
 // v2 (profiles.storefront_design — Models/StorefrontDesign.swift)
 export interface CardColors { background?: string; title?: string; button?: string; text?: string }
-export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'links' | 'about' | 'info' | 'emailCapture' | 'referral' | 'offer';
+export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'courses' | 'clubs' | 'links' | 'about' | 'info' | 'emailCapture' | 'referral' | 'offer';
 export interface V2Block {
   type: V2CardType;
   hidden?: boolean;
@@ -118,12 +118,14 @@ export const V2_CARDS: { type: V2CardType; label: string; navByDefault: boolean;
   { type: 'leadMagnet', label: 'Free Download', navByDefault: false },
   { type: 'menu', label: 'Menu', navByDefault: true },
   { type: 'products', label: 'Products', navByDefault: true, parts: [{ key: 'physical', label: 'Physical products' }, { key: 'digital', label: 'Digital downloads' }] },
+  { type: 'courses', label: 'Courses', navByDefault: true },
+  { type: 'clubs', label: 'Clubs', navByDefault: true },
   { type: 'links', label: 'Links', navByDefault: true },
   { type: 'about', label: 'About', navByDefault: false },
   { type: 'info', label: 'Before You Order', navByDefault: true, parts: [{ key: 'policies', label: 'Store policies' }, { key: 'faq', label: 'FAQ' }, { key: 'hours', label: 'Pickup hours' }] },
   { type: 'emailCapture', label: 'Mailing List Signup', navByDefault: false },
   { type: 'referral', label: 'Bakerï Referral', navByDefault: false },
-  { type: 'offer', label: 'Course / club', navByDefault: false },
+  { type: 'offer', label: 'Featured course / club', navByDefault: false },
 ];
 /** Same names, weights and Google Fonts specs as next.html DISPLAY_FONTS. */
 export const V2_FONT_DEFS: { name: string; w: number; gf: string | null; group: 'Classic' | 'Clean' | 'Fun' | 'Script' }[] = [
@@ -173,7 +175,7 @@ export function loadV2FontPreviews() {
 
 export function v2DefaultTitle(t: V2CardType, firstName: string): string {
   return {
-    leadMagnet: 'Free download', menu: 'Shop my Menu', products: 'Shop my Products', links: `More from ${firstName}`,
+    leadMagnet: 'Free download', menu: 'Shop my Menu', products: 'Shop my Products', courses: 'Courses', clubs: 'Join the club', links: `More from ${firstName}`,
     about: `Meet ${firstName}`, info: 'Before you order', emailCapture: 'Join my list',
     referral: 'Start your own shop on Bakerï!', offer: '',
   }[t];
@@ -439,7 +441,7 @@ export function blobToDataURL(blob: Blob): Promise<string> {
 
 // ── v2 seeding (port of StorefrontDesign.seedBlocks) ──────────────────────
 
-const V2_DEFAULT_ORDER: V2CardType[] = ['leadMagnet', 'menu', 'products', 'links', 'about', 'info', 'emailCapture'];
+const V2_DEFAULT_ORDER: V2CardType[] = ['leadMagnet', 'menu', 'products', 'courses', 'clubs', 'links', 'about', 'info', 'emailCapture'];
 
 export function seedV2Blocks(v1: LayoutBlock[], deliverableListingId: string | null, heading: string, body: string): V2Block[] {
   const hasDeliverable = !!deliverableListingId;
@@ -490,20 +492,11 @@ function referralStartsOn(): boolean {
   return !!accountCreatedAt && accountCreatedAt >= REFERRAL_CARD_LAUNCH;
 }
 
-export function ensureDesign(d: StorefrontDraft, data?: Pick<StorefrontData, 'listings'>): StorefrontDesign {
-  const design = ensureDesignBase(d);
-  if (!data) return design;
-  // Every listed course/club has a card; ones the layout doesn't mention go
-  // after Products (or the last course card), as on the page (addMissingOffers).
-  const blocks = [...(design.blocks ?? [])];
-  const missing = offerListings(data).map((l) => String(l.id).toLowerCase())
-    .filter((id) => !blocks.some((b) => b.type === 'offer' && String(b.listing_id ?? '').toLowerCase() === id));
-  if (!missing.length) return design;
-  let at = blocks.findIndex((b) => b.type === 'products');
-  blocks.forEach((b, i) => { if (b.type === 'offer' && i > at) at = i; });
-  if (at === -1) { const ref = blocks.findIndex((b) => b.type === 'referral'); at = ref === -1 ? blocks.length - 1 : ref - 1; }
-  blocks.splice(at + 1, 0, ...missing.map((id) => ({ type: 'offer' as const, listing_id: id })));
-  return { ...design, blocks };
+/** The design's block list as the page shows it. Courses and clubs sit in
+ * their own sections ('courses' / 'clubs'); a single one is a standalone
+ * ('offer') card only when the vendor features it. */
+export function ensureDesign(d: StorefrontDraft, _data?: Pick<StorefrontData, 'listings'>): StorefrontDesign {
+  return ensureDesignBase(d);
 }
 
 function ensureDesignBase(d: StorefrontDraft): StorefrontDesign {
@@ -513,12 +506,20 @@ function ensureDesignBase(d: StorefrontDraft): StorefrontDesign {
     // end (resolveDesignBlocks) — list them the same way so the builder
     // matches the page. The referral card isn't one of those defaults: a
     // design without it gets it listed switched off, matching the page.
-    const missing = V2_DEFAULT_ORDER.filter((t) => !stored.some((b) => b.type === t));
+    // Courses / Clubs (added 2026-11-08) go right after Products when a saved
+    // design predates them — the page places them the same way.
+    const list = [...stored];
+    (['courses', 'clubs'] as const).forEach((t) => {
+      if (list.some((b) => b.type === t)) return;
+      const after = Math.max(list.findIndex((b) => b.type === 'products'), list.findIndex((b) => b.type === 'courses'));
+      list.splice(after === -1 ? list.length : after + 1, 0, { type: t, hidden: false });
+    });
+    const missing = V2_DEFAULT_ORDER.filter((t) => !list.some((b) => b.type === t));
     const extra: V2Block[] = [
       ...missing.map((type) => ({ type, hidden: false })),
-      ...(stored.some((b) => b.type === 'referral') ? [] : [{ type: 'referral' as const, hidden: true }]),
+      ...(list.some((b) => b.type === 'referral') ? [] : [{ type: 'referral' as const, hidden: true }]),
     ];
-    return extra.length ? { ...d.storefront_design, blocks: [...stored, ...extra] } : d.storefront_design!;
+    return list.length !== stored.length || extra.length ? { ...d.storefront_design, blocks: [...list, ...extra] } : d.storefront_design!;
   }
   return {
     ...(d.storefront_design ?? {}),
