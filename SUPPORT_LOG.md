@@ -21,6 +21,40 @@ Entry format:
 
 ---
 
+## 2026-11-08 — Courses and club vanished (course flags wiped by the iPhone app's sync)
+
+**Reported by:** Harvey, on the Sugarland team account — Communities, storefront
+cards and member pages no longer showed the test course, the course demo or
+The Holiday Cookie Club.
+
+**Symptom:** The listings, lessons, enrolments and messages were all still
+there, but `menu_items.is_course` was false on all three, and the club had
+also lost `is_club` / `club_interval`.
+
+**Root cause:** `SyncService` pushes every local listing on every sync, but
+only applies a pulled listing when the server's `updated_at` is newer than the
+local one. A build that added synced fields (`isCourse`, `isClub`,
+`clubInterval`) migrated SwiftData with those fields at their defaults, the
+pull skipped rows with matching timestamps, and the full push wrote the
+defaults back over the server. The push also writes the local `updated_at`, so
+the server timestamps (22:11/22:15 UTC) were stale values, not the time of the
+overwrite (likely the phone's sync at 15:34 UTC on 2026-11-08).
+
+**Fix:** Data restored by SQL (flags back, `updated_at = now()` so the phone
+pulls them). `SyncService.listingSchemaVersion`: when it's higher than the
+version stored on the device, the next sync re-pulls every listing and applies
+it regardless of timestamps before pushing. Bump it whenever
+`MenuItemRecord` gains a synced field. iOS commit 9880ad0.
+
+**Affected users:** Only the Sugarland team account (checked: no other shop
+has course content on a non-course listing). The fix must ship before any
+vendor installs a build with the course/club fields.
+
+**Follow-up:** Other tables use the same "pull if newer, push everything"
+pattern; any new synced field on them needs the same treatment.
+
+---
+
 ## 2026-09-09 — Stripe Connect webhook failing every delivery (400 Invalid signature)
 
 **Reported by:** Stripe automated email — 33 consecutive failed deliveries to

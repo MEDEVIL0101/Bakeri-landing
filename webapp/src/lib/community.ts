@@ -47,3 +47,20 @@ export async function communityMemberCount(id: string): Promise<number> {
   const { count } = await supabase.from('course_enrollments').select('id', { count: 'exact', head: true }).eq('menu_item_id', id).is('revoked_at', null);
   return count ?? 0;
 }
+
+/** What the Communities page shows about one community. */
+export interface CommunityStats { members: number; fresh: number; week: number; last: { author: string; body: string; at: string; fromShop: boolean } | null }
+
+export async function communityStats(id: string): Promise<CommunityStats> {
+  const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+  const [members, fresh, week, last] = await Promise.all([
+    communityMemberCount(id),
+    communityNewCount(id),
+    supabase.from('channel_messages').select('id', { count: 'exact', head: true }).eq('menu_item_id', id).is('deleted_at', null).gt('created_at', weekAgo)
+      .then((r) => r.count ?? 0),
+    supabase.from('channel_messages').select('author_name, body, created_at, enrollment_id').eq('menu_item_id', id).is('deleted_at', null)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      .then((r) => (r.data ? { author: r.data.author_name, body: r.data.body, at: r.data.created_at, fromShop: !r.data.enrollment_id } : null)),
+  ]);
+  return { members, fresh, week, last };
+}
