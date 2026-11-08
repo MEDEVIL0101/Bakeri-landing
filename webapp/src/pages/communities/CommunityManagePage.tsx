@@ -10,7 +10,7 @@ import {
 } from '../../lib/community';
 
 /**
- * Manage one community as the shop (Communities → Manage): the conversation
+ * Manage one community as the shop (Courses / Clubs → Community): the conversation
  * members see, with the shop's tools — post, post an Update (emailed to
  * members), threads, reactions, pin, remove. Refreshes every 5 seconds.
  * iOS: CommunityChannelView.
@@ -92,7 +92,7 @@ export function CommunityManagePage() {
   let lastDay = '';
   return (
     <div className="page community-page">
-      <PageHeader back={<Link to="/communities" className="back-link">Communities</Link>} title={item.name}
+      <PageHeader back={<Link to={club ? '/clubs' : '/courses'} className="back-link">{club ? 'Clubs' : 'Courses'}</Link>} title={item.name}
         subtitle={`${club ? 'Club' : 'Course'} community · you post as your shop`}
         actions={<div className="row-gap">
           <Link className="btn btn-secondary" to={`/communities/${id}/design`}><span>Design</span></Link>

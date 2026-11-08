@@ -11,7 +11,7 @@ import { OrderEditorPage } from './pages/orders/OrderEditorPage';
 import { MenuPage } from './pages/menu/MenuPage';
 import { MenuItemEditorPage } from './pages/menu/MenuItemEditorPage';
 import { CourseBuilderPage } from './pages/menu/CourseBuilderPage';
-import { CommunitiesPage, CommunityDesignPage } from './pages/communities/CommunitiesPage';
+import { CommunityDesignPage } from './pages/communities/CommunitiesPage';
 import { CommunityManagePage } from './pages/communities/CommunityManagePage';
 import { SpacesPage } from './pages/communities/SpacesPage';
 import { CustomersPage } from './pages/customers/CustomersPage';
@@ -124,7 +124,7 @@ export default function App() {
               <Route path="menu/:id/course" element={<CourseBuilderPage />} />
               <Route path="courses" element={<SpacesPage club={false} />} />
               <Route path="clubs" element={<SpacesPage club />} />
-              <Route path="communities" element={<CommunitiesPage />} />
+              <Route path="communities" element={<Navigate to="/courses" replace />} />
               <Route path="communities/:id" element={<CommunityManagePage />} />
               <Route path="communities/:id/design" element={<CommunityDesignPage />} />
               <Route path="customers" element={<CustomersPage />} />

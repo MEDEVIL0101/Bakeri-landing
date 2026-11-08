@@ -167,7 +167,7 @@ async function notifyShop(db: any, access: Access, message: any) {
       `<p style="margin:0 0 6px;font-size:14px;color:#8a7f88;"><b style="color:#14110e;">${escapeHtml(access.name)}</b> ${kind}:</p>
        <p style="margin:0 0 20px;font-size:15px;line-height:1.65;padding:12px 14px;background:#f6f1e8;border-radius:12px;">${preview}</p>
        <a href="${COURSE_PAGE}?owner=${access.menuItemId}#community" style="display:inline-block;padding:12px 22px;background:#14110e;color:#fff;border-radius:9999px;text-decoration:none;font-weight:700;">Reply</a>
-       <p style="margin:16px 0 0;font-size:13px;color:#8a7f88;">Or open the Bakerï app → Communities.</p>`,
+       <p style="margin:16px 0 0;font-size:13px;color:#8a7f88;">Or open the Bakerï app → ${item?.is_club ? "Clubs" : "Courses"}.</p>`,
       "You get one email when members start talking, not one per message."),
   });
 }
