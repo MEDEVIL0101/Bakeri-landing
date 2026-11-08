@@ -46,6 +46,8 @@ export interface CustomerProfile {
   spent: number;
   lastOrderAt: string | null;
   products: Set<string>;
+  /** Courses / clubs they're a member of (menu item ids). */
+  spaces: Set<string>;
   sends: CampaignSend[];
   emailsSent: number;
   emailsOpened: number;
@@ -53,7 +55,13 @@ export interface CustomerProfile {
   lastEmailAt: string | null;
 }
 
-export function buildProfiles(contacts: Contact[], orders: Order[], sends: CampaignSend[]): Map<string, CustomerProfile> {
+export function buildProfiles(contacts: Contact[], orders: Order[], sends: CampaignSend[],
+  enrollments: { email: string; menu_item_id: string }[] = []): Map<string, CustomerProfile> {
+  const spacesBy = new Map<string, Set<string>>();
+  for (const e of enrollments) {
+    const k = e.email.trim().toLowerCase();
+    (spacesBy.get(k) ?? spacesBy.set(k, new Set()).get(k)!).add(e.menu_item_id);
+  }
   const sendsBy = new Map<string, CampaignSend[]>();
   for (const s of sends) {
     if (!s.contact_id) continue;
@@ -72,6 +80,7 @@ export function buildProfiles(contacts: Contact[], orders: Order[], sends: Campa
       spent: mine.reduce((sum, o) => sum + effectiveTotal(o), 0),
       lastOrderAt: mine[0]?.created_at ?? null,
       products,
+      spaces: spacesBy.get(c.email.trim().toLowerCase()) ?? new Set(),
       sends: delivered,
       emailsSent: delivered.length,
       emailsOpened: delivered.filter((s) => s.opened_at).length,
@@ -113,6 +122,9 @@ export interface AudienceFilter {
   products: string[];
   /** Has any of these tags. */
   tags: string[];
+  /** A member of any of these courses / clubs (menu item ids). Optional:
+   *  audiences saved before 2026-11-08 don't have it. */
+  spaces?: string[];
   /** Joined through any of these sources (CONTACT_SOURCES keys). */
   sources: string[];
   /** Engagement with earlier emails. */
@@ -121,7 +133,7 @@ export interface AudienceFilter {
 
 export const EMPTY_FILTER: AudienceFilter = {
   ordered: 'any', minOrders: 1, lastOrder: 'any', lastOrderDays: 90,
-  products: [], tags: [], sources: [], engagement: 'any',
+  products: [], tags: [], spaces: [], sources: [], engagement: 'any',
 };
 
 /** What a campaign stores in baker_campaigns.audience. */
@@ -151,6 +163,7 @@ export function matches(p: CustomerProfile, f: AudienceFilter, now = Date.now())
   }
   if (f.products.length && !f.products.some((k) => p.products.has(k))) return false;
   if (f.tags.length && !f.tags.some((t) => (p.contact.tags ?? []).includes(t))) return false;
+  if (f.spaces?.length && !f.spaces.some((s) => p.spaces.has(s))) return false;
   if (f.sources.length && !f.sources.includes(p.contact.source)) return false;
   switch (f.engagement) {
     case 'opened': if (!p.emailsOpened) return false; break;
@@ -162,11 +175,12 @@ export function matches(p: CustomerProfile, f: AudienceFilter, now = Date.now())
 }
 
 export function isEmptyFilter(f: AudienceFilter): boolean {
-  return f.ordered === 'any' && f.lastOrder === 'any' && !f.products.length && !f.tags.length && !f.sources.length && f.engagement === 'any';
+  return f.ordered === 'any' && f.lastOrder === 'any' && !f.products.length && !f.tags.length && !f.spaces?.length && !f.sources.length && f.engagement === 'any';
 }
 
 /** "Ordered 2+ times · last order over 90 days ago · bought Lemon loaf". */
-export function describeFilter(f: AudienceFilter, productLabel: (k: string) => string, sourceLabel: (s: string) => string): string {
+export function describeFilter(f: AudienceFilter, productLabel: (k: string) => string, sourceLabel: (s: string) => string,
+  spaceLabel: (id: string) => string = () => 'a course'): string {
   if (isEmptyFilter(f)) return 'Everyone on your mailing list';
   const parts: string[] = [];
   if (f.ordered === 'yes') parts.push(f.minOrders > 1 ? `Ordered ${f.minOrders}+ times` : 'Has ordered');
@@ -175,6 +189,7 @@ export function describeFilter(f: AudienceFilter, productLabel: (k: string) => s
   if (f.lastOrder === 'before') parts.push(`no order in ${f.lastOrderDays}+ days`);
   if (f.products.length) parts.push(`bought ${list(f.products.map(productLabel))}`);
   if (f.tags.length) parts.push(`tagged ${list(f.tags)}`);
+  if (f.spaces?.length) parts.push(`member of ${list(f.spaces.map(spaceLabel))}`);
   if (f.sources.length) parts.push(`joined by ${list(f.sources.map(sourceLabel))}`);
   const eng = { opened: 'opened an earlier email', clicked: 'clicked an earlier email', never_opened: 'never opened an email', never_emailed: 'never emailed' } as const;
   if (f.engagement !== 'any') parts.push(eng[f.engagement]);

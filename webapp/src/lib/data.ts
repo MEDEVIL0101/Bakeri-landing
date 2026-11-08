@@ -8,6 +8,7 @@ import type { BakingTask, Campaign, Contact, Recipe, RecipeIngredient, Unavailab
 export const CONTACT_SOURCES: Record<string, string> = {
   order: 'Order', popup: 'Popup signup', inline: 'Storefront signup', header: 'Header signup',
   lead_magnet: 'Free download', manual: 'Added by you',
+  course: 'Course', club: 'Club',
 };
 
 export async function listContacts(userId: string): Promise<Contact[]> {

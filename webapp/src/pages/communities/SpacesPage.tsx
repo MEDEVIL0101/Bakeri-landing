@@ -91,6 +91,7 @@ function SpaceCard({ item, st }: { item: any; st?: CommunityStats & { lessons: n
           <Link className="btn btn-primary" to={`/menu/${item.id}/course`}><span>{item.is_club ? 'Library & members' : 'Lessons & students'}</span></Link>
           <Link className="btn btn-secondary" to={`/communities/${item.id}`}><span>Community{st && st.fresh ? ` · ${st.fresh}` : ''}</span></Link>
           <Link className="btn btn-secondary" to={`/menu/${item.id}`}><span>Sales page & price</span></Link>
+          <Link className="btn btn-secondary" to={`/campaigns/new?members=${item.id}`}><span>Email {item.is_club ? 'members' : 'students'}</span></Link>
         </div>
       </div>
     </article>

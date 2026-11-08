@@ -152,7 +152,9 @@ function EditorForm({ userId, campaign, crm }: {
   const preset = (params.get('to') ?? '').split(',').filter(Boolean);
   const saved = campaign?.audience ?? null;
   const [mode, setMode] = useState<Mode>(preset.length ? 'picked' : saved?.mode ?? 'filter');
-  const [filter, setFilter] = useState<AudienceFilter>({ ...EMPTY_FILTER, ...(saved?.filter ?? {}) });
+  // /campaigns/new?members=<course or club id> (Email members) starts on that audience.
+  const presetMembers = !saved ? new URLSearchParams(window.location.search).get('members') : null;
+  const [filter, setFilter] = useState<AudienceFilter>({ ...EMPTY_FILTER, ...(saved?.filter ?? {}), ...(presetMembers ? { spaces: [presetMembers] } : {}) });
   const [excluded, setExcluded] = useState<Set<string>>(new Set(saved?.excluded ?? []));
   const [added, setAdded] = useState<Set<string>>(new Set(preset.length ? preset : saved?.added ?? []));
 
@@ -173,6 +175,7 @@ function EditorForm({ userId, campaign, crm }: {
   const unsubscribedCount = crm.contacts.length - subscribed.length;
   const productLabel = (k: string) => crm.catalog.find((p) => p.key === k)?.label ?? 'a product';
   const sourceLabel = (s: string) => (CONTACT_SOURCES[s] ?? s).toLowerCase();
+  const spaceLabel = (id: string) => crm.spaces.find((x) => x.id === id)?.name ?? 'a course';
 
   const isIn = (p: CustomerProfile) => mode === 'picked'
     ? added.has(p.contact.id)
@@ -180,7 +183,7 @@ function EditorForm({ userId, campaign, crm }: {
   const recipients = subscribed.filter(isIn);
   const label = mode === 'picked'
     ? `${recipients.length} ${recipients.length === 1 ? 'person' : 'people'} you picked`
-    : describeFilter(filter, productLabel, sourceLabel) + (excluded.size || added.size ? ' (adjusted by hand)' : '');
+    : describeFilter(filter, productLabel, sourceLabel, spaceLabel) + (excluded.size || added.size ? ' (adjusted by hand)' : '');
 
   function toggle(p: CustomerProfile) {
     const id = p.contact.id;
@@ -235,7 +238,7 @@ function EditorForm({ userId, campaign, crm }: {
               <button className={mode === 'picked' ? 'active' : ''} onClick={() => setMode('picked')}>Pick people</button>
             </div>
             {mode === 'filter' && (
-              <FilterBuilder filter={filter} onChange={setFilter} catalog={crm.catalog} tags={crm.tags} />
+              <FilterBuilder filter={filter} onChange={setFilter} catalog={crm.catalog} tags={crm.tags} spaces={crm.spaces} />
             )}
             <PeoplePicker profiles={subscribed} isIn={isIn} toggle={toggle} setAll={setAll} mode={mode} filter={filter} />
             {unsubscribedCount > 0 && (
@@ -317,15 +320,18 @@ function EditorForm({ userId, campaign, crm }: {
   );
 }
 
-function FilterBuilder({ filter, onChange, catalog, tags }: {
+function FilterBuilder({ filter, onChange, catalog, tags, spaces }: {
   filter: AudienceFilter;
   onChange: (f: AudienceFilter) => void;
   catalog: { key: string; label: string; count: number }[];
   tags: string[];
+  spaces: { id: string; name: string; club: boolean; members: number }[];
 }) {
   const set = <K extends keyof AudienceFilter>(k: K, v: AudienceFilter[K]) => onChange({ ...filter, [k]: v });
-  const toggleIn = (k: 'products' | 'tags' | 'sources', v: string) =>
-    set(k, filter[k].includes(v) ? filter[k].filter((x) => x !== v) : [...filter[k], v]);
+  const toggleIn = (k: 'products' | 'tags' | 'sources' | 'spaces', v: string) => {
+    const cur = filter[k] ?? [];
+    set(k, cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]);
+  };
 
   return (
     <div className="camp-filters">
@@ -370,6 +376,17 @@ function FilterBuilder({ filter, onChange, catalog, tags }: {
             {catalog.slice(0, 30).map((p) => (
               <button key={p.key} type="button" className={`chip chip-btn ${filter.products.includes(p.key) ? 'on' : ''}`} onClick={() => toggleIn('products', p.key)}>
                 {p.label}<span className="muted">{p.count}</span>
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
+      {spaces.length > 0 && (
+        <Field label="Member of" hint={filter.spaces?.length ? undefined : 'Pick a course or club to send its members an update, a new lesson, or an offer.'}>
+          <div className="chips">
+            {spaces.map((sp) => (
+              <button key={sp.id} type="button" className={`chip chip-btn ${filter.spaces?.includes(sp.id) ? 'on' : ''}`} onClick={() => toggleIn('spaces', sp.id)}>
+                {sp.club ? '👥 ' : '🎓 '}{sp.name}<span className="muted">{sp.members}</span>
               </button>
             ))}
           </div>

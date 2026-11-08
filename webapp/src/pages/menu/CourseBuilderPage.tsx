@@ -353,6 +353,9 @@ function Students({ menuItemId, userId, club }: { menuItemId: string; userId: st
 
   return (
     <div className="stack-lg">
+      <Card title={club ? 'Email your members' : 'Email your students'} actions={<Link className="btn btn-primary" to={`/campaigns/new?members=${menuItemId}`}><span>Write an email</span></Link>}>
+        <p className="small muted" style={{ marginTop: 0 }}>Send everyone in this {club ? 'club' : 'course'} an update, a new {club ? 'drop' : 'lesson'}, or an offer — from Email Campaigns, with open and click tracking. People who unsubscribed are skipped.</p>
+      </Card>
       <Card title={club ? 'Add a member' : 'Add a student'} actions={<span className="small muted">For gifts, comps, or someone who paid another way</span>}>
         <div className="grid-2">
           <Field label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="student@email.com" /></Field>
