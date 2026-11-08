@@ -12,7 +12,10 @@ export const LISTING_KINDS: { kind: ListingKind; label: string; description: str
   { kind: 'digital', label: 'Digital Download', description: 'Instant download, nothing to ship' },
 ];
 
-export function kindLabel(kind: ListingKind): string {
+export function kindLabel(kind: ListingKind, item?: { is_course?: boolean; is_club?: boolean }): string {
+  // Courses and clubs are digital listings underneath, but not "downloads".
+  if (kind === 'digital' && item?.is_club) return 'Club';
+  if (kind === 'digital' && item?.is_course) return 'Course';
   return LISTING_KINDS.find((k) => k.kind === kind)?.label ?? kind;
 }
 
