@@ -363,7 +363,8 @@ export async function setStock(item: MenuItem, qty: number): Promise<void> {
 
 export async function deleteMenuItem(item: MenuItemFull): Promise<void> {
   const ts = nowISO();
-  check(await supabase.from('menu_items').update({ deleted_at: ts, updated_at: ts }).eq('id', item.id));
+  // Un-list too (as the iPhone app does) so a deleted listing can never show.
+  check(await supabase.from('menu_items').update({ deleted_at: ts, updated_at: ts, is_listed_in_marketplace: false }).eq('id', item.id));
 }
 
 /** Persist a new order of listings (sort_order 0..n). */
