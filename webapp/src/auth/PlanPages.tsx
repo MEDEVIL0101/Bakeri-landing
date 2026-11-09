@@ -1,3 +1,4 @@
+import { keepReferralCode, rememberedReferralCode } from '../lib/referralMemory';
 import { useEffect, useState, type FormEvent } from 'react';
 import { trackSite } from '../lib/siteTrack';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -164,7 +165,7 @@ export function TrialPage() {
   // A visitor's referral code: from the link, or the one the homepage kept.
   const visitorRef = (() => {
     let r = params.get('ref') ?? '';
-    try { if (!r) r = sessionStorage.getItem('bakeri_ref') ?? ''; } catch { /* private mode */ }
+    if (r) keepReferralCode(r); else r = rememberedReferralCode();
     return r.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
   })();
   // Signed up with a referral code → 10% off the first 3 months at checkout.

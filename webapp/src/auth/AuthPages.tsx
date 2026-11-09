@@ -1,3 +1,4 @@
+import { rememberedReferralCode } from '../lib/referralMemory';
 import { LOGO } from '../lib/brand';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { trackSite } from '../lib/siteTrack';
@@ -317,14 +318,7 @@ export function AuthCallbackPage() {
   );
 }
 
-/** The referral code the site remembered for this visit ("" if none). */
+/** The referral code the site remembered (this visit, or the last 30 days). */
 function rememberedReferral(): string {
-  try {
-    const direct = sessionStorage.getItem('bakeri_ref');
-    if (direct) return direct;
-    const attr = JSON.parse(sessionStorage.getItem('bk_attr') || '{}') as { ref?: string };
-    return attr.ref ?? '';
-  } catch {
-    return '';
-  }
+  return rememberedReferralCode();
 }

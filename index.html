@@ -204,7 +204,7 @@ const emailIn=document.getElementById('f-email');
 function refresh(){btn.disabled=!/^\S+@\S+\.\S+$/.test(emailIn.value.trim())}
 form.addEventListener('input',refresh);
 // Referral links (?ref=CODE) carry through to sign-up.
-let ref='';try{ref=((new URLSearchParams(location.search).get('ref'))||sessionStorage.getItem('bakeri_ref')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);if(ref)sessionStorage.setItem('bakeri_ref',ref)}catch(_){}
+let ref='';try{let kept='';try{const k=JSON.parse(localStorage.getItem('bakeri_ref_kept')||'null');if(k&&k.code&&Date.now()-k.at<2592e6)kept=k.code}catch(_){}ref=((new URLSearchParams(location.search).get('ref'))||sessionStorage.getItem('bakeri_ref')||kept||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);if(ref){sessionStorage.setItem('bakeri_ref',ref);if(ref!==kept)localStorage.setItem('bakeri_ref_kept',JSON.stringify({code:ref,at:Date.now()}))}}catch(_){}
 document.querySelectorAll('a[data-ref]').forEach(a=>{if(ref){const u=new URL(a.href);u.searchParams.set('ref',ref);a.href=u}});
 // Submit hands off to the web app's sign-up with plan=pro: the new account sees the Pro trial first and can skip to every plan.
 form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;const q=new URLSearchParams({tier:'pro',email:emailIn.value.trim()});if(ref)q.set('ref',ref);btn.classList.add('done');btn.textContent='Taking you to your trial…';location.assign('https://bakeriapp.com/app/plan/trial?'+q)});
