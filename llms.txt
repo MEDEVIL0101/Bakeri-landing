@@ -1,12 +1,19 @@
 # Bakerï
 
-> Bakerï is a local marketplace that connects independent and home bakers with nearby customers. Bakers list same-day-ready items, take pre-orders, and manage custom orders and pickups in one place; customers discover and order from bakeries in their neighborhood. Bakerï is available as an iOS app.
+> Bakerï is an all-in-one creator-commerce and business-management platform for independent creators, food entrepreneurs and makers. It combines a branded storefront and link in bio, online checkout, order management, customer relationships and mailing lists, digital products and courses, memberships, and business tools such as recipe management, ingredient costing and scheduling. Bakerï is available on the web (bakeriapp.com/app) and as an iOS app.
 
-This site (bakeriapp.com) is Bakerï's "For Bakers" partner page, where independent bakers and cottage bakeries apply to become vendors on the platform. There are no upfront fees or subscriptions for bakers to join, and applications are reviewed by hand.
+Bakerï supports three ways to sell: **Food** (ready-made products, preorders and custom requests for bakers, confectioners, caterers and specialty food producers), **Digital** (recipes, downloads, courses, guides and memberships for creators and educators) and **Physical** (handcrafted goods, merchandise and shipped products for makers and artisans).
+
+Bakerï is not a marketplace and does not find customers for its users. Each business gets its own storefront and owns its customer relationships, instead of depending on third-party marketplaces or social media algorithms.
+
+Pricing (USD): Starter is $10/month plus a 5% commission on online sales; Pro is $30/month with no sales commission. Both plans include a 7-day free trial.
 
 ## Pages
 
-- [Become a vendor](https://bakeriapp.com/): apply to sell on Bakerï as a baker — what the platform offers, how it works, and the application form.
+- [Home](https://bakeriapp.com/): what Bakerï does and how to start a storefront.
+- [What is Bakerï?](https://bakeriapp.com/blog/what-is-bakeri/): full overview of the platform, who it is for, the three ways to sell, and pricing.
+- [Referral program](https://bakeriapp.com/referral-program.html): earn 20% recurring commission on vendors you refer.
+- [Vendor Terms](https://bakeriapp.com/vendor-terms.html)
 - [Privacy Policy](https://bakeriapp.com/privacy-policy.html)
 - [Terms of Service](https://bakeriapp.com/terms-of-service.html)
 - [Accessibility](https://bakeriapp.com/accessibility.html)
