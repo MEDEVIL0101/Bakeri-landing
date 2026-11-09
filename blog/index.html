@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Blog — Bakerï</title>
+<meta name="description" content="News, guides and ideas from Bakerï, the all-in-one commerce and business platform for creators, food entrepreneurs and makers." />
+<link rel="canonical" href="https://bakeriapp.com/blog/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Bakerï" />
+<meta property="og:title" content="The Bakerï blog" />
+<meta property="og:description" content="News, guides and ideas for creators, food entrepreneurs and makers." />
+<meta property="og:url" content="https://bakeriapp.com/blog/" />
+<meta property="og:image" content="https://bakeriapp.com/assets/og-image.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" type="image/png" href="/assets/site-v3/logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/site-v3/for-creators-v3.css?v=28" />
+<style>
+/* Blog index — additions on top of for-creators-v3.css, same tokens */
+.blog-head{padding:84px 0 40px;background:var(--wash)}
+.blog-head .wrap,.blog-list .wrap{max-width:860px}
+.blog-head h1{font-family:var(--display);font-weight:800;font-size:clamp(40px,5.4vw,68px);line-height:1;letter-spacing:-.035em;margin:14px 0 0}
+.blog-head h1 em{font-family:var(--serif);font-weight:400;font-style:italic;color:var(--pink)}
+.blog-list{padding:48px 0 96px}
+.post{display:block;background:#fff;border:1px solid var(--line);border-top:5px solid var(--pink);border-radius:22px;padding:30px 32px;transition:box-shadow .2s,transform .2s var(--ease)}
+.post:hover{box-shadow:var(--sh);transform:translateY(-2px)}
+.post time{font-size:14px;color:var(--ink-2)}
+.post h2{margin:8px 0 10px;font-family:var(--display);font-weight:800;font-size:clamp(24px,2.6vw,30px);line-height:1.15;letter-spacing:-.02em;color:var(--ink)}
+.post p{margin:0;font-size:17px;line-height:1.6;color:var(--ink-2)}
+.post .more{display:inline-block;margin-top:16px;font-family:var(--display);font-weight:700;color:var(--pink-2)}
+@media(max-width:560px){.wrap{padding:0 16px}.blog-head{padding:56px 0 28px}.post{padding:24px 22px}}
+</style>
+</head>
+<body>
+<header class="nav" id="nav"><div class="wrap nav-in">
+<a href="/" aria-label="Bakerï home"><img src="/assets/site-v3/bakeri-wordmark.png" alt="Bakerï" /></a>
+<div class="nav-auth"><a class="signin" href="https://bakeriapp.com/app/login">Sign in</a><a class="btn" href="https://bakeriapp.com/app/plan/trial?tier=pro">Sign up</a></div>
+</div></header>
+
+<main>
+<header class="blog-head"><div class="wrap">
+<span class="kick">Blog</span>
+<h1>Notes from <em>Bakerï</em></h1>
+</div></header>
+
+<section class="blog-list"><div class="wrap">
+<a class="post" href="/blog/what-is-bakeri/">
+<time datetime="2026-11-09">November 9, 2026</time>
+<h2>Bakerï: the all-in-one commerce and business platform for creators and makers</h2>
+<p>What Bakerï is, who it’s for, the three ways to sell on it (food, digital and physical), and how its pricing works.</p>
+<span class="more">Read the article →</span>
+</a>
+</div></section>
+</main>
+
+<footer class="foot"><div class="wrap">
+<div class="foot-top">
+<img src="/assets/site-v3/bakeri-wordmark.png" alt="Bakerï" />
+<nav class="foot-links"><a href="https://bakeriapp.com/app/login">Sign in</a><a href="/referral-program.html">Referral program</a><a href="/blog/" aria-current="page">Blog</a><a href="mailto:hello@bakeriapp.com">Help</a><a href="/privacy-policy.html">Privacy policy</a><a href="/terms-of-service.html">Terms and conditions</a><a href="/vendor-terms.html">Vendor terms</a></nav>
+</div>
+<div class="foot-bot"><span>© 2026 Bakerï — All rights reserved</span><span>Food sales must adhere to local food safety laws.</span></div>
+</div></footer>
+<script>
+const nav=document.getElementById('nav');const onS=()=>nav.classList.toggle('scrolled',scrollY>8);onS();addEventListener('scroll',onS,{passive:true});
+</script>
+</body>
+</html>

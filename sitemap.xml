@@ -6,6 +6,11 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://bakeriapp.com/blog/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://bakeriapp.com/blog/what-is-bakeri/</loc>
     <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>

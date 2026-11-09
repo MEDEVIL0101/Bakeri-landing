@@ -12,6 +12,7 @@ Pricing (USD): Starter is $10/month plus a 5% commission on online sales; Pro is
 
 - [Home](https://bakeriapp.com/): what Bakerï does and how to start a storefront.
 - [What is Bakerï?](https://bakeriapp.com/blog/what-is-bakeri/): full overview of the platform, who it is for, the three ways to sell, and pricing.
+- [Blog](https://bakeriapp.com/blog/): articles from Bakerï.
 - [Referral program](https://bakeriapp.com/referral-program.html): earn 20% recurring commission on vendors you refer.
 - [Vendor Terms](https://bakeriapp.com/vendor-terms.html)
 - [Privacy Policy](https://bakeriapp.com/privacy-policy.html)
