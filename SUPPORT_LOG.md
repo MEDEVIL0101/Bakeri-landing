@@ -21,6 +21,31 @@ Entry format:
 
 ---
 
+## 2026-11-09 — Deleted listings still showing on a storefront (Cakes By Eve)
+
+**Reported by:** Eve Peggie (Cakes By Eve), Instagram DM to Harvey.
+
+**Symptom:** She deleted her pre-order listings in the web app (Menu &
+Listings) and re-made them as custom orders, but the old pre-orders kept
+appearing on her storefront — the web app didn't show them any more.
+
+**Root cause:** The public storefront RPCs (get_baker_web_profile_by_slug /
+_by_id) filtered listings on `is_listed_in_marketplace` only, never
+`deleted_at`. Deleting in the iPhone app also un-lists, so it never showed;
+deleting in the web app (`deleteMenuItem`) only set `deleted_at`.
+
+**Fix:** Migration 20261109000001_storefront_skip_deleted (APPLIED): both RPCs
+add `m.deleted_at IS NULL`, and every deleted-but-listed row was un-listed.
+Web `deleteMenuItem` now also sets `is_listed_in_marketplace = false`.
+Landing bc7dec6. Storefront pages regenerated.
+
+**Affected users:** Cakes By Eve (7 listings), Cookies by Steph (1),
+Sugarland team account (2). All fixed by the data update.
+
+**Follow-up:** None.
+
+---
+
 ## 2026-11-08 — Courses and club vanished (course flags wiped by the iPhone app's sync)
 
 **Reported by:** Harvey, on the Sugarland team account — Communities, storefront
