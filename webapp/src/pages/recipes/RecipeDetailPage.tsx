@@ -4,7 +4,7 @@ import { Button, Card, ConfirmModal, EmptyState, ErrorBanner, Input, PageHeader,
 import { deleteRecipe, getRecipe, recipeImageURL } from '../../lib/data';
 import type { RecipeIngredient } from '../../lib/types';
 import { useUserId } from '../../auth/AuthProvider';
-import { costPerGram, ingredientGrams, listIngredientCosts } from '../../lib/kitchen';
+import { lineCost, listIngredientCosts } from '../../lib/kitchen';
 import { formatMoney } from '../../lib/format';
 
 function amount(n: number): string {
@@ -103,7 +103,7 @@ function CostCard({ ingredients, scale, yieldQty, yieldUnit }: { ingredients: Re
     const c = byName.get(i.name.toLowerCase());
     if (!c) continue;
     priced++;
-    total += ingredientGrams(i) * scale * costPerGram(c);
+    total += lineCost(i, scale, c);
   }
   return (
     <Card title="Ingredient cost" actions={<Link to="/ingredients" className="small">Prices →</Link>}>

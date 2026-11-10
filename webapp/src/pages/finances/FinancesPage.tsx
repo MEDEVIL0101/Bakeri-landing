@@ -130,11 +130,11 @@ function Report({ orders, recipes, costs, packaging }: { orders: Order[]; recipe
 
   // Ingredient totals across the period.
   const ingredients = useMemo(() => {
-    const m = new Map<string, { name: string; grams: number; cost: number; priced: boolean }>();
+    const m = new Map<string, { name: string; grams: number; count: number; cost: number; priced: boolean }>();
     for (const o of inPeriod) for (const a of costOf(o)) {
       const k = a.ingredient.toLowerCase();
-      const cur = m.get(k) ?? { name: a.ingredient, grams: 0, cost: 0, priced: a.hasCost };
-      cur.grams += a.grams; cur.cost += a.grams * a.costPerGram; cur.priced = cur.priced || a.hasCost;
+      const cur = m.get(k) ?? { name: a.ingredient, grams: 0, count: 0, cost: 0, priced: a.hasCost };
+      cur.grams += a.grams; cur.count += a.count; cur.cost += a.cost; cur.priced = cur.priced || a.hasCost;
       m.set(k, cur);
     }
     return [...m.values()].sort((a, b) => b.cost - a.cost || b.grams - a.grams);
@@ -241,7 +241,7 @@ function Report({ orders, recipes, costs, packaging }: { orders: Order[]; recipe
                 {ingredients.slice(0, 40).map((i) => (
                   <tr key={i.name}>
                     <td>{i.name}</td>
-                    <td className="num">{formatWeight(i.grams, units === 'metric')}</td>
+                    <td className="num">{[i.grams > 0 ? formatWeight(i.grams, units === 'metric') : '', i.count > 0 ? `${Number(i.count.toFixed(1))} units` : ''].filter(Boolean).join(' + ') || formatWeight(0, units === 'metric')}</td>
                     <td className="num">{i.priced ? formatMoney(i.cost) : <Link to={`/ingredients?add=${encodeURIComponent(i.name)}`} className="small">Add price</Link>}</td>
                   </tr>
                 ))}

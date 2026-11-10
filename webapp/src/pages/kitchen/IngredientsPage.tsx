@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, Input, Modal, PageHeader, Select, Spinner, useLoad, useToast } from '../../components/ui';
 import {
-  PURCHASE_UNITS, addCustomDensity, costPerGram, deleteCustomDensity, deleteIngredientCost, listDensities, listIngredientCosts,
+  PURCHASE_UNITS, addCustomDensity, costPerGram, costPerUnit, isPerUnit, purchaseUnitLabel, deleteCustomDensity, deleteIngredientCost, listDensities, listIngredientCosts,
   mergedDensities, saveIngredientCost, type DensityRow, type IngredientCostRow,
 } from '../../lib/kitchen';
 import { formatMoney, parseNumber } from '../../lib/format';
@@ -69,14 +69,14 @@ export function IngredientsPage() {
             body={filter === 'priced' ? 'Click “Add a price” or switch to All to price an ingredient you use.' : undefined} />
         ) : (
           <div className="table-scroll"><table className="table hover">
-            <thead><tr><th>Ingredient</th><th className="num">g / cup</th><th>You pay</th><th className="num">Per lb</th><th /></tr></thead>
+            <thead><tr><th>Ingredient</th><th className="num">g / cup</th><th>You pay</th><th className="num">Per lb / unit</th><th /></tr></thead>
             <tbody>
               {visible.map((e) => (
                 <tr key={e.name} onClick={() => setEditing({ name: e.name, cost: e.cost })} className="clickable">
                   <td><span className="row-title inline">{e.name}</span> {e.custom && <Badge tone="blue">Custom</Badge>}</td>
                   <td className="num muted">{e.grams_per_cup ? Math.round(e.grams_per_cup) : '—'}</td>
-                  <td>{e.cost ? `${formatMoney(e.cost.purchase_cost)} for ${e.cost.purchase_amount} ${e.cost.purchase_unit}` : <span className="muted small">Add cost</span>}</td>
-                  <td className="num">{e.cost ? formatMoney(costPerGram(e.cost) * 453.592) : ''}</td>
+                  <td>{e.cost ? `${formatMoney(e.cost.purchase_cost)} for ${e.cost.purchase_amount} ${purchaseUnitLabel(e.cost.purchase_unit)}` : <span className="muted small">Add cost</span>}</td>
+                  <td className="num">{e.cost ? (isPerUnit(e.cost.purchase_unit) ? `${formatMoney(costPerUnit(e.cost))}/unit` : formatMoney(costPerGram(e.cost) * 453.592)) : ''}</td>
                   <td className="num" onClick={(ev) => ev.stopPropagation()}>
                     {(e.cost || e.custom) && <button className="icon-btn sm" aria-label="Delete" onClick={() => setDeleting({ cost: e.cost, custom: e.custom })}>×</button>}
                   </td>
@@ -122,8 +122,10 @@ function CostModal({ userId, initial, names, onClose, onSaved }: { userId: strin
   const [unit, setUnit] = useState(c?.purchase_unit ?? 'lb');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const cpg = costPerGram({ purchase_cost: parseNumber(paid), purchase_amount: parseNumber(amount), purchase_unit: unit });
-  const ok = name.trim() && cpg > 0;
+  const priced = { purchase_cost: parseNumber(paid), purchase_amount: parseNumber(amount), purchase_unit: unit };
+  const cpg = costPerGram(priced);
+  const cpu = costPerUnit(priced);
+  const ok = name.trim() && (cpg > 0 || cpu > 0);
   return (
     <Modal title={c ? 'Edit price' : 'Add a price'} onClose={onClose}
       footer={<>
@@ -143,9 +145,11 @@ function CostModal({ userId, initial, names, onClose, onSaved }: { userId: strin
         <div className="money-input"><span>$</span><Input type="number" min="0" step="0.01" value={paid} placeholder="0.00" onChange={(e) => setPaid(e.target.value)} /></div>
         <span>for</span>
         <Input className="w-num" type="number" min="0" step="any" value={amount} placeholder="0" onChange={(e) => setAmount(e.target.value)} />
-        <Select className="w-unit" value={unit} onChange={(e) => setUnit(e.target.value)}>{PURCHASE_UNITS.map((u) => <option key={u}>{u}</option>)}</Select>
+        <Select className="w-unit" value={unit} onChange={(e) => setUnit(e.target.value)}>{PURCHASE_UNITS.map((u) => <option key={u} value={u}>{purchaseUnitLabel(u)}</option>)}</Select>
       </div>
       {cpg > 0 && <p className="small muted">= {formatMoney(cpg * 453.592)}/lb · {formatMoney(cpg * 28.3495)}/oz · {formatMoney(cpg * 1000)}/kg</p>}
+      {cpu > 0 && <p className="small muted">= {formatMoney(cpu)} per unit · {formatMoney(cpu * 6)} per 6 · {formatMoney(cpu * 12)} per 12 · {formatMoney(cpu * 18)} per 18</p>}
+      {isPerUnit(unit) && <p className="small muted">For things you use by the piece, like eggs. In recipes, enter them with no unit, e.g. “2 Egg”.</p>}
       {err && <ErrorBanner message={err} />}
     </Modal>
   );

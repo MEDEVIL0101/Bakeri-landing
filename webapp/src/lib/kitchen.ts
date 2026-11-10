@@ -10,7 +10,14 @@ export const ML_PER: Record<string, number> = {
 };
 export const GRAMS_PER: Record<string, number> = { g: 1, kg: 1000, oz: 28.3495, lb: 453.592 };
 export const isWeightUnit = (u: string) => u === 'g' || u === 'kg' || u === 'lb';
-export const PURCHASE_UNITS = ['g', 'kg', 'oz', 'lb'] as const;
+// 'each' = bought by the piece, shown as "units" ("$4.50 for 12 units" — eggs,
+// packets); it costs recipe ingredients counted with no unit ("2 Egg").
+// iOS IngredientCost.eachRaw.
+export const PURCHASE_UNITS = ['g', 'kg', 'oz', 'lb', 'each'] as const;
+export const purchaseUnitLabel = (u: string) => (u === 'each' ? 'units' : u);
+export const isPerUnit = (u: string) => u === 'each';
+/** Pieces for an ingredient counted with no unit ("2 Egg"); 0 otherwise. */
+export const ingredientCount = (ing: RecipeIngredientLite) => (ing.volume_unit === 'none' ? ing.volume_amount : 0);
 
 export interface RecipeIngredientLite { name: string; volume_amount: number; volume_unit: string; grams_per_cup: number }
 
@@ -36,8 +43,20 @@ export interface IngredientCostRow {
 }
 
 export function costPerGram(c: Pick<IngredientCostRow, 'purchase_cost' | 'purchase_amount' | 'purchase_unit'>): number {
+  if (isPerUnit(c.purchase_unit)) return 0;
   const grams = c.purchase_amount * (GRAMS_PER[c.purchase_unit] ?? GRAMS_PER.lb);
   return grams > 0 && c.purchase_cost > 0 ? c.purchase_cost / grams : 0;
+}
+
+/** Price of one piece (0 unless bought by the unit). */
+export function costPerUnit(c: Pick<IngredientCostRow, 'purchase_cost' | 'purchase_amount' | 'purchase_unit'>): number {
+  return isPerUnit(c.purchase_unit) && c.purchase_amount > 0 && c.purchase_cost > 0 ? c.purchase_cost / c.purchase_amount : 0;
+}
+
+/** What one recipe ingredient costs at this scale: by the piece when bought by
+ *  the unit and the recipe counts it, otherwise by weight (mismatch → 0). */
+export function lineCost(ing: RecipeIngredientLite, scale: number, c: IngredientCostRow): number {
+  return isPerUnit(c.purchase_unit) ? ingredientCount(ing) * scale * costPerUnit(c) : ingredientGrams(ing) * scale * costPerGram(c);
 }
 
 export async function listIngredientCosts(userId: string): Promise<IngredientCostRow[]> {
@@ -84,7 +103,7 @@ export async function deleteCustomDensity(id: string): Promise<void> {
 
 export interface CostingRecipe { id: string; name: string; yield_quantity: number; yield_unit: string; ingredients: RecipeIngredientLite[] }
 export interface CostingItem { recipe_id: string | null; custom_name: string; quantity: number; unit: string }
-export interface IngredientAmount { ingredient: string; grams: number; costPerGram: number; hasCost: boolean }
+export interface IngredientAmount { ingredient: string; grams: number; count: number; cost: number; hasCost: boolean }
 
 export async function listCostingRecipes(userId: string): Promise<CostingRecipe[]> {
   const [recipes, ings] = await Promise.all([
@@ -106,15 +125,16 @@ export function ingredientAmounts(items: CostingItem[], recipes: CostingRecipe[]
     const scale = scaleFactor(item.quantity, item.unit, recipe.yield_quantity, recipe.yield_unit);
     for (const ing of recipe.ingredients) {
       const grams = ingredientGrams(ing) * scale;
-      if (!(grams > 0)) continue;
+      const count = ingredientCount(ing) * scale;
+      if (!(grams > 0) && !(count > 0)) continue;
       const c = costMap.get(ing.name.toLowerCase());
-      out.push({ ingredient: ing.name, grams, costPerGram: c ? costPerGram(c) : 0, hasCost: !!c });
+      out.push({ ingredient: ing.name, grams, count, cost: c ? lineCost(ing, scale, c) : 0, hasCost: !!c });
     }
   }
   return out;
 }
 
-export const ingredientCost = (amounts: IngredientAmount[]) => amounts.reduce((s, a) => s + a.grams * a.costPerGram, 0);
+export const ingredientCost = (amounts: IngredientAmount[]) => amounts.reduce((s, a) => s + a.cost, 0);
 
 export function formatWeight(grams: number, metric: boolean): string {
   if (metric) return grams >= 1000 ? `${(grams / 1000).toFixed(2)} kg` : `${Math.round(grams)} g`;
