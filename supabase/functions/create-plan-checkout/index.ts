@@ -89,6 +89,14 @@ serve(async (req) => {
     }
     const coupon = referred && !plan?.first_paid_at ? referralCoupon() : launchCouponFor(tier, interval);
 
+    // Promo code (plan_promo_codes) from sign-up: a longer first trial on its plan.
+    let trial = !plan?.trial_used_at ? trialDays() : 0;
+    let promo: string | null = null;
+    if (trial && signupCode && !referred) {
+      const { data: p } = await db.rpc("resolve_plan_promo", { p_code: signupCode });
+      if (p?.tier === tier && Number(p.trial_days) > 0) { trial = Number(p.trial_days); promo = String(p.code); }
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
@@ -96,10 +104,10 @@ serve(async (req) => {
       line_items: [{ price, quantity: 1 }],
       // Stripe allows either an automatic coupon or a promo-code box, not both.
       ...(coupon ? { discounts: [{ coupon }] } : { allow_promotion_codes: true }),
-      metadata: { user_id: user.id, tier, interval, ...(coupon === referralCoupon() ? { referral: "1" } : {}) },
+      metadata: { user_id: user.id, tier, interval, ...(coupon === referralCoupon() ? { referral: "1" } : {}), ...(promo ? { promo } : {}) },
       subscription_data: {
-        metadata: { user_id: user.id },
-        ...(!plan?.trial_used_at && trialDays() ? { trial_period_days: trialDays() } : {}),
+        metadata: { user_id: user.id, ...(promo ? { promo } : {}) },
+        ...(trial ? { trial_period_days: trial } : {}),
       },
       // Sales tax on plans waits for Stripe Tax (paused, see
       // project notes) — add automatic_tax here when it's finished.

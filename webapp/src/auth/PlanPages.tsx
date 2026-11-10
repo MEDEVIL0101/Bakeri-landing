@@ -6,7 +6,7 @@ import { LOGO } from '../lib/brand';
 import { Button, ErrorBanner, Field, Input, Spinner } from '../components/ui';
 import { appURL, supabase } from '../lib/supabase';
 import { PasswordRules, friendlyAuthError, passwordRules } from './AuthPages';
-import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, rememberCycleIntent, rememberPlanIntent, storedCycleIntent, storedPlanIntent, hasSubscription, openBillingPortal, startCheckout, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
+import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, rememberCycleIntent, rememberPlanIntent, storedCycleIntent, storedPlanIntent, hasSubscription, openBillingPortal, promoLine, startCheckout, usePlanPromo, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -38,6 +38,7 @@ export function PlanPage() {
   const referred = !subscribed && !lifetime && !plan?.trial_used_at
     ? String(session?.user.user_metadata?.referral_code ?? '').trim().toUpperCase() || null
     : null;
+  const promo = usePlanPromo(referred);
   // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
   // Starting from "Try Starter free" opens every plan straight away, so Pro sits beside it.
   // The account's own sign-up choice wins over this browser's, which can be left over from another sign-up.
@@ -74,7 +75,9 @@ export function PlanPage() {
             : 'Your shop is paused until you pick a plan. Everything you set up is still here.'}
         </p>
       </div>
-      {referred && <p className="ref-note plan-ref">Your referral code <b>{referred}</b> is applied: <b>10% off your first 3 months</b>, taken off at checkout.</p>}
+      {referred && (promo
+        ? <p className="ref-note plan-ref">Promo code <b>{promo.code}</b>: <b>{promoLine(promo)}</b>.</p>
+        : <p className="ref-note plan-ref">Your referral code <b>{referred}</b> is applied: <b>10% off your first 3 months</b>, taken off at checkout.</p>)}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       {!lifetime && !grandfathered && !subscribed && (
         <div className="pk-cycle" role="tablist" aria-label="Billing cycle">
@@ -104,7 +107,7 @@ export function PlanPage() {
                   <Button variant={pro ? 'primary' : 'secondary'} className="pk-btn" loading={busy === 'portal'} disabled={!!busy} onClick={manage}>Switch to {p.name}</Button>
                 ) : (
                   <Button variant={pro ? 'primary' : 'secondary'} className="pk-btn" loading={busy === p.tier} disabled={!!busy} onClick={() => pick(p.tier)}>
-                    {trial ? `Try free for ${TRIAL_DAYS} days` : `Choose ${p.name}`}
+                    {trial ? `Try free for ${promo?.tier === p.tier ? promo.trial_days : TRIAL_DAYS} days` : `Choose ${p.name}`}
                   </Button>
                 )}
                 <hr />
@@ -172,12 +175,15 @@ export function TrialPage() {
   const referred = !plan?.trial_used_at && !plan?.lifetime_pro
     ? String(session?.user.user_metadata?.referral_code ?? (session ? '' : visitorRef)).trim().toUpperCase() || null
     : null;
+  // A promo code for this plan lengthens the trial (create-plan-checkout applies it).
+  const promo = usePlanPromo(referred);
+  const trialDays = trial && promo?.tier === p.tier ? promo.trial_days : TRIAL_DAYS;
   // Visitors create their account here, after seeing the plan.
   const [showAccount, setShowAccount] = useState(false);
   useEffect(() => { if (!session) trackSite('plan_view', `${p.tier}-visitor`); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (hasSubscription(plan)) return <Navigate to="/plan" replace />;
 
-  const starts = new Date(Date.now() + TRIAL_DAYS * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const starts = new Date(Date.now() + trialDays * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const money = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
   const monthly = p.salePrice ? `${money(p.salePrice)}/month for your first ${p.saleMonths} months, then ${money(p.price)}/month` : `${money(p.price)}/month`;
   const then = interval === 'year' ? `${money(p.yearPrice)}/year` : monthly;
@@ -193,9 +199,11 @@ export function TrialPage() {
     <div className="auth-page trial-page">
       {fromPicker ? <Link to="/plan?all" className="trial-back">‹ Back to plans</Link> : <Link to="/plan?all" className="trial-skip">See all plans</Link>}
       <div className="trial-brand"><img src={LOGO} alt="Bakeri" /> <span>{p.name}</span></div>
-      <h1 className="trial-title">{trial ? <>Claim a free<br />{TRIAL_DAYS}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
+      <h1 className="trial-title">{trial ? <>Claim a free<br />{trialDays}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
       <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
-      {referred && <p className="ref-note plan-ref">Referral code <b>{referred}</b>: <b>10% off your first 3 months</b>{interval === 'year' ? ' (10% off your first year)' : ''}, taken off at checkout.</p>}
+      {referred && (promo
+        ? <p className="ref-note plan-ref">Promo code <b>{promo.code}</b>: <b>{promoLine(promo)}</b>{promo.tier !== p.tier ? ' (pick that plan to use it)' : ''}.</p>
+        : <p className="ref-note plan-ref">Referral code <b>{referred}</b>: <b>10% off your first 3 months</b>{interval === 'year' ? ' (10% off your first year)' : ''}, taken off at checkout.</p>)}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       <div className="cycle" role="radiogroup" aria-label="Billing cycle">
         <button type="button" role="radio" aria-checked={interval === 'year'} className={`cycle-opt ${interval === 'year' ? 'on' : ''}`} onClick={() => setCycle('year')}>
@@ -213,7 +221,7 @@ export function TrialPage() {
       <ol className="trial-steps">
         <li><span className="ts-dot hot">✦</span><div><b>Today</b><p>Your shop is ready to go — take orders and get paid. Cancel any time.</p></div></li>
         {trial && <li><span className="ts-dot">✕</span><div><b>Any time before {starts}</b><p>Cancel from Settings → Plan &amp; billing and you won’t be charged.</p></div></li>}
-        <li><span className="ts-dot">✓</span><div><b>{trial ? `In ${TRIAL_DAYS} days` : 'Then'}</b><p>{trial ? `Your plan starts on ${starts} at ${then}, unless you cancel during the trial.` : `${then}. Cancel any time.`}</p></div></li>
+        <li><span className="ts-dot">✓</span><div><b>{trial ? `In ${trialDays} days` : 'Then'}</b><p>{trial ? `Your plan starts on ${starts} at ${then}, unless you cancel during the trial.` : `${then}. Cancel any time.`}</p></div></li>
       </ol>
       <div className="trial-foot">
         <p className="muted small">{trial ? 'Due today: $0.00' : `Due today: ${interval === 'year' ? money(p.yearPrice) : money(p.salePrice ?? p.price)}`} · Prices in USD · Stripe card fees apply</p>

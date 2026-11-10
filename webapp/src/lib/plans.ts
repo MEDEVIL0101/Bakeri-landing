@@ -13,6 +13,7 @@
 import { trackSite } from './siteTrack';
 import { callFunction } from './api';
 import { supabase } from './supabase';
+import { useEffect, useState } from 'react';
 
 export type PlanTier = 'starter' | 'pro';
 export type BillingInterval = 'month' | 'year';
@@ -146,4 +147,25 @@ export async function startCheckout(tier: PlanTier, interval: BillingInterval): 
 export async function openBillingPortal(): Promise<void> {
   const { url } = await callFunction<{ url: string }>('create-billing-portal-session', {});
   window.location.assign(url);
+}
+
+/** A plan promo code (plan_promo_codes): a longer free trial on one plan. */
+export interface PlanPromo { code: string; tier: PlanTier; trial_days: number }
+
+/** What a sign-up / referral code gives as a promo, or null (it may be a referral code). */
+export function usePlanPromo(code: string | null | undefined): PlanPromo | null {
+  const [promo, setPromo] = useState<PlanPromo | null>(null);
+  useEffect(() => {
+    const c = (code ?? '').trim();
+    if (!c) { setPromo(null); return; }
+    let live = true;
+    supabase.rpc('resolve_plan_promo', { p_code: c }).then(({ data }) => { if (live) setPromo((data as PlanPromo | null) ?? null); });
+    return () => { live = false; };
+  }, [code]);
+  return promo;
+}
+
+const TIER_NAME: Record<PlanTier, string> = { starter: 'Starter', pro: 'Pro' };
+export function promoLine(p: PlanPromo): string {
+  return `${p.trial_days} days free on ${TIER_NAME[p.tier]}`;
 }

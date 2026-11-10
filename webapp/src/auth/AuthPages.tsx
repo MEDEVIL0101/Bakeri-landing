@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { trackSite } from '../lib/siteTrack';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { appURL, supabase } from '../lib/supabase';
-import { rememberPlanIntent } from '../lib/plans';
+import { promoLine, rememberPlanIntent, usePlanPromo } from '../lib/plans';
 import { Button, ErrorBanner, Field, Input, Spinner } from '../components/ui';
 import { useAuth } from './AuthProvider';
 
@@ -123,6 +123,7 @@ export function SignupPage() {
   // visit; its sign-up buttons don't always pass it on, so fall back to that
   // (like PlanPages does) or the referral is lost.
   const referral = params.get('ref') || rememberedReferral();
+  const promo = usePlanPromo(referral);
   // From the site's "Try Pro free" / "Try Starter free" buttons.
   const planParam = params.get('plan');
   const intent = planParam === 'pro' || planParam === 'starter' ? planParam : null;
@@ -189,8 +190,9 @@ export function SignupPage() {
       title="Create your Bakerï account"
       footer={<>Already have an account? <Link to="/login">Log in</Link></>}
     >
-      {referral.trim() && (
-        <p className="ref-note">Referral code <b>{referral.trim().toUpperCase()}</b>: you’ll get <b>10% off your first 3 months</b> when you pick a plan.</p>
+      {referral.trim() && (promo
+        ? <p className="ref-note">Promo code <b>{promo.code}</b>: <b>{promoLine(promo)}</b> when you pick it.</p>
+        : <p className="ref-note">Referral code <b>{referral.trim().toUpperCase()}</b>: you’ll get <b>10% off your first 3 months</b> when you pick a plan.</p>
       )}
       <form onSubmit={submit} className="stack">
         <Field label="Email">
