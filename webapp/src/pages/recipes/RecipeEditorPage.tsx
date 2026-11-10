@@ -109,7 +109,7 @@ export function RecipeEditorPage() {
                 <div key={ing.id ?? `n${i}`} className="item-edit-row">
                   <Input className="w-num" type="number" min="0" step="any" aria-label="Amount" value={ing.volume_amount || ''} onChange={(e) => updIng(i, { volume_amount: parseNumber(e.target.value) })} />
                   <Select className="w-unit" aria-label="Unit" value={ing.volume_unit} onChange={(e) => updIng(i, { volume_unit: e.target.value })}>
-                    {VOLUME_UNITS.map((u) => <option key={u} value={u}>{u === 'none' ? '—' : u}</option>)}
+                    {VOLUME_UNITS.map((u) => <option key={u} value={u}>{u === 'none' ? 'units' : u}</option>)}
                   </Select>
                   <Input className="grow" placeholder="Ingredient" value={ing.name} onChange={(e) => updIng(i, { name: e.target.value })}
                     onBlur={() => { if (ing.name.trim() && (!ing.grams_per_cup || ing.grams_per_cup === 120)) updIng(i, { grams_per_cup: densityFor(ing.name) }); }} />
