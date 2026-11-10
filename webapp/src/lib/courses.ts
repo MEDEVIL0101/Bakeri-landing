@@ -124,8 +124,26 @@ export async function emailStudentLink(menuItemId: string, email: string): Promi
   });
 }
 
-export async function setStudentAccess(id: string, revoked: boolean): Promise<void> {
-  check(await supabase.from('course_enrollments').update({ revoked_at: revoked ? nowISO() : null }).eq('id', id));
+/** course-player as the shop owner; throws its error message. */
+async function ownerAction(menuItemId: string, body: Record<string, unknown>): Promise<any> {
+  const { data, error } = await supabase.functions.invoke('course-player', { body: { owner: true, menu_item_id: menuItemId, ...body } });
+  if (error) {
+    const msg = await (error as any).context?.json?.().then((j: any) => j?.error).catch(() => null);
+    throw new ApiError(msg || error.message);
+  }
+  return data;
+}
+
+/** Remove / restore someone. Removing a club member also cancels their
+ *  subscription (server side), so they stop being charged. */
+export async function setStudentAccess(menuItemId: string, id: string, revoked: boolean): Promise<{ cancelled_subscription?: boolean }> {
+  return ownerAction(menuItemId, { set_access: id, revoked });
+}
+
+/** Before deleting a course/club: cancels every club subscription and removes
+ *  everyone. Throws (and nothing should be deleted) if Stripe refused any. */
+export async function closeSpace(menuItemId: string): Promise<void> {
+  await ownerAction(menuItemId, { close_club: true });
 }
 
 // ── Lesson media (private course-media bucket) ──────────────────────────

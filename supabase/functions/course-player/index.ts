@@ -25,6 +25,12 @@ import { resolveAccess } from "../_shared/memberAccess.ts";
 //   { club_session, menu_item_id }           → after paying: enrolls, emails the
 //                                              link, returns { token }
 //   { token, cancel_club: true }             → cancels at the end of the paid period
+// Shop owner (owner: true, menu_item_id, vendor JWT):
+//   { set_access: enrollment_id, revoked }   → Remove / Restore someone. Removing a
+//                                              club member cancels their subscription
+//                                              now, so they stop being charged.
+//   { close_club: true }                     → cancels every subscription and removes
+//                                              everyone (before deleting a club)
 // An enrolled member's access is re-checked against Stripe once paid_through
 // passes (checkMembership), so no webhook is involved.
 // Lesson blocks can point at private files as "course-media:<path>"; those
@@ -131,6 +137,21 @@ async function sendLink(db: any, menuItemId: string, email: string) {
       }),
     }).catch((err) => console.error("course link email failed:", err));
   }
+}
+
+/** Cancels a club subscription right away (no proration). Already over → fine. */
+async function cancelSubscriptionNow(subId: string, acct: string | null): Promise<void> {
+  const stripe = getStripeClient();
+  const opts = { stripeAccount: acct ?? undefined };
+  let sub: any;
+  try {
+    sub = await stripe.subscriptions.retrieve(subId, {}, opts);
+  } catch (err: any) {
+    if (err?.code === "resource_missing") return;
+    throw err;
+  }
+  if (["canceled", "incomplete_expired"].includes(sub.status)) return;
+  await stripe.subscriptions.cancel(subId, { prorate: false } as any, opts);
 }
 
 async function connectedAccount(db: any, bakerId: string): Promise<string | null> {
@@ -259,6 +280,56 @@ Deno.serve(async (req: Request) => {
   const { owner } = res.access;
   const enrollment = res.access.enrollment;
   if (enrollment && !(await checkMembership(db, enrollment))) return json({ error: "Your membership has ended. Join again from the shop to get back in." }, 403);
+
+  // ── Owner: remove / restore someone ──
+  if (owner && body.set_access) {
+    const id = String(body.set_access);
+    if (!UUID_RE.test(id)) return json({ error: "Invalid request." }, 400);
+    const { data: e } = await db.from("course_enrollments").select("id, stripe_subscription_id, cancel_at")
+      .eq("id", id).eq("menu_item_id", res.access.menuItemId).maybeSingle();
+    if (!e) return json({ error: "Not found." }, 404);
+    const now = new Date().toISOString();
+    if (body.revoked === false) {
+      // Restored access is free: a cancelled subscription is dropped so the
+      // membership check doesn't take it away again.
+      const ended = e.stripe_subscription_id && e.cancel_at && new Date(e.cancel_at).getTime() <= Date.now();
+      await db.from("course_enrollments").update({
+        revoked_at: null, ...(ended ? { stripe_subscription_id: null, cancel_at: null, paid_through: null } : {}),
+      }).eq("id", e.id);
+      return json({ ok: true });
+    }
+    if (e.stripe_subscription_id) {
+      try { await cancelSubscriptionNow(e.stripe_subscription_id, await connectedAccount(db, res.access.bakerId)); }
+      catch (err) {
+        console.error("owner cancel failed:", err);
+        return json({ error: "Couldn’t cancel their subscription with Stripe, so they still have access. Please try again." }, 502);
+      }
+    }
+    await db.from("course_enrollments").update({
+      revoked_at: now, ...(e.stripe_subscription_id ? { cancel_at: now, paid_through: now } : {}),
+    }).eq("id", e.id);
+    return json({ ok: true, cancelled_subscription: !!e.stripe_subscription_id });
+  }
+
+  // ── Owner: close a club (every subscription cancelled, everyone removed) ──
+  if (owner && body.close_club === true) {
+    const { data: rows } = await db.from("course_enrollments").select("id, stripe_subscription_id, revoked_at")
+      .eq("menu_item_id", res.access.menuItemId);
+    const acct = await connectedAccount(db, res.access.bakerId);
+    const now = new Date().toISOString();
+    let cancelled = 0, failed = 0;
+    for (const e of rows ?? []) {
+      if (e.stripe_subscription_id) {
+        try { await cancelSubscriptionNow(e.stripe_subscription_id, acct); cancelled++; }
+        catch (err) { console.error("close club cancel failed:", e.id, err); failed++; continue; }
+        await db.from("course_enrollments").update({ revoked_at: e.revoked_at ?? now, cancel_at: now, paid_through: now }).eq("id", e.id);
+      } else if (!e.revoked_at) {
+        await db.from("course_enrollments").update({ revoked_at: now }).eq("id", e.id);
+      }
+    }
+    if (failed) return json({ error: `Couldn’t cancel ${failed} subscription${failed === 1 ? "" : "s"} with Stripe. Nothing was deleted — please try again.`, cancelled, failed }, 502);
+    return json({ ok: true, cancelled });
+  }
 
   if (body.cancel_club === true) {
     if (!enrollment?.stripe_subscription_id) return json({ error: "Invalid request." }, 400);

@@ -11,6 +11,7 @@ import { listRecipes } from '../../lib/data';
 import { formatMoney, fromLocalInput, parseNumber, toDateInput, toDateTimeInput } from '../../lib/format';
 import type { ListingKind } from '../../lib/types';
 import { blocksFromRow } from '../../lib/contentBlocks';
+import { closeSpace } from '../../lib/courses';
 import { ContentBlocksField, ContentBlocksPreview } from '../../components/ContentBlocksEditor';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -207,9 +208,18 @@ export function MenuItemEditorPage() {
   );
 
   const deleteModal = confirmDelete && existing && (
-    <ConfirmModal title={`Delete “${existing.name}”?`} body="It’s removed from your storefront and from Bakeri on all your devices. Past orders keep their details." confirmLabel="Delete listing" danger
+    <ConfirmModal title={`Delete “${existing.name}”?`}
+      body={existing.is_club ? 'Every member loses access and their subscriptions are cancelled now, so they stop being charged (no automatic refunds). It’s removed from your storefront and this can’t be undone.'
+        : existing.is_course ? 'Everyone who bought it loses access (no automatic refunds). It’s removed from your storefront and this can’t be undone.'
+        : 'It’s removed from your storefront and from Bakeri on all your devices. Past orders keep their details.'}
+      confirmLabel={existing.is_club ? 'Cancel memberships & delete' : 'Delete listing'} danger
       onClose={() => setConfirmDelete(false)}
-      onConfirm={async () => { await deleteMenuItem(existing); toast('Listing deleted'); navigate('/menu'); }} />
+      onConfirm={async () => {
+        try {
+          if (existing.is_course) await closeSpace(existing.id);
+          await deleteMenuItem(existing); toast('Deleted'); navigate('/menu');
+        } catch (e) { toast((e as Error).message); setConfirmDelete(false); }
+      }} />
   );
 
   // A Custom Order Form collapses to name + intro + form (iOS siteBodySections).

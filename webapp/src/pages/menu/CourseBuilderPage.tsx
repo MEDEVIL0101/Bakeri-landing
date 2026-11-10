@@ -380,7 +380,13 @@ function Students({ menuItemId, userId, club }: { menuItemId: string; userId: st
                   <td>{s.completed}</td>
                   <td className="row-gap" style={{ justifyContent: 'flex-end' }}>
                     {!s.revoked_at && <button type="button" className="link-btn small" onClick={async () => { await emailStudentLink(menuItemId, s.email); toast('Link sent'); }}>Resend link</button>}
-                    <button type="button" className="link-btn small" onClick={async () => { await setStudentAccess(s.id, !s.revoked_at); students.reload(); }}>
+                    <button type="button" className="link-btn small" onClick={async () => {
+                      try {
+                        const r = await setStudentAccess(menuItemId, s.id, !s.revoked_at);
+                        if (r?.cancelled_subscription) toast('Removed — their subscription is cancelled');
+                      } catch (e) { toast((e as Error).message); }
+                      students.reload();
+                    }}>
                       {s.revoked_at ? 'Restore access' : 'Remove access'}
                     </button>
                   </td>
