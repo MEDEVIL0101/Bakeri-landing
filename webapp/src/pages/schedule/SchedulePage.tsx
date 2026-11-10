@@ -6,6 +6,9 @@ import { deleteTask, listTasks, listUnavailableDates, saveTask, setTaskDone, tog
 import { isClosed, listOrders, statusLabel } from '../../lib/orders';
 import { EVENT_COLORS, fromLocalInput, sameDay, toDateInput, toDateTimeInput } from '../../lib/format';
 import type { BakingTask, Order } from '../../lib/types';
+import { listCostingRecipes } from '../../lib/kitchen';
+import { listMenuItems } from '../../lib/menu';
+import { formatAmounts, ingredientOrders, neededIngredients } from '../../lib/scheduleIngredients';
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -26,6 +29,8 @@ export function SchedulePage() {
   const orders = useLoad(() => listOrders(userId), [userId]);
   const tasks = useLoad(() => listTasks(userId), [userId]);
   const off = useLoad(() => listUnavailableDates(userId), [userId]);
+  const recipes = useLoad(() => listCostingRecipes(userId), [userId]);
+  const menu = useLoad(() => listMenuItems(userId), [userId]);
 
   const days = useMemo(() => monthGrid(month), [month]);
   const activeOrders = useMemo(() => (orders.data ?? []).filter((o) => o.status !== 'Cancelled' && !['declined', 'cancelled', 'refunded', 'expired'].includes(o.marketplace_status ?? '')), [orders.data]);
@@ -90,6 +95,8 @@ export function SchedulePage() {
         </div>
 
         <div className="stack-lg">
+          <IngredientsCard month={month} selected={selected} orders={activeOrders} tasks={tasks.data ?? []}
+            recipes={recipes.data ?? []} menu={menu.data ?? []} loading={orders.loading || tasks.loading || recipes.loading || menu.loading} />
           <Card title={selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
             actions={<Button variant="ghost" onClick={toggleOff}>{selOff ? 'Reopen day' : 'Mark unavailable'}</Button>}>
             {selOff && <p className="small banner banner-info">You’re unavailable — customers can’t choose this day.</p>}
@@ -134,6 +141,46 @@ export function SchedulePage() {
           onConfirm={async () => { await deleteTask(deleting); tasks.reload(); }} />
       )}
     </div>
+  );
+}
+
+type Span = 'day' | 'week' | 'month';
+
+/** What the orders and bakes in a day / week / month need (iOS IngredientsGlanceCard). */
+function IngredientsCard({ month, selected, orders, tasks, recipes, menu, loading }: {
+  month: Date; selected: Date; orders: Order[]; tasks: BakingTask[];
+  recipes: Parameters<typeof neededIngredients>[2]; menu: Parameters<typeof neededIngredients>[3]; loading: boolean;
+}) {
+  const [span, setSpan] = useState<Span>('month');
+  const [start, end, label] = useMemo((): [Date, Date, string] => {
+    if (span === 'month') return [month, new Date(month.getFullYear(), month.getMonth() + 1, 1), month.toLocaleDateString(undefined, { month: 'long' })];
+    const day = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate());
+    if (span === 'day') return [day, new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1), day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })];
+    const ws = new Date(day.getFullYear(), day.getMonth(), day.getDate() - day.getDay());
+    return [ws, new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 7), `week of ${ws.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`];
+  }, [span, month, selected]);
+  const list = useMemo(() => {
+    const inSpan = tasks.filter((t) => { const at = new Date(t.due_date).getTime(); return at >= start.getTime() && at < end.getTime(); });
+    return neededIngredients(ingredientOrders(orders, tasks, start, end), inSpan, recipes, menu);
+  }, [orders, tasks, recipes, menu, start, end]);
+  return (
+    <Card title={`Ingredients · ${label}`}
+      actions={<div className="seg sm">{(['day', 'week', 'month'] as Span[]).map((p) => (
+        <button key={p} className={span === p ? 'active' : ''} onClick={() => setSpan(p)}>{p[0].toUpperCase() + p.slice(1)}</button>
+      ))}</div>}>
+      {loading ? <Spinner /> : list.length === 0 ? (
+        <p className="muted small">Nothing to buy for this {span}. Link recipes to your products, order items or tasks and what they need adds up here.</p>
+      ) : (
+        <ul className="list">
+          {list.map((i) => (
+            <li key={i.name} className="list-row">
+              <span className="grow row-title">{i.name}</span>
+              <span className="row-sub" style={{ fontWeight: 600 }}>{formatAmounts(i.amounts)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
