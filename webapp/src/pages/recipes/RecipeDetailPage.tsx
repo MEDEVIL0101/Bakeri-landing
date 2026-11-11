@@ -4,7 +4,7 @@ import { Button, Card, ConfirmModal, EmptyState, ErrorBanner, Input, PageHeader,
 import { deleteRecipe, getRecipe, recipeImageURL } from '../../lib/data';
 import type { RecipeIngredient } from '../../lib/types';
 import { useUserId } from '../../auth/AuthProvider';
-import { lineCost, listIngredientCosts } from '../../lib/kitchen';
+import { ingredientKey, lineCost, listIngredientCosts } from '../../lib/kitchen';
 import { formatMoney } from '../../lib/format';
 
 function amount(n: number): string {
@@ -97,10 +97,10 @@ function CostCard({ ingredients, scale, yieldQty, yieldUnit }: { ingredients: Re
   const userId = useUserId();
   const costs = useLoad(() => listIngredientCosts(userId), [userId]);
   if (!costs.data) return null;
-  const byName = new Map(costs.data.map((c) => [c.ingredient_name.toLowerCase(), c]));
+  const byName = new Map(costs.data.map((c) => [ingredientKey(c.ingredient_name), c]));
   let total = 0; let priced = 0;
   for (const i of ingredients) {
-    const c = byName.get(i.name.toLowerCase());
+    const c = byName.get(ingredientKey(i.name));
     if (!c) continue;
     priced++;
     total += lineCost(i, scale, c);

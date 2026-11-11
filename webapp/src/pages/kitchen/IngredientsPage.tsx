@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, Input, Modal, PageHeader, Select, Spinner, useLoad, useToast } from '../../components/ui';
 import {
-  PURCHASE_UNITS, addCustomDensity, costPerGram, costPerUnit, isPerUnit, purchaseUnitLabel, deleteCustomDensity, deleteIngredientCost, listDensities, listIngredientCosts,
+  PURCHASE_UNITS, addCustomDensity, ingredientKey, costPerGram, costPerUnit, isPerUnit, purchaseUnitLabel, deleteCustomDensity, deleteIngredientCost, listDensities, listIngredientCosts,
   mergedDensities, saveIngredientCost, type DensityRow, type IngredientCostRow,
 } from '../../lib/kitchen';
 import { formatMoney, parseNumber } from '../../lib/format';
@@ -28,15 +28,15 @@ export function IngredientsPage() {
   // Deep link from Finances: /ingredients?add=Butter
   useEffect(() => {
     const add = params.get('add');
-    if (add && data.data) { setEditing({ name: add, cost: data.data.costs.find((c) => c.ingredient_name.toLowerCase() === add.toLowerCase()) }); setParams({}, { replace: true }); }
+    if (add && data.data) { setEditing({ name: add, cost: data.data.costs.find((c) => ingredientKey(c.ingredient_name) === ingredientKey(add)) }); setParams({}, { replace: true }); }
   }, [params, data.data, setParams]);
 
   const entries = useMemo(() => {
     if (!data.data) return [];
     const costBy = new Map<string, IngredientCostRow>();
-    for (const c of data.data.costs) { const k = c.ingredient_name.trim().toLowerCase(); if (!costBy.has(k)) costBy.set(k, c); }
-    const list = mergedDensities(data.data.densities).map((d) => ({ ...d, cost: costBy.get(d.name.toLowerCase()) }));
-    const seen = new Set(list.map((l) => l.name.toLowerCase()));
+    for (const c of data.data.costs) { const k = ingredientKey(c.ingredient_name); if (!costBy.has(k)) costBy.set(k, c); }
+    const list = mergedDensities(data.data.densities).map((d) => ({ ...d, cost: costBy.get(ingredientKey(d.name)) }));
+    const seen = new Set(list.map((l) => ingredientKey(l.name)));
     for (const [k, c] of costBy) if (!seen.has(k)) list.push({ name: c.ingredient_name, grams_per_cup: 0, cost: c });
     return list.sort((a, b) => a.name.localeCompare(b.name));
   }, [data.data]);
@@ -44,7 +44,7 @@ export function IngredientsPage() {
   const visible = entries.filter((e) => {
     if (filter === 'priced' && !e.cost) return false;
     if (filter === 'custom' && !e.custom) return false;
-    return !q.trim() || e.name.toLowerCase().includes(q.trim().toLowerCase());
+    return !q.trim() || ingredientKey(e.name).includes(ingredientKey(q));
   });
 
   if (data.loading && !data.data) return <div className="page"><Spinner /></div>;
@@ -132,7 +132,7 @@ function CostModal({ userId, initial, names, onClose, onSaved }: { userId: strin
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button disabled={!ok} loading={busy} onClick={async () => {
           setBusy(true); setErr(null);
-          try { await saveIngredientCost(userId, { id: c?.id, ingredient_name: name, purchase_cost: parseNumber(paid), purchase_amount: parseNumber(amount), purchase_unit: unit }); onSaved(); }
+          try { await saveIngredientCost(userId, { id: c?.id, ingredient_name: names.find((n) => ingredientKey(n) === ingredientKey(name)) ?? name, purchase_cost: parseNumber(paid), purchase_amount: parseNumber(amount), purchase_unit: unit }); onSaved(); }
           catch (e: any) { setErr(e.message); setBusy(false); }
         }}>Save</Button>
       </>}>

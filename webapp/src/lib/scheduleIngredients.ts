@@ -2,7 +2,7 @@
 // ingredientOrders + aggregateIngredients + IngredientsGlanceCard) — keep the
 // two in step.
 import type { BakingTask, Order } from './types';
-import type { CostingRecipe } from './kitchen';
+import { ingredientKey, type CostingRecipe } from './kitchen';
 
 export interface MenuRecipeLink { name: string; recipe_id: string | null; recipe_ids: string[] | null }
 export interface NeededIngredient { name: string; amounts: { amount: number; unit: string }[] }
@@ -38,7 +38,7 @@ export function neededIngredients(orders: Order[], tasks: BakingTask[], recipes:
   const add = (r: CostingRecipe, scale: number) => {
     used.add(r.id.toLowerCase());
     for (const ing of r.ingredients) {
-      const key = ing.name.trim().toLowerCase();
+      const key = ingredientKey(ing.name);   // "Eggs" + "Egg" add up
       if (!key) continue;
       const units = accum.get(key) ?? new Map<string, number>();
       units.set(ing.volume_unit, (units.get(ing.volume_unit) ?? 0) + ing.volume_amount * scale);

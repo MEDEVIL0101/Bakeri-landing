@@ -13,6 +13,14 @@ export const isWeightUnit = (u: string) => u === 'g' || u === 'kg' || u === 'lb'
 // 'each' = bought by the piece, shown as "units" ("$4.50 for 12 units" — eggs,
 // packets); it costs recipe ingredients counted with no unit ("2 Egg").
 // iOS IngredientCost.eachRaw.
+/** How ingredient names are compared (search, prices ↔ recipes): case- and
+ *  space-insensitive, ignoring a plural "s" on each word, so "Eggs" matches
+ *  "Egg". iOS String.ingredientKey — keep in step. */
+export function ingredientKey(name: string): string {
+  return name.toLowerCase().trim().split(/\s+/)
+    .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)).join(' ');
+}
+
 export const PURCHASE_UNITS = ['g', 'kg', 'oz', 'lb', 'each'] as const;
 export const purchaseUnitLabel = (u: string) => (u === 'each' ? 'units' : u);
 export const isPerUnit = (u: string) => u === 'each';
@@ -115,7 +123,7 @@ export async function listCostingRecipes(userId: string): Promise<CostingRecipe[
 }
 
 export function ingredientAmounts(items: CostingItem[], recipes: CostingRecipe[], costs: IngredientCostRow[]): IngredientAmount[] {
-  const costMap = new Map(costs.map((c) => [c.ingredient_name.toLowerCase(), c]));
+  const costMap = new Map(costs.map((c) => [ingredientKey(c.ingredient_name), c]));
   const byId = new Map(recipes.map((r) => [r.id.toLowerCase(), r]));
   const byName = new Map(recipes.map((r) => [r.name.toLowerCase(), r]));
   const out: IngredientAmount[] = [];
@@ -127,7 +135,7 @@ export function ingredientAmounts(items: CostingItem[], recipes: CostingRecipe[]
       const grams = ingredientGrams(ing) * scale;
       const count = ingredientCount(ing) * scale;
       if (!(grams > 0) && !(count > 0)) continue;
-      const c = costMap.get(ing.name.toLowerCase());
+      const c = costMap.get(ingredientKey(ing.name));
       out.push({ ingredient: ing.name, grams, count, cost: c ? lineCost(ing, scale, c) : 0, hasCost: !!c });
     }
   }
