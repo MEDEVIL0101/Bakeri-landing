@@ -444,12 +444,17 @@ Deno.serve(async (req: Request) => {
       if (!tier) return await failAndRelease(`Please choose a size for "${item.name}".`);
       const validVariantIds = new Set((variantsByItemId.get(item.id) ?? []).map((v) => v.id));
       const selections = line.variant_selections ?? [];
-      if (selections.length === 0 || selections.some((s) => !validVariantIds.has(s.variant_id))) {
-        return await failAndRelease(`Please choose your flavors for "${item.name}".`);
-      }
-      const total = selections.reduce((sum, s) => sum + s.quantity, 0);
-      if (total !== tier.unit_count) {
-        return await failAndRelease(`"${item.name}" needs exactly ${tier.unit_count} pieces chosen — got ${total}.`);
+      // A box with no flavors (just sizes — every box the same) only needs a size.
+      if (validVariantIds.size > 0) {
+        if (selections.length === 0 || selections.some((s) => !validVariantIds.has(s.variant_id))) {
+          return await failAndRelease(`Please choose your flavors for "${item.name}".`);
+        }
+        const total = selections.reduce((sum, s) => sum + s.quantity, 0);
+        if (total !== tier.unit_count) {
+          return await failAndRelease(`"${item.name}" needs exactly ${tier.unit_count} pieces chosen — got ${total}.`);
+        }
+      } else if (selections.length > 0) {
+        return await failAndRelease(`"${item.name}" has no flavors to choose — please refresh and try again.`);
       }
     }
     if (item.listing_kind === "preorder") {

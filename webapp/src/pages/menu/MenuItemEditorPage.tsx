@@ -552,7 +552,8 @@ export function MenuItemEditorPage() {
                       </>
                     )}
                   />
-                  <h3 className="h3">Flavours</h3>
+                  <h3 className="h3">Flavours <span className="small muted">(optional)</span></h3>
+                  <p className="small muted">Buyers pick how many of each flavour fills their box. Leave this empty if every box is the same — they’ll just pick a size.</p>
                   <RowsEditor
                     rows={d.box_variants}
                     onChange={(rows) => set('box_variants', rows)}
