@@ -4,6 +4,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { ConfirmModal } from '../components/ui';
 import { useIsPhone } from '../lib/useMedia';
+import { backdropStyle, themeVars } from '../lib/theme';
 import type { PartnerMe } from './partnerApi';
 
 /**
@@ -59,22 +60,67 @@ export function PartnerShell({ partner, children }: { partner: PartnerMe; childr
   const seg = location.pathname.split('/').filter(Boolean)[1] ?? '';
 
   useEffect(() => setOpen(false), [location.pathname]);
+  // The drawer slides over the page; keep the page from scrolling under it.
+  useEffect(() => {
+    document.body.classList.toggle('drawer-open', open && phone);
+    return () => document.body.classList.remove('drawer-open');
+  }, [open, phone]);
   useEffect(() => { document.title = `${TITLES[seg] ?? 'Partner'} · Bakerï Growth Partners`; }, [seg]);
 
   const initial = (partner.name.trim()[0] ?? 'P').toUpperCase();
 
   return (
-    <div className="shell partner-shell">
+    <div className="shell partner-shell" style={phone ? themeVars('Classic') : undefined}>
+      {phone && <div className="app-bg" style={backdropStyle('Classic', 'Standard')} aria-hidden />}
       {phone && (
         <header className="topbar">
-          <button className="icon-btn" aria-label="Open menu" onClick={() => setOpen(true)}>
-            <Icon size={22}><path d="M4 7h16M4 12h16M4 17h16" /></Icon>
-          </button>
-          <span className="nav-default-title ellipsis" style={{ justifySelf: 'center', fontWeight: 650 }}>{TITLES[seg] ?? 'Partner'}</span>
-          <span />
+          <div className="nav-leading">
+            <button className="nav-avatar" aria-label="Open menu" onClick={() => setOpen(true)}>
+              <span className="nav-avatar-img">{initial}</span>
+            </button>
+          </div>
+          <div className="nav-title">
+            <span className="nav-default-title ellipsis">{TITLES[seg] ?? 'Partner'}</span>
+          </div>
+          <div className="nav-trailing" />
         </header>
       )}
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
+      {phone && (
+        <aside className={`phone-menu ${open ? 'open' : ''}`} aria-hidden={!open}
+          onTouchStart={(e) => { (e.currentTarget as HTMLElement).dataset.x = String(e.touches[0].clientX); }}
+          onTouchEnd={(e) => { const x0 = Number((e.currentTarget as HTMLElement).dataset.x); if (e.changedTouches[0].clientX - x0 < -50) setOpen(false); }}>
+          <div className="pm-head">
+            <span className="pm-avatar">{initial}</span>
+            <div className="pm-biz">{partner.company || partner.name}</div>
+            <div className="pm-name">Community Growth Partner{partner.code ? ` · ${partner.code}` : ''}</div>
+          </div>
+          <nav className="pm-rows">
+            {NAV.flatMap((g) => g.items).map((n) => (
+              <Link key={n.to} to={n.to} className="pm-row" onClick={() => setOpen(false)}>
+                <Icon size={22}>{n.icon}</Icon>
+                <span>{n.label}</span>
+              </Link>
+            ))}
+          </nav>
+          <div className="pm-foot">
+            {partner.has_shop && (
+              <Link to="/" className="pm-row-sm" onClick={() => setOpen(false)}>
+                <Icon size={18}><path d="M4 9l1.5-5h13L20 9M4 9v11h16V9M10 20v-5h4v5" /></Icon>
+                <span>Go to my shop</span>
+              </Link>
+            )}
+            <a href="mailto:hello@bakeriapp.com?subject=Growth%20Partner%20question" className="pm-row-sm">
+              <Icon size={18}><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8M12 17h.01" /></Icon>
+              <span>Contact the team</span>
+            </a>
+            <button className="pm-row pm-signout" onClick={() => setConfirmSignOut(true)}>
+              <Icon size={22}><path d="M14 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h8M10 12h11M17.5 8.5 21 12l-3.5 3.5" /></Icon>
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </aside>
+      )}
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-brand">
           <img src={LOGO} alt="Bakerï" />
@@ -135,7 +181,7 @@ export function PartnerShell({ partner, children }: { partner: PartnerMe; childr
         {children}
       </main>
       {phone && (
-        <nav className="tabbar" aria-label="Tabs">
+        <nav className="tabbar" aria-label="Tabs" style={{ gridTemplateColumns: `repeat(${TABS.length}, 1fr)` }}>
           {TABS.map((t) => (
             <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => `tab ${isActive ? 'active' : ''}`}>
               <Icon size={24}>{t.icon}</Icon>

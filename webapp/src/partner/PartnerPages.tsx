@@ -132,7 +132,7 @@ export function PartnerOverviewPage() {
       <PageHeader
         title={`Hi, ${partner.name.split(/\s+/)[0]}`}
         phoneTitle="Overview"
-        subtitle={<>You earn <strong>{pctLabel(partner.commission_rate)}</strong> of every plan payment {termLabel(partner.commission_months)}.</>}
+        subtitle={<span>You earn <strong>{pctLabel(partner.commission_rate)}</strong> of every plan payment {termLabel(partner.commission_months)}.</span>}
         actions={<RangePicker days={days} onChange={setDays} />}
       />
 
