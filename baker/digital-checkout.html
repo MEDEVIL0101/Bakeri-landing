@@ -471,6 +471,7 @@
     document.body.setAttribute('data-bakeri-no-reload', '1');
     const downloads = data.downloads || [];
     const links = downloads.map(function (d) {
+      if (d.release_at) return presalePill(d);
       return '<a class="btn-download" href="' + d.download_url + '">' +
         (d.kind === 'course'
           ? (downloads.length > 1 ? 'Start ' + escapeHtml(d.item_name) : 'Start the course')
@@ -478,7 +479,7 @@
     }).join('');
     content.innerHTML =
       '<div class="success-state">' +
-        '<h2>' + (downloads.every(function (d) { return d.kind === 'course'; }) ? 'Your course' + (downloads.length > 1 ? 's are' : ' is') : 'Your download' + (downloads.length > 1 ? 's are' : ' is')) + ' ready</h2>' +
+        '<h2>' + (downloads.every(function (d) { return !!d.release_at; }) ? 'You’re in — thanks for your pre-order' : downloads.every(function (d) { return d.kind === 'course'; }) ? 'Your course' + (downloads.length > 1 ? 's are' : ' is') : 'Your download' + (downloads.length > 1 ? 's are' : ' is')) + ' ready</h2>' +
         '<p>Thanks for your purchase' + (data.baker_name ? ' from ' + escapeHtml(data.baker_name) : '') + '. ' + (downloads.length > 1 ? 'Copies of these links were' : 'A copy of this link was') + ' also emailed to you.</p>' +
         links +
       '</div>';
@@ -492,6 +493,11 @@
       '</div>';
   }
 
+// Pre-sale line (release_at): no link yet — it's emailed on the date.
+function presalePill(d) {
+  const when = new Date(d.release_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  return '<div class="btn-download" style="background:#F0E9DC;color:#241712;cursor:default;">' + escapeHtml(d.item_name) + ' — ' + (d.kind === 'course' ? 'opens ' : 'arrives ') + when + '. We’ll email it to you that day.</div>';
+}
   function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str == null ? '' : String(str);

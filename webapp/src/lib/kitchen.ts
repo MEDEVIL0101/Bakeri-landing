@@ -31,7 +31,16 @@ export function countPhrase(n: number, name: string): string {
   return `${num} ${n === 1 ? one : many}`;
 }
 
-export const PURCHASE_UNITS = ['g', 'kg', 'oz', 'lb', 'each'] as const;
+// Volume units (milk, cream, oil) price per ml — iOS IngredientCost.volumeUnits.
+export const PURCHASE_VOLUME_UNITS = ['cup', 'tbsp', 'tsp', 'fl oz', 'pt', 'qt', 'ml', 'L'] as const;
+export const PURCHASE_UNITS = ['g', 'kg', 'oz', 'lb', ...PURCHASE_VOLUME_UNITS, 'each'] as const;
+export const isVolumePurchase = (u: string) => (PURCHASE_VOLUME_UNITS as readonly string[]).includes(u);
+/** Millilitres of a recipe ingredient: volume units directly, weights via its density. */
+export function ingredientMl(ing: RecipeIngredientLite): number {
+  if (ML_PER[ing.volume_unit]) return ing.volume_amount * ML_PER[ing.volume_unit];
+  if (isWeightUnit(ing.volume_unit) && ing.grams_per_cup > 0) return (ing.volume_amount * GRAMS_PER[ing.volume_unit]) / ing.grams_per_cup * ML_PER.cup;
+  return 0;
+}
 export const purchaseUnitLabel = (u: string) => (u === 'each' ? 'units' : u);
 export const isPerUnit = (u: string) => u === 'each';
 /** Pieces for an ingredient counted with no unit ("2 Egg"); 0 otherwise. */
@@ -61,9 +70,14 @@ export interface IngredientCostRow {
 }
 
 export function costPerGram(c: Pick<IngredientCostRow, 'purchase_cost' | 'purchase_amount' | 'purchase_unit'>): number {
-  if (isPerUnit(c.purchase_unit)) return 0;
+  if (isPerUnit(c.purchase_unit) || isVolumePurchase(c.purchase_unit)) return 0;
   const grams = c.purchase_amount * (GRAMS_PER[c.purchase_unit] ?? GRAMS_PER.lb);
   return grams > 0 && c.purchase_cost > 0 ? c.purchase_cost / grams : 0;
+}
+
+/** Price of 1 ml (0 unless bought by volume). */
+export function costPerMl(c: Pick<IngredientCostRow, 'purchase_cost' | 'purchase_amount' | 'purchase_unit'>): number {
+  return isVolumePurchase(c.purchase_unit) && c.purchase_amount > 0 && c.purchase_cost > 0 ? c.purchase_cost / (c.purchase_amount * ML_PER[c.purchase_unit]) : 0;
 }
 
 /** Price of one piece (0 unless bought by the unit). */
@@ -74,7 +88,9 @@ export function costPerUnit(c: Pick<IngredientCostRow, 'purchase_cost' | 'purcha
 /** What one recipe ingredient costs at this scale: by the piece when bought by
  *  the unit and the recipe counts it, otherwise by weight (mismatch → 0). */
 export function lineCost(ing: RecipeIngredientLite, scale: number, c: IngredientCostRow): number {
-  return isPerUnit(c.purchase_unit) ? ingredientCount(ing) * scale * costPerUnit(c) : ingredientGrams(ing) * scale * costPerGram(c);
+  if (isPerUnit(c.purchase_unit)) return ingredientCount(ing) * scale * costPerUnit(c);
+  if (isVolumePurchase(c.purchase_unit)) return ingredientMl(ing) * scale * costPerMl(c);
+  return ingredientGrams(ing) * scale * costPerGram(c);
 }
 
 export async function listIngredientCosts(userId: string): Promise<IngredientCostRow[]> {

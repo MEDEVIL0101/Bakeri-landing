@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useUserId } from '../../auth/AuthProvider';
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorBanner, Field, Input, Modal, PageHeader, Select, Spinner, useLoad, useToast } from '../../components/ui';
 import {
-  PURCHASE_UNITS, addCustomDensity, ingredientKey, costPerGram, costPerUnit, isPerUnit, purchaseUnitLabel, deleteCustomDensity, deleteIngredientCost, listDensities, listIngredientCosts,
+  PURCHASE_UNITS, addCustomDensity, ingredientKey, costPerGram, costPerMl, costPerUnit, isPerUnit, isVolumePurchase, purchaseUnitLabel, ML_PER, deleteCustomDensity, deleteIngredientCost, listDensities, listIngredientCosts,
   mergedDensities, saveIngredientCost, type DensityRow, type IngredientCostRow,
 } from '../../lib/kitchen';
 import { formatMoney, parseNumber } from '../../lib/format';
@@ -76,7 +76,7 @@ export function IngredientsPage() {
                   <td><span className="row-title inline">{e.name}</span> {e.custom && <Badge tone="blue">Custom</Badge>}</td>
                   <td className="num muted">{e.grams_per_cup ? Math.round(e.grams_per_cup) : '—'}</td>
                   <td>{e.cost ? `${formatMoney(e.cost.purchase_cost)} for ${e.cost.purchase_amount} ${purchaseUnitLabel(e.cost.purchase_unit)}` : <span className="muted small">Add cost</span>}</td>
-                  <td className="num">{e.cost ? (isPerUnit(e.cost.purchase_unit) ? `${formatMoney(costPerUnit(e.cost))}/unit` : formatMoney(costPerGram(e.cost) * 453.592)) : ''}</td>
+                  <td className="num">{e.cost ? (isPerUnit(e.cost.purchase_unit) ? `${formatMoney(costPerUnit(e.cost))}/unit` : isVolumePurchase(e.cost.purchase_unit) ? `${formatMoney(costPerMl(e.cost) * ML_PER[e.cost.purchase_unit])}/${e.cost.purchase_unit}` : formatMoney(costPerGram(e.cost) * 453.592)) : ''}</td>
                   <td className="num" onClick={(ev) => ev.stopPropagation()}>
                     {(e.cost || e.custom) && <button className="icon-btn sm" aria-label="Delete" onClick={() => setDeleting({ cost: e.cost, custom: e.custom })}>×</button>}
                   </td>
@@ -125,7 +125,8 @@ function CostModal({ userId, initial, names, onClose, onSaved }: { userId: strin
   const priced = { purchase_cost: parseNumber(paid), purchase_amount: parseNumber(amount), purchase_unit: unit };
   const cpg = costPerGram(priced);
   const cpu = costPerUnit(priced);
-  const ok = name.trim() && (cpg > 0 || cpu > 0);
+  const cpm = costPerMl(priced);
+  const ok = name.trim() && (cpg > 0 || cpu > 0 || cpm > 0);
   return (
     <Modal title={c ? 'Edit price' : 'Add a price'} onClose={onClose}
       footer={<>
@@ -149,6 +150,7 @@ function CostModal({ userId, initial, names, onClose, onSaved }: { userId: strin
       </div>
       {cpg > 0 && <p className="small muted">= {formatMoney(cpg * 453.592)}/lb · {formatMoney(cpg * 28.3495)}/oz · {formatMoney(cpg * 1000)}/kg</p>}
       {cpu > 0 && <p className="small muted">= {formatMoney(cpu)} per unit</p>}
+      {cpm > 0 && <p className="small muted">= {formatMoney(cpm * ML_PER.cup)}/cup · {formatMoney(cpm * 1000)}/L</p>}
       {err && <ErrorBanner message={err} />}
     </Modal>
   );

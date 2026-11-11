@@ -19,7 +19,7 @@ const isFood = (k: ListingKind) => k === 'ready_now' || k === 'preorder' || k ==
 
 function emptyDraft(kind: ListingKind): MenuDraft {
   return {
-    name: '', item_description: '', content_blocks: [], is_course: false, addon_offer: null, is_club: false, club_interval: null, category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
+    name: '', item_description: '', content_blocks: [], is_course: false, addon_offer: null, is_club: false, club_interval: null, presale_release: '', presale_order_by: '', sell_limit: null, category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
     listing_kind: kind, available_qty_today: 0, lead_days: 2, preorder_mode: 'fixed_dates', preorder_dates: [],
     preorder_weekday: 6, preorder_cutoff: null, delivery_mode: 'default', delivery_fee: 0, accepts_buyer_note: false,
     allergens: '', lead_time_note: '', shipping_fee: 0, intake_form_id: null, recipe_ids: [], recipe_names: [],
@@ -32,6 +32,9 @@ function draftFrom(m: MenuItemFull, profileDelivery: boolean, siteListingId: str
   return {
     name: m.name, item_description: m.item_description, content_blocks: blocksFromRow(m.content_blocks), is_course: !!m.is_course,
     addon_offer: m.addon_offer ?? null, is_club: !!m.is_club, club_interval: m.club_interval ?? null,
+    presale_release: m.presale_release_at && Date.parse(m.presale_release_at) > Date.now() ? toDateInput(m.presale_release_at) : '',
+    presale_order_by: m.presale_release_at && Date.parse(m.presale_release_at) > Date.now() ? toDateInput(m.presale_order_by) : '',
+    sell_limit: m.sell_limit ?? null,
     category: m.category, unit: m.unit, price: m.default_price,
     is_active: m.is_active, is_listed: m.is_listed_in_marketplace, listing_kind: m.listing_kind,
     available_qty_today: m.available_qty_today, lead_days: m.lead_days, preorder_mode: m.preorder_schedule_mode ?? 'fixed_dates',
@@ -440,6 +443,40 @@ export function MenuItemEditorPage() {
               </label>
             </Card>
           )}
+
+          {(kind === 'digital' || kind === 'physical') && (() => {
+            // Pre-sale — iOS AddEditMenuItemView.presaleSection.
+            const verb = kind === 'physical' ? 'Ships' : d.is_course ? 'Opens' : 'Arrives';
+            const today = toDateInput(new Date().toISOString());
+            return (
+              <Card title="Pre-sale">
+                <Toggle checked={!!d.presale_release} onChange={(v) => set('presale_release', v ? toDateInput(new Date(Date.now() + 14 * 86400000).toISOString()) : '')}
+                  label="Sell as a pre-sale" hint={`Take orders now — it ${verb.toLowerCase()} on the date you pick.`} />
+                {d.presale_release && (
+                  <>
+                    <Field label={`${verb} on`}>
+                      <Input type="date" min={today} value={d.presale_release} onChange={(e) => set('presale_release', e.target.value)} />
+                    </Field>
+                    <Toggle checked={!!d.presale_order_by} onChange={(v) => set('presale_order_by', v ? d.presale_release : '')}
+                      label="Pre-order by a date" hint="Checkout closes at the end of that day." />
+                    {d.presale_order_by && (
+                      <Field label="Pre-order by">
+                        <Input type="date" min={today} max={d.presale_release} value={d.presale_order_by} onChange={(e) => set('presale_order_by', e.target.value)} />
+                      </Field>
+                    )}
+                  </>
+                )}
+                {kind === 'digital' && (
+                  <Field label="Limit" hint={d.is_club ? 'How many members can join. Leave empty for no limit.' : d.is_course ? 'How many can enrol. Leave empty for no limit.' : 'How many can sell. Leave empty for no limit.'}>
+                    <Input type="number" min="1" step="1" placeholder="No limit" value={d.sell_limit ?? ''} onChange={(e) => set('sell_limit', e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : null)} />
+                  </Field>
+                )}
+                <p className="small muted">{d.presale_release
+                  ? `Your storefront shows “Pre-sale”${d.presale_order_by ? ', the pre-order deadline' : ''} and the date. ${kind === 'physical' ? 'Orders land on your schedule on the ship date.' : `Buyers get their ${d.is_course ? 'link' : 'download'} by email that morning.`}`
+                  : kind === 'physical' ? 'Your stock count is how many you’ll sell.' : ''}</p>
+              </Card>
+            );
+          })()}
 
           {kind === 'digital' && !(d.is_club && d.club_interval) && (
             <Card title="Limited time offer">

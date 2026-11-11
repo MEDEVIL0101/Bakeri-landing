@@ -921,6 +921,16 @@
   <div class="sf-sec-signin">Already a member? <a class="sf-member-link">Log in</a></div>
 </section>
 
+<!-- Pre-sales (block type 'presales', 2026-11-10): every listed pre-sale,
+     when the vendor switches this section on — otherwise they stay in
+     Products. One featured on its own card ('offer') isn't repeated here. -->
+<section id="sf-presales" class="sf-card hidden" data-block="presales">
+  <div class="sf-card-head">
+    <div class="titles"><h2 id="sf-presales-title"></h2><span class="sf-sub" id="sf-presales-sub"></span></div>
+  </div>
+  <div class="sf-card-body" id="sf-presales-grid"></div>
+</section>
+
 <section id="links-feed" class="sf-card hidden" data-block="links">
   <div class="sf-card-head">
     <div class="titles"><h2 id="sf-links-title"></h2></div>
@@ -1508,6 +1518,7 @@
     renderReferralCard();
     renderOfferCards();
     renderSpaceSections();
+    renderPresalesSection();
     renderMemberLogin();
     renderHeaderSignupButton(p);
     document.getElementById('footer-copy').textContent = '© ' + new Date().getFullYear() + ' ' + name;
@@ -1573,12 +1584,12 @@
   const V1_TO_V2 = {
     menu: 'menu', physical: 'products', digital: 'products', products: 'products',
     links: 'links', about: 'about', faq: 'info', policies: 'info', hours: 'info', info: 'info',
-    emailCapture: 'emailCapture', leadMagnet: 'leadMagnet', courses: 'courses', clubs: 'clubs'
+    emailCapture: 'emailCapture', leadMagnet: 'leadMagnet', courses: 'courses', clubs: 'clubs', presales: 'presales'
   };
   const CARD_IDS = {
     leadMagnet: 'sf-magnet', menu: 'feed', form: 'form-storefront', products: 'sf-products',
     links: 'links-feed', about: 'pb-about', info: 'sf-info', emailCapture: 'email-capture',
-    courses: 'sf-courses', clubs: 'sf-clubs',
+    courses: 'sf-courses', clubs: 'sf-clubs', presales: 'sf-presales',
     // Bakerï Referral — never a default card (not in V2_DEFAULT_ORDER): it
     // shows only where the vendor's design includes it switched on.
     referral: 'sf-referral'
@@ -1608,7 +1619,7 @@
   // Default nav set (spec): the shopping/info cards; About, Lead magnet and
   // Email capture only when the baker turns their button on (entry.nav).
   const NAV_DEFAULT = {
-    menu: true, form: true, products: true, links: true, info: true, courses: true, clubs: true,
+    menu: true, form: true, products: true, links: true, info: true, courses: true, clubs: true, presales: true,
     about: false, leadMagnet: false, emailCapture: false, referral: false
   };
 
@@ -1645,6 +1656,13 @@
       const after = Math.max(order.indexOf('products'), order.indexOf('courses'));
       order.splice(after === -1 ? order.length : after + 1, 0, t);
     });
+    // Pre-sales (2026-11-10) start hidden — pre-sales stay in Products until
+    // the vendor switches their own section on.
+    if (!cfg.presales) {
+      cfg.presales = { type: 'presales', hidden: true };
+      const after = order.indexOf('products');
+      order.splice(after === -1 ? order.length : after + 1, 0, 'presales');
+    }
     V2_DEFAULT_ORDER.forEach(function (t) {
       if (cfg[t]) return;
       cfg[t] = { type: t, hidden: false };
@@ -1726,6 +1744,7 @@
       case 'products': return 'Shop my Products';
       case 'courses': return 'Courses';
       case 'clubs': return 'Join the club';
+      case 'presales': return 'Pre-sales';
       case 'links': return 'More from ' + firstName();
       case 'info': return 'Before you order';
       case 'about': return ((profile && profile.about_heading) || '').trim() || 'Meet ' + firstName();
@@ -2498,8 +2517,8 @@
 
   function menuListings() { return allListings.filter(function (l) { return l.listing_kind !== 'digital' && l.listing_kind !== 'physical'; }); }
   // Courses and clubs aren't in the downloads list — each has its own card.
-  function digitalListings() { return allListings.filter(function (l) { return l.listing_kind === 'digital' && !l.is_course; }); }
-  function physicalListings() { return allListings.filter(function (l) { return l.listing_kind === 'physical'; }); }
+  function digitalListings() { return allListings.filter(function (l) { return l.listing_kind === 'digital' && !l.is_course && !presaleElsewhere(l); }); }
+  function physicalListings() { return allListings.filter(function (l) { return l.listing_kind === 'physical' && !presaleElsewhere(l); }); }
 
   function slugify(str) {
     return (str || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'other';
@@ -3228,7 +3247,7 @@
       const type = pair[0], club = pair[1];
       const card = document.getElementById(type === 'courses' ? 'sf-courses' : 'sf-clubs');
       const grid = document.getElementById(type === 'courses' ? 'sf-courses-grid' : 'sf-clubs-grid');
-      const items = offerListings().filter(function (l) { return !!l.is_club === club && featured.indexOf(String(l.id).toLowerCase()) === -1; });
+      const items = offerListings().filter(function (l) { return !!l.is_club === club && featured.indexOf(String(l.id).toLowerCase()) === -1 && !(presaleOn(l) && presalesSectionOn()); });
       grid.innerHTML = '';
       if (!items.length) { card.classList.add('hidden'); return; }
       card.classList.remove('hidden');
@@ -3245,6 +3264,27 @@
       items.forEach(function (it) { g.appendChild(buildTile(it)); });
       grid.appendChild(g);
     });
+  }
+
+  // Pre-sales section: every listed pre-sale not featured on its own card,
+  // only while the vendor has the section switched on.
+  function renderPresalesSection() {
+    const card = document.getElementById('sf-presales');
+    const grid = document.getElementById('sf-presales-grid');
+    const featured = featuredOfferIDs();
+    const items = presalesSectionOn()
+      ? allListings.filter(function (l) { return presaleOn(l) && featured.indexOf(String(l.id).toLowerCase()) === -1; })
+      : [];
+    grid.innerHTML = '';
+    if (!items.length) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    document.getElementById('sf-presales-title').textContent = cardTitle('presales');
+    document.getElementById('sf-presales-sub').textContent = 'Order now — before it’s out';
+    if (items.length === 1) { grid.appendChild(buildWideTile(items[0])); return; }
+    const g = document.createElement('div');
+    g.className = 'sf-grid';
+    items.forEach(function (it) { g.appendChild(buildTile(it)); });
+    grid.appendChild(g);
   }
 
   // Log in (top bar): members of this shop's courses and clubs sign in with
@@ -3265,7 +3305,8 @@
   // shop's member page.
   function offerItem(key) {
     const id = key.slice(6);
-    return offerListings().find(function (l) { return String(l.id).toLowerCase() === id; }) || null;
+    return offerListings().find(function (l) { return String(l.id).toLowerCase() === id; })
+      || allListings.find(function (l) { return String(l.id).toLowerCase() === id && presaleOn(l); }) || null;
   }
   let offerStats = {};
   let offerStatsAsked = false;
@@ -3303,7 +3344,9 @@
     const custom = ((cfg && cfg.button_label) || '').trim();
     if (custom) return custom;
     const price = '$' + formatPrice(item.price);
+    if (isSoldOut(item)) return presaleClosed(item) ? 'Pre-orders closed' : 'Sold out';
     if (item.is_club) return item.club_interval ? 'Join — ' + price + '/' + (item.club_interval === 'year' ? 'yr' : 'mo') : 'Join — ' + price;
+    if (!item.is_course) return 'Pre-order — ' + price;
     return 'Get the course — ' + price;
   }
   function renderOfferCards() {
@@ -3338,21 +3381,22 @@
         }
       }
       const desc = ((cfg.blurb || '').trim() || String(item.item_description || '').trim()).replace(/\s+/g, ' ').slice(0, 260);
-      const kicker = item.is_club
+      const kicker = presaleOn(item) ? presaleLine(item) + (leftLine(item) ? ' · ' + leftLine(item) : '')
+        : item.is_club
         ? (item.club_interval ? 'Membership · $' + formatPrice(item.price) + ' / ' + item.club_interval : 'Membership')
         : 'Online course · lifetime access';
       el.innerHTML =
-        '<div class="sf-offer-img noimg">' + (item.is_club ? '✨' : '🎓') + '</div>' +
+        '<div class="sf-offer-img noimg">' + (item.is_club ? '✨' : item.is_course ? '🎓' : '🗓️') + '</div>' +
         '<div class="sf-offer-body">' +
           '<div class="sf-offer-kicker">' + escapeHtml(kicker) + '</div>' +
           '<h3 class="sf-offer-title">' + escapeHtml(cardTitle(key)) + '</h3>' +
           (desc ? '<p class="sf-offer-desc">' + escapeHtml(desc) + '</p>' : '') +
           '<div class="sf-offer-stats">' + offerStatsLine(item) + '</div>' +
           '<div class="sf-offer-actions">' +
-            '<button type="button" class="sf-btn sf-offer-join"' + (stripeReady ? '' : ' disabled') + '>' + escapeHtml(offerButtonLabel(item, cfg)) + '</button>' +
-            '<button type="button" class="sf-offer-more">' + (item.is_club ? 'What’s inside' : 'See the lessons') + '</button>' +
+            '<button type="button" class="sf-btn sf-offer-join"' + (stripeReady && !isSoldOut(item) ? '' : ' disabled') + '>' + escapeHtml(offerButtonLabel(item, cfg)) + '</button>' +
+            '<button type="button" class="sf-offer-more">' + (item.is_club ? 'What’s inside' : item.is_course ? 'See the lessons' : 'Details') + '</button>' +
           '</div>' +
-          '<div class="sf-offer-signin">Already a member? <a href="/baker/course.html?shop=' + encodeURIComponent(resolvedBakerId) + '">Sign in</a></div>' +
+          (item.is_course ? '<div class="sf-offer-signin">Already a member? <a href="/baker/course.html?shop=' + encodeURIComponent(resolvedBakerId) + '">Sign in</a></div>' : '') +
         '</div>';
       const img = el.querySelector('.sf-offer-img');
       const probe = new Image();
@@ -4463,7 +4507,7 @@
     const badge = badgeInfo(item);
     const badgeEl = document.getElementById('item-sheet-badge');
     badgeEl.style.background = badge.bg;
-    badgeEl.innerHTML = '<span class="dot"></span>' + badge.label;
+    badgeEl.innerHTML = '<span class="dot"></span>' + (presaleOn(item) && !isSoldOut(item) ? escapeHtml(subtitleFor(item)) : badge.label);
 
     const ph = document.getElementById('item-sheet-ph');
     ph.textContent = categoryEmoji(item);
@@ -4502,6 +4546,11 @@
         cta.disabled = false;
         cta.style.opacity = '1';
         cta.onclick = function () { window.location.href = customOrderURL(item); };
+      } else if (item.listing_kind === 'digital' && isSoldOut(item)) {
+        cta.textContent = presaleClosed(item) ? 'Pre-orders Closed' : 'Sold Out';
+        cta.disabled = true;
+        cta.style.opacity = '.5';
+        cta.onclick = null;
       } else if (item.listing_kind === 'digital' && item.is_club && item.club_interval) {
         cta.textContent = 'Join — $' + formatPrice(item.price) + '/' + item.club_interval;
         cta.disabled = !stripeReady;
@@ -4519,7 +4568,7 @@
         } : null;
       } else if (item.listing_kind === 'physical') {
         if (isSoldOut(item) || !stripeReady) {
-          cta.textContent = isSoldOut(item) ? 'Sold Out' : (ordersPaused ? 'Not Taking Orders' : 'Ordering Opens Soon');
+          cta.textContent = isSoldOut(item) ? (presaleClosed(item) ? 'Pre-orders Closed' : 'Sold Out') : (ordersPaused ? 'Not Taking Orders' : 'Ordering Opens Soon');
           cta.disabled = true;
           cta.style.opacity = '.5';
         } else {
@@ -5546,8 +5595,27 @@
     toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2000);
   }
 
+  // ══════════════════════ Pre-sales ══════════════════════
+  // Sold now, out on presale_release_at (ships / arrives / opens); checkout
+  // closes after presale_order_by; sell_left counts down an "only N" limit.
+  function presaleOn(item) { return !!(item && item.presale_release_at) && Date.parse(item.presale_release_at) > Date.now(); }
+  function presaleClosed(item) { return presaleOn(item) && !!item.presale_order_by && Date.parse(item.presale_order_by) < Date.now(); }
+  function presaleVerb(item) { return item.listing_kind === 'physical' ? 'Ships' : item.is_course ? 'Opens' : 'Arrives'; }
+  function presaleLine(item) {
+    const out = presaleVerb(item) + ' ' + formatDateShort(new Date(item.presale_release_at));
+    if (presaleClosed(item)) return 'Pre-orders closed · ' + out;
+    return (item.presale_order_by ? 'Pre-order by ' + formatDateShort(new Date(item.presale_order_by)) : 'Pre-sale') + ' · ' + out;
+  }
+  function leftLine(item) { return item.sell_left != null && item.sell_left > 0 && item.sell_left <= 20 ? item.sell_left + ' left' : ''; }
+  function presalesSectionOn() { return !!(blockCfg && blockCfg.presales && !blockCfg.presales.hidden); }
+  // Shown in the Pre-sales section or on its own card, so not in Products.
+  function presaleElsewhere(l) {
+    return presaleOn(l) && (presalesSectionOn() || featuredOfferIDs().indexOf(String(l.id).toLowerCase()) !== -1);
+  }
+
   function isSoldOut(item) {
     if (item.is_assorted_box) return false; // no plain daily quantity tracked
+    if (presaleClosed(item) || item.sell_left === 0) return true;
     if (item.listing_kind === 'preorder') return isPreorderClosed(item);
     return (item.listing_kind === 'ready_now' || item.listing_kind === 'physical') && (item.available_qty_today || 0) <= 0;
   }
@@ -5621,6 +5689,7 @@
     // badge should still say Ready Now/Pre-order like any other listing
     // (that's the info a buyer actually needs at a glance); "pick your own
     // flavors" in the subtitle already signals it's a box.
+    if (presaleOn(item)) return { bg: 'var(--preorder)', label: 'Pre-sale' };
     if (item.listing_kind === 'ready_now') return { bg: 'var(--ready)', label: 'Ready Now' };
     if (item.listing_kind === 'preorder')  return { bg: 'var(--preorder)', label: 'Pre-order' };
     if (item.listing_kind === 'digital')   return { bg: 'var(--digital)', label: item.is_club ? 'Club' : (item.is_course ? 'Course' : 'Digital') };
@@ -5636,13 +5705,18 @@
 
   function subtitleFor(item) {
     if (item.is_assorted_box) return 'Pick your own flavors';
+    if (presaleOn(item)) {
+      if (item.sell_left === 0) return 'Sold out · ' + presaleVerb(item).toLowerCase() + ' ' + formatDateShort(new Date(item.presale_release_at));
+      return presaleLine(item) + (leftLine(item) && !presaleClosed(item) ? ' · ' + leftLine(item) : '');
+    }
+    if (item.listing_kind === 'digital' && item.sell_left === 0) return 'Sold out';
     if (item.listing_kind === 'custom') {
       return item.lead_time_note
         ? 'Lead time required: ' + item.lead_time_note
         : 'Request a custom quote';
     }
     if (item.listing_kind === 'digital' && item.is_club) return 'Membership · ' + (item.club_interval ? 'billed ' + item.club_interval + 'ly, cancel any time' : 'lifetime access');
-    if (item.listing_kind === 'digital') return item.is_course ? 'Online course · lifetime access' : 'Instant digital download';
+    if (item.listing_kind === 'digital') return (item.is_course ? 'Online course · lifetime access' : 'Instant digital download') + (leftLine(item) ? ' · ' + leftLine(item) : '');
     if (item.listing_kind === 'physical') {
       if (isSoldOut(item)) return 'Sold out';
       const n = item.lead_days || 3;

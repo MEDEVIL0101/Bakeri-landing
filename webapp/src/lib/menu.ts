@@ -20,6 +20,11 @@ export function kindLabel(kind: ListingKind, item?: { is_course?: boolean; is_cl
 }
 
 export interface MenuItemFull extends MenuItem {
+  // Pre-sale (migration 20261110000002) — iOS MenuItem.presaleReleaseAt etc.
+  presale_release_at?: string | null;
+  presale_order_by?: string | null;
+  sell_limit?: number | null;
+  sold_count?: number;
   tiers: SizeTier[];
   boxVariants: BoxVariant[];
   listingVariants: ListingVariant[];
@@ -94,6 +99,10 @@ export interface MenuDraft {
   /** A club (is_course too): a membership, monthly/yearly or one-time. */
   is_club: boolean;
   club_interval: 'month' | 'year' | null;
+  /** Pre-sale: yyyy-mm-dd it ships / arrives / opens ('' = not a pre-sale), optional pre-order-by day, optional limit (digital). */
+  presale_release: string;
+  presale_order_by: string;
+  sell_limit: number | null;
   category: string;
   unit: string;
   price: number;
@@ -171,6 +180,10 @@ export async function saveMenuItem(
     is_course: draft.listing_kind === 'digital' && draft.is_course,
     is_club: draft.listing_kind === 'digital' && draft.is_course && draft.is_club,
     club_interval: draft.listing_kind === 'digital' && draft.is_course && draft.is_club ? draft.club_interval : null,
+    // Out from the start of the release day; pre-orders close at the end of the order-by day.
+    presale_release_at: (kind === 'digital' || kind === 'physical') && draft.presale_release ? new Date(`${draft.presale_release}T00:00`).toISOString() : null,
+    presale_order_by: (kind === 'digital' || kind === 'physical') && draft.presale_release && draft.presale_order_by ? new Date(`${draft.presale_order_by}T23:59`).toISOString() : null,
+    sell_limit: kind === 'digital' && draft.sell_limit && draft.sell_limit > 0 ? Math.round(draft.sell_limit) : null,
     addon_offer: draft.listing_kind === 'digital' && draft.addon_offer?.menu_item_id ? {
       menu_item_id: draft.addon_offer.menu_item_id, price: Math.max(0, draft.addon_offer.price || 0),
       headline: draft.addon_offer.headline?.trim() || undefined, note: draft.addon_offer.note?.trim() || undefined,
