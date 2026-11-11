@@ -175,7 +175,7 @@ function IngredientsCard({ month, selected, orders, tasks, recipes, menu, loadin
           {list.map((i) => (
             <li key={i.name} className="list-row">
               <span className="grow row-title">{i.name}</span>
-              <span className="row-sub" style={{ fontWeight: 600 }}>{formatAmounts(i.amounts)}</span>
+              <span className="row-sub" style={{ fontWeight: 600 }}>{formatAmounts(i.amounts, i.name)}</span>
             </li>
           ))}
         </ul>

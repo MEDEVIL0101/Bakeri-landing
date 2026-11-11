@@ -21,6 +21,16 @@ export function ingredientKey(name: string): string {
     .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)).join(' ');
 }
 
+/** A counted ingredient as people say it: "1 egg", "6 eggs", "1 dozen eggs",
+ *  "13 eggs", "2 dozen eggs". iOS countPhrase — keep in step. */
+export function countPhrase(n: number, name: string): string {
+  const one = ingredientKey(name);
+  const many = /(s|x|ch|sh)$/.test(one) ? `${one}es` : `${one}s`;
+  if (Number.isInteger(n) && n >= 12 && n % 12 === 0) return `${n / 12} dozen ${many}`;
+  const num = Number.isInteger(n) ? String(n) : String(Number(n.toFixed(n >= 10 ? 1 : 2)));
+  return `${num} ${n === 1 ? one : many}`;
+}
+
 export const PURCHASE_UNITS = ['g', 'kg', 'oz', 'lb', 'each'] as const;
 export const purchaseUnitLabel = (u: string) => (u === 'each' ? 'units' : u);
 export const isPerUnit = (u: string) => u === 'each';

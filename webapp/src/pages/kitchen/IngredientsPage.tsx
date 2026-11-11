@@ -148,8 +148,7 @@ function CostModal({ userId, initial, names, onClose, onSaved }: { userId: strin
         <Select className="w-unit" value={unit} onChange={(e) => setUnit(e.target.value)}>{PURCHASE_UNITS.map((u) => <option key={u} value={u}>{purchaseUnitLabel(u)}</option>)}</Select>
       </div>
       {cpg > 0 && <p className="small muted">= {formatMoney(cpg * 453.592)}/lb · {formatMoney(cpg * 28.3495)}/oz · {formatMoney(cpg * 1000)}/kg</p>}
-      {cpu > 0 && <p className="small muted">= {formatMoney(cpu)} per unit · {formatMoney(cpu * 6)} per 6 · {formatMoney(cpu * 12)} per 12 · {formatMoney(cpu * 18)} per 18</p>}
-      {isPerUnit(unit) && <p className="small muted">For things you use by the piece, like eggs. In recipes, enter them with no unit, e.g. “2 Egg”.</p>}
+      {cpu > 0 && <p className="small muted">= {formatMoney(cpu)} per unit</p>}
       {err && <ErrorBanner message={err} />}
     </Modal>
   );

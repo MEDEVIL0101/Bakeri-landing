@@ -6,6 +6,7 @@ import { Badge, Button, Card, EmptyState, ErrorBanner, Input, PageHeader, Spinne
 import { listOrders, effectiveTotal, isStorefrontOrder, revenueReceived, statusLabel, statusTone, tipAmount, tipsReceived } from '../../lib/orders';
 import { formatDate, formatMoney, toDateInput } from '../../lib/format';
 import {
+  countPhrase,
   formatWeight, ingredientAmounts, ingredientCost, listCostingRecipes, listIngredientCosts, type CostingRecipe, type IngredientCostRow,
 } from '../../lib/kitchen';
 import { useUnitSystem } from '../../lib/prefs';
@@ -241,7 +242,7 @@ function Report({ orders, recipes, costs, packaging }: { orders: Order[]; recipe
                 {ingredients.slice(0, 40).map((i) => (
                   <tr key={i.name}>
                     <td>{i.name}</td>
-                    <td className="num">{[i.grams > 0 ? formatWeight(i.grams, units === 'metric') : '', i.count > 0 ? `${Number(i.count.toFixed(1))} units` : ''].filter(Boolean).join(' + ') || formatWeight(0, units === 'metric')}</td>
+                    <td className="num">{[i.grams > 0 ? formatWeight(i.grams, units === 'metric') : '', i.count > 0 ? countPhrase(i.count, i.name) : ''].filter(Boolean).join(' + ') || formatWeight(0, units === 'metric')}</td>
                     <td className="num">{i.priced ? formatMoney(i.cost) : <Link to={`/ingredients?add=${encodeURIComponent(i.name)}`} className="small">Add price</Link>}</td>
                   </tr>
                 ))}

@@ -2,7 +2,7 @@
 // ingredientOrders + aggregateIngredients + IngredientsGlanceCard) — keep the
 // two in step.
 import type { BakingTask, Order } from './types';
-import { ingredientKey, type CostingRecipe } from './kitchen';
+import { countPhrase, ingredientKey, type CostingRecipe } from './kitchen';
 
 export interface MenuRecipeLink { name: string; recipe_id: string | null; recipe_ids: string[] | null }
 export interface NeededIngredient { name: string; amounts: { amount: number; unit: string }[] }
@@ -74,8 +74,9 @@ export function neededIngredients(orders: Order[], tasks: BakingTask[], recipes:
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** "2 cup + 500 ml" — whole numbers plain, else up to 2 decimals (1 past 10). */
-export function formatAmounts(amounts: { amount: number; unit: string }[]): string {
+/** "2 cup + 500 ml", "6 eggs" — whole numbers plain, else up to 2 decimals (1 past 10). */
+export function formatAmounts(amounts: { amount: number; unit: string }[], name: string): string {
   const neat = (v: number) => Number.isInteger(v) ? String(v) : v >= 10 ? v.toFixed(1) : String(Number(v.toFixed(2)));
-  return amounts.map((a) => (a.unit === 'none' || !a.unit ? neat(a.amount) : `${neat(a.amount)} ${a.unit}`)).join(' + ') || '—';
+  // Counted ingredients read as people say them: "6 eggs", "1 dozen eggs".
+  return amounts.map((a) => (a.unit === 'none' || !a.unit ? countPhrase(a.amount, name) : `${neat(a.amount)} ${a.unit}`)).join(' + ') || '—';
 }
