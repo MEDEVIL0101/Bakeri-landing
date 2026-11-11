@@ -1,5 +1,5 @@
 // Pre-sales (migration 20261110000002): sends each pre-sale download / course
-// link once its release date arrives. Runs hourly (pg_cron "release-presales").
+// link once its release date arrives. Runs daily, 9am ET (pg_cron "release-presales").
 // Finds order lines with presale_release_at passed and no presale_delivered_at,
 // asks resend-digital-download to email that order's links (it now releases
 // those lines), and marks them delivered. Secret-gated like the other crons.
@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
     if (!res?.ok || body?.error) {
       console.error("release failed:", orderId, res?.status, JSON.stringify(body));
       failed++;
-      continue;   // retried next hour
+      continue;   // retried tomorrow
     }
     await db.from("order_items").update({ presale_delivered_at: now }).in("id", lineIds);
     sent++;

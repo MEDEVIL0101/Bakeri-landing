@@ -391,8 +391,9 @@ $function$;
 -- the date re-arms it.
 ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS presale_announced_for TIMESTAMPTZ;
 
--- Hourly: send pre-sale downloads / course links whose release date has passed.
-SELECT cron.schedule('release-presales', '7 * * * *', $cron$
+-- Daily at 14:00 UTC (9am ET): send pre-sale downloads / course links whose
+-- release date has passed (Harvey: once a day, not hourly).
+SELECT cron.schedule('release-presales', '0 14 * * *', $cron$
     select net.http_post(
         url := 'https://aqhebjxaynvtvurwedrl.supabase.co/functions/v1/release-presales',
         headers := jsonb_build_object(
