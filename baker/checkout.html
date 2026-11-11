@@ -512,7 +512,9 @@
             // Pre-discount price — create-payment-intent applies any active
             // promotion server-side (never trusting a client discount).
             price_from: (i.originalPrice != null ? i.originalPrice : i.price),
-            listing_kind: i.listingKind, pickup_date: i.dropDate || null
+            listing_kind: i.listingKind, pickup_date: i.dropDate || null,
+            // Assorted box: the chosen size, priced server-side.
+            tier_id: i.isAssortedBox ? (i.tierId || null) : null
           };
         }),
         currency: 'cad',

@@ -5460,7 +5460,9 @@
             id: l.item.id, name: l.item.name + ' — ' + l.line.tierLabel, qty: l.qty, price: l.line.price,
             originalPrice: l.line.originalPrice != null ? l.line.originalPrice : l.line.price,
             taxCategory: l.item.tax_category, unitWeightGrams: l.item.unit_weight_grams,
-            listingKind: 'ready_now', dropDate: '', maxQty: 0, availQty: 0,
+            // The box's own kind — a pre-order box was sent as ready_now and
+            // checkout refused it as "no longer available" (2026-11-10).
+            listingKind: l.item.listing_kind === 'preorder' ? 'preorder' : 'ready_now', dropDate: '', maxQty: 0, availQty: 0,
             isAssortedBox: true, tierId: l.line.tierId, tierLabel: l.line.tierLabel, variants: l.line.variants
           };
         }

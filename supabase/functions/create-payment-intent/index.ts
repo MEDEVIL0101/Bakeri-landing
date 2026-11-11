@@ -37,6 +37,8 @@ interface CartItemPayload {
   variant_id?: string | null;
   /** A limited-time add-on taken with this product (_shared/addon.ts). */
   bump_of?: string | null;
+  /** Assorted box: the chosen size (menu_item_size_tiers) — its price is the charge. */
+  tier_id?: string | null;
 }
 
 interface RequestBody {
@@ -339,6 +341,12 @@ Deno.serve(async (req: Request) => {
         list.push(v);
         variantsByItemId.set(v.menu_item_id, list);
       });
+      // Assorted boxes are priced by the chosen size, not the listing's base price.
+      const tierIds = pickupCartItems.map((i) => i.tier_id).filter(Boolean) as string[];
+      const { data: tierRows } = tierIds.length
+        ? await supabase.from("menu_item_size_tiers").select("id, menu_item_id, label, price").in("id", tierIds).is("deleted_at", null)
+        : { data: [] };
+      const tiersById = new Map((tierRows ?? []).map((t) => [t.id, t]));
 
       items.forEach((cartItem, idx) => {
         if (
@@ -353,7 +361,13 @@ Deno.serve(async (req: Request) => {
         if (!pickupItem.is_listed_in_marketplace) {
           throw new ValidationError(`"${pickupItem.name}" is no longer available.`);
         }
-        if (cartItem.variant_id) {
+        if (cartItem.tier_id) {
+          const tier = tiersById.get(cartItem.tier_id);
+          if (!tier || tier.menu_item_id !== cartItem.listing_id) {
+            throw new ValidationError(`"${pickupItem.name}" — that size is no longer available.`);
+          }
+          authoritativePriceByIndex.set(idx, Number(tier.price));
+        } else if (cartItem.variant_id) {
           const variant = (variantsByItemId.get(cartItem.listing_id) ?? []).find((v) => v.id === cartItem.variant_id);
           if (!variant) {
             throw new ValidationError(`"${pickupItem.name}" — that option is no longer available.`);
