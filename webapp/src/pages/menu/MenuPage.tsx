@@ -117,7 +117,11 @@ export function MenuPage() {
                 <Link to={`/menu/${m.id}`} className="grow">
                   <span className="row-title">{m.name}</span>
                   <span className="row-sub">
-                    <Badge>{kindLabel(m.listing_kind, m)}</Badge> {m.category && <span>{m.category} · </span>}
+                    <Badge>{kindLabel(m.listing_kind, m)}</Badge>{' '}
+                    {(m as any).presale_release_at && Date.parse((m as any).presale_release_at) > Date.now() && (
+                      <><Badge tone="blue">Pre-sale · {m.listing_kind === 'physical' ? 'ships' : m.is_course ? 'opens' : 'arrives'} {new Date((m as any).presale_release_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Badge>{' '}</>
+                    )}
+                    {m.category && <span>{m.category} · </span>}
                     {m.is_assorted_box || m.has_variants ? 'from ' : ''}{formatMoney(m.marketplace_price_from || m.default_price)}
                   </span>
                 </Link>
