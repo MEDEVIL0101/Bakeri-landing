@@ -4801,9 +4801,11 @@
         '</button>';
     }).join('') + '</div>';
 
-    // No flavors set (every box is the same, e.g. just two sizes): picking a
-    // size is all the buyer does.
-    const flavorHtml = !activeTier || !variants.length ? '' :
+    // No flavors set, or only one (every box is the same, e.g. just two
+    // sizes): picking a size is all the buyer does — a single flavor fills
+    // the box on its own so the order still names it.
+    if (activeTier && variants.length === 1) { boxState.chosen = {}; boxState.chosen[variants[0].id] = target; }
+    const flavorHtml = !activeTier || variants.length <= 1 ? '' :
       '<div class="box-flavor-header">Choose your flavors (' + chosenTotal + '/' + target + ')</div>' +
       variants.map(function (v) {
         const q = boxState.chosen[v.id] || 0;
@@ -4871,7 +4873,7 @@
       return;
     }
     const chosenTotal = Object.values(boxState.chosen).reduce(function (s, q) { return s + q; }, 0);
-    const ready = !(boxState.item.variants || []).length || chosenTotal === tier.unit_count;
+    const ready = (boxState.item.variants || []).length <= 1 ? true : chosenTotal === tier.unit_count;
     const canBuy = ready && stripeReady;
     cta.textContent = ready ? ('Add to Order — $' + formatPrice(tier.price)) : ('Choose ' + (tier.unit_count - chosenTotal) + ' more');
     cta.disabled = !canBuy;
