@@ -4,7 +4,7 @@ import { getOrCreateReferralCode } from '../../lib/account';
 import { Button, Field, Input, Modal, Select, Textarea, Toggle, ErrorBanner } from '../../components/ui';
 import { menuImageURL } from '../../lib/menu';
 import {
-  V2_CARDS, V2_FONT_DEFS, V2_FONT_GROUPS, blockKey, ensureDesign, offerListings, loadV2FontPreviews, uploadBuilderImage, v2DefaultTitle,
+  V2_CARDS, V2_FONT_DEFS, V2_FONT_GROUPS, blockKey, ensureDesign, isPresale, offerListings, loadV2FontPreviews, uploadBuilderImage, v2DefaultTitle,
   type CardColors, type FocusPoint, type LinkDesign, type StorefrontData, type StorefrontDesign, type V2Block, type V2CardType,
 } from '../../lib/storefront';
 import { ColorField, PhotoPicker, Section, type EditorProps } from './Editors';
@@ -516,7 +516,7 @@ export function OfferCardSettings(props: EditorProps & { listingId: string }) {
 export function SpacesSectionContent(props: EditorProps & { club: boolean }) {
   const { design, setDesign } = useDesign(props);
   const blocks = design.blocks ?? [];
-  const items = offerListings(props.data).filter((o) => !!o.is_club === props.club);
+  const items = offerListings(props.data).filter((o) => o.is_course && !!o.is_club === props.club);
   const kind = props.club ? 'club' : 'course';
   const featured = (id: string) => blocks.some((b) => b.type === 'offer' && String(b.listing_id).toLowerCase() === id && !b.hidden);
   const toggle = (id: string, on: boolean) => {
@@ -540,6 +540,39 @@ export function SpacesSectionContent(props: EditorProps & { club: boolean }) {
         );
       })}
       <Link className="btn btn-secondary" to={props.club ? '/clubs' : '/courses'}><span>{props.club ? 'Manage clubs' : 'Manage courses'}</span></Link>
+    </Section>
+  );
+}
+
+/**
+ * What's in the Pre-sales section: every listed pre-sale while the section is
+ * shown (hidden, they stay in Products); feature one on its own big card.
+ */
+export function PresalesSectionContent(props: EditorProps) {
+  const { design, setDesign } = useDesign(props);
+  const blocks = design.blocks ?? [];
+  const items = (props.data.listings ?? []).filter(isPresale);
+  const featured = (id: string) => blocks.some((b) => b.type === 'offer' && String(b.listing_id).toLowerCase() === id && !b.hidden);
+  const toggle = (id: string, on: boolean) => {
+    const rest = blocks.filter((b) => !(b.type === 'offer' && String(b.listing_id).toLowerCase() === id));
+    if (!on) { setDesign({ blocks: rest }); return; }
+    const at = rest.findIndex((b) => b.type === 'presales');
+    rest.splice(at === -1 ? rest.length : at + 1, 0, { type: 'offer', listing_id: id });
+    setDesign({ blocks: rest });
+  };
+  return (
+    <Section title="Your pre-sales" hint={items.length
+      ? 'Show this section and your pre-sales get their own spot; hide it and they stay in Products. Feature one to give it its own big card — then drag that card anywhere.'
+      : 'Turn on “Sell as a pre-sale” on a product, download, course or club and it shows here.'}>
+      {items.map((o: any) => {
+        const id = String(o.id).toLowerCase();
+        return (
+          <div key={id} className="row-between">
+            <span className="ellipsis">{o.name}</span>
+            <Toggle checked={featured(id)} onChange={(v) => toggle(id, v)} label="Feature on its own card" />
+          </div>
+        );
+      })}
     </Section>
   );
 }

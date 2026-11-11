@@ -11,7 +11,7 @@ import {
   AboutEditor, FAQEditor, HoursEditor, LinksEditor, ListingsInfo, MailingEditor, PoliciesEditor,
   ProfileEditor, ThemeEditor, type EditorProps,
 } from './Editors';
-import { CardSettings, DesignEditor, OfferCardSettings, ReferralCardInfo, SpacesSectionContent } from './V2Editors';
+import { CardSettings, DesignEditor, OfferCardSettings, ReferralCardInfo, SpacesSectionContent, PresalesSectionContent } from './V2Editors';
 
 type Panel =
   | 'home' | 'profile' | 'theme' | 'links' | 'about' | 'faq' | 'policies' | 'hours' | 'mailing'
@@ -22,7 +22,7 @@ function panelForTap(blockType: string, v2: boolean): Panel {
   if (blockType === 'identity') return 'profile';
   if (blockType === 'design') return 'design';
   if (v2 && blockType.startsWith('offer:')) return `card:${blockType}` as Panel;
-  if (v2 && ['leadMagnet', 'menu', 'products', 'courses', 'clubs', 'links', 'about', 'info', 'emailCapture'].includes(blockType)) return `card:${blockType as V2CardType}`;
+  if (v2 && ['leadMagnet', 'menu', 'products', 'courses', 'clubs', 'presales', 'links', 'about', 'info', 'emailCapture'].includes(blockType)) return `card:${blockType as V2CardType}`;
   const map: Record<string, Panel> = {
     menu: 'menu', physical: 'physical', digital: 'digital', form: 'form', links: 'links', about: 'about',
     faq: 'faq', policies: 'policies', hours: 'hours', emailCapture: 'mailing', leadMagnet: 'mailing',
@@ -123,6 +123,7 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
         referral: <ReferralCardInfo />,
         courses: <SpacesSectionContent {...props} club={false} />,
         clubs: <SpacesSectionContent {...props} club />,
+        presales: <PresalesSectionContent {...props} />,
       };
       editor = <><CardSettings {...props} type={t} />{content[t]}</>;
     }

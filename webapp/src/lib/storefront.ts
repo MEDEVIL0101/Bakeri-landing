@@ -46,7 +46,7 @@ export const PATTERNS = ['Standard', 'Polka Dot', 'Stripes', 'Gingham', 'Pumpkin
 
 // v2 (profiles.storefront_design — Models/StorefrontDesign.swift)
 export interface CardColors { background?: string; title?: string; button?: string; text?: string }
-export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'courses' | 'clubs' | 'links' | 'about' | 'info' | 'emailCapture' | 'referral' | 'offer';
+export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'courses' | 'clubs' | 'presales' | 'links' | 'about' | 'info' | 'emailCapture' | 'referral' | 'offer';
 export interface V2Block {
   type: V2CardType;
   hidden?: boolean;
@@ -83,9 +83,12 @@ export function blockKey(b: Pick<V2Block, 'type' | 'listing_id'>): string {
   return b.type === 'offer' ? `offer:${String(b.listing_id ?? '').toLowerCase()}` : b.type;
 }
 
-/** Listed courses and clubs — each gets its own card (next.html offerListings). */
+/** A listed pre-sale (release date still ahead) — next.html presaleOn. */
+export const isPresale = (l: any) => !!l?.presale_release_at && Date.parse(l.presale_release_at) > Date.now();
+
+/** What can be featured on its own card: listed courses and clubs, and pre-sales (next.html offerItem). */
 export function offerListings(data: Pick<StorefrontData, 'listings'>): any[] {
-  return (data.listings ?? []).filter((l: any) => l.listing_kind === 'digital' && l.is_course);
+  return (data.listings ?? []).filter((l: any) => (l.listing_kind === 'digital' && l.is_course) || isPresale(l));
 }
 export interface FocusPoint { x: number; y: number }
 export interface LinkDesign { background?: string; text?: string; border?: boolean; border_color?: string; glow?: boolean; glow_color?: string; /** Order-form cards only. */ shake?: boolean }
@@ -120,12 +123,13 @@ export const V2_CARDS: { type: V2CardType; label: string; navByDefault: boolean;
   { type: 'products', label: 'Products', navByDefault: true, parts: [{ key: 'physical', label: 'Physical products' }, { key: 'digital', label: 'Digital downloads' }] },
   { type: 'courses', label: 'Courses', navByDefault: true },
   { type: 'clubs', label: 'Clubs', navByDefault: true },
+  { type: 'presales', label: 'Pre-sales', navByDefault: true },
   { type: 'links', label: 'Links', navByDefault: true },
   { type: 'about', label: 'About', navByDefault: false },
   { type: 'info', label: 'Before You Order', navByDefault: true, parts: [{ key: 'policies', label: 'Store policies' }, { key: 'faq', label: 'FAQ' }, { key: 'hours', label: 'Pickup hours' }] },
   { type: 'emailCapture', label: 'Mailing List Signup', navByDefault: false },
   { type: 'referral', label: 'Bakerï Referral', navByDefault: false },
-  { type: 'offer', label: 'Featured course / club', navByDefault: false },
+  { type: 'offer', label: 'Featured card', navByDefault: false },
 ];
 /** Same names, weights and Google Fonts specs as next.html DISPLAY_FONTS. */
 export const V2_FONT_DEFS: { name: string; w: number; gf: string | null; group: 'Classic' | 'Clean' | 'Fun' | 'Script' }[] = [
@@ -175,7 +179,7 @@ export function loadV2FontPreviews() {
 
 export function v2DefaultTitle(t: V2CardType, firstName: string): string {
   return {
-    leadMagnet: 'Free download', menu: 'Shop my Menu', products: 'Shop my Products', courses: 'Courses', clubs: 'Join the club', links: `More from ${firstName}`,
+    leadMagnet: 'Free download', menu: 'Shop my Menu', products: 'Shop my Products', courses: 'Courses', clubs: 'Join the club', presales: 'Pre-sales', links: `More from ${firstName}`,
     about: `Meet ${firstName}`, info: 'Before you order', emailCapture: 'Join my list',
     referral: 'Start your own shop on Bakerï!', offer: '',
   }[t];
@@ -514,6 +518,11 @@ function ensureDesignBase(d: StorefrontDraft): StorefrontDesign {
       const after = Math.max(list.findIndex((b) => b.type === 'products'), list.findIndex((b) => b.type === 'courses'));
       list.splice(after === -1 ? list.length : after + 1, 0, { type: t, hidden: false });
     });
+    // Pre-sales (2026-11-10) start hidden — then pre-sales stay in Products.
+    if (!list.some((b) => b.type === 'presales')) {
+      const after = list.findIndex((b) => b.type === 'products');
+      list.splice(after === -1 ? list.length : after + 1, 0, { type: 'presales', hidden: true });
+    }
     const missing = V2_DEFAULT_ORDER.filter((t) => !list.some((b) => b.type === t));
     const extra: V2Block[] = [
       ...missing.map((type) => ({ type, hidden: false })),
