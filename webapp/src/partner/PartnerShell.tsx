@@ -80,7 +80,7 @@ export function PartnerShell({ partner, children }: { partner: PartnerMe; childr
             </button>
           </div>
           <div className="nav-title">
-            <span className="nav-default-title ellipsis">{TITLES[seg] ?? 'Partner'}</span>
+            <img src={LOGO} alt="Bakerï" className="topbar-logo" />
           </div>
           <div className="nav-trailing" />
         </header>
