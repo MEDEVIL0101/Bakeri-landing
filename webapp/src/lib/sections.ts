@@ -67,7 +67,7 @@ export async function setFeaturedCard(userId: string, listingId: string, on: boo
   const blocks: any[] = (Array.isArray(design.blocks) ? design.blocks : []).filter((b: any) => !(b?.type === 'offer' && String(b.listing_id).toLowerCase() === id));
   if (on) {
     const at = blocks.findIndex((b) => b?.type === 'products');
-    blocks.splice(at === -1 ? blocks.length : at + 1, 0, { type: 'offer', listing_id: id });
+    blocks.splice(at === -1 ? blocks.length : at + 1, 0, { type: 'offer', listing_id: id, hidden: false });
   }
   check(await supabase.from('profiles').update({ storefront_design: { ...design, blocks }, updated_at: nowISO() }).eq('id', userId));
 }

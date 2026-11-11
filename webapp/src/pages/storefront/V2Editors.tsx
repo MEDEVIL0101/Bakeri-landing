@@ -455,24 +455,42 @@ export function OfferCardSettings(props: EditorProps & { listingId: string }) {
   const block: V2Block = blocks.find((b) => blockKey(b) === `offer:${id}`) ?? { type: 'offer', listing_id: id };
   const upd = (p: Partial<V2Block>) => {
     const next = { ...block, ...p };
-    (Object.keys(next) as (keyof V2Block)[]).forEach((k) => { if (next[k] === undefined || next[k] === '' || next[k] === false) delete next[k]; });
+    (Object.keys(next) as (keyof V2Block)[]).forEach((k) => { if (k !== 'hidden' && (next[k] === undefined || next[k] === '' || next[k] === false)) delete next[k]; });
+    next.hidden = !!next.hidden;   // always written — iPhone builds require it
     const has = blocks.some((b) => blockKey(b) === `offer:${id}`);
     setDesign({ blocks: has ? blocks.map((b) => (blockKey(b) === `offer:${id}` ? next : b)) : [...blocks, next] });
   };
-  if (!offer) return <p className="muted">This course or club isn’t listed any more.</p>;
-  const kind = offer.is_club ? 'club' : 'course';
+  if (!offer) return <p className="muted">This item isn’t listed any more (or its pre-sale has ended).</p>;
+  // Each kind gets its own card: course / club (words + member preview — its
+  // lessons are built in the course itself) or pre-sale (words + its dates).
+  const isSpace = !!offer.is_course;
+  const kind = offer.is_club ? 'club' : isSpace ? 'course' : 'pre-sale';
   const price = `$${Number(offer.price).toFixed(2)}`;
-  const defaultButton = offer.is_club ? (offer.club_interval ? `Join — ${price}/${offer.club_interval === 'year' ? 'yr' : 'mo'}` : `Join — ${price}`) : `Get the course — ${price}`;
+  const defaultButton = offer.is_club ? (offer.club_interval ? `Join — ${price}/${offer.club_interval === 'year' ? 'yr' : 'mo'}` : `Join — ${price}`)
+    : isSpace ? `Get the course — ${price}` : `Pre-order — ${price}`;
+  const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
   return (
     <>
-      <Section title={`${offer.is_club ? 'Club' : 'Course'} card`}>
-        <Toggle checked={!block.hidden} onChange={(v) => upd({ hidden: !v || undefined })} label="Show this card"
-          hint={block.hidden ? `Hidden — people can still reach the ${kind} from a direct link.` : `Its own card on your page, with the ${offer.is_club ? 'join' : 'buy'} button and “Already a member? Sign in”.`} />
-        <div className="row-gap">
-          <Link className="btn btn-secondary" to={`/menu/${offer.id}/course`}><span>Edit {kind} content</span></Link>
+      <Section title={offer.is_club ? 'Club card' : isSpace ? 'Course card' : 'Pre-sale card'}>
+        <Toggle checked={!block.hidden} onChange={(v) => upd({ hidden: !v })} label="Show this card"
+          hint={block.hidden
+            ? (isSpace ? `Hidden — people can still reach the ${kind} from a direct link.` : 'Hidden — it shows in your Products grid instead.')
+            : isSpace ? `Its own card on your page, with the ${offer.is_club ? 'join' : 'buy'} button and “Already a member? Sign in”.`
+            : 'Its own card on your page with a pre-order button — not repeated in your Products grid.'} />
+        {isSpace && (
           <a className="btn btn-ghost" href={`/baker/course.html?owner=${offer.id}`} target="_blank" rel="noreferrer">Preview as a member ↗</a>
-        </div>
+        )}
       </Section>
+      {!isSpace && !block.hidden && (
+        <Section title="Pre-sale" hint="The card shows these from the product itself.">
+          <p className="small">
+            {offer.listing_kind === 'physical' ? 'Ships' : 'Arrives'} {day(offer.presale_release_at)}
+            {offer.presale_order_by ? ` · pre-order by ${day(offer.presale_order_by)}` : ''}
+            {offer.sell_limit ? ` · limit ${offer.sell_limit}` : ''}
+          </p>
+          <Link className="btn btn-secondary" to={`/menu/${offer.id}`}><span>Edit dates, price &amp; stock</span></Link>
+        </Section>
+      )}
       {!block.hidden && (
         <>
           <Section title="Words" hint="Leave blank to use the listing’s name and description.">
@@ -523,7 +541,7 @@ export function SpacesSectionContent(props: EditorProps & { club: boolean }) {
     const rest = blocks.filter((b) => !(b.type === 'offer' && String(b.listing_id).toLowerCase() === id));
     if (!on) { setDesign({ blocks: rest }); return; }
     const at = rest.findIndex((b) => b.type === (props.club ? 'clubs' : 'courses'));
-    rest.splice(at === -1 ? rest.length : at + 1, 0, { type: 'offer', listing_id: id });
+    rest.splice(at === -1 ? rest.length : at + 1, 0, { type: 'offer', listing_id: id, hidden: false });
     setDesign({ blocks: rest });
   };
   return (
@@ -559,7 +577,7 @@ export function PresalesFeatureContent(props: EditorProps) {
     const rest = blocks.filter((b) => !(b.type === 'offer' && String(b.listing_id).toLowerCase() === id));
     if (!on) { setDesign({ blocks: rest }); return; }
     const at = rest.findIndex((b) => b.type === 'products');
-    rest.splice(at === -1 ? rest.length : at + 1, 0, { type: 'offer', listing_id: id });
+    rest.splice(at === -1 ? rest.length : at + 1, 0, { type: 'offer', listing_id: id, hidden: false });
     setDesign({ blocks: rest });
   };
   return (
