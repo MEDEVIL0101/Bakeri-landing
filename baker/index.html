@@ -3749,6 +3749,7 @@
   // Only stock status gets a badge. The kind (Ships, Pre-order, Custom…)
   // isn't labelled: the cards already group items by kind.
   function tileBadge(item) {
+    if (presaleOn(item)) return isSoldOut(item) ? (presaleClosed(item) ? 'Pre-orders closed' : 'Sold out') : 'Pre-sale';
     if (!isSoldOut(item)) return null;
     if (item.listing_kind === 'preorder') return 'Ordering closed';
     if (item.listing_kind === 'ready_now') return 'Sold out today';
@@ -5608,9 +5609,10 @@
   }
   function leftLine(item) { return item.sell_left != null && item.sell_left > 0 && item.sell_left <= 20 ? item.sell_left + ' left' : ''; }
   function presalesSectionOn() { return !!(blockCfg && blockCfg.presales && !blockCfg.presales.hidden); }
-  // Shown in the Pre-sales section or on its own card, so not in Products.
+  // Shown in the Pre-sales section, so not in Products. (A pre-sale featured
+  // on its own card stays in Products too — featuring never moves the grid.)
   function presaleElsewhere(l) {
-    return presaleOn(l) && (presalesSectionOn() || featuredOfferIDs().indexOf(String(l.id).toLowerCase()) !== -1);
+    return presaleOn(l) && presalesSectionOn();
   }
 
   function isSoldOut(item) {

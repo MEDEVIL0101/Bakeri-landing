@@ -11,6 +11,7 @@ import { listRecipes } from '../../lib/data';
 import { formatMoney, fromLocalInput, parseNumber, toDateInput, toDateTimeInput } from '../../lib/format';
 import type { ListingKind } from '../../lib/types';
 import { blocksFromRow } from '../../lib/contentBlocks';
+import { loadFeaturedCard, setFeaturedCard } from '../../lib/sections';
 import { closeSpace } from '../../lib/courses';
 import { ContentBlocksField, ContentBlocksPreview } from '../../components/ContentBlocksEditor';
 
@@ -471,6 +472,7 @@ export function MenuItemEditorPage() {
                     <Input type="number" min="1" step="1" placeholder="No limit" value={d.sell_limit ?? ''} onChange={(e) => set('sell_limit', e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : null)} />
                   </Field>
                 )}
+                {d.presale_release && existing && <FeaturedCardToggle userId={userId} listingId={existing.id} />}
                 <p className="small muted">{d.presale_release
                   ? `Your storefront shows “Pre-sale”${d.presale_order_by ? ', the pre-order deadline' : ''} and the date. ${kind === 'physical' ? 'Orders land on your schedule on the ship date.' : `Buyers get their ${d.is_course ? 'link' : 'download'} by email that morning.`}`
                   : kind === 'physical' ? 'Your stock count is how many you’ll sell.' : ''}</p>
@@ -686,3 +688,23 @@ const KIND_ICONS: Record<string, ReactNode> = {
   club: ic('M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20c0-3 3-5 6-5s6 2 6 5M14 15.5c.6-.3 1.3-.5 2-.5 3 0 6 2 6 5'),
   form: ic('M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM8 6H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-2M9 12h6M9 16h4'),
 };
+
+/** "Show it on its own card too" — a featured card on the storefront (retitle it
+ *  in Storefront); the Products grid is left as it is. */
+function FeaturedCardToggle({ userId, listingId }: { userId: string; listingId: string }) {
+  const toast = useToast();
+  const [on, setOn] = useState<boolean | null | undefined>(undefined);
+  useEffect(() => { loadFeaturedCard(userId, listingId).then(setOn, () => setOn(null)); }, [userId, listingId]);
+  if (on === undefined) return null;
+  if (on === null) return <p className="small muted"><Link to="/storefront">Give it its own card in Storefront →</Link></p>;
+  return (
+    <>
+      <Toggle checked={on} onChange={async (v) => {
+        setOn(v);
+        try { await setFeaturedCard(userId, listingId, v); toast(v ? 'Added as its own card — retitle it in Storefront' : 'Card removed'); }
+        catch (e: any) { setOn(!v); toast(e.message, 'error'); }
+      }} label="Show it on its own card too" hint="A big card on your storefront you can retitle and style in Storefront. Your Products grid stays as it is." />
+      {on && <p className="small muted"><Link to="/storefront">Edit the card in Storefront →</Link></p>}
+    </>
+  );
+}
