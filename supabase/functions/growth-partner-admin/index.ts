@@ -33,7 +33,8 @@ type Body = Record<string, unknown>;
  *  recovery link (also sets a password) when `needsPassword`. */
 async function signInLink(email: string, needsPassword = false): Promise<{ userId: string; url: string; isNew: boolean }> {
   let type: "invite" | "magiclink" | "recovery" = "invite";
-  let res = await db.auth.admin.generateLink({ type: "invite", email });
+  // The before-user-created hook only lets tagged sign-ups through.
+  let res = await db.auth.admin.generateLink({ type: "invite", email, options: { data: { signup_source: "partner_invite" } } });
   if (res.error) {
     type = needsPassword ? "recovery" : "magiclink";
     res = await db.auth.admin.generateLink({ type, email });
@@ -121,10 +122,16 @@ Deno.serve(async (req) => {
         const email = String(body.email ?? "").trim().toLowerCase();
         const name = String(body.name ?? "").trim();
         if (!name || !email.includes("@")) return json({ error: "Name and email are needed." }, 400);
-        const { data, error } = await db.from("growth_partner_applications").insert({
-          name, email, company: String(body.company ?? "").trim() || null,
-          audience: "Invited directly by the Bakerï team", heard_from: "Direct invite",
-        }).select("*").single();
+        // Reuse an open application for this email (e.g. a retried invite).
+        const { data: open } = await db.from("growth_partner_applications").select("*")
+          .ilike("email", email).in("status", ["pending", "waitlisted"])
+          .order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const fields = { name, email, company: String(body.company ?? "").trim() || open?.company || null };
+        const { data, error } = open
+          ? await db.from("growth_partner_applications").update(fields).eq("id", open.id).select("*").single()
+          : await db.from("growth_partner_applications").insert({
+              ...fields, audience: "Invited directly by the Bakerï team", heard_from: "Direct invite",
+            }).select("*").single();
         if (error) return json({ error: error.message }, 500);
         app = data;
       }
