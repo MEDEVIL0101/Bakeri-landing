@@ -530,10 +530,14 @@ function ensureDesignBase(d: StorefrontDraft): StorefrontDesign {
     ];
     return list.length !== stored.length || extra.length ? { ...d.storefront_design, blocks: [...list, ...extra] } : d.storefront_design!;
   }
-  return {
-    ...(d.storefront_design ?? {}),
-    blocks: seedV2Blocks(d.storefront_block_layout, d.email_capture_deliverable_listing_id, d.email_capture_heading, d.email_capture_body),
-  };
+  // A first design (no saved block list yet) gets the Pre-sales card too —
+  // hidden, after Products, like the page.
+  const seeded = seedV2Blocks(d.storefront_block_layout, d.email_capture_deliverable_listing_id, d.email_capture_heading, d.email_capture_body);
+  if (!seeded.some((b) => b.type === 'presales')) {
+    const after = seeded.findIndex((b) => b.type === 'products');
+    seeded.splice(after === -1 ? seeded.length : after + 1, 0, { type: 'presales', hidden: true });
+  }
+  return { ...(d.storefront_design ?? {}), blocks: seeded };
 }
 
 // ── Preview payload (same shape as the public RPC) ────────────────────────

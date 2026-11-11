@@ -46,7 +46,7 @@ export function HomeSections({ v2, props, changes, open }: {
           const offer = b.type === 'offer' ? offers.find((o) => String(o.id).toLowerCase() === String(b.listing_id).toLowerCase()) : null;
           return (
             <BlockRow handle={handle} hidden={!!b.hidden}
-              kind={offer ? (offer.is_club ? 'Club' : 'Course') : b.type === 'info' ? 'Policies, FAQ & hours' : V2_CARDS.find((c) => c.type === b.type)?.label}
+              kind={offer ? (offer.is_club ? 'Club' : offer.is_course ? 'Course' : 'Pre-sale') : b.type === 'info' ? 'Policies, FAQ & hours' : V2_CARDS.find((c) => c.type === b.type)?.label}
               title={b.title || (offer ? offer.name : v2DefaultTitle(b.type, data.firstName))}
               sub=""
               onOpen={() => open(`card:${blockKey(b)}`)}
