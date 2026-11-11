@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { releaseLabel } from "../_shared/presale.ts";
 import { escapeHtml, formatDate, resolveItemImageUrl } from "../_shared/receiptEmailStyle.ts";
 import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
@@ -40,6 +41,8 @@ interface DownloadEntry {
   menu_item_id?: string | null;
   /** "course": the link opens the course (baker/course.html), not a file. */
   kind?: string;
+  /** Pre-sale: no link yet — it's emailed on this date (release-presales). */
+  release_at?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -80,6 +83,9 @@ Deno.serve(async (req: Request) => {
   const bakerName = (order.baker_display_name || "").trim() || "the baker";
   const multi = downloads.length > 1;
   const allCourses = downloads.every((d) => d.kind === "course");
+  // Pre-sale lines (release_at) have no link yet; when every line is one, it's a "you're in" email.
+  const pending = (d: DownloadEntry) => !!d.release_at && Date.parse(d.release_at) > Date.now();
+  const allPending = downloads.every(pending);
 
   // One image lookup per line — same resolver the receipt emails use
   // (menu_item_id when known, else an unambiguous name match; null when the
@@ -105,7 +111,9 @@ Deno.serve(async (req: Request) => {
         <td style="width:56px;padding:12px 0;vertical-align:top;">${img}</td>
         <td style="padding:12px 0 12px 12px;vertical-align:top;">
           <div style="font-size:14.5px;font-weight:600;color:#241712;line-height:1.35;">${name}</div>
-          <a href="${d.download_url}" style="display:inline-block;margin-top:8px;padding:9px 18px;background:#241712;color:#fff;border-radius:9999px;text-decoration:none;font-weight:700;font-size:13px;">${d.kind === "course" ? "Start the course" : "Download"}</a>${d.kind === "course" ? `<div style="font-size:12px;color:#8A7F76;margin-top:6px;">Lifetime access — bookmark this link or keep this email.</div>` : ""}
+          ${pending(d)
+            ? `<div style="display:inline-block;margin-top:8px;padding:7px 14px;background:#F0E9DC;color:#241712;border-radius:9999px;font-weight:700;font-size:12.5px;">Pre-sale · ${d.kind === "course" ? "opens" : "arrives"} ${escapeHtml(releaseLabel(d.release_at!))}</div><div style="font-size:12px;color:#8A7F76;margin-top:6px;">We'll email your ${d.kind === "course" ? "link" : "download"} that day.</div>`
+            : `<a href="${d.download_url}" style="display:inline-block;margin-top:8px;padding:9px 18px;background:#241712;color:#fff;border-radius:9999px;text-decoration:none;font-weight:700;font-size:13px;">${d.kind === "course" ? "Start the course" : "Download"}</a>${d.kind === "course" ? `<div style="font-size:12px;color:#8A7F76;margin-top:6px;">Lifetime access — bookmark this link or keep this email.</div>` : ""}`}
         </td>
       </tr>`;
     })
@@ -117,7 +125,7 @@ Deno.serve(async (req: Request) => {
   const html = `
     <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:28px 24px;color:#241712;background:#fff;">
       <div style="font-size:13px;font-weight:700;letter-spacing:.04em;color:#A89B8C;text-transform:uppercase;">Bakerï</div>
-      <h1 style="margin:14px 0 2px;font-size:24px;">${allCourses ? (multi ? "Your courses are ready" : "Your course is ready") : `Your download${multi ? "s are" : " is"} ready`}</h1>
+      <h1 style="margin:14px 0 2px;font-size:24px;">${allPending ? "You're in — thanks for your pre-order" : allCourses ? (multi ? "Your courses are ready" : "Your course is ready") : `Your download${multi ? "s are" : " is"} ready`}</h1>
       <div style="font-size:15px;margin-bottom:14px;color:#6B5F54;">from <strong style="color:#241712;">${escapeHtml(bakerName)}</strong></div>
       <table style="width:100%;border-collapse:collapse;font-size:13px;color:#6B5F54;">
         ${dateStr ? `<tr><td style="padding:2px 0;"><strong style="color:#241712;">Date:</strong> ${escapeHtml(dateStr)}</td></tr>` : ""}
@@ -132,8 +140,10 @@ Deno.serve(async (req: Request) => {
 
       <div style="height:1px;background:#E4D9C8;margin:20px 0 14px;"></div>
       <p style="color:#A89B8C;font-size:12px;line-height:1.5;margin:0;">
-        ${multi ? "These links stay" : "This link stays"} active for a year — save your ${multi ? "files" : "file"} somewhere safe.
-        If ${multi ? "they ever stop" : "it ever stops"} working, or anything else about this order needs sorting, just reply to this email — it reaches ${escapeHtml(bakerName)} directly.
+        ${allPending
+          ? `Questions about your pre-order? Just reply to this email — it reaches ${escapeHtml(bakerName)} directly.`
+          : `${multi ? "These links stay" : "This link stays"} active for a year — save your ${multi ? "files" : "file"} somewhere safe.
+        If ${multi ? "they ever stop" : "it ever stops"} working, or anything else about this order needs sorting, just reply to this email — it reaches ${escapeHtml(bakerName)} directly.`}
       </p>
     </div>
   `;
@@ -150,7 +160,7 @@ Deno.serve(async (req: Request) => {
       from: identity.from,
       reply_to: identity.reply_to,
       to: order.customer_email,
-      subject: `${allCourses ? "Your course" : "Your download"} — ${order.order_name || "your purchase"}`,
+      subject: `${allPending ? "Your pre-order" : allCourses ? "Your course" : "Your download"} — ${order.order_name || "your purchase"}`,
       html,
     }),
   });

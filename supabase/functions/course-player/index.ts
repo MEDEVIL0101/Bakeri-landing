@@ -7,6 +7,7 @@ import { getStripeClient } from "../_shared/stripe.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 import { vendorFeeRate } from "../_shared/vendorPlan.ts";
 import { resolveAccess } from "../_shared/memberAccess.ts";
+import { PRESALE_COLS, claimSellLimits, presaleCheckoutError, presaleRelease, releaseLabel } from "../_shared/presale.ts";
 
 // The course player's backend (baker/course.html). Public — the access token
 // IS the credential (one per enrollment, emailed at purchase).
@@ -189,9 +190,15 @@ Deno.serve(async (req: Request) => {
     const menuItemId = String(body.club_checkout);
     if (!UUID_RE.test(menuItemId)) return json({ error: "Invalid request." }, 400);
     const { data: item } = await db.from("menu_items")
-      .select("id, user_id, name, default_price, marketplace_price_from, is_club, club_interval, deleted_at, is_active, is_listed_in_marketplace")
+      .select(`id, user_id, name, default_price, marketplace_price_from, is_club, club_interval, deleted_at, is_active, is_listed_in_marketplace, ${PRESALE_COLS}`)
       .eq("id", menuItemId).maybeSingle();
     if (!item || !item.is_club || !item.club_interval || item.deleted_at || !item.is_active) return json({ error: "This membership isn’t available." }, 404);
+    const presaleErr = presaleCheckoutError(item, 1);
+    if (presaleErr) return json({ error: presaleErr }, 400);
+    // Pre-sale club: join now, first charge on opening day (Checkout needs a
+    // trial end at least 48 h out — closer than that, billing starts now).
+    const opensAt = presaleRelease(item);
+    const trialEnd = opensAt && Date.parse(opensAt) - Date.now() > 49 * 3600 * 1000 ? Math.floor(Date.parse(opensAt) / 1000) : null;
     const { data: shop } = await db.from("profiles")
       .select("stripe_connect_account_id, stripe_connect_onboarding_complete, country, profile_slug").eq("id", item.user_id).maybeSingle();
     if (!shop?.stripe_connect_account_id || !shop.stripe_connect_onboarding_complete) return json({ error: "This shop isn’t taking payments yet." }, 400);
@@ -213,6 +220,7 @@ Deno.serve(async (req: Request) => {
         subscription_data: {
           metadata: { menu_item_id: item.id, baker_id: item.user_id, kind: "club" },
           ...(feePercent > 0 ? { application_fee_percent: feePercent } : {}),
+          ...(trialEnd ? { trial_end: trialEnd } : {}),
         },
         metadata: { menu_item_id: item.id, baker_id: item.user_id, kind: "club" },
         ...(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? { customer_email: email } : {}),
@@ -248,6 +256,8 @@ Deno.serve(async (req: Request) => {
     const url = await enrollInCourse(db, { bakerId: item.user_id, menuItemId: item.id, email, name: session.customer_details?.name ?? null });
     if (!url) return json({ error: "Your payment went through but we couldn’t set up access. Contact the shop." }, 500);
     const token = new URL(url).searchParams.get("t")!;
+    // Counts toward an "only N spots" limit (checked before checkout; a race past it is just logged).
+    if ((await claimSellLimits(db, [item.id])) !== null) console.error("club joined past its limit:", item.id);
     await db.from("course_enrollments").update({
       stripe_subscription_id: sub.id, paid_through: new Date(sub.current_period_end * 1000).toISOString(),
       cancel_at: null, revoked_at: null,
@@ -279,6 +289,12 @@ Deno.serve(async (req: Request) => {
   if ("error" in res) return json({ error: res.error }, res.status);
   const { owner } = res.access;
   const enrollment = res.access.enrollment;
+  // A pre-sale course / club isn't open to members until its date (the owner always gets in).
+  if (!owner) {
+    const { data: ps } = await db.from("menu_items").select("presale_release_at").eq("id", res.access.menuItemId).maybeSingle();
+    const opens = presaleRelease(ps);
+    if (opens) return json({ error: `This opens on ${releaseLabel(opens)} — we'll email you then.`, opens_at: opens }, 403);
+  }
   if (enrollment && !(await checkMembership(db, enrollment))) return json({ error: "Your membership has ended. Join again from the shop to get back in." }, 403);
 
   // ── Owner: remove / restore someone ──

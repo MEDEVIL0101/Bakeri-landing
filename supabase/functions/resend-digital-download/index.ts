@@ -105,9 +105,13 @@ async function resolveOrderFiles(
 ): Promise<{ lines: ResolvedLine[]; unresolved: Unresolved[] }> {
   const { data: items } = await db
     .from("order_items")
-    .select("custom_name, menu_item_id")
+    .select("custom_name, menu_item_id, presale_release_at")
     .eq("order_id", order.id)
     .is("deleted_at", null);
+  // A pre-sale line isn't out yet — never hand its file over early (any
+  // principal, incl. the public "resend my links"); release-presales sends it.
+  const released = (items ?? []).filter((i: { presale_release_at: string | null }) =>
+    !i.presale_release_at || Date.parse(i.presale_release_at) <= Date.now());
 
   // The baker's digital listings that still have a file — fetched once for
   // the whole order rather than per line.
@@ -131,7 +135,7 @@ async function resolveOrderFiles(
     lines.push({ item_name: itemName, file_path: filePath, menu_item_id: menuItemId });
   };
 
-  for (const item of items ?? []) {
+  for (const item of released) {
     const customName: string = (item.custom_name ?? "").trim();
 
     // 1. Direct link — order_items.menu_item_id, recorded on orders placed
@@ -321,10 +325,12 @@ Deno.serve(async (req: Request) => {
     // Courses bought on this order: their links are the buyer's enrollments.
     const { data: enrollments } = await db
       .from("course_enrollments")
-      .select("access_token, menu_item_id, menu_items(name)")
+      .select("access_token, menu_item_id, menu_items(name, presale_release_at)")
       .eq("order_id", order.id)
       .is("revoked_at", null);
-    const courseDownloads = (enrollments ?? []).map((e: any) => ({
+    // Not before a pre-sale course opens.
+    const courseDownloads = (enrollments ?? []).filter((e: any) =>
+      !e.menu_items?.presale_release_at || Date.parse(e.menu_items.presale_release_at) <= Date.now()).map((e: any) => ({
       item_name: e.menu_items?.name ?? "Your course", download_url: courseURL(e.access_token),
       menu_item_id: e.menu_item_id, kind: "course",
     }));

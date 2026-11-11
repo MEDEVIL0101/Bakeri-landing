@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { PRESALE_COLS, presaleRelease, releaseLabel } from "../_shared/presale.ts";
 
 // Public, unauthenticated endpoint for a baker's storefront (baker/index.html
 // "Ships to You" feed, baker/physical-checkout.html, and the ship leg of
@@ -128,7 +129,7 @@ Deno.serve(async (req: Request) => {
   // Re-fetch every listing server-side — never trust client-supplied price/name.
   const { data: menuItemRows, error: itemsErr } = await db
     .from("menu_items")
-    .select("id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, available_qty_today, unit, shipping_fee, shipping_always_full_price, has_variants")
+    .select(`id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, available_qty_today, unit, shipping_fee, shipping_always_full_price, has_variants, ${PRESALE_COLS}`)
     .in("id", menuItemIds);
 
   if (itemsErr || !menuItemRows || menuItemRows.length !== menuItemIds.length) {
@@ -164,6 +165,7 @@ Deno.serve(async (req: Request) => {
     variantLabel: string | null;
     unitPriceCents: number;
     unit: string;
+    releaseAt: string | null;   // pre-sale: ships on this date
   }
   const lines: OrderLine[] = [];
   for (const req of requestedItems) {
@@ -177,17 +179,19 @@ Deno.serve(async (req: Request) => {
       lines.push({
         menuItemId: req.menu_item_id, name: `${menuItem.name} — ${variant.label}`, quantity: req.quantity,
         variantId: variant.id, variantLabel: variant.label,
-        unitPriceCents: Math.round(variant.price * 100), unit: menuItem.unit || "item",
+        unitPriceCents: Math.round(variant.price * 100), unit: menuItem.unit || "item", releaseAt: presaleRelease(menuItem),
       });
     } else {
       lines.push({
         menuItemId: req.menu_item_id, name: menuItem.name, quantity: req.quantity,
         variantId: null, variantLabel: null,
         unitPriceCents: Math.round((((menuItem.marketplace_price_from ?? 0) > 0 ? menuItem.marketplace_price_from : menuItem.default_price) ?? 0) * 100),
-        unit: menuItem.unit || "item",
+        unit: menuItem.unit || "item", releaseAt: presaleRelease(menuItem),
       });
     }
   }
+  // Latest pre-sale release among the lines (null = ships as normal).
+  const shipsAt = lines.map((l) => l.releaseAt).filter(Boolean).sort().pop() ?? null;
 
   const { data: bakerProfile } = await db
     .from("profiles")
@@ -356,9 +360,10 @@ Deno.serve(async (req: Request) => {
     customer_name,
     customer_phone: "",
     customer_email,
-    due_date: now,
+    // A pre-sale ships on its release date — the order lands on the schedule then.
+    due_date: shipsAt ?? now,
     status: "Confirmed",
-    notes: "",
+    notes: shipsAt ? `Pre-sale — ships ${releaseLabel(shipsAt)}` : "",
     is_paid: true,
     payment_note: `Total charged: $${(totalCents / 100).toFixed(2)} (Bakeri service charge: $${(platformFeeCents / 100).toFixed(2)}, deducted from your payout)`,
     platform_fee_cents: platformFeeCents,

@@ -36,6 +36,7 @@ import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 import { logNotification } from "../_shared/notificationLog.ts";
 import { postWithRetry } from "../_shared/postWithRetry.ts";
 import { fillCourseLinks } from "../_shared/course.ts";
+import { PRESALE_COLS, claimSellLimits, presaleRelease, releaseLabel } from "../_shared/presale.ts";
 import { addonPrices } from "../_shared/addon.ts";
 import { resolvePromotions, redeemPromoCode } from "../_shared/promotions.ts";
 
@@ -166,7 +167,7 @@ Deno.serve(async (req: Request) => {
   // Re-fetch every listing server-side — never trust client-supplied price/name.
   const { data: menuItemRows, error: itemsErr } = await db
     .from("menu_items")
-    .select("id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, digital_file_path, is_course, available_qty_today, unit, shipping_fee, shipping_always_full_price, has_variants")
+    .select(`id, user_id, name, default_price, marketplace_price_from, listing_kind, is_listed_in_marketplace, digital_file_path, is_course, available_qty_today, unit, shipping_fee, shipping_always_full_price, has_variants, ${PRESALE_COLS}`)
     .in("id", allMenuItemIds);
 
   if (itemsErr || !menuItemRows || menuItemRows.length !== allMenuItemIds.length) {
@@ -191,7 +192,7 @@ Deno.serve(async (req: Request) => {
     : { data: [] as { id: string; menu_item_id: string; label: string; price: number; stock_qty: number }[] };
   const variantsById = new Map((variantRows ?? []).map((v) => [v.id, v]));
 
-  interface DigitalLine { menuItemId: string; name: string; variantId: string | null; variantLabel: string | null; unitPriceCents: number; digitalFilePath: string | null; isCourse: boolean; }
+  interface DigitalLine { menuItemId: string; name: string; variantId: string | null; variantLabel: string | null; unitPriceCents: number; digitalFilePath: string | null; isCourse: boolean; releaseAt: string | null; }
   const digitalLines: DigitalLine[] = [];
   for (const req of requestedDigitalLines) {
     const menuItem = itemsById.get(req.menu_item_id)!;
@@ -204,17 +205,19 @@ Deno.serve(async (req: Request) => {
         menuItemId: req.menu_item_id, name: `${menuItem.name} — ${variant.label}`,
         variantId: variant.id, variantLabel: variant.label,
         unitPriceCents: Math.round(variant.price * 100), digitalFilePath: menuItem.digital_file_path, isCourse: !!menuItem.is_course,
+        releaseAt: presaleRelease(menuItem),
       });
     } else {
       digitalLines.push({
         menuItemId: req.menu_item_id, name: menuItem.name, variantId: null, variantLabel: null,
         unitPriceCents: Math.round((((menuItem.marketplace_price_from ?? 0) > 0 ? menuItem.marketplace_price_from : menuItem.default_price) ?? 0) * 100),
         digitalFilePath: menuItem.digital_file_path, isCourse: !!menuItem.is_course,
+        releaseAt: presaleRelease(menuItem),
       });
     }
   }
 
-  interface PhysicalLine { menuItemId: string; name: string; quantity: number; variantId: string | null; variantLabel: string | null; unitPriceCents: number; unit: string; }
+  interface PhysicalLine { menuItemId: string; name: string; quantity: number; variantId: string | null; variantLabel: string | null; unitPriceCents: number; unit: string; releaseAt: string | null; }
   const physicalLines: PhysicalLine[] = [];
   for (const req of requestedPhysicalItems) {
     const menuItem = itemsById.get(req.menu_item_id)!;
@@ -226,17 +229,19 @@ Deno.serve(async (req: Request) => {
       physicalLines.push({
         menuItemId: req.menu_item_id, name: `${menuItem.name} — ${variant.label}`, quantity: req.quantity,
         variantId: variant.id, variantLabel: variant.label,
-        unitPriceCents: Math.round(variant.price * 100), unit: menuItem.unit || "item",
+        unitPriceCents: Math.round(variant.price * 100), unit: menuItem.unit || "item", releaseAt: presaleRelease(menuItem),
       });
     } else {
       physicalLines.push({
         menuItemId: req.menu_item_id, name: menuItem.name, quantity: req.quantity,
         variantId: null, variantLabel: null,
         unitPriceCents: Math.round((((menuItem.marketplace_price_from ?? 0) > 0 ? menuItem.marketplace_price_from : menuItem.default_price) ?? 0) * 100),
-        unit: menuItem.unit || "item",
+        unit: menuItem.unit || "item", releaseAt: presaleRelease(menuItem),
       });
     }
-  }
+  }  // Latest pre-sale release among the physical lines (null = ships as normal).
+  const physicalShipsAt = physicalLines.map((l) => l.releaseAt).filter(Boolean).sort().pop() ?? null;
+
 
   const { data: bakerProfile } = await db
     .from("profiles")
@@ -285,8 +290,16 @@ Deno.serve(async (req: Request) => {
     }, 400);
   }
 
-  const missingFile = digitalLines.find((l) => !l.digitalFilePath && !l.isCourse);
+  // A pre-sale download may not have its file yet — it's only needed on release.
+  const missingFile = digitalLines.find((l) => !l.digitalFilePath && !l.isCourse && !l.releaseAt);
   if (missingFile) return refundAndFail(`"${missingFile.name}" has no file attached.`);
+
+  // "Only N" limits on the digital side — claimed now that the charge is real.
+  const overLimit = await claimSellLimits(db, digitalLines.map((l) => l.menuItemId));
+  if (overLimit !== null) {
+    const name = digitalLines.find((l) => l.menuItemId === overLimit)?.name ?? "This item";
+    return refundAndFail(`Sorry — "${name}" just sold out.`);
+  }
 
   // Atomic, all-or-nothing stock decrement per source, same as
   // finalize-guest-physical-order — the real "enough left?" check.
@@ -404,7 +417,7 @@ Deno.serve(async (req: Request) => {
   // variant lines, per-line `&download=` name appended after signing — same
   // reasoning as finalize-guest-digital-order.
   const signedByPath = new Map<string, string>();
-  for (const path of new Set(digitalLines.filter((l) => !l.isCourse).map((l) => l.digitalFilePath as string))) {
+  for (const path of new Set(digitalLines.filter((l) => !l.isCourse && !l.releaseAt).map((l) => l.digitalFilePath as string))) {
     const { data: signedUrlData, error: signedUrlErr } = await db.storage
       .from("digital-products")
       .createSignedUrl(path, SIGNED_URL_EXPIRY_SECONDS);
@@ -416,7 +429,9 @@ Deno.serve(async (req: Request) => {
   }
   // A course has no file: its link (an enrollment) is filled in once the
   // order is recorded — see fillCourseLinks below.
-  const downloads: { item_name: string; download_url: string; menu_item_id: string; kind?: string }[] = digitalLines.map((line) => {
+  const downloads: { item_name: string; download_url: string; menu_item_id: string; kind?: string; release_at?: string }[] = digitalLines.map((line) => {
+    // Pre-sale: nothing to hand over yet — the buyer sees "Arrives <date>".
+    if (line.releaseAt) return { item_name: line.name, download_url: "", menu_item_id: line.menuItemId, ...(line.isCourse ? { kind: "course" } : {}), release_at: line.releaseAt };
     if (line.isCourse) return { item_name: line.name, download_url: "", menu_item_id: line.menuItemId, kind: "course" };
     const path = line.digitalFilePath as string;
     return {
@@ -491,6 +506,7 @@ Deno.serve(async (req: Request) => {
         variant_id: line.variantId,
         variant_label: line.variantLabel,
         notes: "",
+        presale_release_at: line.releaseAt,
         updated_at: now,
       }))
     );
@@ -516,9 +532,10 @@ Deno.serve(async (req: Request) => {
       customer_name,
       customer_phone: "",
       customer_email,
-      due_date: now,
+      // A pre-sale ships on its release date — the order lands on the schedule then.
+      due_date: physicalShipsAt ?? now,
       status: "Confirmed",
-      notes: "",
+      notes: physicalShipsAt ? `Pre-sale — ships ${releaseLabel(physicalShipsAt)}` : "",
       is_paid: true,
       payment_note: `Total charged: $${(physicalTotalCents / 100).toFixed(2)} (Bakeri service charge: $${(physicalPlatformFeeCents / 100).toFixed(2)}, deducted from your payout) — paid together with a digital order in the same checkout`,
       platform_fee_cents: physicalPlatformFeeCents,
@@ -651,6 +668,8 @@ Deno.serve(async (req: Request) => {
     // effort; a failure logs guest_digital_delivery/failed for resend-digital-
     // download to pick up.
     await fillCourseLinks(db, downloads, { bakerId, email: customer_email, name: customer_name, orderId: digitalOrderId });
+    // A pre-sale course is enrolled now (the spot is theirs) but its link goes out on opening day.
+    downloads.forEach((d) => { if (d.release_at) d.download_url = ""; });
     const deliveryResult = await postWithRetry(
       `${SUPABASE_URL}/functions/v1/send-guest-digital-delivery-email`,
       { order_id: digitalOrderId, downloads },

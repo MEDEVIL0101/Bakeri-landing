@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { PRESALE_COLS, presaleCheckoutError, presaleRelease } from "../_shared/presale.ts";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE, parseTipCents, tipStripeFeeCoverCents } from "../_shared/fees.ts";
 import { vendorFeeRate, vendorPlanPaused } from "../_shared/vendorPlan.ts";
@@ -201,7 +202,7 @@ Deno.serve(async (req: Request) => {
       const digitalCartItems = items.filter((i) => i.listing_kind === "digital");
       const { data: digitalItems, error: digitalItemsErr } = await supabase
         .from("menu_items")
-        .select("id, name, listing_kind, is_listed_in_marketplace, digital_file_path, is_course, has_variants, default_price, marketplace_price_from")
+        .select(`id, name, listing_kind, is_listed_in_marketplace, digital_file_path, is_course, has_variants, default_price, marketplace_price_from, ${PRESALE_COLS}`)
         .in("id", digitalCartItems.map((i) => i.listing_id));
 
       const itemsById = new Map((digitalItems ?? []).map((d) => [d.id, d]));
@@ -229,7 +230,10 @@ Deno.serve(async (req: Request) => {
         if (!digitalItem.is_listed_in_marketplace) {
           throw new ValidationError(`"${digitalItem.name}" is no longer available.`);
         }
-        if (!digitalItem.digital_file_path && !digitalItem.is_course) {
+        const presaleErr = presaleCheckoutError(digitalItem, cartItem.quantity ?? 1);
+        if (presaleErr) throw new ValidationError(presaleErr);
+        // A pre-sale download can be sold before its file is up — it's sent on release.
+        if (!digitalItem.digital_file_path && !digitalItem.is_course && !presaleRelease(digitalItem)) {
           throw new ValidationError(`"${digitalItem.name}" has no file attached yet — contact the baker.`);
         }
         if (cartItem.variant_id) {
@@ -254,7 +258,7 @@ Deno.serve(async (req: Request) => {
       const physicalCartItems = items.filter((i) => i.listing_kind === "physical");
       const { data: physicalItems, error: physicalItemsErr } = await supabase
         .from("menu_items")
-        .select("id, name, listing_kind, is_listed_in_marketplace, available_qty_today, has_variants, default_price, marketplace_price_from")
+        .select(`id, name, listing_kind, is_listed_in_marketplace, available_qty_today, has_variants, default_price, marketplace_price_from, ${PRESALE_COLS}`)
         .in("id", physicalCartItems.map((i) => i.listing_id));
 
       const itemsById = new Map((physicalItems ?? []).map((d) => [d.id, d]));
@@ -279,6 +283,8 @@ Deno.serve(async (req: Request) => {
         if (!physicalItem.is_listed_in_marketplace) {
           throw new ValidationError(`"${physicalItem.name}" is no longer available.`);
         }
+        const presaleErr = presaleCheckoutError(physicalItem, cartItem.quantity ?? 1);
+        if (presaleErr) throw new ValidationError(presaleErr);
         if (cartItem.variant_id) {
           const variant = (variantsByItemId.get(cartItem.listing_id) ?? []).find((v) => v.id === cartItem.variant_id);
           if (!variant) {
