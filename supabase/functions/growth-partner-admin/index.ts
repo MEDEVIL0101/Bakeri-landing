@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
               "Thank you for your interest in becoming a Bakerï Community Growth Partner. We aren’t able to offer a partnership right now.",
               "If you run a food or creator business yourself, every Bakerï vendor can still earn through our Refer a Vendor program.",
             ],
-            button: { label: "See the referral program", url: "https://bakeriapp.com/referral-program/" },
+            button: { label: "See the referral program", url: "https://bakeriapp.com/referral-program.html" },
           })
           : partnerEmailHtml({
             heading: `You’re on the list, ${first}`,

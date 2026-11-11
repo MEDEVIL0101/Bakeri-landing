@@ -8,7 +8,7 @@ import { promoLine, rememberPlanIntent, usePlanPromo } from '../lib/plans';
 import { Button, ErrorBanner, Field, Input, Spinner } from '../components/ui';
 import { useAuth } from './AuthProvider';
 
-function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode }) {
+export function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode }) {
   return (
     <div className="auth-page">
       <a href="/" className="auth-logo"><img src={LOGO} alt="Bakeri" /></a>
@@ -93,7 +93,10 @@ export function LoginPage() {
     <AuthLayout
       title="Log in"
       subtitle="Manage your orders, menu and customers from your computer."
-      footer={<>New to Bakeri? <Link to="/signup">Create an account</Link></>}
+      footer={<div className="stack-sm center">
+        <span>New to Bakeri? <Link to="/signup">Create an account</Link></span>
+        <span>Community Growth Partner? <Link to="/partner/login" state={location.state}>Sign in here</Link></span>
+      </div>}
     >
       <form onSubmit={submit} className="stack">
         <Field label="Email">

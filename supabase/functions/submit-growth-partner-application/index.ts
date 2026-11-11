@@ -3,7 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { escapeHtml, partnerEmailHtml, sendPartnerEmail, TEAM_INBOX } from "../_shared/partnerEmail.ts";
 
 // Public "Apply to be a Community Growth Partner" form
-// (bakeriapp.com/community-growth-partners/). Same guards as
+// (bakeriapp.com/community-growth-partners.html). Same guards as
 // submit-vendor-application: reCAPTCHA Enterprise, MX check, a hidden
 // honeypot field and a per-IP daily limit. Writes a pending
 // growth_partner_applications row for Bakeri Admin → Growth Partners to

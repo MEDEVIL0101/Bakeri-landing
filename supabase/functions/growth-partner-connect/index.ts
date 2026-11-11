@@ -64,7 +64,7 @@ serve(async (req) => {
           business_profile: {
             mcc: "7311",
             product_description: "Referral partner introducing small food businesses to Bakerï. Receives referral commission only.",
-            url: "https://bakeriapp.com/community-growth-partners/",
+            url: "https://bakeriapp.com/community-growth-partners.html",
           },
           metadata: { kind: "growth_partner", user_id: user.id },
         });

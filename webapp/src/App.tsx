@@ -42,6 +42,9 @@ import { InsightsPage } from './pages/insights/InsightsPage';
 import { effectiveTier } from './lib/plans';
 import { logScreen } from './lib/presence';
 import { useEffect } from 'react';
+import { PartnerLoginPage, PartnerWelcomePage } from './partner/PartnerAuth';
+import { PartnerShell } from './partner/PartnerShell';
+import { PartnerGuidelinesPage, PartnerLinksPage, PartnerOutreachPage, PartnerOverviewPage, PartnerPayoutsPage, PartnerReferralsPage } from './partner/PartnerPages';
 
 /** Signed in, nothing else — the plan picker and welcome page sit here. */
 function RequireSession() {
@@ -73,15 +76,31 @@ function ScreenTracker() {
   return null;
 }
 
+/** A Community Growth Partner's dashboard (no shop or plan needed). */
+function RequirePartner() {
+  const { session, recovering, mfaNeeded, partner } = useAuth();
+  const location = useLocation();
+  if (session === undefined) return <div className="full-center"><Spinner /></div>;
+  if (!session) return <Navigate to="/partner/login" replace state={{ from: location.pathname + location.search }} />;
+  if (recovering) return <Navigate to="/reset-password" replace />;
+  if (mfaNeeded === undefined) return <div className="full-center"><Spinner /></div>;
+  if (mfaNeeded) return <MfaChallengePage />;
+  if (partner === undefined) return <div className="full-center"><Spinner /></div>;
+  if (!partner) return <Navigate to="/partner/login" replace />;
+  return <PartnerShell partner={partner}><Outlet /></PartnerShell>;
+}
+
 function RequireVendor() {
-  const { session, profile, profileLoading, recovering, plan, planLoading, mfaNeeded } = useAuth();
+  const { session, profile, profileLoading, recovering, plan, planLoading, mfaNeeded, partner } = useAuth();
   const location = useLocation();
   if (session === undefined) return <div className="full-center"><Spinner /></div>;
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   if (recovering) return <Navigate to="/reset-password" replace />;
   if (mfaNeeded === undefined) return <div className="full-center"><Spinner /></div>;
   if (mfaNeeded) return <MfaChallengePage />;
-  if ((profileLoading && !profile) || (planLoading && plan === undefined)) return <div className="full-center"><Spinner /></div>;
+  if ((profileLoading && !profile) || (planLoading && plan === undefined) || partner === undefined) return <div className="full-center"><Spinner /></div>;
+  // Growth Partners without a shop of their own live in /partner.
+  if (partner && !profile?.business_name?.trim()) return <Navigate to="/partner" replace />;
   // No live plan (a new account, or a trial/subscription that ended) →
   // the plan picker. Accounts from before plans are 'legacy' Starter.
   // plan === undefined means it couldn't be read — never block on that.
@@ -101,6 +120,16 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            <Route path="/partner/login" element={<PartnerLoginPage />} />
+            <Route path="/partner/welcome" element={<PartnerWelcomePage />} />
+            <Route path="/partner" element={<RequirePartner />}>
+              <Route index element={<PartnerOverviewPage />} />
+              <Route path="links" element={<PartnerLinksPage />} />
+              <Route path="outreach" element={<PartnerOutreachPage />} />
+              <Route path="referrals" element={<PartnerReferralsPage />} />
+              <Route path="payouts" element={<PartnerPayoutsPage />} />
+              <Route path="guidelines" element={<PartnerGuidelinesPage />} />
+            </Route>
             {/* Pricing comes before the account (Harvey 2026-11-02): visitors
                 see plans and the trial, and create their account on the trial
                 page when they continue. Signed-in vendors get the usual checks. */}

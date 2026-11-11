@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/types';
 import { loadPlan, type VendorPlan } from '../lib/plans';
 import { startWebPresence } from '../lib/presence';
+import { loadPartnerMe, type PartnerMe } from '../partner/partnerApi';
 
 interface AuthState {
   /** undefined while the stored session is still being restored. */
@@ -21,6 +22,9 @@ interface AuthState {
   /** True when 2FA is on and this session hasn't entered its code yet; undefined while checking. */
   mfaNeeded: boolean | undefined;
   refreshMfa: () => Promise<void>;
+  /** The Community Growth Partner row: null = not a partner; undefined = loading. */
+  partner: PartnerMe | null | undefined;
+  refreshPartner: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -37,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [plan, setPlan] = useState<VendorPlan | null | undefined>(undefined);
   const [planLoading, setPlanLoading] = useState(false);
   const [mfaNeeded, setMfaNeeded] = useState<boolean | undefined>(undefined);
+  const [partner, setPartner] = useState<PartnerMe | null | undefined>(undefined);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -95,6 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { refreshPlan(); }, [refreshPlan]);
 
+  const refreshPartner = useCallback(async () => {
+    if (!userId) { setPartner(session === null ? null : undefined); return; }
+    setPartner(await loadPartnerMe());
+  }, [userId, session]);
+
+  useEffect(() => { refreshPartner(); }, [refreshPartner]);
+
   const signOut = useCallback(async () => {
     // This browser only. The default ('global') also ended the account's
     // session in the iPhone app, which then asked to log in again within the
@@ -102,11 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut({ scope: 'local' });
     setProfile(null);
     setPlan(undefined);
+    setPartner(null);
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, profileLoading, recovering, setRecovering, refreshProfile: loadProfile, plan, planLoading, refreshPlan, mfaNeeded, refreshMfa, signOut }}
+      value={{ session, profile, profileLoading, recovering, setRecovering, refreshProfile: loadProfile, plan, planLoading, refreshPlan, mfaNeeded, refreshMfa, partner, refreshPartner, signOut }}
     >
       {children}
     </AuthContext.Provider>
