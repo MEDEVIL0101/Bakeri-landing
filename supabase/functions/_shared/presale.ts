@@ -30,14 +30,15 @@ export function releaseLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Toronto" });
 }
 
-/** Counts each listing's lines toward its sell limit, all or nothing. */
+/** Counts each listing's lines toward its sell limit, all or nothing.
+ *  Returns the id of a listing that just hit its limit (refuse the sale), else
+ *  null — a database hiccup is logged, never treated as "sold out". */
 export async function claimSellLimits(db: any, menuItemIds: string[]): Promise<string | null> {
   const qty = new Map<string, number>();
   menuItemIds.forEach((id) => qty.set(id, (qty.get(id) ?? 0) + 1));
   if (!qty.size) return null;
   const { error } = await db.rpc("claim_sell_limit_batch", { p_items: [...qty].map(([id, q]) => ({ id, qty: q })) });
   if (!error) return null;
-  const id = /sell_limit_reached:([0-9a-f-]+)/i.exec(error.message)?.[1] ?? null;
   console.error("claim_sell_limit_batch:", error.message);
-  return id ?? "";
+  return /sell_limit_reached:([0-9a-f-]+)/i.exec(error.message)?.[1] ?? null;
 }

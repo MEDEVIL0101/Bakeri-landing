@@ -253,11 +253,29 @@ Deno.serve(async (req: Request) => {
     }
     const { data: already } = await db.from("course_enrollments").select("access_token").eq("stripe_subscription_id", sub.id).maybeSingle();
     if (already) return json({ token: already.access_token });
+    // "Only N spots": claimed now. If the last one just went (two people paid
+    // at once), cancel this subscription and refund it — never oversell.
+    if ((await claimSellLimits(db, [item.id])) !== null) {
+      const stripe = getStripeClient();
+      try {
+        await stripe.subscriptions.cancel(sub.id, { prorate: false } as any, { stripeAccount: acct });
+        const inv: any = sub.latest_invoice
+          ? await stripe.invoices.retrieve(typeof sub.latest_invoice === "string" ? sub.latest_invoice : sub.latest_invoice.id, {}, { stripeAccount: acct })
+          : null;
+        if (inv?.payment_intent && inv.amount_paid > 0) {
+          await stripe.refunds.create({ payment_intent: typeof inv.payment_intent === "string" ? inv.payment_intent : inv.payment_intent.id }, { stripeAccount: acct });
+        }
+      } catch (err) {
+        console.error("club over limit — cancel/refund failed:", sub.id, err);
+        return json({ error: "Sorry — the last spot just went. Please contact the shop for a refund." }, 409);
+      }
+      return json({ error: sub.status === "trialing"
+        ? "Sorry — the last spot just went. You haven't been charged."
+        : "Sorry — the last spot just went. Your payment has been refunded." }, 409);
+    }
     const url = await enrollInCourse(db, { bakerId: item.user_id, menuItemId: item.id, email, name: session.customer_details?.name ?? null });
     if (!url) return json({ error: "Your payment went through but we couldn’t set up access. Contact the shop." }, 500);
     const token = new URL(url).searchParams.get("t")!;
-    // Counts toward an "only N spots" limit (checked before checkout; a race past it is just logged).
-    if ((await claimSellLimits(db, [item.id])) !== null) console.error("club joined past its limit:", item.id);
     await db.from("course_enrollments").update({
       stripe_subscription_id: sub.id, paid_through: new Date(sub.current_period_end * 1000).toISOString(),
       cancel_at: null, revoked_at: null,
