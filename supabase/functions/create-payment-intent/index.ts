@@ -66,6 +66,10 @@ function detectPaymentFlow(items: CartItemPayload[]): PaymentFlow {
   if (items.some((i) => i.listing_kind === "custom")) {
     return "deposit_and_save";
   }
+  // Pre-orders are paid at the point of sale (Harvey 2026-11-10), so there's
+  // no card-hold to expire — only a pre-order sharing a cart with a held
+  // Ready Now item still needs the save-the-card flow.
+  if (items.every((i) => i.listing_kind !== "ready_now")) return "immediate";
   const now = Date.now();
   const hasFarPreorder = items.some((i) => {
     if (i.listing_kind !== "preorder" || !i.pickup_date) return false;
@@ -188,7 +192,11 @@ Deno.serve(async (req: Request) => {
     const hasDigital = items.some((i) => i.listing_kind === "digital");
     const hasPhysical = items.some((i) => i.listing_kind === "physical");
     const isInstantCaptureCart = items.every((i) => i.listing_kind === "digital" || i.listing_kind === "physical");
-    const captureMethod = (paymentFlow === "deposit_and_save" || isInstantCaptureCart) ? "automatic" : "manual";
+    // Pre-orders are charged at checkout like downloads and shipped goods
+    // (Harvey 2026-11-10); only Ready Now items stay held until the baker
+    // accepts (capture-payment treats an already-charged intent as captured).
+    const chargeNow = items.every((i) => i.listing_kind === "digital" || i.listing_kind === "physical" || i.listing_kind === "preorder");
+    const captureMethod = (paymentFlow === "deposit_and_save" || isInstantCaptureCart || chargeNow) ? "automatic" : "manual";
 
     // Everything below trusts client-supplied fields (name, price) with no
     // server-side check against the live menu_items row — for digital/

@@ -463,7 +463,9 @@
   function renderMultiChargeNotice() {
     if (legTotalCount <= 1) return '';
     const steps = [];
-    if (cart.items.length > 0) steps.push('<b>Pickup items</b> — $' + pickupTotal().toFixed(2) + ', authorized now and charged once the baker confirms your order');
+    // Pre-orders are paid now (create-payment-intent chargeNow); Ready Now is held until the baker confirms.
+    const allPreorder = cart.items.every(function (i) { return i.listingKind === 'preorder'; });
+    if (cart.items.length > 0) steps.push('<b>' + (allPreorder ? 'Pre-orders' : 'Pickup items') + '</b> — $' + pickupTotal().toFixed(2) + (allPreorder ? ', charged now' : ', authorized now and charged once the baker confirms your order'));
     if (digitalItems.length > 0 && shipItems.length > 0) {
       steps.push('<b>Digital downloads &amp; shipping items</b> — $' + instantSubtotal.toFixed(2) + ', charged right away in one payment — your download link arrives instantly, and shipped items go out separately after you enter a shipping address');
     } else if (digitalItems.length > 0) {
