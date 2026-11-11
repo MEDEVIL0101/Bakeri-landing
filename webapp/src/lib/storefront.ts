@@ -46,7 +46,7 @@ export const PATTERNS = ['Standard', 'Polka Dot', 'Stripes', 'Gingham', 'Pumpkin
 
 // v2 (profiles.storefront_design — Models/StorefrontDesign.swift)
 export interface CardColors { background?: string; title?: string; button?: string; text?: string }
-export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'courses' | 'clubs' | 'presales' | 'links' | 'about' | 'info' | 'emailCapture' | 'referral' | 'offer';
+export type V2CardType = 'leadMagnet' | 'menu' | 'products' | 'courses' | 'clubs' | 'links' | 'about' | 'info' | 'emailCapture' | 'referral' | 'offer';
 export interface V2Block {
   type: V2CardType;
   hidden?: boolean;
@@ -123,7 +123,6 @@ export const V2_CARDS: { type: V2CardType; label: string; navByDefault: boolean;
   { type: 'products', label: 'Products', navByDefault: true, parts: [{ key: 'physical', label: 'Physical products' }, { key: 'digital', label: 'Digital downloads' }] },
   { type: 'courses', label: 'Courses', navByDefault: true },
   { type: 'clubs', label: 'Clubs', navByDefault: true },
-  { type: 'presales', label: 'Pre-sales', navByDefault: true },
   { type: 'links', label: 'Links', navByDefault: true },
   { type: 'about', label: 'About', navByDefault: false },
   { type: 'info', label: 'Before You Order', navByDefault: true, parts: [{ key: 'policies', label: 'Store policies' }, { key: 'faq', label: 'FAQ' }, { key: 'hours', label: 'Pickup hours' }] },
@@ -179,7 +178,7 @@ export function loadV2FontPreviews() {
 
 export function v2DefaultTitle(t: V2CardType, firstName: string): string {
   return {
-    leadMagnet: 'Free download', menu: 'Shop my Menu', products: 'Shop my Products', courses: 'Courses', clubs: 'Join the club', presales: 'Pre-sales', links: `More from ${firstName}`,
+    leadMagnet: 'Free download', menu: 'Shop my Menu', products: 'Shop my Products', courses: 'Courses', clubs: 'Join the club', links: `More from ${firstName}`,
     about: `Meet ${firstName}`, info: 'Before you order', emailCapture: 'Join my list',
     referral: 'Start your own shop on Bakerï!', offer: '',
   }[t];
@@ -518,11 +517,6 @@ function ensureDesignBase(d: StorefrontDraft): StorefrontDesign {
       const after = Math.max(list.findIndex((b) => b.type === 'products'), list.findIndex((b) => b.type === 'courses'));
       list.splice(after === -1 ? list.length : after + 1, 0, { type: t, hidden: false });
     });
-    // Pre-sales (2026-11-10) start hidden — then pre-sales stay in Products.
-    if (!list.some((b) => b.type === 'presales')) {
-      const after = list.findIndex((b) => b.type === 'products');
-      list.splice(after === -1 ? list.length : after + 1, 0, { type: 'presales', hidden: true });
-    }
     const missing = V2_DEFAULT_ORDER.filter((t) => !list.some((b) => b.type === t));
     const extra: V2Block[] = [
       ...missing.map((type) => ({ type, hidden: false })),
@@ -530,14 +524,10 @@ function ensureDesignBase(d: StorefrontDraft): StorefrontDesign {
     ];
     return list.length !== stored.length || extra.length ? { ...d.storefront_design, blocks: [...list, ...extra] } : d.storefront_design!;
   }
-  // A first design (no saved block list yet) gets the Pre-sales card too —
-  // hidden, after Products, like the page.
-  const seeded = seedV2Blocks(d.storefront_block_layout, d.email_capture_deliverable_listing_id, d.email_capture_heading, d.email_capture_body);
-  if (!seeded.some((b) => b.type === 'presales')) {
-    const after = seeded.findIndex((b) => b.type === 'products');
-    seeded.splice(after === -1 ? seeded.length : after + 1, 0, { type: 'presales', hidden: true });
-  }
-  return { ...(d.storefront_design ?? {}), blocks: seeded };
+  return {
+    ...(d.storefront_design ?? {}),
+    blocks: seedV2Blocks(d.storefront_block_layout, d.email_capture_deliverable_listing_id, d.email_capture_heading, d.email_capture_body),
+  };
 }
 
 // ── Preview payload (same shape as the public RPC) ────────────────────────

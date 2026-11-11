@@ -923,16 +923,6 @@
   <div class="sf-sec-signin">Already a member? <a class="sf-member-link">Log in</a></div>
 </section>
 
-<!-- Pre-sales (block type 'presales', 2026-11-10): every listed pre-sale,
-     when the vendor switches this section on — otherwise they stay in
-     Products. One featured on its own card ('offer') isn't repeated here. -->
-<section id="sf-presales" class="sf-card hidden" data-block="presales">
-  <div class="sf-card-head">
-    <div class="titles"><h2 id="sf-presales-title"></h2><span class="sf-sub" id="sf-presales-sub"></span></div>
-  </div>
-  <div class="sf-card-body" id="sf-presales-grid"></div>
-</section>
-
 <section id="links-feed" class="sf-card hidden" data-block="links">
   <div class="sf-card-head">
     <div class="titles"><h2 id="sf-links-title"></h2></div>
@@ -1520,7 +1510,6 @@
     renderReferralCard();
     renderOfferCards();
     renderSpaceSections();
-    renderPresalesSection();
     renderMemberLogin();
     renderHeaderSignupButton(p);
     document.getElementById('footer-copy').textContent = '© ' + new Date().getFullYear() + ' ' + name;
@@ -1586,12 +1575,12 @@
   const V1_TO_V2 = {
     menu: 'menu', physical: 'products', digital: 'products', products: 'products',
     links: 'links', about: 'about', faq: 'info', policies: 'info', hours: 'info', info: 'info',
-    emailCapture: 'emailCapture', leadMagnet: 'leadMagnet', courses: 'courses', clubs: 'clubs', presales: 'presales'
+    emailCapture: 'emailCapture', leadMagnet: 'leadMagnet', courses: 'courses', clubs: 'clubs'
   };
   const CARD_IDS = {
     leadMagnet: 'sf-magnet', menu: 'feed', form: 'form-storefront', products: 'sf-products',
     links: 'links-feed', about: 'pb-about', info: 'sf-info', emailCapture: 'email-capture',
-    courses: 'sf-courses', clubs: 'sf-clubs', presales: 'sf-presales',
+    courses: 'sf-courses', clubs: 'sf-clubs',
     // Bakerï Referral — never a default card (not in V2_DEFAULT_ORDER): it
     // shows only where the vendor's design includes it switched on.
     referral: 'sf-referral'
@@ -1621,7 +1610,7 @@
   // Default nav set (spec): the shopping/info cards; About, Lead magnet and
   // Email capture only when the baker turns their button on (entry.nav).
   const NAV_DEFAULT = {
-    menu: true, form: true, products: true, links: true, info: true, courses: true, clubs: true, presales: true,
+    menu: true, form: true, products: true, links: true, info: true, courses: true, clubs: true,
     about: false, leadMagnet: false, emailCapture: false, referral: false
   };
 
@@ -1658,13 +1647,6 @@
       const after = Math.max(order.indexOf('products'), order.indexOf('courses'));
       order.splice(after === -1 ? order.length : after + 1, 0, t);
     });
-    // Pre-sales (2026-11-10) start hidden — pre-sales stay in Products until
-    // the vendor switches their own section on.
-    if (!cfg.presales) {
-      cfg.presales = { type: 'presales', hidden: true };
-      const after = order.indexOf('products');
-      order.splice(after === -1 ? order.length : after + 1, 0, 'presales');
-    }
     V2_DEFAULT_ORDER.forEach(function (t) {
       if (cfg[t]) return;
       cfg[t] = { type: t, hidden: false };
@@ -1746,7 +1728,6 @@
       case 'products': return 'Shop my Products';
       case 'courses': return 'Courses';
       case 'clubs': return 'Join the club';
-      case 'presales': return 'Pre-sales';
       case 'links': return 'More from ' + firstName();
       case 'info': return 'Before you order';
       case 'about': return ((profile && profile.about_heading) || '').trim() || 'Meet ' + firstName();
@@ -3249,7 +3230,7 @@
       const type = pair[0], club = pair[1];
       const card = document.getElementById(type === 'courses' ? 'sf-courses' : 'sf-clubs');
       const grid = document.getElementById(type === 'courses' ? 'sf-courses-grid' : 'sf-clubs-grid');
-      const items = offerListings().filter(function (l) { return !!l.is_club === club && featured.indexOf(String(l.id).toLowerCase()) === -1 && !(presaleOn(l) && presalesSectionOn()); });
+      const items = offerListings().filter(function (l) { return !!l.is_club === club && featured.indexOf(String(l.id).toLowerCase()) === -1; });
       grid.innerHTML = '';
       if (!items.length) { card.classList.add('hidden'); return; }
       card.classList.remove('hidden');
@@ -3266,27 +3247,6 @@
       items.forEach(function (it) { g.appendChild(buildTile(it)); });
       grid.appendChild(g);
     });
-  }
-
-  // Pre-sales section: every listed pre-sale not featured on its own card,
-  // only while the vendor has the section switched on.
-  function renderPresalesSection() {
-    const card = document.getElementById('sf-presales');
-    const grid = document.getElementById('sf-presales-grid');
-    const featured = featuredOfferIDs();
-    const items = presalesSectionOn()
-      ? allListings.filter(function (l) { return presaleOn(l) && featured.indexOf(String(l.id).toLowerCase()) === -1; })
-      : [];
-    grid.innerHTML = '';
-    if (!items.length) { card.classList.add('hidden'); return; }
-    card.classList.remove('hidden');
-    document.getElementById('sf-presales-title').textContent = cardTitle('presales');
-    document.getElementById('sf-presales-sub').textContent = 'Order now — before it’s out';
-    if (items.length === 1) { grid.appendChild(buildWideTile(items[0])); return; }
-    const g = document.createElement('div');
-    g.className = 'sf-grid';
-    items.forEach(function (it) { g.appendChild(buildTile(it)); });
-    grid.appendChild(g);
   }
 
   // Log in (top bar): members of this shop's courses and clubs sign in with
@@ -5610,11 +5570,10 @@
     return (item.presale_order_by ? 'Pre-order by ' + formatDateShort(new Date(item.presale_order_by)) : 'Pre-sale') + ' · ' + out;
   }
   function leftLine(item) { return item.sell_left != null && item.sell_left > 0 && item.sell_left <= 20 ? item.sell_left + ' left' : ''; }
-  function presalesSectionOn() { return !!(blockCfg && blockCfg.presales && !blockCfg.presales.hidden); }
-  // Shown in the Pre-sales section, so not in Products. (A pre-sale featured
-  // on its own card stays in Products too — featuring never moves the grid.)
+  // A pre-sale either stays in Products or gets its own highlight card
+  // ('offer' block, like a featured course or club) — never both.
   function presaleElsewhere(l) {
-    return presaleOn(l) && presalesSectionOn();
+    return presaleOn(l) && featuredOfferIDs().indexOf(String(l.id).toLowerCase()) !== -1;
   }
 
   function isSoldOut(item) {

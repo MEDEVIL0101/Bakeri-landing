@@ -689,8 +689,8 @@ const KIND_ICONS: Record<string, ReactNode> = {
   form: ic('M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM8 6H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-2M9 12h6M9 16h4'),
 };
 
-/** "Show it on its own card too" — a featured card on the storefront (retitle it
- *  in Storefront); the Products grid is left as it is. */
+/** "Give it its own card" — a highlight card on the storefront instead of a
+ *  spot in the Products grid (retitle it in Storefront). */
 function FeaturedCardToggle({ userId, listingId }: { userId: string; listingId: string }) {
   const toast = useToast();
   const [on, setOn] = useState<boolean | null | undefined>(undefined);
@@ -703,7 +703,7 @@ function FeaturedCardToggle({ userId, listingId }: { userId: string; listingId: 
         setOn(v);
         try { await setFeaturedCard(userId, listingId, v); toast(v ? 'Added as its own card — retitle it in Storefront' : 'Card removed'); }
         catch (e: any) { setOn(!v); toast(e.message, 'error'); }
-      }} label="Show it on its own card too" hint="A big card on your storefront you can retitle and style in Storefront. Your Products grid stays as it is." />
+      }} label="Give it its own card" hint="It moves out of your Products grid into its own highlight card — retitle and style it in Storefront." />
       {on && <p className="small muted"><Link to="/storefront">Edit the card in Storefront →</Link></p>}
     </>
   );

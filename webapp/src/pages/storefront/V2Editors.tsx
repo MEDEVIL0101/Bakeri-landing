@@ -545,25 +545,25 @@ export function SpacesSectionContent(props: EditorProps & { club: boolean }) {
 }
 
 /**
- * What's in the Pre-sales section: every listed pre-sale while the section is
- * shown (hidden, they stay in Products); feature one on its own big card.
+ * Products card: each pre-sale either stays in the grid or gets its own
+ * highlight card ('offer' block, right after Products) — like a featured
+ * course or club. Nothing shows when there are no pre-sales.
  */
-export function PresalesSectionContent(props: EditorProps) {
+export function PresalesFeatureContent(props: EditorProps) {
   const { design, setDesign } = useDesign(props);
   const blocks = design.blocks ?? [];
-  const items = (props.data.listings ?? []).filter(isPresale);
+  const items = (props.data.listings ?? []).filter((l: any) => isPresale(l) && !l.is_course);
+  if (!items.length) return null;
   const featured = (id: string) => blocks.some((b) => b.type === 'offer' && String(b.listing_id).toLowerCase() === id && !b.hidden);
   const toggle = (id: string, on: boolean) => {
     const rest = blocks.filter((b) => !(b.type === 'offer' && String(b.listing_id).toLowerCase() === id));
     if (!on) { setDesign({ blocks: rest }); return; }
-    const at = rest.findIndex((b) => b.type === 'presales');
+    const at = rest.findIndex((b) => b.type === 'products');
     rest.splice(at === -1 ? rest.length : at + 1, 0, { type: 'offer', listing_id: id });
     setDesign({ blocks: rest });
   };
   return (
-    <Section title="Your pre-sales" hint={items.length
-      ? 'Show this section and your pre-sales get their own spot; hide it and they stay in Products. Feature one to give it its own big card — then drag that card anywhere.'
-      : 'Turn on “Sell as a pre-sale” on a product, download, course or club and it shows here.'}>
+    <Section title="Your pre-sales" hint="A pre-sale stays in this grid, or give it its own highlight card — it moves out of the grid into a card you can retitle and style, then drag anywhere.">
       {items.map((o: any) => {
         const id = String(o.id).toLowerCase();
         return (
