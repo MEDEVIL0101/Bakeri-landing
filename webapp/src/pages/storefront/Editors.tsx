@@ -225,7 +225,7 @@ function LinkForm({ link, sections, update, data, userId, v2, draft, set }: {
       <Field label="Goes to">
         <Select value={link.target_type === 'file' ? 'url' : link.target_type} onChange={(e) => update({ target_type: e.target.value as Link['target_type'] })}>
           <option value="url">A web link</option>
-          <option value="product">One of my listings</option>
+          {(data.menuItems.length > 0 || link.target_type === 'product') && <option value="product">One of my listings</option>}
         </Select>
       </Field>
       {link.target_type === 'product' ? (

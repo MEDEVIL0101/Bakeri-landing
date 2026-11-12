@@ -48,7 +48,7 @@ BEGIN
         v_uid, v_gp.name, coalesce(nullif(btrim(v_gp.company), ''), v_gp.name), v_slug, TRUE, TRUE,
         v_gp.country, 'Classic', 'Standard',
         jsonb_build_object('blocks', jsonb_build_array(
-            jsonb_build_object('type', 'links', 'hidden', false),
+            jsonb_build_object('type', 'links', 'hidden', false, 'nav', false),
             jsonb_build_object('type', 'referral', 'hidden', false),
             jsonb_build_object('type', 'about', 'hidden', true),
             jsonb_build_object('type', 'leadMagnet', 'hidden', true),
