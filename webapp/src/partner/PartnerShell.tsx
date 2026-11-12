@@ -19,6 +19,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
     { to: '/partner', label: 'Overview', end: true, icon: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /> },
   ] },
   { heading: 'Grow', items: [
+    { to: '/partner/page', label: 'Link in bio', icon: <path d="M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM9.5 8h5M9.5 12h5M9.5 16h3" /> },
     { to: '/partner/links', label: 'Links & Code', icon: <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /> },
     { to: '/partner/outreach', label: 'Outreach', icon: <path d="M3 6h18v12H3zM3 6l9 7 9-7" /> },
     { to: '/partner/referrals', label: 'Referrals', icon: <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.87M16 3.13a3.5 3.5 0 0 1 0 6.75" /> },
@@ -33,14 +34,14 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
 
 const TABS: NavItem[] = [
   { to: '/partner', label: 'Overview', end: true, icon: NAV[0].items[0].icon },
-  { to: '/partner/links', label: 'Links', icon: NAV[1].items[0].icon },
-  { to: '/partner/outreach', label: 'Outreach', icon: NAV[1].items[1].icon },
-  { to: '/partner/referrals', label: 'Referrals', icon: NAV[1].items[2].icon },
+  { to: '/partner/links', label: 'Links', icon: NAV[1].items[1].icon },
+  { to: '/partner/outreach', label: 'Outreach', icon: NAV[1].items[2].icon },
+  { to: '/partner/referrals', label: 'Referrals', icon: NAV[1].items[3].icon },
   { to: '/partner/payouts', label: 'Payouts', icon: NAV[2].items[0].icon },
 ];
 
 const TITLES: Record<string, string> = {
-  '': 'Overview', links: 'Links & Code', outreach: 'Outreach', referrals: 'Referrals', payouts: 'Earnings & Payouts', guidelines: 'Partner Guidelines',
+  '': 'Overview', page: 'Link in bio', links: 'Links & Code', outreach: 'Outreach', referrals: 'Referrals', payouts: 'Earnings & Payouts', guidelines: 'Partner Guidelines',
 };
 
 function Icon({ children, size = 20 }: { children: ReactNode; size?: number }) {

@@ -37,14 +37,18 @@ function writePref(key: string, v: string) {
   try { localStorage.setItem(key, v); } catch { /* ignore */ }
 }
 
-export function StorefrontPage() {
+/** Cards a Growth Partner's link-in-bio page can show; everything else stays hidden. */
+export const LINKS_ONLY_CARDS: V2CardType[] = ['links', 'about', 'referral'];
+
+/** `linksOnly`: a Growth Partner's link-in-bio page — no selling cards. */
+export function StorefrontPage({ linksOnly = false }: { linksOnly?: boolean }) {
   const userId = useUserId();
   // The Bakerï Referral card starts on for new accounts, off for older ones.
   setAccountCreatedAt(useAuth().session?.user.created_at);
   const { data, loading, error, reload } = useLoad(() => loadStorefront(userId), [userId]);
   if (loading && !data) return <div className="page"><Spinner label="Loading your storefront…" /></div>;
   if (error || !data) return <div className="page"><ErrorBanner message={error ?? 'Couldn’t load your storefront.'} onRetry={reload} /></div>;
-  return <Builder key={data.updatedAt} data={data} userId={userId} reload={reload} />;
+  return <Builder key={data.updatedAt} data={data} userId={userId} reload={reload} linksOnly={linksOnly} />;
 }
 
 const NARROW_QUERY = '(max-width: 1000px)';
@@ -59,7 +63,7 @@ function useNarrow() {
   return narrow;
 }
 
-function Builder({ data, userId, reload }: { data: StorefrontData; userId: string; reload: () => void }) {
+function Builder({ data, userId, reload, linksOnly }: { data: StorefrontData; userId: string; reload: () => void; linksOnly: boolean }) {
   const toast = useToast();
   const [draft, setDraft] = useState<StorefrontDraft>(() => loadLocalDraft(userId, data.updatedAt) ?? data.draft);
   const [panel, setPanel] = useState<Panel>('home');
@@ -120,7 +124,7 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
         links: <LinksEditor {...props} />, about: <AboutEditor {...props} />, menu: <ListingsInfo kind="menu" />,
         products: <><ListingsInfo kind="physical" /><PresalesFeatureContent {...props} /></>, emailCapture: <MailingEditor {...props} />,
         info: <><PoliciesEditor {...props} /><FAQEditor {...props} /><HoursEditor {...props} /></>,
-        referral: <ReferralCardInfo />,
+        referral: <ReferralCardInfo partner={linksOnly} />,
         courses: <SpacesSectionContent {...props} club={false} />,
         clubs: <SpacesSectionContent {...props} club />,
       };
@@ -132,7 +136,7 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
     <div className="builder">
       <header className="builder-bar">
         <div className="builder-title">
-          <h1>Storefront</h1>
+          <h1>{linksOnly ? 'Link in bio' : 'Storefront'}</h1>
         </div>
         <div className="btn-row">
           {liveURL && <a href={`${liveURL}?self=1`} target="_blank" rel="noreferrer" className="btn btn-ghost">View live ↗</a>}
@@ -153,7 +157,7 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
           {panel === 'home' ? (
             <>
               <p className="small muted">{narrow ? 'Tap a section to edit it.' : 'Click a section here or in the preview to edit it.'} Drag ⠿ to reorder.</p>
-              <HomeSections v2={v2} props={props} changes={changes} open={(p) => setPanel(p as Panel)} />
+              <HomeSections v2={v2} props={props} changes={changes} open={(p) => setPanel(p as Panel)} only={linksOnly ? LINKS_ONLY_CARDS : undefined} />
             </>
           ) : (
             <>
@@ -171,26 +175,30 @@ function Builder({ data, userId, reload }: { data: StorefrontData; userId: strin
             </div>
           </div>
           <PreviewFrame src={src} payload={payload} device={narrow ? 'desktop' : device}
-            onSelect={(bt) => { setPanel(panelForTap(bt, v2)); if (narrow) setMobileView('edit'); }} />
+            onSelect={(bt) => {
+              const p = panelForTap(bt, v2);
+              setPanel(linksOnly && p.startsWith('card:') && !LINKS_ONLY_CARDS.includes(p.slice(5) as V2CardType) ? 'home' : p);
+              if (narrow) setMobileView('edit');
+            }} />
         </section>
       </div>
 
       {confirming && (
         <ConfirmModal
-          title="Publish your storefront?"
-          body={`These changes go live on your storefront: ${changes.join(', ')}.`}
+          title={linksOnly ? 'Publish your page?' : 'Publish your storefront?'}
+          body={`These changes go live on your ${linksOnly ? 'page' : 'storefront'}: ${changes.join(', ')}.`}
           confirmLabel="Publish"
           onClose={() => setConfirming(false)}
           onConfirm={async () => {
             await publishStorefront(userId, draft, data.published);
             clearLocalDraft(userId);
-            toast('Published — your storefront is up to date');
+            toast(linksOnly ? 'Published — your page is up to date' : 'Published — your storefront is up to date');
             reload();
           }}
         />
       )}
       {discarding && (
-        <ConfirmModal title="Discard your changes?" body="Your storefront goes back to what’s published now." confirmLabel="Discard" danger
+        <ConfirmModal title="Discard your changes?" body={`Your ${linksOnly ? 'page' : 'storefront'} goes back to what’s published now.`} confirmLabel="Discard" danger
           onClose={() => setDiscarding(false)}
           onConfirm={() => { setDraft(structuredClone(data.published)); clearLocalDraft(userId); }} />
       )}

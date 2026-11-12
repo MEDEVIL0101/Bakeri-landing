@@ -24,8 +24,10 @@ const V1_CHANGE: Partial<Record<BlockType, string>> = {
  * site renders them (profile pinned first), draggable and switchable, with
  * look-and-feel settings kept apart since they aren't blocks on the page.
  */
-export function HomeSections({ v2, props, changes, open }: {
+export function HomeSections({ v2, props, changes, open, only }: {
   v2: boolean;
+  /** Show just these card types (a Growth Partner's links-only page); the rest stay as saved. */
+  only?: string[];
   props: EditorProps;
   changes: string[];
   open: (panel: string) => void;
@@ -38,8 +40,10 @@ export function HomeSections({ v2, props, changes, open }: {
     const design = ensureDesign(draft, data);
     const offers = offerListings(data);
     // A course/club card whose listing was deleted or unlisted isn't on the page.
-    const list = (design.blocks ?? []).filter((b) => b.type !== 'offer' || offers.some((o) => String(o.id).toLowerCase() === String(b.listing_id).toLowerCase()));
-    const setBlocks = (next: V2Block[]) => set({ storefront_design: { ...design, blocks: next } });
+    const all = (design.blocks ?? []).filter((b) => b.type !== 'offer' || offers.some((o) => String(o.id).toLowerCase() === String(b.listing_id).toLowerCase()));
+    const list = only ? all.filter((b) => only.includes(b.type)) : all;
+    const rest = (design.blocks ?? []).filter((b) => !list.includes(b));
+    const setBlocks = (next: V2Block[]) => set({ storefront_design: { ...design, blocks: only ? [...next, ...rest] : next } });
     blocks = (
       <SortableList items={list} keyOf={blockKey} onReorder={setBlocks} className="site-blocks"
         renderRow={(b, handle) => {

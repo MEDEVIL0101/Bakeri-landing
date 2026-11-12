@@ -19,6 +19,8 @@ export interface Profile {
   selected_theme: string | null;
   /** BackgroundPattern rawValue. */
   background_pattern: string | null;
+  /** A Growth Partner's link-in-bio page, not a shop. */
+  is_partner_page?: boolean;
 }
 
 export type OrderStatus =

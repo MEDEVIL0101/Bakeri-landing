@@ -45,6 +45,7 @@ import { useEffect } from 'react';
 import { PartnerLoginPage, PartnerWelcomePage } from './partner/PartnerAuth';
 import { PartnerShell } from './partner/PartnerShell';
 import { PartnerGuidelinesPage, PartnerLinksPage, PartnerOutreachPage, PartnerOverviewPage, PartnerPayoutsPage, PartnerReferralsPage } from './partner/PartnerPages';
+import { PartnerLinkPage } from './partner/PartnerLinkPage';
 
 /** Signed in, nothing else — the plan picker and welcome page sit here. */
 function RequireSession() {
@@ -99,8 +100,8 @@ function RequireVendor() {
   if (mfaNeeded === undefined) return <div className="full-center"><Spinner /></div>;
   if (mfaNeeded) return <MfaChallengePage />;
   if ((profileLoading && !profile) || (planLoading && plan === undefined) || partner === undefined) return <div className="full-center"><Spinner /></div>;
-  // Growth Partners without a shop of their own live in /partner.
-  if (partner && !profile?.business_name?.trim()) return <Navigate to="/partner" replace />;
+  // Growth Partners without a shop of their own (a link-in-bio page isn't one) live in /partner.
+  if (partner && (!profile?.business_name?.trim() || profile.is_partner_page)) return <Navigate to="/partner" replace />;
   // No live plan (a new account, or a trial/subscription that ended) →
   // the plan picker. Accounts from before plans are 'legacy' Starter.
   // plan === undefined means it couldn't be read — never block on that.
@@ -124,6 +125,7 @@ export default function App() {
             <Route path="/partner/welcome" element={<PartnerWelcomePage />} />
             <Route path="/partner" element={<RequirePartner />}>
               <Route index element={<PartnerOverviewPage />} />
+              <Route path="page" element={<PartnerLinkPage />} />
               <Route path="links" element={<PartnerLinksPage />} />
               <Route path="outreach" element={<PartnerOutreachPage />} />
               <Route path="referrals" element={<PartnerReferralsPage />} />

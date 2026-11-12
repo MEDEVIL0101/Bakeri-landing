@@ -595,7 +595,7 @@ export function PresalesFeatureContent(props: EditorProps) {
   );
 }
 
-export function ReferralCardInfo() {
+export function ReferralCardInfo({ partner = false }: { partner?: boolean }) {
   const [code, setCode] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { getOrCreateReferralCode().then(setCode, (e) => setErr(e?.message ?? 'Couldn’t load your code.')); }, []);
@@ -603,7 +603,7 @@ export function ReferralCardInfo() {
     <Section title="Your code">
       {code && <p style={{ margin: 0 }}><b style={{ letterSpacing: '.06em' }}>{code}</b> · 10% off a new shop’s first 3 months</p>}
       {err && <ErrorBanner message={err} />}
-      <p className="small muted">Earnings in <Link to="/refer">Referral Program</Link>.</p>
+      <p className="small muted">Earnings in {partner ? <Link to="/partner/referrals">Referrals</Link> : <Link to="/refer">Referral Program</Link>}.</p>
     </Section>
   );
 }

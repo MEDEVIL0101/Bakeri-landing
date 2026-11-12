@@ -21,6 +21,8 @@ export interface PartnerMe {
   commission_rate: number;
   commission_months: number | null;
   has_shop: boolean;
+  /** The partner's link-in-bio page (bakeriapp.com/<slug>), once they've made one. */
+  link_page_slug: string | null;
   created_at: string;
 }
 
@@ -92,6 +94,11 @@ export async function loadPartnerMe(): Promise<PartnerMe | null> {
 
 export async function loadPartnerDashboard(days: number): Promise<PartnerDashboard> {
   return check(await supabase.rpc('partner_dashboard', { p_days: days })) as PartnerDashboard;
+}
+
+/** Creates the partner's link-in-bio page; returns its slug. */
+export async function createLinkPage(slug: string): Promise<string> {
+  return check(await supabase.rpc('partner_create_link_page', { p_slug: slug })) as string;
 }
 
 export async function agreeGuidelines(): Promise<void> {
