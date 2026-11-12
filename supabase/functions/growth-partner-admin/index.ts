@@ -86,8 +86,8 @@ async function sendInvite(email: string, name: string, url: string, rate: number
       "You’re approved as a Bakerï Community Growth Partner.",
       `Your code is <strong>${escapeHtml(code)}</strong>. You earn ${escapeHtml(rateLine(rate, months))}.`,
       isNew
-        ? "Use the button below to set your password and open your partner dashboard: tracked links, sign-ups, earnings and your outreach list."
-        : "Use the button below to open your partner dashboard: tracked links, sign-ups, earnings and your outreach list. It uses the Bakerï account you already have.",
+        ? "Use the button below to set your password and open your partner dashboard: tracked links, sign-ups, earnings and your outreach tracker."
+        : "Use the button below to open your partner dashboard: tracked links, sign-ups, earnings and your outreach tracker. It uses the Bakerï account you already have.",
     ],
     button: { label: isNew ? "Set up my dashboard" : "Open my dashboard", url },
     footnote: "This link works once and expires in 24 hours. If it has expired, sign in at bakeriapp.com/app/partner/login and choose “Forgot your password?”.",

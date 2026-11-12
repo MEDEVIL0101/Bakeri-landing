@@ -465,7 +465,7 @@ export function PartnerOutreachPage() {
     <div className="page">
       <PageHeader
         title="Outreach"
-        subtitle="Your list of shops to reach. Saving a shop claims it for you for 90 days after your last contact."
+        subtitle="Keep track of the shops you find and contact. Saving a shop claims it for you for 90 days after your last contact."
         actions={<>
           {all.length > 0 && <Button variant="secondary" onClick={exportCSV}>Export CSV</Button>}
           <Button disabled={disabled} onClick={() => setEditing({ status: 'new' })}>Add a shop</Button>
@@ -488,7 +488,7 @@ export function PartnerOutreachPage() {
           {all.length === 0 ? (
             <Card>
               <EmptyState
-                title="Start your outreach list"
+                title="Track your outreach"
                 body="Add the bakers and food makers you plan to contact. We’ll flag any shop that’s already on Bakerï, or that another partner is already talking to, so nobody gets two pitches."
                 action={<Button disabled={disabled} onClick={() => setEditing({ status: 'new' })}>Add your first shop</Button>}
               />
@@ -749,15 +749,15 @@ export function PartnerGuidelinesPage() {
       <Card title="Who counts as your referral">
         <ul className="small">
           <li>A vendor is yours when they sign up through your link (we remember it in their browser for 30 days) or enter your code at sign-up.</li>
-          <li>The code used at sign-up wins. If a vendor used someone else’s code, they stay with that referrer — claims on your outreach list don’t change attribution.</li>
+          <li>The code used at sign-up wins. If a vendor used someone else’s code, they stay with that referrer — claims in your outreach tracker don’t change attribution.</li>
           <li>If a vendor tells us they meant to use your code, we can switch it within 45 days of their sign-up.</li>
           <li>You can’t refer yourself, a business you own, or an existing Bakerï vendor.</li>
         </ul>
       </Card>
 
-      <Card title="Outreach list and claims">
+      <Card title="Outreach tracker and claims">
         <ul className="small">
-          <li>Adding a shop to your outreach list claims it for 90 days after your last contact, so two partners never pitch the same shop.</li>
+          <li>Adding a shop to your outreach tracker claims it for 90 days after your last contact, so two partners never pitch the same shop.</li>
           <li>Shops already on Bakerï can’t be added — there’s no need to contact them.</li>
           <li>A shop that says “no thanks” is released. Please don’t contact them again about Bakerï.</li>
         </ul>
