@@ -106,6 +106,15 @@ Deno.serve(async (req) => {
   const action = String(body.action ?? "");
 
   try {
+    // The approval email exactly as partners get it, to any inbox. Creates nothing.
+    if (action === "preview_invite") {
+      const to = String(body.to ?? "").trim();
+      if (!to.includes("@")) return json({ error: "An email is needed." }, 400);
+      const sent = await sendInvite(to, String(body.name ?? "Victoria"), "https://bakeriapp.com/app/partner/login",
+        Number(body.rate ?? 0.3), body.months == null ? 12 : Number(body.months), String(body.code ?? "VICTORIA"), true);
+      return json({ ok: sent.ok, error: sent.error ?? null });
+    }
+
     if (action === "approve") {
       const rate = Number(body.rate ?? 0.2);
       const months = body.months == null || body.months === "" ? null : Math.round(Number(body.months));
