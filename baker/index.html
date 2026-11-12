@@ -1814,6 +1814,12 @@
       nav.appendChild(btn);
       first = false;
     });
+    // No location, bio, buttons or socials (e.g. a new links-only page):
+    // no empty intro box under the name.
+    const intro = document.getElementById('sf-intro-card');
+    intro.classList.toggle('hidden', Array.prototype.every.call(intro.children, function (c) {
+      return c.classList.contains('hidden') || (!c.children.length && !c.textContent.trim());
+    }));
   }
 
   // ══════════════════════ Colour + type tokens ══════════════════════
@@ -4020,6 +4026,8 @@
   // call this (and updateCartActionBar below) whenever any cart changes.
   function updateHeaderCartBadge() {
     document.getElementById('cart-btn-count').textContent = String(cartCombinedCount());
+    // Nothing for sale (a links-only page) and nothing in the cart → no cart button.
+    document.getElementById('cart-btn').classList.toggle('hidden', !allListings.length && cartCombinedCount() === 0);
     refreshDigitalPills();
   }
 
