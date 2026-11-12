@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { escapeHtml, partnerEmailHtml, sendPartnerEmail } from "../_shared/partnerEmail.ts";
+import { escapeHtml, partnerEmailHtml, sendPartnerEmail, applicationReceivedHtml, HARVEY_FROM, TEAM_INBOX } from "../_shared/partnerEmail.ts";
 
 // Bakeri Admin → Growth Partners actions. Service role only (the Admin app's
 // key), same check as admin-platform-revenue.
@@ -60,10 +60,10 @@ function codeStem(source: string): string {
   return stem.length >= 3 ? stem : "PARTNER";
 }
 
-/** First free code: the stem itself, then stem + 2 digits. */
+/** First free stem + 2 digits, the same shape as vendor codes (SUGARLAND92). */
 async function freeCode(source: string): Promise<string> {
   const stem = codeStem(source);
-  const candidates = [stem, ...Array.from({ length: 30 }, () => stem + String(10 + Math.floor(Math.random() * 90)))];
+  const candidates = Array.from({ length: 30 }, () => stem + String(10 + Math.floor(Math.random() * 90)));
   for (const c of candidates) {
     const { count } = await db.from("referral_codes").select("code", { count: "exact", head: true }).ilike("code", c);
     if ((count ?? 0) === 0) return c;
@@ -106,12 +106,15 @@ Deno.serve(async (req) => {
   const action = String(body.action ?? "");
 
   try {
-    // The approval email exactly as partners get it, to any inbox. Creates nothing.
-    if (action === "preview_invite") {
+    // Partner emails exactly as people get them, to any inbox. Creates nothing.
+    if (action === "preview_email") {
       const to = String(body.to ?? "").trim();
       if (!to.includes("@")) return json({ error: "An email is needed." }, 400);
-      const sent = await sendInvite(to, String(body.name ?? "Victoria"), "https://bakeriapp.com/app/partner/login",
-        Number(body.rate ?? 0.3), body.months == null ? 12 : Number(body.months), String(body.code ?? "VICTORIA"), true);
+      const name = String(body.name ?? "Victoria");
+      const sent = body.kind === "invite"
+        ? await sendInvite(to, name, "https://bakeriapp.com/app/partner/login", Number(body.rate ?? 0.3),
+          body.months == null ? 12 : Number(body.months), codeStem(name) + "47", true)
+        : await sendPartnerEmail(to, "Thanks for applying to Bakerï Community Growth Partners", applicationReceivedHtml(name), TEAM_INBOX, HARVEY_FROM);
       return json({ ok: sent.ok, error: sent.error ?? null });
     }
 

@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { escapeHtml, partnerEmailHtml, sendPartnerEmail, TEAM_INBOX } from "../_shared/partnerEmail.ts";
+import { applicationReceivedHtml, escapeHtml, HARVEY_FROM, partnerEmailHtml, sendPartnerEmail, TEAM_INBOX } from "../_shared/partnerEmail.ts";
 
 // Public "Apply to be a Community Growth Partner" form
 // (bakeriapp.com/community-growth-partners.html). Same guards as
@@ -149,15 +149,8 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Something went wrong saving your application. Please try again." }, 500);
   }
 
-  const first = escapeHtml(name.split(/\s+/)[0]);
-  await sendPartnerEmail(email, "We got your Growth Partner application", partnerEmailHtml({
-    heading: `Thanks, ${first} — application received`,
-    paragraphs: [
-      "We read every Community Growth Partner application ourselves. You’ll hear back from us by email within a few days.",
-      "If you’re approved, that email has a link to set up your partner dashboard — your referral code, tracked links, outreach list and payouts all live there.",
-    ],
-    footnote: "Questions in the meantime? Just reply to this email.",
-  })).catch(() => {});
+  await sendPartnerEmail(email, "Thanks for applying to Bakerï Community Growth Partners", applicationReceivedHtml(name),
+    TEAM_INBOX, HARVEY_FROM).catch(() => {});
 
   const lines = [
     `<strong>${escapeHtml(name)}</strong> &lt;${escapeHtml(email)}&gt;${row.company ? ` · ${escapeHtml(row.company)}` : ""}`,
