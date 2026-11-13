@@ -400,3 +400,4 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 @media(max-width:560px){.hb-sub{font-size:25px}.hb-do{gap:7px}}
 @media(min-width:981px){.hb-sub{max-width:30ch;font-size:28px}.hb-h{font-size:clamp(68px,7.4vw,112px)}}
 @media(min-width:981px){.hb-h{max-width:4.7em}}
+.hb-cupcake{filter:drop-shadow(0 18px 22px rgba(40,10,90,.38)) drop-shadow(0 4px 6px rgba(40,10,90,.22))}
