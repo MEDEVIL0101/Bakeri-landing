@@ -399,3 +399,4 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .hb-sub{font-size:clamp(24px,2.4vw,32px);line-height:1.08;max-width:22ch}
 @media(max-width:560px){.hb-sub{font-size:25px}.hb-do{gap:7px}}
 @media(min-width:981px){.hb-sub{max-width:30ch;font-size:28px}.hb-h{font-size:clamp(68px,7.4vw,112px)}}
+@media(min-width:981px){.hb-h{max-width:4.7em}}
