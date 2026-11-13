@@ -32,6 +32,7 @@ import Stripe from "https://esm.sh/stripe@13.11.0?target=deno";
 import { adminClient } from "../_shared/billingAuth.ts";
 import { appURL, billingSecretKey, tierForPriceId } from "../_shared/plans.ts";
 import { sendEmail } from "../_shared/resend.ts";
+import { sendTeamAlert } from "../_shared/teamAlert.ts";
 
 const stripe = new Stripe(billingSecretKey(), { apiVersion: "2023-10-16", httpClient: Stripe.createFetchHttpClient() });
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
@@ -133,6 +134,43 @@ async function syncSubscription(id: string) {
   if (error) throw error;
 
   if (sub.status === "trialing") await enforceOneTrialPerCard(sub, userId);
+
+  // A plan just started (new trial or straight to paid) — not a renewal or a
+  // trial converting, which keep the same live subscription.
+  const alreadyLive = current?.stripe_subscription_id === sub.id && LIVE_STATUSES.includes(current.status);
+  if (live && match && !alreadyLive) await announcePlanStart(sub, userId, match);
+}
+
+/** Tells the team inbox about a new trial or paid plan (Harvey 2026-11-13). Never throws. */
+async function announcePlanStart(sub: Stripe.Subscription, userId: string, match: { tier: string; interval: string }) {
+  try {
+    const db = adminClient();
+    const [{ data: u }, { data: p }] = await Promise.all([
+      db.auth.admin.getUserById(userId),
+      db.from("profiles").select("business_name, profile_slug").eq("id", userId).maybeSingle(),
+    ]);
+    const email = u?.user?.email ?? null;
+    const plan = `${match.tier === "pro" ? "Pro" : "Starter"} (${match.interval === "year" ? "yearly" : "monthly"})`;
+    const trial = sub.status === "trialing";
+    const fmt = (t: number) => new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: "America/Toronto", dateStyle: "medium" });
+    await sendTeamAlert({
+      eyebrow: trial ? "New trial" : "New subscription",
+      subject: `${trial ? "New trial" : "New paid plan"}: ${plan}, ${p?.business_name || email || userId}`,
+      heading: trial ? `A ${plan} trial just started` : `A ${plan} plan just started`,
+      rows: [
+        ["Email", email],
+        ["Business", p?.business_name],
+        ["Storefront", p?.profile_slug ? `bakeriapp.com/${p.profile_slug}` : null],
+        ["Plan", plan],
+        ["Status", trial ? "Free trial" : sub.status === "active" ? "Paid" : sub.status],
+        ["Trial ends", trial && sub.trial_end ? fmt(sub.trial_end) : null],
+        ["Discount", sub.discount?.coupon?.name ?? sub.discount?.coupon?.id ?? null],
+      ],
+      replyTo: email,
+    });
+  } catch (e) {
+    console.error(`Plan-start alert for ${sub.id} failed:`, e instanceof Error ? e.message : e);
+  }
 }
 
 /**
