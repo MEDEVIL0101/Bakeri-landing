@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="assets/site-v3/for-creators-v3.css?v=33" />
+<link rel="stylesheet" href="assets/site-v3/for-creators-v3.css?v=34" />
 </head>
 <body>
 <header class="nav" id="nav"><div class="wrap nav-in">
@@ -37,12 +37,12 @@
 <section class="hero hero-bold" data-screen-label="Hero">
 <div class="wrap hero-grid">
 <div class="hb-copy">
-<a class="hb-sale" id="heroSale" data-ref href="https://bakeriapp.com/app/plan/trial?tier=pro" hidden><span class="hb-sale-tag"></span><span class="hb-sale-txt"></span><span class="arw">→</span></a>
+<a class="hb-deal" id="heroSale" data-ref href="https://bakeriapp.com/app/plan/trial?tier=pro" hidden><span class="hb-deal-tag"></span><span class="hb-deal-big"></span><span class="hb-deal-small"></span></a>
 <p class="hb-kick">The all-in-one platform for food makers &amp; creators</p>
 <h1 class="hb-h">Stop juggling platforms.</h1>
 <p class="hb-sub">Everything you need to manage and grow your food maker or creator business.</p>
-<p class="hb-do">Storefront · Pre-orders · Checkout · Email · Courses</p>
-<div class="hero-cta"><a class="btn hb-btn" data-ref href="https://bakeriapp.com/app/plan/trial?tier=pro">Try it free for 14 days <span class="arw">→</span></a><a class="btn btn-line hb-line" href="#link">See how it works</a></div>
+<p class="hb-do">Link-in-bio storefront · Custom orders &amp; pre-orders · Physical &amp; digital goods · Courses &amp; clubs</p>
+<div class="hero-cta"><a class="btn hb-btn" id="heroCta" data-ref href="https://bakeriapp.com/app/plan/trial?tier=pro"><span class="hb-btn-txt">Try it free for 14 days</span> <span class="arw">→</span></a><a class="btn btn-line hb-line" href="#link">See how it works</a></div>
 <p class="hb-note" id="heroSaleNote" hidden></p>
 </div>
 <div class="hb-art"><img class="hb-cupcake" src="assets/site-v3/cupcake.webp?v=3" alt="A frosted vanilla cupcake with rainbow sprinkles" width="523" height="640" /></div>
@@ -213,11 +213,14 @@ form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;con
     .then(function (sale) {
       if (!sale || !sale.percent_off) return;
       var el = document.getElementById('heroSale'), note = document.getElementById('heroSaleNote');
-      el.querySelector('.hb-sale-tag').textContent = sale.label;
-      el.querySelector('.hb-sale-txt').textContent = sale.percent_off + '% off your first ' + sale.months + ' months';
-      el.hidden = false;
       var ends = sale.ends_at ? new Date(new Date(sale.ends_at).getTime() - 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Toronto' }) : '';
-      note.textContent = 'Then ' + sale.percent_off + '% off your first ' + sale.months + ' months on any monthly plan' + (ends ? ' · Ends ' + ends : '') + '.';
+      el.querySelector('.hb-deal-tag').textContent = sale.label + (ends ? ' · Ends ' + ends : '');
+      el.querySelector('.hb-deal-big').textContent = sale.percent_off + '% off your first ' + sale.months + ' months';
+      el.querySelector('.hb-deal-small').textContent = 'On any monthly plan, after your 14-day free trial.';
+      el.hidden = false;
+      document.querySelector('.hero-bold').classList.add('has-sale');
+      document.querySelector('#heroCta .hb-btn-txt').textContent = 'Claim ' + sale.percent_off + '% off · Start free';
+      note.textContent = '14 days free, then ' + sale.percent_off + '% off your first ' + sale.months + ' months. Cancel any time.';
       note.hidden = false;
     })
     .catch(function () {});

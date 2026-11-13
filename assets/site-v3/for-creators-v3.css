@@ -409,3 +409,21 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 @media(max-width:980px){.hero-bold .hero-grid{grid-template-columns:1fr}.hb-art{position:absolute;right:-12vw;top:120px;width:min(48vw,300px);z-index:0}.hb-art .hb-cupcake{width:100%}}
 @media(max-width:560px){.hb-art{right:-16vw;top:118px;width:52vw}.hb-do{font-size:14.5px}}
 @media(min-width:981px){.hb-kick{max-width:none}}
+/* Hero during a plan sale (Black Friday): the offer leads */
+.hb-deal{position:relative;z-index:1;display:block;margin:0 0 22px;color:#fff;max-width:15em}
+.hb-deal:hover{color:#fff}
+.hb-deal[hidden]{display:none}
+.hb-deal-tag{display:inline-block;background:#14110e;color:#ffd23f;font-family:var(--display);font-weight:800;font-size:13px;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;border-radius:999px}
+.hb-deal-big{display:block;margin-top:12px;font-family:"Anton","Archivo",sans-serif;font-size:clamp(44px,5vw,72px);line-height:.95;text-transform:uppercase;color:#ffd23f}
+.hb-deal-small{display:block;margin-top:8px;font-family:var(--display);font-weight:600;font-size:15px;color:rgba(255,255,255,.88)}
+.has-sale .hb-kick{display:none}
+.has-sale .hb-h{font-size:clamp(48px,5.4vw,80px)}
+@media(max-width:560px){.hb-deal-big{font-size:46px}.has-sale .hb-h{font-size:54px}.has-sale .hb-art{top:150px;width:44vw;right:-12vw}}
+.hb-deal{max-width:none}
+.hb-deal-tag{white-space:nowrap}
+.hb-deal-big{max-width:9em;font-size:clamp(46px,5.2vw,76px)}
+.hb-deal-small{display:none}
+.has-sale .hb-h{max-width:none;font-size:clamp(40px,4.2vw,60px);line-height:.95}
+.has-sale .hb-sub{margin-top:14px;font-size:clamp(20px,1.9vw,24px)}
+@media(max-width:560px){.hb-deal-big{font-size:48px}.has-sale .hb-h{font-size:40px}.has-sale .hb-art{top:96px;width:40vw;right:-10vw}.has-sale .hb-sub{font-size:20px}}
+@media(min-width:561px){.hb-deal-big{max-width:7.2em}}
