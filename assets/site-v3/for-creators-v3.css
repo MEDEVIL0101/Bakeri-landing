@@ -396,3 +396,6 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .hb-cupcake{right:-20px;top:110px;width:clamp(180px,19vw,260px)}
 @media(max-width:980px){.hb-cupcake{right:-40px;top:40px;width:min(44vw,240px)}}
 @media(max-width:560px){.hb-cupcake{right:-16vw;top:84px;width:52vw}}
+.hb-sub{font-size:clamp(24px,2.4vw,32px);line-height:1.08;max-width:22ch}
+@media(max-width:560px){.hb-sub{font-size:25px}.hb-do{gap:7px}}
+@media(min-width:981px){.hb-sub{max-width:30ch;font-size:28px}.hb-h{font-size:clamp(68px,7.4vw,112px)}}
