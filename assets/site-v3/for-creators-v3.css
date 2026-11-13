@@ -427,3 +427,12 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .has-sale .hb-sub{margin-top:14px;font-size:clamp(20px,1.9vw,24px)}
 @media(max-width:560px){.hb-deal-big{font-size:48px}.has-sale .hb-h{font-size:40px}.has-sale .hb-art{top:96px;width:40vw;right:-10vw}.has-sale .hb-sub{font-size:20px}}
 @media(min-width:561px){.hb-deal-big{max-width:7.2em}}
+/* Headline: "Your entire food business. One platform." (matches the best-converting creative) */
+.hb-h{font-size:clamp(56px,6.2vw,96px);max-width:7.6em}
+@media(min-width:981px){.hb-h{max-width:7.6em}}
+@media(max-width:560px){.hb-h{font-size:52px;max-width:none}}
+.has-sale .hb-h{font-size:clamp(36px,3.6vw,52px);max-width:none}
+@media(max-width:560px){.has-sale .hb-h{font-size:36px}}
+.hb-h2{display:block}
+@media(max-width:560px){.hb-h{font-size:46px;max-width:6.3em}.hb-sub{max-width:12em}.hb-art{top:150px;width:38vw;right:-12vw}.has-sale .hb-h{font-size:36px;max-width:none}.has-sale .hb-art{top:96px;width:40vw;right:-10vw}}
+@media(max-width:560px){.hero-bold:not(.has-sale) .hb-art{top:70px;width:34vw;right:-6vw}.hb-sub{max-width:11em}}
