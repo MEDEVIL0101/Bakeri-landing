@@ -6,7 +6,7 @@
 // Starter $10/mo + 5% Bakeri fee per sale (existing vendors are
 // grandfathered onto Starter, so they keep paying the 5%), or Pro $30/mo with
 // no Bakeri fee; yearly billing is 2 months free ($100 / $300); Stripe card fees are the vendor's on both. TRIAL_DAYS must match the
-// PLAN_TRIAL_DAYS secret (7; Harvey 2026-10-30). Plans are bought here on the web
+// PLAN_TRIAL_DAYS secret (14; Harvey 2026-11-13, was 7). Plans are bought here on the web
 // only — the iOS app never shows prices or links to buy (App Store
 // anti-steering rules).
 
@@ -56,7 +56,7 @@ export const PLANS: PlanDef[] = [
     perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Email campaigns to your customer list', 'Best value once you sell about $400 a month'] },
 ];
 
-export const TRIAL_DAYS = 7;
+export const TRIAL_DAYS = 14;
 /** Yearly billing = this many months free (shown as "2 months free!"). */
 export const YEARLY_FREE_MONTHS = 2;
 

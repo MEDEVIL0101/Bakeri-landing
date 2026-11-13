@@ -265,7 +265,7 @@ export function PartnerLinksPage() {
     },
     {
       title: 'Email to a shop',
-      text: `Subject: A storefront built for bakers\n\nHi [name],\n\nI came across [shop] and loved [something specific]. I’m a Community Growth Partner with Bakerï, a link-in-bio storefront and order manager made for food makers — pre-orders, custom order forms, pickup scheduling and card payments in one place.\n\nIf it’s useful, here’s a 7-day free trial with 10% off your first 3 months: ${partnerLink(code, LINK_TARGETS[0].base, 'email')}\n\nHappy to answer any questions.\n\n${firstName}${partner.company ? `\n${partner.company}` : ''}\n(I earn a commission if you join. Reply “no thanks” and I won’t email again.)`,
+      text: `Subject: A storefront built for bakers\n\nHi [name],\n\nI came across [shop] and loved [something specific]. I’m a Community Growth Partner with Bakerï, a link-in-bio storefront and order manager made for food makers — pre-orders, custom order forms, pickup scheduling and card payments in one place.\n\nIf it’s useful, here’s a 14-day free trial with 10% off your first 3 months: ${partnerLink(code, LINK_TARGETS[0].base, 'email')}\n\nHappy to answer any questions.\n\n${firstName}${partner.company ? `\n${partner.company}` : ''}\n(I earn a commission if you join. Reply “no thanks” and I won’t email again.)`,
     },
     {
       title: 'Bio or post line',

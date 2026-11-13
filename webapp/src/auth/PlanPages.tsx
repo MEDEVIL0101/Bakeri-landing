@@ -152,7 +152,7 @@ function PlanPrice({ p, grandfathered, lifetime, cycle }: { p: PlanDef; grandfat
 }
 
 /**
- * "Claim a free 7-day trial" — between picking a plan and Stripe Checkout:
+ * "Claim a free 14-day trial" — between picking a plan and Stripe Checkout:
  * the billing cycle (yearly = 2 months free), what happens today and when the plan
  * starts. New vendors land here on Pro first; Skip opens every plan.
  */

@@ -6,7 +6,7 @@ Bakerï supports three ways to sell: **Food** (ready-made products, preorders an
 
 Bakerï is not a marketplace and does not find customers for its users. Each business gets its own storefront and owns its customer relationships, instead of depending on third-party marketplaces or social media algorithms.
 
-Pricing (USD): Starter is $10/month plus a 5% commission on online sales; Pro is $30/month with no sales commission. Both plans include a 7-day free trial.
+Pricing (USD): Starter is $10/month plus a 5% commission on online sales; Pro is $30/month with no sales commission. Both plans include a 14-day free trial.
 
 ## Pages
 

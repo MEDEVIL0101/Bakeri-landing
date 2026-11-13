@@ -5,7 +5,7 @@
 // Tiers (Harvey 2026-10-30): a free trial (PLAN_TRIAL_DAYS, once per
 // vendor) on the plan they pick, then Starter $10/mo + 5% Bakeri fee per
 // sale, or Pro $30/mo with no Bakeri fee; yearly = 2 months free ($100 / $300); Stripe card fees are the
-// vendor's on both. Trial: 7 days (was 14 until 2026-10-30). Billing is web-only
+// vendor's on both. Trial: 14 days (Harvey 2026-11-13; 7 from 2026-10-30). Billing is web-only
 // through Stripe Billing on Bakeri's platform account — never Apple IAP.
 //
 // Stripe Price ids come from secrets so test mode and live mode can differ:
@@ -30,9 +30,9 @@ export const PLAN_FEE_RATE: Record<PlanTier, number> = {
   pro: 0,
 };
 
-/** Free trial on a vendor’s first subscription (7 days). */
+/** Free trial on a vendor’s first subscription (14 days). */
 export function trialDays(): number {
-  const n = Number(Deno.env.get("PLAN_TRIAL_DAYS") ?? 7);
+  const n = Number(Deno.env.get("PLAN_TRIAL_DAYS") ?? 14);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
 }
 
