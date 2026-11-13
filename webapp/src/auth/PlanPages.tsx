@@ -22,7 +22,7 @@ export function PlanPage() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState<PlanTier | 'portal' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [cycle, setCycle] = useState<BillingInterval>('year');
+  const [cycle, setCycle] = useState<BillingInterval>('month');
   const current = effectiveTier(plan);
   useEffect(() => { trackSite('plan_view'); }, []);
   // A live Stripe subscription — switching plans then happens in Stripe's
@@ -81,8 +81,8 @@ export function PlanPage() {
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       {!lifetime && !grandfathered && !subscribed && (
         <div className="pk-cycle" role="tablist" aria-label="Billing cycle">
-          <button type="button" role="tab" aria-selected={cycle === 'year'} className={cycle === 'year' ? 'on' : ''} onClick={() => setCycle('year')}>Annually <span className="pk-save">{YEARLY_FREE_MONTHS} months free!</span></button>
           <button type="button" role="tab" aria-selected={cycle === 'month'} className={cycle === 'month' ? 'on' : ''} onClick={() => setCycle('month')}>Monthly</button>
+          <button type="button" role="tab" aria-selected={cycle === 'year'} className={cycle === 'year' ? 'on' : ''} onClick={() => setCycle('year')}>Annually <span className="pk-save">{YEARLY_FREE_MONTHS} months free!</span></button>
         </div>
       )}
       <div className="pk-grid">
@@ -159,7 +159,7 @@ function PlanPrice({ p, grandfathered, lifetime, cycle }: { p: PlanDef; grandfat
 export function TrialPage() {
   const { plan, session } = useAuth();
   const [params] = useSearchParams();
-  const [interval, setCycle] = useState<BillingInterval>(params.get('cycle') === 'month' ? 'month' : 'year');
+  const [interval, setCycle] = useState<BillingInterval>(params.get('cycle') === 'year' ? 'year' : 'month');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const p = PLANS.find((x) => x.tier === params.get('tier')) ?? PLANS.find((x) => x.tier === 'pro')!;
@@ -206,16 +206,16 @@ export function TrialPage() {
         : <p className="ref-note plan-ref">Referral code <b>{referred}</b>: <b>10% off your first 3 months</b>{interval === 'year' ? ' (10% off your first year)' : ''}, taken off at checkout.</p>)}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       <div className="cycle" role="radiogroup" aria-label="Billing cycle">
+        <button type="button" role="radio" aria-checked={interval === 'month'} className={`cycle-opt ${interval === 'month' ? 'on' : ''}`} onClick={() => setCycle('month')}>
+          <b>{money(p.salePrice ?? p.price)}<small>/mo</small></b>
+          <span>Monthly</span>
+          <small>{p.salePrice ? `Then ${money(p.price)}/month after ${p.saleMonths} months` : `${money(p.price)}/month${trial ? ' after trial' : ''}`}</small>
+        </button>
         <button type="button" role="radio" aria-checked={interval === 'year'} className={`cycle-opt ${interval === 'year' ? 'on' : ''}`} onClick={() => setCycle('year')}>
           <span className="cycle-save">{YEARLY_FREE_MONTHS} months free</span>
           <b>{money(Math.round((p.yearPrice / 12) * 100) / 100)}<small>/mo</small></b>
           <span>Yearly</span>
           <small>{money(p.yearPrice)}/year{trial ? ' after trial' : ''}</small>
-        </button>
-        <button type="button" role="radio" aria-checked={interval === 'month'} className={`cycle-opt ${interval === 'month' ? 'on' : ''}`} onClick={() => setCycle('month')}>
-          <b>{money(p.salePrice ?? p.price)}<small>/mo</small></b>
-          <span>Monthly</span>
-          <small>{p.salePrice ? `Then ${money(p.price)}/month after ${p.saleMonths} months` : `${money(p.price)}/month${trial ? ' after trial' : ''}`}</small>
         </button>
       </div>
       <ol className="trial-steps">
