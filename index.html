@@ -24,8 +24,8 @@
 <link rel="icon" type="image/png" href="/assets/favicon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="assets/site-v3/for-creators-v3.css?v=28" />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/site-v3/for-creators-v3.css?v=29" />
 </head>
 <body>
 <header class="nav" id="nav"><div class="wrap nav-in">
@@ -34,12 +34,17 @@
 <div class="nav-auth"><a class="signin" href="https://bakeriapp.com/app/login">Sign in</a><a class="btn" data-ref href="https://bakeriapp.com/app/plan/trial?tier=pro">Sign up</a></div>
 </div></header>
 <span id="top"></span>
-<section class="hero" data-screen-label="Hero">
+<section class="hero hero-bold" data-screen-label="Hero">
 <div class="wrap hero-grid">
-<div>
-<h1 class="hx"><span class="w">The all-in-one</span> <span class="w">platform</span> <em class="sf"><span class="w">for</span> <b class="w">food makers and creators.</b></em></h1>
-<p class="lede hero-sub">Sell food, digital and shipped goods and grow your brand — all from one platform, on the web and on your phone.</p>
-<div class="hero-cta"><a class="btn" data-ref href="https://bakeriapp.com/app/plan/trial?tier=pro">Try it free for 14 days <span class="arw">→</span></a><a class="btn btn-line" href="#link">See how it works</a></div>
+<div class="hb-copy">
+<a class="hb-sale" id="heroSale" data-ref href="https://bakeriapp.com/app/plan/trial?tier=pro" hidden><span class="hb-sale-tag"></span><span class="hb-sale-txt"></span><span class="arw">→</span></a>
+<p class="hb-kick">The all-in-one platform for food makers &amp; creators</p>
+<h1 class="hb-h">Stop juggling platforms.</h1>
+<img class="hb-cupcake" src="assets/site-v3/cupcake.webp?v=3" alt="" width="523" height="640" />
+<p class="hb-sub">Run your food business on Bakerï.</p>
+<ul class="hb-do"><li>Take orders</li><li>Sell recipes</li><li>Offer a course</li><li>Start a club</li></ul>
+<div class="hero-cta"><a class="btn hb-btn" data-ref href="https://bakeriapp.com/app/plan/trial?tier=pro">Try it free for 14 days <span class="arw">→</span></a><a class="btn btn-line hb-line" href="#link">See how it works</a></div>
+<p class="hb-note" id="heroSaleNote" hidden></p>
 </div>
 <div class="hero-art xp" role="img" aria-label="The Tilly Sugar Cookies storefront on Bakerï, exploded: its intro card and menu card, with its Birthday Cookies and Custom Decorated Cookies tiles, popped off the background, surrounded by a new order, a custom-quote request, a digital download sale, a shipped cookie-cutter order and a mailing-list sign-up">
 <span class="xp-glow g1"></span><span class="xp-glow g2"></span>
@@ -208,6 +213,25 @@ let ref='';try{let kept='';try{const k=JSON.parse(localStorage.getItem('bakeri_r
 document.querySelectorAll('a[data-ref]').forEach(a=>{if(ref){const u=new URL(a.href);u.searchParams.set('ref',ref);a.href=u}});
 // Submit hands off to the web app's sign-up with plan=pro: the new account sees the Pro trial first and can skip to every plan.
 form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;const q=new URLSearchParams({tier:'pro',email:emailIn.value.trim()});if(ref)q.set('ref',ref);btn.classList.add('done');btn.textContent='Taking you to your trial…';location.assign('https://bakeriapp.com/app/plan/trial?'+q)});
+</script>
+<script>
+// Plan sale (plan_sales, e.g. Black Friday): shown in the hero only while it's live.
+(function () {
+  var KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+  fetch('https://aqhebjxaynvtvurwedrl.supabase.co/rest/v1/rpc/active_plan_sale', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: 'Bearer ' + KEY }, body: '{}' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (sale) {
+      if (!sale || !sale.percent_off) return;
+      var el = document.getElementById('heroSale'), note = document.getElementById('heroSaleNote');
+      el.querySelector('.hb-sale-tag').textContent = sale.label;
+      el.querySelector('.hb-sale-txt').textContent = sale.percent_off + '% off your first ' + sale.months + ' months';
+      el.hidden = false;
+      var ends = sale.ends_at ? new Date(new Date(sale.ends_at).getTime() - 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Toronto' }) : '';
+      note.textContent = 'Then ' + sale.percent_off + '% off your first ' + sale.months + ' months on any monthly plan' + (ends ? ' · Ends ' + ends : '') + '.';
+      note.hidden = false;
+    })
+    .catch(function () {});
+})();
 </script>
 <script src="/assets/site-analytics.js?v=1" defer></script>
 </body>

@@ -87,7 +87,17 @@ serve(async (req) => {
         referred = active === true;
       }
     }
-    const coupon = referred && !plan?.first_paid_at ? referralCoupon() : launchCouponFor(tier, interval);
+    // A live plan sale (plan_sales, e.g. Black Friday) beats the referral 10% on
+    // a first monthly plan — Stripe Checkout takes one discount.
+    let saleCoupon: string | null = null;
+    if (interval === "month" && !plan?.first_paid_at) {
+      const { data: sale } = await db.rpc("active_plan_sale");
+      if (sale?.id) {
+        const { data: row } = await db.from("plan_sales").select("stripe_coupon_id").eq("id", sale.id).maybeSingle();
+        saleCoupon = row?.stripe_coupon_id ?? null;
+      }
+    }
+    const coupon = saleCoupon ?? (referred && !plan?.first_paid_at ? referralCoupon() : launchCouponFor(tier, interval));
 
     // Promo code (plan_promo_codes) from sign-up: a longer first trial on its plan.
     let trial = !plan?.trial_used_at ? trialDays() : 0;
@@ -104,7 +114,7 @@ serve(async (req) => {
       line_items: [{ price, quantity: 1 }],
       // Stripe allows either an automatic coupon or a promo-code box, not both.
       ...(coupon ? { discounts: [{ coupon }] } : { allow_promotion_codes: true }),
-      metadata: { user_id: user.id, tier, interval, ...(coupon === referralCoupon() ? { referral: "1" } : {}), ...(promo ? { promo } : {}) },
+      metadata: { user_id: user.id, tier, interval, ...(coupon === referralCoupon() ? { referral: "1" } : {}), ...(saleCoupon ? { sale: saleCoupon } : {}), ...(promo ? { promo } : {}) },
       subscription_data: {
         metadata: { user_id: user.id, ...(promo ? { promo } : {}) },
         ...(trial ? { trial_period_days: trial } : {}),

@@ -6,7 +6,7 @@ import { LOGO } from '../lib/brand';
 import { Button, ErrorBanner, Field, Input, Spinner } from '../components/ui';
 import { appURL, supabase } from '../lib/supabase';
 import { PasswordRules, friendlyAuthError, passwordRules } from './AuthPages';
-import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, rememberCycleIntent, rememberPlanIntent, storedCycleIntent, storedPlanIntent, hasSubscription, openBillingPortal, promoLine, startCheckout, usePlanPromo, type BillingInterval, type PlanDef, type PlanTier } from '../lib/plans';
+import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, rememberCycleIntent, rememberPlanIntent, storedCycleIntent, storedPlanIntent, hasSubscription, openBillingPortal, promoLine, saleEnds, startCheckout, usePlanPromo, usePlanSale, withSale, type BillingInterval, type PlanDef, type PlanSale, type PlanTier } from '../lib/plans';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -39,6 +39,9 @@ export function PlanPage() {
     ? String(session?.user.user_metadata?.referral_code ?? '').trim().toUpperCase() || null
     : null;
   const promo = usePlanPromo(referred);
+  // A live sale (Black Friday) for anyone choosing a first plan; it replaces the referral 10% on monthly.
+  const liveSale = usePlanSale();
+  const sale = current === 'none' && !subscribed && !lifetime && !grandfathered ? liveSale : null;
   // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
   // Starting from "Try Starter free" opens every plan straight away, so Pro sits beside it.
   // The account's own sign-up choice wins over this browser's, which can be left over from another sign-up.
@@ -75,7 +78,8 @@ export function PlanPage() {
             : 'Your shop is paused until you pick a plan. Everything you set up is still here.'}
         </p>
       </div>
-      {referred && (promo
+      {sale && <SaleBanner sale={sale} />}
+      {referred && !(sale && cycle === 'month' && !promo) && (promo
         ? <p className="ref-note plan-ref">Promo code <b>{promo.code}</b>: <b>{promoLine(promo)}</b>.</p>
         : <p className="ref-note plan-ref">Your referral code <b>{referred}</b> is applied: <b>10% off your first 3 months</b>, taken off at checkout.</p>)}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
@@ -94,7 +98,7 @@ export function PlanPage() {
               {pro && <span className="pk-badge">★ Recommended</span>}
               <header className="pk-head"><h2>{p.name}</h2><p>{p.tagline}</p></header>
               <div className="pk-body">
-                <PlanPrice p={p} grandfathered={grandfathered} lifetime={lifetime} cycle={cycle} />
+                <PlanPrice p={cycle === 'month' ? withSale(p, sale) : p} grandfathered={grandfathered} lifetime={lifetime} cycle={cycle} />
                 <p className="pk-sub">{p.feePct ? `${p.feePct}% Bakeri fee per sale` : 'No Bakeri fee on any sale'}</p>
                 {isCurrent ? (
                   <Button variant="secondary" className="pk-btn" disabled>Current plan</Button>
@@ -118,6 +122,7 @@ export function PlanPage() {
           );
         })}
       </div>
+      {current === 'none' && <AllInOne sale={sale} />}
       <p className="small muted plan-note">Prices in USD. Stripe card fees apply on both plans. Pro costs $20 more a month and saves you 5% on every sale — so it pays for itself once you sell about $400 a month.</p>
       <div className="auth-footer plan-footer">
         {subscribed && <><button type="button" className="link-btn" onClick={manage} disabled={!!busy}>Manage billing &amp; invoices</button> · </>}
@@ -144,7 +149,7 @@ function PlanPrice({ p, grandfathered, lifetime, cycle }: { p: PlanDef; grandfat
     return (
       <div className="pk-price">
         <s>{m(p.price)}</s><b>{m(p.salePrice)}</b><span>/month</span>
-        <small>For your first {p.saleMonths} months, then {m(p.price)}/month</small>
+        <small>For your first {p.saleMonths} months, then {m(p.price)}/month · <em className="pk-saving">You save {m((p.price - p.salePrice) * (p.saleMonths ?? 1))}</em></small>
       </div>
     );
   }
@@ -178,6 +183,9 @@ export function TrialPage() {
   // A promo code for this plan lengthens the trial (create-plan-checkout applies it).
   const promo = usePlanPromo(referred);
   const trialDays = trial && promo?.tier === p.tier ? promo.trial_days : TRIAL_DAYS;
+  const liveSale = usePlanSale();
+  const sale = liveSale;
+  const pm = withSale(p, sale); // the monthly option, at the sale price while a sale is live
   // Visitors create their account here, after seeing the plan.
   const [showAccount, setShowAccount] = useState(false);
   useEffect(() => { if (!session) trackSite('plan_view', `${p.tier}-visitor`); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -185,7 +193,7 @@ export function TrialPage() {
 
   const starts = new Date(Date.now() + trialDays * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const money = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
-  const monthly = p.salePrice ? `${money(p.salePrice)}/month for your first ${p.saleMonths} months, then ${money(p.price)}/month` : `${money(p.price)}/month`;
+  const monthly = pm.salePrice ? `${money(pm.salePrice)}/month for your first ${pm.saleMonths} months, then ${money(pm.price)}/month` : `${money(pm.price)}/month`;
   const then = interval === 'year' ? `${money(p.yearPrice)}/year` : monthly;
 
   async function go() {
@@ -201,15 +209,17 @@ export function TrialPage() {
       <div className="trial-brand"><img src={LOGO} alt="Bakeri" /> <span>{p.name}</span></div>
       <h1 className="trial-title">{trial ? <>Claim a free<br />{trialDays}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
       <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
-      {referred && (promo
+      {sale && <SaleBanner sale={sale} />}
+      {referred && !(sale && interval === 'month' && !promo) && (promo
         ? <p className="ref-note plan-ref">Promo code <b>{promo.code}</b>: <b>{promoLine(promo)}</b>{promo.tier !== p.tier ? ' (pick that plan to use it)' : ''}.</p>
         : <p className="ref-note plan-ref">Referral code <b>{referred}</b>: <b>10% off your first 3 months</b>{interval === 'year' ? ' (10% off your first year)' : ''}, taken off at checkout.</p>)}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       <div className="cycle" role="radiogroup" aria-label="Billing cycle">
         <button type="button" role="radio" aria-checked={interval === 'month'} className={`cycle-opt ${interval === 'month' ? 'on' : ''}`} onClick={() => setCycle('month')}>
-          <b>{money(p.salePrice ?? p.price)}<small>/mo</small></b>
+          {sale && <span className="cycle-save">{sale.percent_off}% off</span>}
+          <b>{pm.salePrice ? <s>{money(pm.price)}</s> : null}{money(pm.salePrice ?? pm.price)}<small>/mo</small></b>
           <span>Monthly</span>
-          <small>{p.salePrice ? `Then ${money(p.price)}/month after ${p.saleMonths} months` : `${money(p.price)}/month${trial ? ' after trial' : ''}`}</small>
+          <small>{pm.salePrice ? `For ${pm.saleMonths} months, then ${money(pm.price)}/month` : `${money(pm.price)}/month${trial ? ' after trial' : ''}`}</small>
         </button>
         <button type="button" role="radio" aria-checked={interval === 'year'} className={`cycle-opt ${interval === 'year' ? 'on' : ''}`} onClick={() => setCycle('year')}>
           <span className="cycle-save">{YEARLY_FREE_MONTHS} months free</span>
@@ -224,12 +234,58 @@ export function TrialPage() {
         <li><span className="ts-dot">✓</span><div><b>{trial ? `In ${trialDays} days` : 'Then'}</b><p>{trial ? `Your plan starts on ${starts} at ${then}, unless you cancel during the trial.` : `${then}. Cancel any time.`}</p></div></li>
       </ol>
       <div className="trial-foot">
-        <p className="muted small">{trial ? 'Due today: $0.00' : `Due today: ${interval === 'year' ? money(p.yearPrice) : money(p.salePrice ?? p.price)}`} · Prices in USD · Stripe card fees apply</p>
+        <p className="muted small">{trial ? 'Due today: $0.00' : `Due today: ${interval === 'year' ? money(p.yearPrice) : money(pm.salePrice ?? pm.price)}`} · Prices in USD · Stripe card fees apply</p>
         {!showAccount && <Button className="trial-btn" loading={busy} onClick={go}>{trial ? 'Continue with free trial' : 'Continue to payment'}</Button>}
       </div>
       {showAccount && !session && <TrialAccountForm tier={p.tier} interval={interval} planName={p.name} referral={visitorRef} />}
       {!session && <p className="auth-footer" style={{ textAlign: 'center' }}>Already have an account? <Link to="/login">Log in</Link></p>}
+      <AllInOne sale={sale} />
     </div>
+  );
+}
+
+function SaleBanner({ sale }: { sale: PlanSale }) {
+  const ends = saleEnds(sale);
+  return (
+    <div className="sale-banner" role="note">
+      <span className="ps-tag">{sale.label}</span>
+      <b>{sale.percent_off}% off your first {sale.months} months</b>
+      <span>on monthly plans{ends ? ` · ${ends}` : ''}</span>
+    </div>
+  );
+}
+
+/** What the same tools cost separately — typical starting prices, monthly billing, USD (checked Nov 2026). */
+const SEPARATE: [string, string, number][] = [
+  ['Link in bio', 'Linktree Pro', 15],
+  ['Online store & checkout', 'Shopify Basic', 39],
+  ['Custom order forms', 'Jotform Bronze', 39],
+  ['Mailing list & campaigns', 'Mailchimp Essentials', 13],
+  ['Courses', 'Teachable Starter', 39],
+];
+
+function AllInOne({ sale }: { sale: PlanSale | null }) {
+  const pro = withSale(PLANS.find((x) => x.tier === 'pro')!, sale);
+  const total = SEPARATE.reduce((n, [, , price]) => n + price, 0);
+  const ours = pro.salePrice ?? pro.price;
+  return (
+    <section className="aio" aria-label="Bakeri compared with separate tools">
+      <h2>Everything in one place</h2>
+      <p className="aio-sub">What it costs to piece the same thing together</p>
+      <table>
+        <tbody>
+          {SEPARATE.map(([what, tool, price]) => (
+            <tr key={what}><th scope="row">{what}<small>{tool}</small></th><td>${price}/mo</td><td className="aio-check" aria-label="Included in Bakeri">✓</td></tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr><th scope="row">Separately</th><td className="aio-total">${total}/mo</td><td /></tr>
+          <tr className="aio-us"><th scope="row">Bakerï Pro<small>All of it, no Bakerï fee on sales</small></th><td>{pro.salePrice ? <><s>${pro.price}</s> </> : null}${ours}/mo</td><td className="aio-check">✓</td></tr>
+        </tfoot>
+      </table>
+      <p className="aio-save">Save ${total - ours} a month{pro.salePrice ? ` for your first ${pro.saleMonths} months, then $${total - pro.price} a month` : ''}.</p>
+      <p className="aio-fine">Typical starting prices on monthly billing, in USD, November 2026. Card processing fees apply everywhere; Teachable Starter also takes 7.5% of each sale.</p>
+    </section>
   );
 }
 

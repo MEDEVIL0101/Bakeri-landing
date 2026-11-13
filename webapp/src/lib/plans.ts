@@ -169,3 +169,29 @@ const TIER_NAME: Record<PlanTier, string> = { starter: 'Starter', pro: 'Pro' };
 export function promoLine(p: PlanPromo): string {
   return `${p.trial_days} days free on ${TIER_NAME[p.tier]}`;
 }
+
+/** A live plan sale (plan_sales, e.g. Black Friday): percent off the first months of a monthly plan. */
+export interface PlanSale { id: string; label: string; percent_off: number; months: number; ends_at: string | null }
+
+export function usePlanSale(): PlanSale | null {
+  const [sale, setSale] = useState<PlanSale | null>(null);
+  useEffect(() => {
+    let live = true;
+    supabase.rpc('active_plan_sale').then(({ data }) => { if (live) setSale((data as PlanSale | null) ?? null); });
+    return () => { live = false; };
+  }, []);
+  return sale;
+}
+
+/** The plan with the sale as its monthly sale price (create-plan-checkout applies the coupon). */
+export function withSale(p: PlanDef, sale: PlanSale | null): PlanDef {
+  if (!sale) return p;
+  return { ...p, salePrice: Math.round(p.price * (100 - sale.percent_off)) / 100, saleMonths: sale.months };
+}
+
+/** "Ends Dec 1" for a sale's last day (Eastern). */
+export function saleEnds(sale: PlanSale): string | null {
+  if (!sale.ends_at) return null;
+  const last = new Date(new Date(sale.ends_at).getTime() - 1000);
+  return `Ends ${last.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Toronto' })}`;
+}
