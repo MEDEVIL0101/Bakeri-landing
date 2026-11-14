@@ -35,8 +35,9 @@ export function PlanPage() {
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const lapsed = current === 'none' && !!plan?.stripe_customer_id;
   // Signed up with a referral code and hasn't had a plan yet → 10% off at checkout.
+  // Visitors (the homepage sends them here first) bring their code in the link or from the homepage.
   const referred = !subscribed && !lifetime && !plan?.trial_used_at
-    ? String(session?.user.user_metadata?.referral_code ?? '').trim().toUpperCase() || null
+    ? String(session ? (session.user.user_metadata?.referral_code ?? '') : (params.get('ref') || rememberedReferralCode())).trim().toUpperCase() || null
     : null;
   const promo = usePlanPromo(referred);
   // A live sale (Black Friday) for anyone choosing a first plan; it replaces the referral 10% on monthly.
@@ -58,6 +59,7 @@ export function PlanPage() {
 
   function pick(tier: PlanTier) {
     clearPlanIntent();
+    if (!session && referred) keepReferralCode(referred); // the trial page picks it up
     navigate(`/plan/trial?tier=${tier}&cycle=${cycle}&picked`);
   }
 
