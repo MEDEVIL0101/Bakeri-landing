@@ -436,3 +436,8 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .hb-h2{display:block}
 @media(max-width:560px){.hb-h{font-size:46px;max-width:6.3em}.hb-sub{max-width:12em}.hb-art{top:150px;width:38vw;right:-12vw}.has-sale .hb-h{font-size:36px;max-width:none}.has-sale .hb-art{top:96px;width:40vw;right:-10vw}}
 @media(max-width:560px){.hero-bold:not(.has-sale) .hb-art{top:70px;width:34vw;right:-6vw}.hb-sub{max-width:11em}}
+/* Hero image: the cookie stack from the best-converting creative (has its own shadow) */
+.hb-food{display:block;width:min(100%,560px);height:auto}
+@media(max-width:980px){.hb-art{position:absolute;top:0;right:-6vw;width:min(46vw,340px)}.hb-food{width:100%}}
+@media(max-width:560px){.hero-bold .hb-art,.hero-bold:not(.has-sale) .hb-art{top:-14px;right:-5vw;width:44vw}.has-sale .hb-art{top:-22px;width:36vw;right:-4vw}}
+@media(max-width:560px){.has-sale .hb-h{max-width:6.3em}.has-sale .hb-art{top:150px;width:40vw;right:-5vw}}
