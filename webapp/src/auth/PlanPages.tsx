@@ -88,6 +88,7 @@ export function PlanPage() {
       {referred && !(sale && cycle === 'month' && !promo) && (promo
         ? <p className="ref-note plan-ref">Promo code <b>{promo.code}</b>: <b>{promoLine(promo)}</b>.</p>
         : <p className="ref-note plan-ref">Your referral code <b>{referred}</b> is applied: <b>10% off your first 3 months</b>, taken off at checkout.</p>)}
+      {!referred && current === 'none' && !subscribed && !lifetime && !grandfathered && !plan?.trial_used_at && <CodeEntry />}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       {!lifetime && !grandfathered && !subscribed && (
         <div className="pk-cycle" role="tablist" aria-label="Billing cycle">
@@ -222,6 +223,7 @@ export function TrialPage() {
       {referred && !(sale && interval === 'month' && !promo) && (promo
         ? <p className="ref-note plan-ref">Promo code <b>{promo.code}</b>: <b>{promoLine(promo)}</b>{promo.tier !== p.tier ? ' (pick that plan to use it)' : ''}.</p>
         : <p className="ref-note plan-ref">Referral code <b>{referred}</b>: <b>10% off your first 3 months</b>{interval === 'year' ? ' (10% off your first year)' : ''}, taken off at checkout.</p>)}
+      {!referred && !plan?.trial_used_at && !plan?.lifetime_pro && <CodeEntry />}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
       <div className="cycle" role="radiogroup" aria-label="Billing cycle">
         <button type="button" role="radio" aria-checked={interval === 'month'} className={`cycle-opt ${interval === 'month' ? 'on' : ''}`} onClick={() => setCycle('month')}>
@@ -250,6 +252,58 @@ export function TrialPage() {
       {!session && <p className="auth-footer" style={{ textAlign: 'center' }}>Already have an account? <Link to="/login">Log in</Link></p>}
       <AllInOne sale={sale} />
     </div>
+  );
+}
+
+/**
+ * "Have a referral or promo code?" — for people who were told a code instead
+ * of tapping the link. A visitor's code goes in the link (?ref=) and is kept
+ * like a link's; a signed-in vendor's goes in user_metadata.referral_code,
+ * where create-plan-checkout reads it, and a referral is recorded right away
+ * (attribute_referral) in case their profile already exists.
+ */
+function CodeEntry() {
+  const { session } = useAuth();
+  const [, setParams] = useSearchParams();
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function apply(e: FormEvent) {
+    e.preventDefault();
+    const c = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+    if (!c) return;
+    setBusy(true); setError(null);
+    const [{ data: promo }, { data: ref }] = await Promise.all([
+      supabase.rpc('resolve_plan_promo', { p_code: c }),
+      supabase.rpc('resolve_referral_code', { p_code: c }),
+    ]);
+    const isReferral = (ref as { status?: string } | null)?.status === 'valid';
+    if (!promo && !isReferral) { setBusy(false); setError('We couldn’t find that code. Check the spelling and try again.'); return; }
+    if (session) {
+      const { error: err } = await supabase.auth.updateUser({ data: { referral_code: c } });
+      if (err) { setBusy(false); setError('Couldn’t add your code. Please try again.'); return; }
+      if (isReferral && !promo) await supabase.rpc('attribute_referral', { p_code: c });
+    } else {
+      keepReferralCode(c);
+      setParams((prev) => { const next = new URLSearchParams(prev); next.set('ref', c); return next; }, { replace: true });
+    }
+    setBusy(false);
+  }
+
+  if (!open) {
+    return <p className="code-entry-link"><button type="button" onClick={() => setOpen(true)}>Have a referral or promo code?</button></p>;
+  }
+  return (
+    <form className="code-entry" onSubmit={apply}>
+      <div className="code-entry-row">
+        <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter your code" aria-label="Referral or promo code"
+          autoFocus autoCapitalize="characters" autoComplete="off" maxLength={24} />
+        <Button type="submit" variant="secondary" loading={busy} disabled={!code.trim()}>Apply</Button>
+      </div>
+      {error && <p className="code-entry-error">{error}</p>}
+    </form>
   );
 }
 
