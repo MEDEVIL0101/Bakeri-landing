@@ -48,7 +48,7 @@ serve(async (req) => {
     const db = adminClient();
     const { data: plan, error: planErr } = await db
       .from("vendor_plans")
-      .select("tier, status, stripe_customer_id, stripe_subscription_id, trial_used_at, grandfathered_starter, first_paid_at")
+      .select("tier, status, stripe_customer_id, stripe_subscription_id, trial_used_at, grandfathered_starter, first_paid_at, custom_coupon_id, custom_coupon_tier")
       .eq("user_id", user.id)
       .maybeSingle();
     if (planErr) throw planErr;
@@ -98,8 +98,11 @@ serve(async (req) => {
         saleCoupon = (referred ? row?.stripe_referral_coupon_id : null) ?? row?.stripe_coupon_id ?? null;
       }
     }
+    // A one-off deal for this vendor (vendor_plans.custom_coupon_id) wins over everything else.
+    const customCoupon = plan?.custom_coupon_id && plan.custom_coupon_tier === tier ? plan.custom_coupon_id : null;
+    if (customCoupon) saleCoupon = null;
     const saleWithReferral = !!saleCoupon && referred;
-    const coupon = saleCoupon ?? (referred && !plan?.first_paid_at ? referralCoupon() : launchCouponFor(tier, interval));
+    const coupon = customCoupon ?? saleCoupon ?? (referred && !plan?.first_paid_at ? referralCoupon() : launchCouponFor(tier, interval));
 
     // Promo code (plan_promo_codes) from sign-up: a longer first trial on its plan.
     let trial = !plan?.trial_used_at ? trialDays() : 0;
