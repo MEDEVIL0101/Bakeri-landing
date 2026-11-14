@@ -60,6 +60,7 @@
 </script>
 <script src="https://js.stripe.com/v3/"></script>
   <script src="theme.js"></script>
+  <script src="money.js?v=1"></script>
 
   <style>
     :root {
@@ -194,6 +195,7 @@
 
   const params  = new URLSearchParams(window.location.search);
   const bakerID = (params.get('baker') || '').trim();
+  BakeriMoney.loadFor(bakerID, SUPABASE_URL, ANON_KEY);
   // items=id1:2,id2:1:variantId — id:qty pairs (a ship cart, unlike the
   // digital cart, can hold more than one of the same stock-bound item), with
   // an optional third :variantId segment for a has_variants listing (see
@@ -402,7 +404,7 @@
       '<button type="button" id="promo-apply">Apply</button></div>' +
       '<div class="promo-status ' + (appliedCode ? 'ok' : '') + '" id="promo-status">' + (appliedCode ? 'Code ' + appliedCode + ' applied — $' + codeDiscount.toFixed(2) + ' off' : '') + '</div>' +
       (shippingFeeTotal > 0 ? '<div class="totals-row"><span>Shipping</span><span>$' + shippingFeeTotal.toFixed(2) + '</span></div>' : '') +
-      '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
+      '<div class="totals-row grand"><span>Total</span><span>' + BakeriMoney.chargeHTML(total) + '</span></div>' +
       '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
       '<div class="field"><label>Email</label><input id="f-email" type="email" autocomplete="email" /></div>' +
       '<div class="field"><label>Confirm email</label><input id="f-email-confirm" type="email" autocomplete="email" onpaste="return false" oncopy="return false" oncut="return false" /></div>' +
@@ -488,10 +490,10 @@
   function renderPayment(clientSecret, name, email, connectedAccountId) {
     content.innerHTML =
       '<div class="eyebrow">Pay</div>' +
-      '<div class="heading">$' + total.toFixed(2) + '</div>' +
+      '<div class="heading">' + BakeriMoney.chargeHTML(total) + '</div>' +
       '<div id="payment-element"></div>' +
       bkTermsSlot() +
-      '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + '</button>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + ' ' + BakeriMoney.codeHTML() + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
     // A direct charge's PaymentIntent lives on the baker's own connected
@@ -565,7 +567,7 @@
         '<h2>Your order will ship soon</h2>' +
         '<p>Thanks for your purchase' + (data.baker_name ? ' from ' + escapeHtml(data.baker_name) : '') + '. A confirmation with your shipping address was emailed to you.</p>' +
         '<div class="receipt">' + lines +
-          '<div class="totals-row grand"><span>Total</span><span>$' + total.toFixed(2) + '</span></div>' +
+          '<div class="totals-row grand"><span>Total</span><span>' + BakeriMoney.chargeHTML(total) + '</span></div>' +
         '</div>' +
       '</div>';
   }

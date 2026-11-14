@@ -60,6 +60,7 @@
 </script>
 <script src="https://js.stripe.com/v3/"></script>
   <script src="theme.js"></script>
+  <script src="money.js?v=1"></script>
 
   <style>
     :root {
@@ -173,6 +174,7 @@
 
   const params  = new URLSearchParams(window.location.search);
   const bakerID = (params.get('baker') || '').trim();
+  BakeriMoney.loadFor(bakerID, SUPABASE_URL, ANON_KEY);
   // items=id1,id2,id3~variantId is the current shape (a download cart — see
   // baker/index.html's digitalCart/digitalCartLineToken) — a bare id for a
   // plain pick, or id~variantId for a has_variants listing's chosen option.
@@ -300,7 +302,7 @@
   function recomputeTotal() {
     total = items.reduce(function (s, i) { return s + i.price; }, 0);
     var g = document.getElementById('grand-total');
-    if (g) g.textContent = '$' + total.toFixed(2);
+    if (g) g.innerHTML = BakeriMoney.chargeHTML(total);
     var cb = document.getElementById('continue-btn');
     if (cb) cb.textContent = total <= 0 ? 'Get My Download' : 'Continue to Payment';
     var ll = document.getElementById('order-lines');
@@ -320,7 +322,7 @@
       '<div class="promo-row"><input id="promo-input" type="text" placeholder="Promo code" autocapitalize="characters" autocomplete="off" />' +
       '<button type="button" id="promo-apply">Apply</button></div>' +
       '<div class="promo-status" id="promo-status"></div>' +
-      '<div class="totals-row grand"><span>Total</span><span id="grand-total">$' + total.toFixed(2) + '</span></div>' +
+      '<div class="totals-row grand"><span>Total</span><span id="grand-total">' + BakeriMoney.chargeHTML(total) + '</span></div>' +
       '<div class="field"><label>Name</label><input id="f-name" type="text" autocomplete="name" /></div>' +
       '<div class="field"><label>Email</label><input id="f-email" type="email" autocomplete="email" /></div>' +
       '<div class="field"><label>Confirm email</label><input id="f-email-confirm" type="email" autocomplete="email" onpaste="return false" oncopy="return false" oncut="return false" /></div>' +
@@ -392,10 +394,10 @@
   function renderPayment(clientSecret, name, email, connectedAccountId) {
     content.innerHTML =
       '<div class="eyebrow">Pay</div>' +
-      '<div class="heading">$' + total.toFixed(2) + '</div>' +
+      '<div class="heading">' + BakeriMoney.chargeHTML(total) + '</div>' +
       '<div id="payment-element"></div>' +
       bkTermsSlot() +
-      '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + '</button>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + total.toFixed(2) + ' ' + BakeriMoney.codeHTML() + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
     // A direct charge's PaymentIntent lives on the baker's own connected

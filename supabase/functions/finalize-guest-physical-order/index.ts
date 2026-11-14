@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { currencyForCountry } from "../_shared/currency.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { PRESALE_COLS, presaleRelease, releaseLabel } from "../_shared/presale.ts";
 
@@ -195,7 +196,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: bakerProfile } = await db
     .from("profiles")
-    .select("business_name, user_name, email, stripe_connect_account_id, shipping_free_over_threshold, shipping_additional_item_percent")
+    .select("business_name, user_name, email, stripe_connect_account_id, shipping_free_over_threshold, shipping_additional_item_percent, country")
     .eq("id", bakerId)
     .single();
   const bakerDisplayName = bakerProfile?.business_name?.trim() || bakerProfile?.user_name?.trim() || "Baker";
@@ -445,7 +446,7 @@ Deno.serve(async (req: Request) => {
     const shippingRow = shippingFeeCents > 0
       ? `<tr><td style="padding:6px 0;color:#6B5F54;">Shipping</td><td style="padding:6px 0;text-align:right;color:#6B5F54;">$${(shippingFeeCents / 100).toFixed(2)}</td></tr>`
       : "";
-    const totalRow = `<tr><td style="padding:6px 0;font-weight:700;">Total</td><td style="padding:6px 0;text-align:right;font-weight:700;">$${(totalCents / 100).toFixed(2)}</td></tr>`;
+    const totalRow = `<tr><td style="padding:6px 0;font-weight:700;">Total</td><td style="padding:6px 0;text-align:right;font-weight:700;">$${(totalCents / 100).toFixed(2)} ${currencyForCountry(bakerProfile?.country).toUpperCase()}</td></tr>`;
     const addressHtml = addressLines.map((l) => escapeHtml(l)).join("<br/>");
     const identity = await customerEmailIdentity(db, bakerId, bakerDisplayName, bakerProfile?.email);
     const html = `

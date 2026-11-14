@@ -4,6 +4,7 @@ import { logNotification } from "../_shared/notificationLog.ts";
 import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
 import {
   escapeHtml,
+  currencyCode,
   formatCents,
   formatDate,
   metaRow,
@@ -153,10 +154,11 @@ Deno.serve(async (req: Request) => {
 
   const { data: baker } = await db
     .from("profiles")
-    .select("business_name, user_name, profile_slug, email")
+    .select("business_name, user_name, profile_slug, email, country")
     .eq("id", order.user_id)
     .single();
   const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
+  const cur = currencyCode(baker?.country);
   const bakerUrl = baker?.profile_slug
     ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
     : "https://bakeriapp.com";
@@ -192,11 +194,11 @@ Deno.serve(async (req: Request) => {
       <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Balance</td>
         <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(totalCents - depositCents)}<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">Due later</span></td></tr>
       <tr><td style="padding:10px 0 0;border-top:1px solid #E4D9C8;font-size:13.5px;color:#6B5F54;">Order total</td>
-        <td style="padding:10px 0 0;border-top:1px solid #E4D9C8;text-align:right;font-size:13.5px;color:#241712;">${formatCents(totalCents)}</td></tr>
+        <td style="padding:10px 0 0;border-top:1px solid #E4D9C8;text-align:right;font-size:13.5px;color:#241712;">${formatCents(totalCents)} ${cur}</td></tr>
     `
     : `
       <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Order total</td>
-        <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(totalCents)}</td></tr>
+        <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(totalCents)} ${cur}</td></tr>
     `;
 
   const footerHtml = `
@@ -246,7 +248,7 @@ Deno.serve(async (req: Request) => {
       from: identity.from,
       reply_to: identity.reply_to,
       to: customerEmail,
-      subject: `Your quote from ${bakerName} — ${formatCents(totalCents)}`,
+      subject: `Your quote from ${bakerName} — ${formatCents(totalCents)} ${cur}`,
       html,
     }),
   });

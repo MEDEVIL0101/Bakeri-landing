@@ -16,6 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&display=swap" />
   <script src="theme.js"></script>
+  <script src="money.js?v=1"></script>
   <script src="intake-form.js"></script>
 
   <style>
@@ -661,6 +662,7 @@
     #footer-copy { margin-right: auto; }
     #site-footer a { color: inherit; }
     #site-footer .made { font-weight: 700; text-decoration: none; }
+    .cart-cur { margin: -2px 0 12px; text-align: right; }
 
     /* ══════════════ 9. Sticky cart bar ══════════════ */
     #sf-cartbar {
@@ -972,6 +974,7 @@
 
 <footer id="site-footer">
   <span id="footer-copy"></span>
+  <span id="footer-cur"></span>
   <a href="https://bakeriapp.com/privacy-policy.html">Privacy</a>
   <a class="made" href="https://bakeriapp.com">Made with Bakeri</a>
 </footer>
@@ -1371,6 +1374,9 @@
     if (!data || !data.profile) { showNotFound('Shop not found', 'No shop found at this link.'); return; }
     profile = data.profile;
     resolvedBakerId = profile.id;
+    BakeriMoney.init(profile.money);
+    BakeriMoney.remember(profile.id, profile.money);
+    document.getElementById('footer-cur').innerHTML = BakeriMoney.switcherHTML();
 
     loadCart();
     render(profile, data.listings || [], data.faqs || [], data.links || []);
@@ -1413,7 +1419,7 @@
       banner.textContent = '';
       return;
     }
-    let text = 'Free shipping over $' + threshold.toFixed(2);
+    let text = 'Free shipping over ' + BakeriMoney.fmt(threshold);
     const percent = profile.shipping_additional_item_percent;
     if (percent != null && percent < 100 && percent > 0) {
       text += ' · ' + Math.round(100 - percent) + '% off shipping on extra items';
@@ -3311,7 +3317,7 @@
   function offerButtonLabel(item, cfg) {
     const custom = ((cfg && cfg.button_label) || '').trim();
     if (custom) return custom;
-    const price = '$' + formatPrice(item.price);
+    const price = '' + BakeriMoney.fmt(item.price);
     if (isSoldOut(item)) return presaleClosed(item) ? 'Pre-orders closed' : 'Sold out';
     if (item.is_club) return item.club_interval ? 'Join — ' + price + '/' + (item.club_interval === 'year' ? 'yr' : 'mo') : 'Join — ' + price;
     if (!item.is_course) return 'Pre-order — ' + price;
@@ -3351,7 +3357,7 @@
       const desc = ((cfg.blurb || '').trim() || String(item.item_description || '').trim()).replace(/\s+/g, ' ').slice(0, 260);
       const kicker = presaleOn(item) ? presaleLine(item) + (leftLine(item) ? ' · ' + leftLine(item) : '')
         : item.is_club
-        ? (item.club_interval ? 'Membership · $' + formatPrice(item.price) + ' / ' + item.club_interval : 'Membership')
+        ? (item.club_interval ? 'Membership · ' + BakeriMoney.fmt(item.price) + ' / ' + item.club_interval : 'Membership')
         : 'Online course · lifetime access';
       el.innerHTML =
         '<div class="sf-offer-img noimg">' + (item.is_club ? '✨' : item.is_course ? '🎓' : '🗓️') + '</div>' +
@@ -4044,7 +4050,7 @@
     bar.classList.toggle('hidden', count === 0);
     if (count > 0) {
       document.getElementById('sf-cartbar-label').textContent =
-        count + ' in cart · $' + formatPrice(cartCombinedSubtotal());
+        count + ' in cart · ' + BakeriMoney.fmt(cartCombinedSubtotal());
     }
   }
 
@@ -4130,11 +4136,11 @@
       if (!offer) return '';
       const taken = digitalBumps[offer.target.id] === pid && digitalCart.indexOf(offer.target.id) !== -1;
       if (!taken && digitalCart.indexOf(offer.target.id) !== -1) return '';   // already buying it outright
-      const was = offer.target.price > offer.price ? ' <s>$' + formatPrice(offer.target.price) + '</s>' : '';
+      const was = offer.target.price > offer.price ? ' <s>' + BakeriMoney.fmt(offer.target.price) + '</s>' : '';
       return '<label class="addon-offer" data-parent="' + pid + '">' +
         '<input type="checkbox"' + (taken ? ' checked' : '') + ' />' +
         '<span><b>' + escapeHtml(offer.headline || 'Limited time offer') + '</b>' +
-        '<span class="addon-offer-line">Add ' + escapeHtml(offer.target.name) + ' for $' + formatPrice(offer.price) + was + '</span>' +
+        '<span class="addon-offer-line">Add ' + escapeHtml(offer.target.name) + ' for ' + BakeriMoney.fmt(offer.price) + was + '</span>' +
         (offer.note ? '<span class="addon-offer-note">' + escapeHtml(offer.note) + '</span>' : '') +
         '</span></label>';
     }).join('');
@@ -4523,13 +4529,13 @@
         cta.style.opacity = '.5';
         cta.onclick = null;
       } else if (item.listing_kind === 'digital' && item.is_club && item.club_interval) {
-        cta.textContent = 'Join — $' + formatPrice(item.price) + '/' + item.club_interval;
+        cta.textContent = 'Join — ' + BakeriMoney.fmt(item.price) + '/' + item.club_interval;
         cta.disabled = !stripeReady;
         cta.style.opacity = stripeReady ? '1' : '.5';
         cta.onclick = stripeReady ? function () { joinClub(item, cta); } : null;
       } else if (item.listing_kind === 'digital') {
         const inCart = digitalCart.indexOf(item.id) !== -1;
-        cta.textContent = (inCart ? 'Remove from Cart ✓ — $' : 'Add to Cart — $') + formatPrice(item.price);
+        cta.textContent = (inCart ? 'Remove from Cart ✓ — ' : 'Add to Cart — ') + BakeriMoney.fmt(item.price);
         cta.disabled = !stripeReady;
         cta.style.opacity = stripeReady ? '1' : '.5';
         cta.onclick = stripeReady ? function () {
@@ -4543,7 +4549,7 @@
           cta.disabled = true;
           cta.style.opacity = '.5';
         } else {
-          cta.textContent = 'Add to Cart — $' + formatPrice(item.price);
+          cta.textContent = 'Add to Cart — ' + BakeriMoney.fmt(item.price);
           cta.disabled = false;
           cta.style.opacity = '1';
           cta.onclick = function () {
@@ -4805,7 +4811,7 @@
     const tierHtml = '<div class="box-tiers">' + tiers.map(function (t) {
       return '<button type="button" class="box-tier' + (t.id === boxState.tierId ? ' active' : '') + '" data-tier-id="' + t.id + '">' +
         '<div class="box-tier-label">' + escapeHtml(t.label) + '</div>' +
-        '<div class="box-tier-price tabular">$' + formatPrice(t.price) + '</div>' +
+        '<div class="box-tier-price tabular">' + BakeriMoney.fmt(t.price) + '</div>' +
         '</button>';
     }).join('') + '</div>';
 
@@ -4883,7 +4889,7 @@
     const chosenTotal = Object.values(boxState.chosen).reduce(function (s, q) { return s + q; }, 0);
     const ready = (boxState.item.variants || []).length <= 1 ? true : chosenTotal === tier.unit_count;
     const canBuy = ready && stripeReady;
-    cta.textContent = ready ? ('Add to Order — $' + formatPrice(tier.price)) : ('Choose ' + (tier.unit_count - chosenTotal) + ' more');
+    cta.textContent = ready ? ('Add to Order — ' + BakeriMoney.fmt(tier.price)) : ('Choose ' + (tier.unit_count - chosenTotal) + ' more');
     cta.disabled = !canBuy;
     cta.style.opacity = canBuy ? '1' : '.5';
     cta.onclick = canBuy ? addBoxToCart : null;
@@ -4965,7 +4971,7 @@
         (soldOut ? ' disabled' : '') + ' style="' + (soldOut ? 'opacity:.4;' : '') + '" data-variant-id="' + v.id + '">' +
         thumb +
         '<div class="box-tier-label">' + escapeHtml(v.label) + (soldOut ? ' (Sold Out)' : '') + '</div>' +
-        '<div class="box-tier-price tabular">$' + formatPrice(v.price) + '</div>' +
+        '<div class="box-tier-price tabular">' + BakeriMoney.fmt(v.price) + '</div>' +
         '</button>';
     }).join('') + '</div>';
 
@@ -5007,7 +5013,7 @@
     }
     if (item.listing_kind === 'digital') {
       const inCart = digitalVariantCartLines.some(function (l) { return l.menuItemId === item.id && l.variantId === variant.id; });
-      cta.textContent = (inCart ? 'Remove from Cart ✓ — $' : 'Add to Cart — $') + formatPrice(variant.price);
+      cta.textContent = (inCart ? 'Remove from Cart ✓ — ' : 'Add to Cart — ') + BakeriMoney.fmt(variant.price);
       cta.disabled = !stripeReady;
       cta.style.opacity = stripeReady ? '1' : '.5';
       cta.onclick = stripeReady ? function () {
@@ -5025,7 +5031,7 @@
       cta.onclick = null;
       return;
     }
-    cta.textContent = 'Add to Cart — $' + formatPrice(variant.price);
+    cta.textContent = 'Add to Cart — ' + BakeriMoney.fmt(variant.price);
     cta.disabled = false;
     cta.style.opacity = '1';
     cta.onclick = function () {
@@ -5257,7 +5263,7 @@
           '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
           '<div class="info"><div class="n">' + escapeHtml(l.item.name) + ' — ' + escapeHtml(l.line.tierLabel) + '</div><div class="m">' + escapeHtml(breakdownStr) + '</div></div>' +
           '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
-          '<div class="total tabular">$' + formatPrice(l.line.price * l.qty) + '</div>' +
+          '<div class="total tabular">' + BakeriMoney.fmt(l.line.price * l.qty) + '</div>' +
           '</div>';
       }
       if (l.kind === 'preorder') {
@@ -5267,14 +5273,14 @@
           '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
           '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(meta) + '</div></div>' +
           '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
-          '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
+          '<div class="total tabular">' + BakeriMoney.fmt(l.item.price * l.qty) + '</div>' +
           '</div>';
       }
       return '<div class="cart-line" data-line-kind="plain" data-line-id="' + l.item.id + '">' +
         '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
         '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">' + escapeHtml(subtitleFor(l.item)) + '</div></div>' +
         '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
-        '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
+        '<div class="total tabular">' + BakeriMoney.fmt(l.item.price * l.qty) + '</div>' +
         '</div>';
     }).join('');
     const subtotal = cartSubtotal();
@@ -5290,7 +5296,7 @@
         '<div class="thumb"><img src="' + itemImgURL(item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
         '<div class="info"><div class="n">' + escapeHtml(item.name) + '</div><div class="m">Instant digital download</div></div>' +
         '<button class="remove-btn" aria-label="Remove">✕</button>' +
-        '<div class="total tabular">$' + formatPrice(item.price) + '</div>' +
+        '<div class="total tabular">' + BakeriMoney.fmt(item.price) + '</div>' +
         '</div>';
     }).join('');
     // Ship lines get the same qty-stepper look as a plain pickup line (not
@@ -5301,7 +5307,7 @@
         '<div class="thumb"><img src="' + itemImgURL(l.item) + '" alt="" onerror="this.style.display=\'none\'" /></div>' +
         '<div class="info"><div class="n">' + escapeHtml(l.item.name) + '</div><div class="m">Ships in ' + (l.item.lead_days || 3) + ' day' + (l.item.lead_days === 1 ? '' : 's') + '</div></div>' +
         '<div class="stepper"><button class="line-minus">−</button><span class="qty">' + l.qty + '</span><button class="line-plus">+</button></div>' +
-        '<div class="total tabular">$' + formatPrice(l.item.price * l.qty) + '</div>' +
+        '<div class="total tabular">' + BakeriMoney.fmt(l.item.price * l.qty) + '</div>' +
         '</div>';
     }).join('');
     const grandTotal = cartTotal() + digitalCartTotal() + shipCartTotal();
@@ -5310,22 +5316,24 @@
     return '<div id="cart-step-label">Your order</div>' +
       rows +
       (lines.length > 0 ? (
-        '<div class="cart-financial-row"><span>Subtotal</span><span class="tabular">$' + formatPrice(subtotal) + '</span></div>' +
+        '<div class="cart-financial-row"><span>Subtotal</span><span class="tabular">' + BakeriMoney.fmt(subtotal) + '</span></div>' +
         // Only vendors who collect sales tax mention it; others stay silent.
         (profile && profile.is_gst_registered ? '<div class="cart-financial-row"><span>Tax</span><span class="tabular">Calculated at checkout</span></div>' : '')
       ) : '') +
       (digitalItems.length > 0 ? (
         '<div class="cart-section-label">Digital Downloads</div>' +
         digitalRows + addonOffersHTML() +
-        '<div class="cart-financial-row"><span>Downloads subtotal</span><span class="tabular">$' + formatPrice(digitalCartTotal()) + '</span></div>'
+        '<div class="cart-financial-row"><span>Downloads subtotal</span><span class="tabular">' + BakeriMoney.fmt(digitalCartTotal()) + '</span></div>'
       ) : '') +
       (shipLinesData.length > 0 ? (
         '<div class="cart-section-label">Ships to You</div>' +
         shipRows +
-        '<div class="cart-financial-row"><span>Items subtotal</span><span class="tabular">$' + formatPrice(shipCartItemsSubtotal()) + '</span></div>' +
-        (shipCartShippingFees() > 0 ? '<div class="cart-financial-row"><span>Shipping fee</span><span class="tabular">$' + formatPrice(shipCartShippingFees()) + '</span></div>' : '')
+        '<div class="cart-financial-row"><span>Items subtotal</span><span class="tabular">' + BakeriMoney.fmt(shipCartItemsSubtotal()) + '</span></div>' +
+        (shipCartShippingFees() > 0 ? '<div class="cart-financial-row"><span>Shipping fee</span><span class="tabular">' + BakeriMoney.fmt(shipCartShippingFees()) + '</span></div>' : '')
       ) : '') +
-      '<div class="cart-financial-row total"><span>Total</span><span class="tabular">$' + formatPrice(grandTotal) + '</span></div>' +
+      '<div class="cart-financial-row total"><span>Total</span><span class="tabular">' + BakeriMoney.charge(grandTotal) +
+        (BakeriMoney.showingAlt() ? '<small class="bk-approx">' + BakeriMoney.approx(grandTotal) + '</small>' : '') + '</span></div>' +
+      '<div class="cart-cur">' + BakeriMoney.switcherHTML() + '</div>' +
       '<button class="btn btn-primary" id="cart-continue" style="width:100%;">Continue to ' + (lines.length > 0 || nonPickupVerticals > 1 ? 'checkout' : (digitalItems.length > 0 ? 'download details' : (shipLinesData.length > 0 ? 'shipping details' : 'pickup details'))) + '</button>' +
       '<div class="cart-note">' +
         (lines.length > 0 ? 'Upon confirmation of your order, pickup details will be provided by email. Customers are responsible for coordinating pickup of their order with the Seller.' : '') +
@@ -5769,9 +5777,9 @@
     opts = opts || {};
     const fromTag = opts.from ? '<span class="from">from</span> ' : '';
     if (originalPrice != null && parseFloat(originalPrice) > parseFloat(price)) {
-      return fromTag + '<span class="orig">$' + formatPrice(originalPrice) + '</span>$' + formatPrice(price);
+      return fromTag + '<span class="orig">' + BakeriMoney.fmt(originalPrice) + '</span>' + BakeriMoney.fmt(price);
     }
-    return fromTag + '$' + formatPrice(price);
+    return fromTag + '' + BakeriMoney.fmt(price);
   }
 
   function photoFallback(item) {

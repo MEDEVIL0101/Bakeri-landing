@@ -460,7 +460,7 @@
           options.map(function (opt) {
             return '<div class="product-item" data-opt="' + escapeHtml(opt.id) + '">' +
               '<div><div class="product-item-name">' + escapeHtml(opt.name) + '</div>' +
-              '<div class="product-item-price">$' + Number(opt.price || 0).toFixed(2) + '</div></div>' +
+              '<div class="product-item-price">' + (window.BakeriMoney ? window.BakeriMoney.fmt(Number(opt.price || 0)) : '$' + Number(opt.price || 0).toFixed(2)) + '</div></div>' +
               '<div class="qty-stepper">' +
                 '<button type="button" class="qty-btn" data-action="minus" disabled>−</button>' +
                 '<span class="qty-value">0</span>' +
@@ -792,7 +792,7 @@
       options.forEach(function (opt) { subtotal += (Number(opt.price) || 0) * (quantities[opt.id] || 0); });
       const el = document.getElementById('subtotal-field-' + field.id);
       if (!el) return;
-      el.textContent = subtotal > 0 ? 'Subtotal: $' + subtotal.toFixed(2) : '';
+      el.textContent = subtotal > 0 ? 'Subtotal: ' + (window.BakeriMoney ? window.BakeriMoney.fmt(subtotal) + (window.BakeriMoney.showingAlt() ? ' (approx.)' : ' ' + window.BakeriMoney.code()) : '$' + subtotal.toFixed(2)) : '';
     }
 
     function resizeImage(file, cb) {

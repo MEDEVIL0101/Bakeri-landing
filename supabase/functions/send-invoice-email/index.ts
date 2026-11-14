@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   escapeHtml,
+  currencyCode,
   formatCents,
   formatDate,
   metaRow,
@@ -98,10 +99,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: baker } = await supabase
       .from("profiles")
-      .select("business_name, user_name, profile_slug, email")
+      .select("business_name, user_name, profile_slug, email, country")
       .eq("id", order.user_id)
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
+    const cur = currencyCode(baker?.country);
     const identity = await customerEmailIdentity(supabase, order.user_id, bakerName, baker?.email);
     const bakerUrl = baker?.profile_slug
       ? `https://bakeriapp.com/${encodeURIComponent(baker.profile_slug)}`
@@ -131,14 +133,14 @@ Deno.serve(async (req: Request) => {
         <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Balance</td>
           <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(amountCents)}<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">Due now</span></td></tr>
         <tr><td style="padding:10px 0 0;border-top:1px solid #E4D9C8;font-size:13.5px;color:#6B5F54;">Order total</td>
-          <td style="padding:10px 0 0;border-top:1px solid #E4D9C8;text-align:right;font-size:13.5px;color:#241712;">${formatCents(effectiveTotalCents)}</td></tr>
+          <td style="padding:10px 0 0;border-top:1px solid #E4D9C8;text-align:right;font-size:13.5px;color:#241712;">${formatCents(effectiveTotalCents)} ${cur}</td></tr>
       `;
     } else if (invoiceType === "deposit") {
       breakdownRowsHtml = `
         <tr><td style="padding:6px 0;font-size:13.5px;color:#6B5F54;">Deposit</td>
           <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(amountCents)}<br><span style="font-size:11px;font-weight:400;color:#A89B8C;">Due now</span></td></tr>
         <tr><td style="padding:10px 0 0;border-top:1px solid #E4D9C8;font-size:13.5px;color:#6B5F54;">Order total</td>
-          <td style="padding:10px 0 0;border-top:1px solid #E4D9C8;text-align:right;font-size:13.5px;color:#241712;">${formatCents(effectiveTotalCents)}</td></tr>
+          <td style="padding:10px 0 0;border-top:1px solid #E4D9C8;text-align:right;font-size:13.5px;color:#241712;">${formatCents(effectiveTotalCents)} ${cur}</td></tr>
       `;
     } else {
       breakdownRowsHtml = `

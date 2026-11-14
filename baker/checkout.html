@@ -60,6 +60,7 @@
 </script>
 <script src="https://js.stripe.com/v3/"></script>
   <script src="theme.js"></script>
+  <script src="money.js?v=1"></script>
   <script src="tip-picker.js"></script>
 
   <style>
@@ -273,6 +274,7 @@
     return;
   }
   if (!Array.isArray(cart.items)) cart.items = [];
+  BakeriMoney.loadFor(cart.baker, SUPABASE_URL, ANON_KEY);
 
   if (window.BakeriTheme) {
     window.BakeriTheme.apply({ selected_theme: cart.theme || params.get('theme') || 'Classic', background_pattern: cart.pattern || params.get('pattern') || 'Standard' });
@@ -413,7 +415,8 @@
       '<div class="promo-row"><input id="promo-input" type="text" placeholder="Promo code" autocapitalize="characters" autocomplete="off" value="' + (appliedCode || '') + '" />' +
       '<button type="button" id="promo-apply">Apply</button></div>' +
       '<div class="promo-status ' + (appliedCode ? 'ok' : '') + '" id="promo-status">' + (appliedCode ? 'Code ' + appliedCode + ' applied — discount shown at payment' : '') + '</div>' +
-      '<div class="totals-row grand"><span>Total</span><span id="grand-total">$' + grandTotalNow().toFixed(2) + '</span></div>' +
+      '<div class="totals-row grand"><span>Total</span><span id="grand-total">' + BakeriMoney.chargeHTML(grandTotalNow()) + '</span></div>' +
+      BakeriMoney.slotHTML() +
       '<button class="btn-primary" id="continue-btn">' + (legTotalCount > 1 ? 'Continue to Payment · Step 1 of ' + legTotalCount : 'Continue to Payment') + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
       '<div class="pickup-note">' +
@@ -449,7 +452,7 @@
     tipCents = cents;
     document.getElementById('tip-row').hidden = cents <= 0;
     document.getElementById('tip-amount').textContent = '$' + (cents / 100).toFixed(2);
-    document.getElementById('grand-total').textContent = '$' + grandTotalNow().toFixed(2);
+    document.getElementById('grand-total').innerHTML = BakeriMoney.chargeHTML(grandTotalNow());
     document.getElementById('multi-charge-notice').innerHTML = renderMultiChargeNotice();
   }
 
@@ -548,11 +551,11 @@
 
     content.innerHTML =
       '<div class="eyebrow">' + legStepLabel() + 'Pay' + '</div>' +
-      '<div class="heading">$' + payTotal.toFixed(2) + '</div>' +
+      '<div class="heading">' + BakeriMoney.chargeHTML(payTotal) + '</div>' +
       (legTotalCount > 1 ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">' + (legTotalCount - legStepIndex) + ' more charge' + (legTotalCount - legStepIndex === 1 ? '' : 's') + ' to go after this one to finish your order.</p>' : '') +
       '<div id="payment-element"></div>' +
       bkTermsSlot() +
-      '<button class="btn-primary" id="pay-btn">Pay $' + payTotal.toFixed(2) + '</button>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + payTotal.toFixed(2) + ' ' + BakeriMoney.codeHTML() + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
       '<div class="pickup-note">📍 Exact pickup address is provided by email once your order is confirmed.</div>';
 
@@ -745,13 +748,13 @@
     const bothKinds = digitalItems.length > 0 && shipItems.length > 0;
     content.innerHTML =
       '<div class="eyebrow">' + legStepLabel() + (bothKinds ? 'Pay · Downloads & Shipping' : digitalItems.length > 0 ? 'Pay · Digital Downloads' : 'Pay · Ships to You') + '</div>' +
-      '<div class="heading">$' + instantSubtotal.toFixed(2) + '</div>' +
+      '<div class="heading">' + BakeriMoney.chargeHTML(instantSubtotal) + '</div>' +
       (physicalResult ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">Your pickup order is confirmed — this is the last charge to finish your order.</p>' :
         legTotalCount > 1 ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">This is the last charge to finish your order.</p>' : '') +
       (bothKinds ? '<p style="color:var(--muted);font-size:13px;margin-top:6px;">One payment covers both — your download link arrives instantly, and the shipped item' + (shipItems.length > 1 ? 's ship' : ' ships') + ' separately.</p>' : '') +
       '<div id="payment-element"></div>' +
       bkTermsSlot() +
-      '<button class="btn-primary" id="pay-btn">Pay $' + instantSubtotal.toFixed(2) + '</button>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + instantSubtotal.toFixed(2) + ' ' + BakeriMoney.codeHTML() + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
     const stripe = connectedAccountId ? Stripe(STRIPE_PK, { stripeAccount: connectedAccountId }) : Stripe(STRIPE_PK);
@@ -849,7 +852,7 @@
             '<span class="p">$' + (i.price_per_unit * i.quantity).toFixed(2) + '</span></div>';
         }).join('') +
         (physicalResult.tip_cents > 0 ? '<div class="receipt-row"><div><div class="n">Tip</div></div><span class="p">$' + (physicalResult.tip_cents / 100).toFixed(2) + '</span></div>' : '') +
-        '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + (physicalResult.total_cents / 100).toFixed(2) + '</span></div>' +
+        '<div class="receipt-row total"><span class="label">Total</span><span class="value">' + BakeriMoney.chargeHTML((physicalResult.total_cents / 100)) + '</span></div>' +
       '</div>'
     ) : '';
 
@@ -885,7 +888,7 @@
             '<span class="p">$' + (i.price * i.qty).toFixed(2) + '</span></div>';
         }).join('') +
         (shipShippingFeeTotal > 0 ? '<div class="receipt-row"><span class="label">Shipping fee</span><span class="value">$' + shipShippingFeeTotal.toFixed(2) + '</span></div>' : '') +
-        '<div class="receipt-row total"><span class="label">Total</span><span class="value">$' + shipSubtotal.toFixed(2) + '</span></div>' +
+        '<div class="receipt-row total"><span class="label">Total</span><span class="value">' + BakeriMoney.chargeHTML(shipSubtotal) + '</span></div>' +
       '</div>'
     ) : (shipError && !bothInstantKinds ? (
       '<h2 style="margin-top:' + (physicalResult || digitalResult ? '26px' : '0') + ';color:var(--error);">Shipping items charge failed</h2>' +

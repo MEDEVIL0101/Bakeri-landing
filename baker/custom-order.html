@@ -8,6 +8,7 @@
   <link rel="icon" type="image/png" href="../assets/favicon.png" />
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
   <script src="theme.js"></script>
+  <script src="money.js?v=1"></script>
   <script src="intake-form.js"></script>
 
   <style>
@@ -117,6 +118,7 @@
 
   const params  = new URLSearchParams(window.location.search);
   const bakerId = (params.get('baker') || '').trim();
+  BakeriMoney.loadFor(bakerId, SUPABASE_URL, ANON_KEY);
   const itemId  = (params.get('item')  || '').trim();
   const formId  = (params.get('form')  || '').trim();
   const itemName = (params.get('name') || 'this item').trim();

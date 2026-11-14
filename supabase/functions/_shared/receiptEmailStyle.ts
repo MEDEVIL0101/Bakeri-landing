@@ -7,6 +7,8 @@
 // receipt email). Every future change to the shared shell/item-row shape
 // only needs to happen here.
 
+import { currencyForCountry } from "./currency.ts";
+
 export function escapeHtml(value: unknown): string {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -18,6 +20,11 @@ export function escapeHtml(value: unknown): string {
 
 export function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+/** "CAD" / "USD": the currency a shop charges in (its country; _shared/currency.ts), for labelling totals. */
+export function currencyCode(country: string | null | undefined): string {
+  return currencyForCountry(country).toUpperCase();
 }
 
 export function formatDate(iso: string | null | undefined): string {

@@ -9,6 +9,7 @@
   <link rel="apple-touch-icon" href="../assets/favicon.png" />
   <script src="https://js.stripe.com/v3/"></script>
   <script src="tip-picker.js"></script>
+  <script src="money.js?v=1"></script>
   <script>
     // See baker/theme.js for why: forces a fresh load instead of an in-app
     // browser (Instagram especially) silently resuming a stale, previously
@@ -217,6 +218,7 @@
   // the same store rather than a bare, unbranded payment form.
   function renderHeader(data) {
     const bakerId = data.baker_id;
+    BakeriMoney.loadFor(bakerId, SUPABASE_URL, ANON_KEY);
     const name = data.business_name || 'Baker';
     document.getElementById('shop-name').textContent = name;
 
@@ -317,8 +319,8 @@
     const breakdownHtml = isSplitQuote
       ? '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + depositAmount.toFixed(2) + '<span class="note">Due now</span></span></div>' +
         '<div class="receipt-row"><span class="label">Balance</span><span class="value">$' + (amount - depositAmount).toFixed(2) + '<span class="note">Due later</span></span></div>' +
-        '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + amount.toFixed(2) + '</span></div>'
-      : '<div class="receipt-row total"><span class="label">Order total</span><span class="value" id="quote-total">$' + amount.toFixed(2) + '</span></div>';
+        '<div class="receipt-row total"><span class="label">Order total</span><span class="value">' + BakeriMoney.chargeHTML(amount) + '</span></div>'
+      : '<div class="receipt-row total"><span class="label">Order total</span><span class="value" id="quote-total">' + BakeriMoney.chargeHTML(amount) + '</span></div>' + BakeriMoney.slotHTML();
 
     const payNowCents = isSplitQuote ? depositCents : amountCents;
     const payLabel = isSplitQuote ? 'Accept Quote and Pay Deposit $' : 'Accept Quote and Pay $';
@@ -340,7 +342,7 @@
         breakdownHtml +
       '</div>' +
       (tipsOffered ? '<div id="tip-picker"></div>' : '') +
-      '<button class="btn-primary" id="continue-btn">' + payLabel + (payNowCents / 100).toFixed(2) + '</button>' +
+      '<button class="btn-primary" id="continue-btn">' + payLabel + (payNowCents / 100).toFixed(2) + ' ' + BakeriMoney.codeHTML() + '</button>' +
       '<div class="submit-status" id="submit-status"></div>';
 
     if (tipsOffered) {
@@ -351,8 +353,8 @@
           tipCents = state.cents;
           document.getElementById('tip-row').style.display = tipCents > 0 ? '' : 'none';
           document.getElementById('tip-amount').textContent = '$' + (tipCents / 100).toFixed(2);
-          document.getElementById('quote-total').textContent = '$' + ((amountCents + tipCents) / 100).toFixed(2);
-          document.getElementById('continue-btn').textContent = payLabel + ((payNowCents + tipCents) / 100).toFixed(2);
+          document.getElementById('quote-total').innerHTML = BakeriMoney.chargeHTML((amountCents + tipCents) / 100);
+          document.getElementById('continue-btn').innerHTML = payLabel + ((payNowCents + tipCents) / 100).toFixed(2) + ' ' + BakeriMoney.codeHTML();
         }
       });
     }
@@ -392,7 +394,7 @@
       '<div class="eyebrow">' + (isDeposit ? 'Pay Deposit' : 'Pay Quote') + '</div>' +
       '<div class="item-name">$' + amount.toFixed(2) + '</div>' +
       '<div id="payment-element"></div>' +
-      '<button class="btn-primary" id="pay-btn">Pay $' + amount.toFixed(2) + '</button>' +
+      '<button class="btn-primary" id="pay-btn">Pay $' + amount.toFixed(2) + ' ' + BakeriMoney.codeHTML() + '</button>' +
       '<div class="submit-status" id="submit-status"></div>' +
       balanceNote +
       '<div class="pickup-note">📍 Exact pickup address is provided by email once your payment is confirmed.</div>';
@@ -485,9 +487,9 @@
       paymentRows =
         '<div class="receipt-row"><span class="label">Deposit</span><span class="value">$' + (depositCents / 100).toFixed(2) + '<span class="note">' + escapeHtml(depositDateStr) + '</span></span></div>' +
         '<div class="receipt-row"><span class="label">Balance</span><span class="value">$' + ((amountCents - depositCents) / 100).toFixed(2) + '<span class="note">' + escapeHtml(balanceDateStr) + '</span></span></div>' +
-        '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + amount.toFixed(2) + '</span></div>';
+        '<div class="receipt-row total"><span class="label">Order total</span><span class="value">' + BakeriMoney.chargeHTML(amount) + '</span></div>';
     } else {
-      paymentRows = '<div class="receipt-row total"><span class="label">Order total</span><span class="value">$' + (amountPaid != null ? amountPaid.toFixed(2) : amount.toFixed(2)) + '</span></div>';
+      paymentRows = '<div class="receipt-row total"><span class="label">Order total</span><span class="value">' + BakeriMoney.chargeHTML(amountPaid != null ? amountPaid : amount) + '</span></div>';
     }
 
     card.innerHTML =
