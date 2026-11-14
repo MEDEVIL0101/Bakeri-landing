@@ -171,7 +171,13 @@ export function promoLine(p: PlanPromo): string {
 }
 
 /** A live plan sale (plan_sales, e.g. Black Friday): percent off the first months of a monthly plan. */
-export interface PlanSale { id: string; label: string; percent_off: number; months: number; ends_at: string | null }
+export interface PlanSale { id: string; label: string; percent_off: number; months: number; ends_at: string | null; referral_percent_off?: number | null }
+
+/** The sale as a referred vendor gets it: the referral 10% stacks on top (e.g. 50% → 60%). */
+export function saleForReferral(sale: PlanSale | null, referred: boolean): PlanSale | null {
+  if (!sale || !referred || !sale.referral_percent_off) return sale;
+  return { ...sale, percent_off: sale.referral_percent_off };
+}
 
 export function usePlanSale(): PlanSale | null {
   const [sale, setSale] = useState<PlanSale | null>(null);

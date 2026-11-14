@@ -6,7 +6,7 @@ import { LOGO } from '../lib/brand';
 import { Button, ErrorBanner, Field, Input, Spinner } from '../components/ui';
 import { appURL, supabase } from '../lib/supabase';
 import { PasswordRules, friendlyAuthError, passwordRules } from './AuthPages';
-import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, rememberCycleIntent, rememberPlanIntent, storedCycleIntent, storedPlanIntent, hasSubscription, openBillingPortal, promoLine, saleEnds, startCheckout, usePlanPromo, usePlanSale, withSale, type BillingInterval, type PlanDef, type PlanSale, type PlanTier } from '../lib/plans';
+import { PLANS, TESTFLIGHT_URL, TRIAL_DAYS, YEARLY_FREE_MONTHS, clearPlanIntent, effectiveTier, rememberCycleIntent, rememberPlanIntent, storedCycleIntent, storedPlanIntent, hasSubscription, openBillingPortal, promoLine, saleEnds, saleForReferral, startCheckout, usePlanPromo, usePlanSale, withSale, type BillingInterval, type PlanDef, type PlanSale, type PlanTier } from '../lib/plans';
 import { useAuth } from './AuthProvider';
 
 /**
@@ -41,7 +41,9 @@ export function PlanPage() {
   const promo = usePlanPromo(referred);
   // A live sale (Black Friday) for anyone choosing a first plan; it replaces the referral 10% on monthly.
   const liveSale = usePlanSale();
-  const sale = current === 'none' && !subscribed && !lifetime && !grandfathered ? liveSale : null;
+  const baseSale = current === 'none' && !subscribed && !lifetime && !grandfathered ? liveSale : null;
+  // A referral code stacks its 10% on the sale (Black Friday 50% → 60%).
+  const sale = saleForReferral(baseSale, !!referred && !promo);
   // New vendors see Pro first (the site's sign-up funnel); Skip → /plan?all shows every plan.
   // Starting from "Try Starter free" opens every plan straight away, so Pro sits beside it.
   // The account's own sign-up choice wins over this browser's, which can be left over from another sign-up.
@@ -79,6 +81,8 @@ export function PlanPage() {
         </p>
       </div>
       {sale && <SaleBanner sale={sale} />}
+      {sale && baseSale && sale.percent_off !== baseSale.percent_off && cycle === 'month' && (
+        <p className="ref-note plan-ref">Referral code <b>{referred}</b>: an extra <b>{sale.percent_off - baseSale.percent_off}% off</b> on top of {baseSale.label}.</p>)}
       {referred && !(sale && cycle === 'month' && !promo) && (promo
         ? <p className="ref-note plan-ref">Promo code <b>{promo.code}</b>: <b>{promoLine(promo)}</b>.</p>
         : <p className="ref-note plan-ref">Your referral code <b>{referred}</b> is applied: <b>10% off your first 3 months</b>, taken off at checkout.</p>)}
@@ -184,7 +188,8 @@ export function TrialPage() {
   const promo = usePlanPromo(referred);
   const trialDays = trial && promo?.tier === p.tier ? promo.trial_days : TRIAL_DAYS;
   const liveSale = usePlanSale();
-  const sale = liveSale;
+  // A referral code stacks its 10% on the sale (Black Friday 50% → 60%).
+  const sale = saleForReferral(liveSale, !!referred && !promo);
   const pm = withSale(p, sale); // the monthly option, at the sale price while a sale is live
   // Visitors create their account here, after seeing the plan.
   const [showAccount, setShowAccount] = useState(false);
@@ -210,6 +215,8 @@ export function TrialPage() {
       <h1 className="trial-title">{trial ? <>Claim a free<br />{trialDays}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
       <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
       {sale && <SaleBanner sale={sale} />}
+      {sale && liveSale && sale.percent_off !== liveSale.percent_off && interval === 'month' && (
+        <p className="ref-note plan-ref">Referral code <b>{referred}</b>: an extra <b>{sale.percent_off - liveSale.percent_off}% off</b> on top of {liveSale.label}.</p>)}
       {referred && !(sale && interval === 'month' && !promo) && (promo
         ? <p className="ref-note plan-ref">Promo code <b>{promo.code}</b>: <b>{promoLine(promo)}</b>{promo.tier !== p.tier ? ' (pick that plan to use it)' : ''}.</p>
         : <p className="ref-note plan-ref">Referral code <b>{referred}</b>: <b>10% off your first 3 months</b>{interval === 'year' ? ' (10% off your first year)' : ''}, taken off at checkout.</p>)}

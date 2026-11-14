@@ -446,3 +446,4 @@ em.sf.c-purple{color:var(--purple)}em.sf.c-cyan{color:var(--cyan-2)}
 .has-sale .hb-sub{font-size:clamp(17px,1.4vw,19px);margin-top:12px}
 @media(max-width:560px){.hb-sub,.has-sale .hb-sub{font-size:18px;max-width:20em}}
 @media(min-width:981px){.hb-sub{max-width:40ch}}
+.hb-deal-small.on{display:block;margin-top:6px}

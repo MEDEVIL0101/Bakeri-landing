@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="assets/site-v3/for-creators-v3.css?v=37" />
+<link rel="stylesheet" href="assets/site-v3/for-creators-v3.css?v=38" />
 </head>
 <body>
 <header class="nav" id="nav"><div class="wrap nav-in">
@@ -211,12 +211,23 @@ form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;con
   fetch('https://aqhebjxaynvtvurwedrl.supabase.co/rest/v1/rpc/active_plan_sale', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: 'Bearer ' + KEY }, body: '{}' })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (sale) {
+      if (!sale || !sale.percent_off) return sale;
+      // A referral link stacks its 10% on the sale (50% → 60%); promo codes don't.
+      var ref = '';
+      try { ref = sessionStorage.getItem('bakeri_ref') || ''; } catch (_) {}
+      if (!ref || !sale.referral_percent_off) return sale;
+      return fetch('https://aqhebjxaynvtvurwedrl.supabase.co/rest/v1/rpc/resolve_plan_promo', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: 'Bearer ' + KEY }, body: JSON.stringify({ p_code: ref }) })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (promo) { if (!promo) { sale.base_percent_off = sale.percent_off; sale.percent_off = sale.referral_percent_off; } return sale; })
+        .catch(function () { return sale; });
+    })
+    .then(function (sale) {
       if (!sale || !sale.percent_off) return;
       var el = document.getElementById('heroSale'), note = document.getElementById('heroSaleNote');
       var ends = sale.ends_at ? new Date(new Date(sale.ends_at).getTime() - 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Toronto' }) : '';
       el.querySelector('.hb-deal-tag').textContent = sale.label + (ends ? ' · Ends ' + ends : '');
       el.querySelector('.hb-deal-big').textContent = sale.percent_off + '% off your first ' + sale.months + ' months';
-      el.querySelector('.hb-deal-small').textContent = 'On any monthly plan, after your 14-day free trial.';
+      if (sale.base_percent_off) { var sm = el.querySelector('.hb-deal-small'); sm.textContent = sale.label + ' ' + sale.base_percent_off + '% + ' + (sale.percent_off - sale.base_percent_off) + '% from your referral code'; sm.classList.add('on'); }
       el.hidden = false;
       document.querySelector('.hero-bold').classList.add('has-sale');
       document.querySelector('#heroCta .hb-btn-txt').textContent = 'Claim ' + sale.percent_off + '% off · Start free';
