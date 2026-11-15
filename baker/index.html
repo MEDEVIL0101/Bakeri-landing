@@ -1369,7 +1369,22 @@
     .then(function (tier) { data.profile.__plan_paused = tier === 'none'; return data; }, function () { return data; });
   })
   .then(function (data) {
-    if (!data || !data.profile) { showNotFound('Shop not found', 'No shop found at this link.'); return; }
+    if (!data || !data.profile) {
+      // Not a shop: it may be a Growth Partner's link-in-bio page (partner_pages,
+      // a separate page — partners aren't vendors).
+      if (slug) {
+        fetch(SUPABASE_URL + '/rest/v1/rpc/get_partner_page', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+          body: JSON.stringify({ p_slug: slug })
+        }).then(function (r) { return r.ok ? r.json() : null; }).then(function (p) {
+          if (p && p.slug) location.replace('/link/?slug=' + encodeURIComponent(p.slug) + '&clean=1');
+          else showNotFound('Shop not found', 'No shop found at this link.');
+        }, function () { showNotFound('Shop not found', 'No shop found at this link.'); });
+        return;
+      }
+      showNotFound('Shop not found', 'No shop found at this link.');
+      return;
+    }
     profile = data.profile;
     resolvedBakerId = profile.id;
     BakeriMoney.init(profile.money);

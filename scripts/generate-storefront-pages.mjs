@@ -232,6 +232,59 @@ for (const slug of slugs) {
   }
 }
 
+// ── Growth Partner link-in-bio pages (partner_pages, their own page) ─────────
+// Partners aren't vendors: their page renders from link/index.html.
+async function fetchPartnerPages() {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/partner_pages?select=slug&order=slug`,
+    { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } });
+  if (!r.ok) throw new Error(`partner_pages fetch failed: ${r.status}`);
+  return (await r.json()).map((p) => String(p.slug).toLowerCase());
+}
+async function fetchPartnerPage(slug) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_partner_page`, {
+    method: "POST",
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_slug: slug }),
+  });
+  return r.ok ? r.json() : null;
+}
+function renderPartnerPage(page) {
+  const canonical = `${SITE_ORIGIN}/${page.slug}`;
+  const description = truncate(page.bio || `${page.name} on Bakerï`, 160);
+  return `<!DOCTYPE html>
+${GENERATED_MARKER}
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script>
+    location.replace(${JSON.stringify(`/link/?slug=${encodeURIComponent(page.slug)}&clean=1`)});
+  </script>
+  <title>${esc(page.name)} · Bakerï</title>
+  <meta name="description" content="${attr(description)}" />
+  <link rel="canonical" href="${attr(canonical)}" />
+  <meta property="og:title" content="${attr(page.name)}" />
+  <meta property="og:description" content="${attr(description)}" />
+  <meta property="og:url" content="${attr(canonical)}" />
+  <meta property="og:image" content="${attr(DEFAULT_OG_IMAGE)}" />
+</head>
+<body><p><a href="/link/?slug=${attr(encodeURIComponent(page.slug))}">${esc(page.name)}</a></p></body>
+</html>
+`;
+}
+try {
+  for (const slug of await fetchPartnerPages()) {
+    if (!/^[a-z0-9-]+$/.test(slug) || written.includes(slug)) continue;
+    const page = await fetchPartnerPage(slug);
+    if (!page || !page.slug) continue; // partnership not active: no page
+    const dir = join(ROOT, slug);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "index.html"), renderPartnerPage(page));
+    written.push(slug);
+  }
+} catch (e) {
+  failed.push(`partner pages (${e.message})`);
+}
+
 // ── prune stale generated dirs (slug renamed / baker removed) ─────────────────
 const liveSet = new Set(written);
 let pruned = 0;

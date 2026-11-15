@@ -163,8 +163,7 @@ BEGIN
           CROSS JOIN LATERAL (SELECT CASE WHEN p_key = 'abandoned' THEN u.created_at
                                           ELSE admin_signed_up_at(u.id) END AS at) s
           WHERE NOT admin_is_internal(u.id)
-            AND coalesce(p.is_partner_page, false) = false
-            AND NOT EXISTS (SELECT 1 FROM growth_partners g WHERE g.user_id = u.id)
+              AND NOT EXISTS (SELECT 1 FROM growth_partners g WHERE g.user_id = u.id)
             AND s.at >= t_from AND s.at < t_to
             AND CASE p_key
                   WHEN 'abandoned' THEN admin_signed_up_at(u.id) IS NULL

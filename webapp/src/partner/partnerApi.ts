@@ -101,6 +101,25 @@ export async function createLinkPage(slug: string): Promise<string> {
   return check(await supabase.rpc('partner_create_link_page', { p_slug: slug })) as string;
 }
 
+/** A partner's link-in-bio page (partner_pages — not a vendor storefront). */
+export interface PartnerPage {
+  slug: string;
+  name: string;
+  bio: string | null;
+  links: { label: string; url: string }[];
+  updated_at: string;
+}
+
+export async function loadLinkPage(): Promise<PartnerPage | null> {
+  const { data, error } = await supabase.from('partner_pages').select('slug, name, bio, links, updated_at').maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as PartnerPage | null;
+}
+
+export async function saveLinkPage(page: Pick<PartnerPage, 'name' | 'bio' | 'links'>): Promise<PartnerPage> {
+  return check(await supabase.rpc('partner_save_link_page', { p_name: page.name, p_bio: page.bio ?? '', p_links: page.links })) as PartnerPage;
+}
+
 export async function agreeGuidelines(): Promise<void> {
   check(await supabase.rpc('partner_agree_guidelines'));
 }

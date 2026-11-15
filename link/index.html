@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bakerï</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!--
+    A Growth Partner's link-in-bio page (partner_pages, get_partner_page).
+    Partners aren't vendors: this is its own page, not the storefront.
+    bakeriapp.com/<slug> reaches it from the generated <slug>/index.html, or
+    from baker/index.html when the slug isn't a shop (pages made today).
+  -->
+  <style>
+    :root { --bg: #FAF6EE; --ink: #1A130F; --muted: #6B5F54; --card: #FFFFFF; --line: #ECE3D5; --blue: #5F92E6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Hanken Grotesk", -apple-system, system-ui, sans-serif; }
+    main { max-width: 520px; margin: 0 auto; padding: 48px 16px 40px; text-align: center; }
+    .avatar { width: 84px; height: 84px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center;
+              font-family: Archivo, sans-serif; font-weight: 800; font-size: 30px; margin: 0 auto 16px; }
+    h1 { font-family: Archivo, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -.01em; margin: 0 0 8px; }
+    .bio { color: var(--muted); font-size: 15px; line-height: 1.5; margin: 0 auto 28px; max-width: 420px; white-space: pre-line; }
+    .links { display: flex; flex-direction: column; gap: 12px; }
+    .links a { display: block; padding: 16px 18px; border-radius: 14px; background: var(--ink); color: #fff; text-decoration: none;
+               font-weight: 600; font-size: 15px; }
+    .links a:hover { opacity: .9; }
+    .bakeri { margin-top: 28px; padding: 20px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); text-align: left; }
+    .bakeri h2 { font-family: Archivo, sans-serif; font-size: 17px; margin: 0 0 6px; }
+    .bakeri p { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .bakeri .code { font-weight: 700; letter-spacing: .06em; color: var(--ink); }
+    .bakeri a { display: inline-block; padding: 11px 16px; border-radius: 10px; border: 1.5px solid var(--ink); color: var(--ink);
+                text-decoration: none; font-weight: 600; font-size: 14px; }
+    footer { margin-top: 36px; font-size: 12px; color: var(--muted); }
+    footer a { color: var(--muted); }
+    .missing { padding-top: 80px; }
+  </style>
+</head>
+<body>
+  <main id="page" aria-live="polite"></main>
+  <script>
+    (function () {
+      var SUPABASE_URL = 'https://aqhebjxaynvtvurwedrl.supabase.co';
+      var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaGVianhheW52dHZ1cndlZHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTgwOTMsImV4cCI6MjA5MTM5NDA5M30.XgkgwDM5nyrmoJtNNNRDiBQePcBFGew13TbK76y_aOI';
+      var params = new URLSearchParams(location.search);
+      var slug = (window.PARTNER_SLUG || params.get('slug') || '').toLowerCase();
+      var root = document.getElementById('page');
+      function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+      function missing() {
+        document.title = 'Page not found · Bakerï';
+        root.innerHTML = '<div class="missing"><h1>Page not found</h1><p class="bio">Nothing is at this link.</p><p><a href="/">Back to bakeriapp.com</a></p></div>';
+      }
+      if (!/^[a-z0-9-]+$/.test(slug)) { missing(); return; }
+      fetch(SUPABASE_URL + '/rest/v1/rpc/get_partner_page', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+        body: JSON.stringify({ p_slug: slug })
+      }).then(function (r) { return r.ok ? r.json() : null; }).then(function (p) {
+        if (!p || !p.slug) { missing(); return; }
+        document.title = p.name + ' · Bakerï';
+        var initials = p.name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase();
+        var links = (p.links || []).filter(function (l) { return /^https:\/\//i.test(l.url); }).map(function (l) {
+          return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.label) + '</a>';
+        }).join('');
+        var join = p.code ? 'https://bakeriapp.com/?ref=' + encodeURIComponent(p.code) : 'https://bakeriapp.com/';
+        root.innerHTML =
+          '<div class="avatar" aria-hidden="true">' + esc(initials) + '</div>' +
+          '<h1>' + esc(p.name) + '</h1>' +
+          (p.bio ? '<p class="bio">' + esc(p.bio) + '</p>' : '<div style="height:20px"></div>') +
+          '<div class="links">' + links + '</div>' +
+          '<section class="bakeri"><h2>Sell your bakes with Bakerï</h2>' +
+          '<p>Your own storefront, orders and payments in one place.' +
+          (p.code ? ' Use code <span class="code">' + esc(p.code) + '</span> for 10% off your first 3 months.' : '') + '</p>' +
+          '<a href="' + esc(join) + '">Start your shop</a></section>' +
+          '<footer>Made with <a href="https://bakeriapp.com">Bakerï</a></footer>';
+        if (params.get('clean') === '1' && history.replaceState) history.replaceState(null, '', '/' + slug);
+      }).catch(missing);
+    })();
+  </script>
+</body>
+</html>
