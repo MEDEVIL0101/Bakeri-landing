@@ -262,21 +262,28 @@ BEGIN
           AND (split_part(p_key, ':', 2) = '' OR m.listing_kind = split_part(p_key, ':', 2));
 
     -- Vendors referred. key: <referrer uuid> | partners (all Growth Partners),
-    -- optionally ':paying' (on a paid plan now, as the Growth Partners screen counts)
+    -- optionally ':paying' (on a paid plan now, as the Growth Partners screen counts),
+    -- ':signed_up' (completed sign-up) or ':abandoned' (abandoned sign-up)
     WHEN 'referrals' THEN
         SELECT jsonb_agg(jsonb_build_object(
                  'id', r.id, 'user_id', r.referred_baker_id, 'at', r.created_at,
                  'title', admin_user_name(r.referred_baker_id),
                  'subtitle', concat_ws(' · ', 'referred by ' || admin_user_name(r.referrer_user_id), r.referral_code,
-                     CASE WHEN vp.tier <> 'none' AND vp.status IN ('active', 'past_due') THEN initcap(vp.tier) || ', paying'
-                          WHEN vp.status = 'trialing' THEN 'on a trial' ELSE 'not paying' END))
+                     CASE WHEN admin_signed_up_at(r.referred_baker_id) IS NULL THEN 'abandoned sign-up'
+                          WHEN vp.tier <> 'none' AND vp.status IN ('active', 'past_due') THEN initcap(vp.tier) || ', paying'
+                          WHEN vp.status = 'trialing' THEN 'signed up, on a trial'
+                          ELSE 'signed up, not paying' END))
                ORDER BY r.created_at DESC)
         INTO rows
         FROM referrals r LEFT JOIN vendor_plans vp ON vp.user_id = r.referred_baker_id
         WHERE (CASE WHEN split_part(p_key, ':', 1) = 'partners'
                     THEN EXISTS (SELECT 1 FROM growth_partners g WHERE g.user_id = r.referrer_user_id)
                     ELSE r.referrer_user_id::text = split_part(p_key, ':', 1) END)
-          AND (split_part(p_key, ':', 2) <> 'paying' OR (vp.tier <> 'none' AND vp.status IN ('active', 'past_due')))
+          AND CASE split_part(p_key, ':', 2)
+                WHEN 'paying'    THEN vp.tier <> 'none' AND vp.status IN ('active', 'past_due')
+                WHEN 'signed_up' THEN admin_signed_up_at(r.referred_baker_id) IS NOT NULL
+                WHEN 'abandoned' THEN admin_signed_up_at(r.referred_baker_id) IS NULL
+                ELSE true END
           AND r.created_at >= t_from AND r.created_at < t_to;
 
     -- Referral commission earned (not reversed). key: <referrer uuid> | partners
