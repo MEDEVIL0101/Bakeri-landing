@@ -141,35 +141,47 @@ async function syncSubscription(id: string) {
   if (live && match && !alreadyLive) await announcePlanStart(sub, userId, match);
 }
 
-/** Tells the team inbox about a new trial or paid plan (Harvey 2026-11-13). Never throws. */
+/**
+ * The team's "New sign-up" email (Harvey 2026-11-13, 2026-11-15): sent only
+ * when someone COMPLETES sign-up — their plan goes live (trial or paid). An
+ * account that never finishes checkout is an abandoned sign-up and gets no
+ * email. Not sent for renewals or trial→paid conversions. Never throws.
+ */
 async function announcePlanStart(sub: Stripe.Subscription, userId: string, match: { tier: string; interval: string }) {
   try {
     const db = adminClient();
-    const [{ data: u }, { data: p }] = await Promise.all([
+    const [{ data: u }, { data: p }, { data: reg }] = await Promise.all([
       db.auth.admin.getUserById(userId),
       db.from("profiles").select("business_name, profile_slug").eq("id", userId).maybeSingle(),
+      db.from("registration_events").select("country_code").eq("user_id", userId).maybeSingle(),
     ]);
-    const email = u?.user?.email ?? null;
+    const user = u?.user;
+    const email = user?.email ?? null;
+    const meta = (user?.user_metadata ?? {}) as Record<string, string>;
+    const business = p?.business_name || meta.bakery_name || null;
     const plan = `${match.tier === "pro" ? "Pro" : "Starter"} (${match.interval === "year" ? "yearly" : "monthly"})`;
     const trial = sub.status === "trialing";
     const fmt = (t: number) => new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: "America/Toronto", dateStyle: "medium" });
     await sendTeamAlert({
-      eyebrow: trial ? "New trial" : "New subscription",
-      subject: `${trial ? "New trial" : "New paid plan"}: ${plan}, ${p?.business_name || email || userId}`,
-      heading: trial ? `A ${plan} trial just started` : `A ${plan} plan just started`,
+      eyebrow: "New sign-up",
+      subject: `New Bakerï sign-up: ${business || email || userId}, ${plan}${trial ? " trial" : ""}`,
+      heading: `${business || email || "Someone"} just signed up`,
       rows: [
         ["Email", email],
-        ["Business", p?.business_name],
+        ["Name", meta.full_name || meta.name || null],
+        ["Business", business],
         ["Storefront", p?.profile_slug ? `bakeriapp.com/${p.profile_slug}` : null],
         ["Plan", plan],
         ["Status", trial ? "Free trial" : sub.status === "active" ? "Paid" : sub.status],
         ["Trial ends", trial && sub.trial_end ? fmt(sub.trial_end) : null],
         ["Discount", sub.discount?.coupon?.name ?? sub.discount?.coupon?.id ?? null],
+        ["Referral code", meta.referral_code || null],
+        ["Country", reg?.country_code ?? null],
       ],
       replyTo: email,
     });
   } catch (e) {
-    console.error(`Plan-start alert for ${sub.id} failed:`, e instanceof Error ? e.message : e);
+    console.error(`Sign-up alert for ${sub.id} failed:`, e instanceof Error ? e.message : e);
   }
 }
 

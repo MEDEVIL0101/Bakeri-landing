@@ -6,7 +6,8 @@ import { sendTeamAlert } from "../_shared/teamAlert.ts";
 // new account is created. Called by the trg_notify_team_signup trigger on
 // auth.users (pg_net, 20261113000001_notify_team_signup.sql) with
 // x-webhook-secret; deploy with --no-verify-jwt. Body: { user_id }.
-// Trials and paid plans are announced by stripe-billing-webhook instead.
+// RETIRED 2026-11-15: its trigger was dropped (20261115000003). The team
+// email now goes out only on a completed sign-up (stripe-billing-webhook).
 
 const WEBHOOK_SECRET = Deno.env.get("BAKERI_WEBHOOK_SECRET")!;
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
