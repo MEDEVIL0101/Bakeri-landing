@@ -69,6 +69,31 @@ AS $$
   WHERE u.id = p_user;
 $$;
 
+-- The account made by a site sign-up event (created within two minutes of
+-- it), and whether that person completed sign-up.
+CREATE OR REPLACE FUNCTION public.admin_site_signup_user(p_at TIMESTAMPTZ)
+RETURNS UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT u.id FROM auth.users u
+  WHERE p_at IS NOT NULL
+    AND u.created_at BETWEEN p_at - interval '2 minutes' AND p_at + interval '2 minutes'
+  ORDER BY abs(extract(epoch FROM u.created_at - p_at)) LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_site_signup_completed(p_at TIMESTAMPTZ)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT admin_signed_up_at(admin_site_signup_user(p_at)) IS NOT NULL;
+$$;
+
 CREATE OR REPLACE FUNCTION public.admin_daily_order_metrics(p_days integer DEFAULT 30, p_tz text DEFAULT 'UTC')
  RETURNS TABLE(day date, order_count bigint, daily_gtv numeric)
  LANGUAGE sql
@@ -174,7 +199,7 @@ BEGIN
         -- jsonb_agg ORDER BY 3 isn't positional; sort here instead.
         SELECT jsonb_agg(r ORDER BY r->>'at' DESC NULLS LAST) INTO rows FROM jsonb_array_elements(rows) r;
 
-    -- Orders placed. key: null | paid | <vendor uuid> | storefront
+    -- Orders placed. key: null | paid | storefront | <vendor uuid> | paid:<vendor uuid>
     WHEN 'orders' THEN
         SELECT jsonb_agg(x.j ORDER BY x.at DESC) INTO rows FROM (
           SELECT o.created_at AS at, jsonb_build_object(
@@ -195,6 +220,7 @@ BEGIN
                      WHEN p_key = 'paid' THEN o.is_paid
                      WHEN p_key = 'storefront' THEN o.order_source = 'marketplace'
                      WHEN p_key ~ '^[0-9a-f-]{36}$' THEN o.user_id = p_key::uuid
+                     WHEN p_key ~ '^paid:[0-9a-f-]{36}$' THEN o.is_paid AND o.user_id = substr(p_key, 6)::uuid
                      ELSE false END
         ) x;
 
@@ -277,7 +303,9 @@ BEGIN
         ),
         hit AS (
             SELECT * FROM ev
-            WHERE (NOT f ? 'event'    OR event = f->>'event')
+            WHERE (NOT f ? 'event'    OR event = ANY (string_to_array(f->>'event', '|')))
+              -- completed: a sign-up event whose account went on to complete sign-up
+              AND (NOT f ? 'completed' OR (event = 'signup_done' AND admin_site_signup_completed(created_at)))
               AND (NOT f ? 'path'     OR path = f->>'path')
               AND (NOT f ? 'ref'      OR coalesce(ref, '') = f->>'ref')
               AND (NOT f ? 'source'   OR coalesce(source, '') = f->>'source')
@@ -291,6 +319,14 @@ BEGIN
               AND (NOT f ? 'country'  OR coalesce(country, '') = f->>'country')
               AND (NOT f ? 'hour'     OR extract(hour FROM created_at AT TIME ZONE p_tz)::int = (f->>'hour')::int)
               AND (NOT f ? 'day'      OR (created_at AT TIME ZONE p_tz)::date = (f->>'day')::date)
+              -- Credited by where the visit began (the Website day panel):
+              AND (NOT f ? 'first_source' OR (SELECT coalesce(nullif(e2.source, ''), 'direct') FROM ev e2
+                    WHERE e2.session = ev.session ORDER BY e2.created_at LIMIT 1) = f->>'first_source')
+              AND (NOT f ? 'first_campaign' OR (SELECT nullif(e2.campaign, '') FROM ev e2
+                    WHERE e2.session = ev.session ORDER BY e2.created_at LIMIT 1) = f->>'first_campaign')
+              -- Events in a visit that carried a campaign tag (Promotions):
+              AND (NOT f ? 'session_campaign' OR EXISTS (SELECT 1 FROM site_events e3
+                    WHERE e3.session = ev.session AND e3.campaign = f->>'session_campaign'))
         ),
         v AS (
             SELECT h.vkey, count(*) n, min(h.created_at) first_at, max(h.created_at) last_at
@@ -308,11 +344,7 @@ BEGIN
             GROUP BY v.vkey, v.n, v.first_at, v.last_at
         ),
         matched AS (
-            SELECT i.*, (SELECT u.id FROM auth.users u
-                          WHERE i.signup_at IS NOT NULL
-                            AND u.created_at BETWEEN i.signup_at - interval '2 minutes' AND i.signup_at + interval '2 minutes'
-                          ORDER BY abs(extract(epoch FROM u.created_at - i.signup_at)) LIMIT 1) AS user_id
-            FROM info i
+            SELECT i.*, admin_site_signup_user(i.signup_at) AS user_id FROM info i
         )
         SELECT jsonb_agg(jsonb_build_object(
                  'id', m.vkey, 'user_id', m.user_id, 'at', m.last_at, 'value', m.n,
@@ -323,7 +355,8 @@ BEGIN
                      CASE WHEN m.landing IS NOT NULL THEN 'landed on ' || m.landing END,
                      m.pages || CASE WHEN m.pages = 1 THEN ' page' ELSE ' pages' END,
                      m.device,
-                     CASE WHEN m.signup_at IS NOT NULL THEN 'created an account' END))
+                     CASE WHEN m.user_id IS NOT NULL AND admin_signed_up_at(m.user_id) IS NOT NULL THEN 'signed up'
+                          WHEN m.signup_at IS NOT NULL THEN 'abandoned sign-up' END))
                ORDER BY m.last_at DESC)
         INTO rows FROM matched m;
 
@@ -337,7 +370,8 @@ BEGIN
                    (array_agg(coalesce(nullif(e.source, ''), 'direct') ORDER BY e.created_at))[1] AS source,
                    (array_agg(e.path ORDER BY e.created_at) FILTER (WHERE e.event = 'page_view')) AS paths,
                    max(e.country) AS country, max(e.device) AS device,
-                   bool_or(e.event = 'signup_done') AS signed_up
+                   bool_or(e.event = 'signup_done') AS signed_up,
+                   min(e.created_at) FILTER (WHERE e.event = 'signup_done') AS signup_at
             FROM site_events e
             WHERE e.created_at >= t_from AND e.created_at < t_to AND e.session IS NOT NULL
             GROUP BY e.session
@@ -347,7 +381,8 @@ BEGIN
                  'title', concat_ws(' → ', s.paths[1], s.paths[2], s.paths[3],
                                     CASE WHEN array_length(s.paths, 1) > 3 THEN '…' END),
                  'subtitle', concat_ws(' · ', 'from ' || initcap(s.source), s.views || CASE WHEN s.views = 1 THEN ' page' ELSE ' pages' END,
-                                       s.country, s.device, CASE WHEN s.signed_up THEN 'created an account' END),
+                                       s.country, s.device,
+                                       CASE WHEN s.signed_up THEN CASE WHEN admin_site_signup_completed(s.signup_at) THEN 'signed up' ELSE 'abandoned sign-up' END END),
                  'value', CASE WHEN f ? 'multipage' OR p_key = 'multipage' THEN extract(epoch FROM s.ended - s.started) ELSE s.views END,
                  'display', CASE WHEN f ? 'multipage' OR p_key = 'multipage'
                                  THEN CASE WHEN extract(epoch FROM s.ended - s.started) < 60
@@ -393,5 +428,9 @@ GRANT EXECUTE ON FUNCTION public.admin_is_internal(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.admin_user_name(UUID) TO service_role;
 REVOKE ALL ON FUNCTION public.admin_signed_up_at(UUID) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_signed_up_at(UUID) TO service_role;
+REVOKE ALL ON FUNCTION public.admin_site_signup_user(TIMESTAMPTZ) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.admin_site_signup_completed(TIMESTAMPTZ) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_site_signup_user(TIMESTAMPTZ) TO service_role;
+GRANT EXECUTE ON FUNCTION public.admin_site_signup_completed(TIMESTAMPTZ) TO service_role;
 REVOKE ALL ON FUNCTION public.admin_daily_order_metrics(integer, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_daily_order_metrics(integer, text) TO service_role;
