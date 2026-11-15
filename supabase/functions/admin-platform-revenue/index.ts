@@ -53,6 +53,92 @@ function json(body: unknown, status = 200) {
 
 type Day = { day: string; fees: number; subscriptions: number; costs: number };
 
+// One vendor (Body: { user_id }), all time, everything from Stripe (Harvey
+// 2026-11-15: per-user figures must be actual; a vendor whose orders were all
+// manual earns Bakerï $0):
+//   revenue      — application fees on their storefront payments + their plan payments (after refunds)
+//   bakeri_costs — Stripe's fees to Bakerï on those
+//   referral_payouts — referral commission paid out to them
+//   stripe_fees_on_sales — what Stripe charged on their own sales (their connected account)
+//   sales        — gross payments through their Bakerï checkout
+// Each with `lines`, one per Stripe transaction.
+async function stripeList(path: string, q: URLSearchParams, account?: string) {
+  const out: any[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < 200; page++) {
+    const qq = new URLSearchParams(q);
+    qq.set("limit", "100");
+    if (after) qq.set("starting_after", after);
+    const res = await fetch(`https://api.stripe.com/v1/${path}?${qq}`, {
+      headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}`, ...(account ? { "Stripe-Account": account } : {}) },
+    });
+    const list = await res.json();
+    if (!res.ok) throw new Error(list?.error?.message ?? `Stripe ${res.status}`);
+    out.push(...list.data);
+    if (!list.has_more || !list.data.length) break;
+    after = list.data[list.data.length - 1].id;
+  }
+  return out;
+}
+
+async function userSummary(userId: string) {
+  const [prof] = await lookup("profiles", "id", [userId], "id,stripe_connect_account_id");
+  const [plan] = await lookup("vendor_plans", "user_id", [userId], "user_id,stripe_customer_id");
+  const account = prof?.stripe_connect_account_id ?? null;
+  const customer = plan?.stripe_customer_id ?? null;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const t = { revenue: 0, fees: 0, subscriptions: 0, bakeri_costs: 0, referral_payouts: 0, stripe_fees_on_sales: 0, sales: 0 };
+  const lines: Array<{ id: string; kind: string; title: string; subtitle: string; value: number; at: string }> = [];
+  const at = (c: number) => new Date(c * 1000).toISOString();
+
+  if (account || customer) {
+    const q = new URLSearchParams();
+    for (const e of ["data.source", "data.source.fee", "data.source.charge"]) q.append("expand[]", e);
+    for (const bt of await stripeList("balance_transactions", q)) {
+      const src = bt.source && typeof bt.source === "object" ? bt.source : {};
+      const acct = src.account ?? src.destination ?? src.fee?.account ?? null;
+      const cus = src.customer ?? src.charge?.customer ?? null;
+      const cat = CATEGORY[bt.type];
+      const mine = (cat === "fees" && account && acct === account) || (cat === "subscriptions" && customer && cus === customer) ||
+                   (cat === "payouts" && account && acct === account);
+      if (!mine) continue;
+      const desc = [bt.description, src.description].find((d: string) => d && !String(d).startsWith("Application fee from")) ?? "";
+      if (cat === "payouts") {
+        t.referral_payouts += -bt.net / 100;
+        lines.push({ id: bt.id, kind: "referral_payout", title: LABEL[bt.type], subtitle: desc, value: r2(-bt.net / 100), at: at(bt.created) });
+        continue;
+      }
+      if (cat === "fees") t.fees += bt.amount / 100; else t.subscriptions += bt.amount / 100;
+      lines.push({ id: bt.id, kind: "revenue", title: LABEL[bt.type], subtitle: desc, value: r2(bt.amount / 100), at: at(bt.created) });
+      if (bt.fee) {
+        t.bakeri_costs += bt.fee / 100;
+        lines.push({ id: `${bt.id}:fee`, kind: "bakeri_cost", title: `Stripe fee on ${LABEL[bt.type].toLowerCase()}`, subtitle: desc, value: r2(bt.fee / 100), at: at(bt.created) });
+      }
+    }
+  }
+  if (account) {
+    for (const bt of await stripeList("balance_transactions", new URLSearchParams(), account)) {
+      if (!["charge", "payment", "refund", "payment_refund"].includes(bt.type)) continue;
+      // On the vendor's account `fee` also includes Bakerï's application fee;
+      // fee_details separates Stripe's own part.
+      const stripeFee = (bt.fee_details ?? []).filter((d: any) => d.type !== "application_fee")
+        .reduce((n: number, d: any) => n + d.amount, 0) / 100;
+      t.sales += bt.amount / 100;
+      t.stripe_fees_on_sales += stripeFee;
+      lines.push({ id: bt.id, kind: "sale", title: bt.type.includes("refund") ? "Refund" : "Sale", subtitle: bt.description ?? "",
+                   value: r2(bt.amount / 100), at: at(bt.created) });
+      if (stripeFee) lines.push({ id: `${bt.id}:fee`, kind: "stripe_fee_on_sale", title: "Stripe fee", subtitle: bt.description ?? "",
+                                  value: r2(stripeFee), at: at(bt.created) });
+    }
+  }
+  t.revenue = t.fees + t.subscriptions;
+  return {
+    stripe_account: account, stripe_customer: customer,
+    totals: Object.fromEntries(Object.entries(t).map(([k, v]) => [k, r2(v)])),
+    lines,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   // The gateway already verified the signature; only the role is checked here.
@@ -62,8 +148,12 @@ Deno.serve(async (req) => {
   if (role !== "service_role") return json({ error: "Forbidden" }, 403);
   if (!STRIPE_SECRET_KEY) return json({ error: "STRIPE_SECRET_KEY not set" }, 500);
 
-  let body: { from?: string | null; to?: string | null; tz?: string; detail?: string };
+  let body: { from?: string | null; to?: string | null; tz?: string; detail?: string; user_id?: string };
   try { body = await req.json(); } catch { body = {}; }
+  if (body.user_id) {
+    try { return json(await userSummary(body.user_id)); }
+    catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 502); }
+  }
   const from = body.from ? Math.floor(new Date(body.from).getTime() / 1000) : null;
   const to   = body.to   ? Math.floor(new Date(body.to).getTime() / 1000)   : null;
   let tz = "UTC";
