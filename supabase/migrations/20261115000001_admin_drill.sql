@@ -199,7 +199,8 @@ BEGIN
         -- jsonb_agg ORDER BY 3 isn't positional; sort here instead.
         SELECT jsonb_agg(r ORDER BY r->>'at' DESC NULLS LAST) INTO rows FROM jsonb_array_elements(rows) r;
 
-    -- Orders placed. key: null | paid | storefront | <vendor uuid> | paid:<vendor uuid>
+    -- Orders placed. key: ':'-separated parts — a vendor uuid and/or flags
+    -- paid | storefront | checkout | offline | quotes | deposits | forms
     WHEN 'orders' THEN
         SELECT jsonb_agg(x.j ORDER BY x.at DESC) INTO rows FROM (
           SELECT o.created_at AS at, jsonb_build_object(
@@ -216,13 +217,49 @@ BEGIN
           WHERE o.deleted_at IS NULL
             AND o.created_at >= t_from AND o.created_at < t_to
             AND NOT EXISTS (SELECT 1 FROM admin_team_accounts t WHERE t.user_id = o.user_id)
-            AND CASE WHEN p_key IS NULL OR p_key = '' THEN true
-                     WHEN p_key = 'paid' THEN o.is_paid
-                     WHEN p_key = 'storefront' THEN o.order_source = 'marketplace'
-                     WHEN p_key ~ '^[0-9a-f-]{36}$' THEN o.user_id = p_key::uuid
-                     WHEN p_key ~ '^paid:[0-9a-f-]{36}$' THEN o.is_paid AND o.user_id = substr(p_key, 6)::uuid
-                     ELSE false END
+            -- key parts (any order, ':'-separated): a vendor uuid, and flags
+            AND (p_key IS NULL OR p_key = '' OR NOT EXISTS (
+                  SELECT 1 FROM unnest(string_to_array(p_key, ':')) k
+                  WHERE NOT CASE
+                    WHEN k ~ '^[0-9a-f-]{36}$' THEN o.user_id = k::uuid
+                    WHEN k = 'paid'       THEN coalesce(o.is_paid, false)
+                    WHEN k = 'storefront' THEN o.order_source = 'marketplace'
+                    WHEN k = 'checkout'   THEN o.payment_intent_id IS NOT NULL OR o.deposit_payment_intent_id IS NOT NULL
+                    WHEN k = 'offline'    THEN o.payment_intent_id IS NULL AND o.deposit_payment_intent_id IS NULL
+                    WHEN k = 'quotes'     THEN o.quoted_price IS NOT NULL
+                    WHEN k = 'deposits'   THEN o.invoice_type IN ('deposit', 'balance')
+                    WHEN k = 'forms'      THEN o.form_responses IS NOT NULL
+                    ELSE false END))
         ) x;
+
+    -- A vendor's buyers by email (value = orders). key: <uuid> | <uuid>:repeat
+    WHEN 'vendor_buyers' THEN
+        SELECT jsonb_agg(jsonb_build_object(
+                 'id', x.email, 'at', x.last_at, 'value', x.n, 'title', coalesce(x.name, x.email),
+                 'subtitle', concat_ws(' · ', x.email, '$' || round(x.gtv::numeric, 2) || ' in orders'))
+               ORDER BY x.n DESC, x.last_at DESC)
+        INTO rows
+        FROM (SELECT lower(o.customer_email) email, max(o.customer_name) name, count(*) n, max(o.created_at) last_at,
+                     coalesce(sum((SELECT sum(oi.price_per_unit * oi.quantity) FROM order_items oi
+                                    WHERE oi.order_id = o.id AND oi.deleted_at IS NULL)), 0) gtv
+                FROM orders o
+               WHERE o.deleted_at IS NULL AND coalesce(o.customer_email, '') <> ''
+                 AND o.user_id::text = split_part(p_key, ':', 1)
+                 AND o.created_at >= t_from AND o.created_at < t_to
+               GROUP BY 1) x
+        WHERE split_part(p_key, ':', 2) <> 'repeat' OR x.n > 1;
+
+    -- A vendor's listings. key: <uuid> | <uuid>:<listing_kind>
+    WHEN 'listings' THEN
+        SELECT jsonb_agg(jsonb_build_object(
+                 'id', m.id, 'user_id', m.user_id, 'at', m.created_at, 'title', coalesce(nullif(m.name, ''), 'Listing'),
+                 'subtitle', concat_ws(' · ', initcap(replace(coalesce(m.listing_kind, 'other'), '_', ' ')),
+                                       CASE WHEN coalesce(m.is_active, true) THEN 'active' ELSE 'hidden' END),
+                 'value', m.default_price) ORDER BY m.created_at DESC)
+        INTO rows
+        FROM menu_items m
+        WHERE m.deleted_at IS NULL AND m.user_id::text = split_part(p_key, ':', 1)
+          AND (split_part(p_key, ':', 2) = '' OR m.listing_kind = split_part(p_key, ':', 2));
 
     -- Vendors with at least one order in the window (value = orders).
     WHEN 'active_vendors' THEN
@@ -255,6 +292,42 @@ BEGIN
                  AND NOT EXISTS (SELECT 1 FROM admin_team_accounts t WHERE t.user_id = e.shop_id)
                  AND (nullif(split_part(p_key, ':', 1), '') IS NULL OR e.shop_id::text = split_part(p_key, ':', 1))
                GROUP BY e.shop_id) x;
+
+    -- One shop's storefront visitors (value = their page views).
+    -- key: <shop uuid> | <shop uuid>:<source,source…> (only views from those sources)
+    WHEN 'shop_visitors' THEN
+        SELECT jsonb_agg(jsonb_build_object(
+                 'id', x.visitor, 'at', x.last_at, 'value', x.n,
+                 'title', 'Visitor' || coalesce(' from ' || x.country, ''),
+                 'subtitle', concat_ws(' · ', 'came from ' || initcap(x.source), x.device,
+                                       CASE WHEN x.carts > 0 THEN x.carts || ' added to cart' END))
+               ORDER BY x.last_at DESC)
+        INTO rows
+        FROM (SELECT e.visitor, count(*) FILTER (WHERE e.event = 'page_view'
+                       AND (split_part(p_key, ':', 2) = '' OR e.source = ANY (string_to_array(split_part(p_key, ':', 2), ',')))) n,
+                     count(*) FILTER (WHERE e.event = 'add_to_cart') carts, max(e.created_at) last_at,
+                     (array_agg(coalesce(nullif(e.source, ''), 'direct') ORDER BY e.created_at))[1] source,
+                     max(e.country) country, max(e.device) device
+                FROM storefront_events e
+               WHERE e.shop_id::text = split_part(p_key, ':', 1) AND e.created_at >= t_from AND e.created_at < t_to
+               GROUP BY e.visitor) x
+        WHERE x.n > 0;
+
+    -- People who opened screens in the iPhone/web app (value = screens opened).
+    -- key: ios | web | null
+    WHEN 'app_people' THEN
+        SELECT jsonb_agg(jsonb_build_object(
+                 'id', x.user_id, 'user_id', x.user_id, 'at', x.last_at, 'value', x.n,
+                 'title', admin_user_name(x.user_id),
+                 'subtitle', 'Most opened: ' || x.top_screen) ORDER BY x.n DESC)
+        INTO rows
+        FROM (SELECT a.user_id, count(*) n, max(a.created_at) last_at,
+                     mode() WITHIN GROUP (ORDER BY a.screen) top_screen
+                FROM app_events a
+               WHERE a.created_at >= t_from AND a.created_at < t_to
+                 AND (p_key IS NULL OR p_key = '' OR (p_key = 'web') = (a.platform = 'web'))
+                 AND NOT EXISTS (SELECT 1 FROM admin_team_accounts t WHERE t.user_id = a.user_id)
+               GROUP BY a.user_id) x;
 
     -- First storefront checkout sale per vendor, in the window.
     WHEN 'first_checkout_sales' THEN
