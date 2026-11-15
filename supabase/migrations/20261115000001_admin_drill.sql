@@ -261,6 +261,49 @@ BEGIN
         WHERE m.deleted_at IS NULL AND m.user_id::text = split_part(p_key, ':', 1)
           AND (split_part(p_key, ':', 2) = '' OR m.listing_kind = split_part(p_key, ':', 2));
 
+    -- Vendors referred. key: <referrer uuid> | partners (all Growth Partners),
+    -- optionally ':paying' (on a paid plan now, as the Growth Partners screen counts)
+    WHEN 'referrals' THEN
+        SELECT jsonb_agg(jsonb_build_object(
+                 'id', r.id, 'user_id', r.referred_baker_id, 'at', r.created_at,
+                 'title', admin_user_name(r.referred_baker_id),
+                 'subtitle', concat_ws(' · ', 'referred by ' || admin_user_name(r.referrer_user_id), r.referral_code,
+                     CASE WHEN vp.tier <> 'none' AND vp.status IN ('active', 'past_due') THEN initcap(vp.tier) || ', paying'
+                          WHEN vp.status = 'trialing' THEN 'on a trial' ELSE 'not paying' END))
+               ORDER BY r.created_at DESC)
+        INTO rows
+        FROM referrals r LEFT JOIN vendor_plans vp ON vp.user_id = r.referred_baker_id
+        WHERE (CASE WHEN split_part(p_key, ':', 1) = 'partners'
+                    THEN EXISTS (SELECT 1 FROM growth_partners g WHERE g.user_id = r.referrer_user_id)
+                    ELSE r.referrer_user_id::text = split_part(p_key, ':', 1) END)
+          AND (split_part(p_key, ':', 2) <> 'paying' OR (vp.tier <> 'none' AND vp.status IN ('active', 'past_due')))
+          AND r.created_at >= t_from AND r.created_at < t_to;
+
+    -- Referral commission earned (not reversed). key: <referrer uuid> | partners
+    WHEN 'referral_earnings' THEN
+        SELECT jsonb_agg(jsonb_build_object(
+                 'id', e.id, 'user_id', r.referred_baker_id, 'order_id', e.order_id, 'at', e.accrued_at,
+                 'title', admin_user_name(r.referred_baker_id),
+                 'subtitle', concat_ws(' · ', 'for ' || admin_user_name(r.referrer_user_id),
+                     CASE WHEN e.stripe_invoice_id IS NOT NULL THEN 'plan payment' WHEN e.order_id IS NOT NULL THEN 'storefront sale' END,
+                     CASE WHEN e.payout_id IS NOT NULL THEN 'paid out' ELSE 'not paid out yet' END),
+                 'value', e.commission_cents / 100.0) ORDER BY e.accrued_at DESC)
+        INTO rows
+        FROM referral_earnings e JOIN referrals r ON r.id = e.referral_id
+        WHERE e.reversed_at IS NULL
+          AND (CASE WHEN p_key = 'partners' THEN EXISTS (SELECT 1 FROM growth_partners g WHERE g.user_id = r.referrer_user_id)
+                    ELSE r.referrer_user_id::text = p_key END)
+          AND e.accrued_at >= t_from AND e.accrued_at < t_to;
+
+    -- A Growth Partner's outreach list. key: partner uuid
+    WHEN 'partner_leads' THEN
+        SELECT jsonb_agg(jsonb_build_object(
+                 'id', l.id, 'user_id', l.converted_user_id, 'at', l.created_at,
+                 'title', coalesce(nullif(l.shop_name, ''), nullif(l.contact_name, ''), l.email, 'Lead'),
+                 'subtitle', concat_ws(' · ', l.status, l.instagram, l.city)) ORDER BY l.created_at DESC)
+        INTO rows
+        FROM partner_leads l WHERE l.partner_user_id::text = p_key AND l.created_at >= t_from AND l.created_at < t_to;
+
     -- Vendors with at least one order in the window (value = orders).
     WHEN 'active_vendors' THEN
         SELECT jsonb_agg(jsonb_build_object(
