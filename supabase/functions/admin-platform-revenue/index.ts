@@ -15,7 +15,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // role to be service_role (Bakeri Admin). Platform financials — never public.
 //
 // Body: { from?: ISO date, to?: ISO date, tz?: IANA zone for daily buckets,
-//         detail?: "fees" | "subscriptions" | "revenue" | "costs" | "payouts" }
+//         detail?: "fees" | "subscriptions" | "revenue" | "costs" | "payouts" | "all_costs" | "net" }
 // With `detail`, the response also has `lines`: one row per Stripe transaction
 // in that category (Admin drill-downs, 2026-11-15), matched to the vendor it
 // came from where Stripe says (connected account, or plan customer).
@@ -113,13 +113,25 @@ Deno.serve(async (req) => {
         // Stripe's own "Application fee from application …" says nothing new.
         const desc = [bt.description, src.description, src.billing_details?.email]
           .find((d) => d && !String(d).startsWith("Application fee from")) ?? "";
-        if ((detail === cat || (detail === "revenue" && (cat === "fees" || cat === "subscriptions")))) {
-          lines.push({ ...base, title: LABEL[bt.type] ?? bt.type, subtitle: desc, value: cat === "payouts" ? -bt.net / 100 : bt.amount / 100 });
-        }
-        const cost = bt.type === "stripe_fee" || bt.type === "tax_fee" ? -bt.net / 100 : bt.fee / 100;
-        if (detail === "costs" && cost && !cat?.startsWith("payouts")) {
-          lines.push({ ...base, title: bt.type === "stripe_fee" || bt.type === "tax_fee" ? LABEL[bt.type] : `Stripe fee on ${(LABEL[bt.type] ?? bt.type).toLowerCase()}`,
-                       subtitle: desc, value: cost });
+        // Each transaction's share of each figure on the Revenue card.
+        const isStripeFee = bt.type === "stripe_fee" || bt.type === "tax_fee";
+        const cost = isStripeFee ? -bt.net / 100 : (cat === "payouts" ? 0 : bt.fee / 100);
+        const parts: Array<{ kind: "revenue" | "cost" | "payout" | "adjustment"; title: string; value: number }> = [];
+        if (cat === "fees" || cat === "subscriptions") parts.push({ kind: "revenue", title: LABEL[bt.type] ?? bt.type, value: bt.amount / 100 });
+        if (cat === "payouts") parts.push({ kind: "payout", title: LABEL[bt.type] ?? bt.type, value: -bt.net / 100 });
+        if (cost) parts.push({ kind: "cost", title: isStripeFee ? LABEL[bt.type] : `Stripe fee on ${(LABEL[bt.type] ?? bt.type).toLowerCase()}`, value: cost });
+        if (bt.type === "adjustment") parts.push({ kind: "adjustment", title: "Adjustment", value: bt.net / 100 });
+        for (const part of parts) {
+          const keep =
+            detail === cat && part.kind === "revenue" ||
+            detail === "revenue" && part.kind === "revenue" ||
+            detail === "costs" && part.kind === "cost" ||
+            detail === "payouts" && part.kind === "payout" ||
+            detail === "all_costs" && (part.kind === "cost" || part.kind === "payout") ||
+            detail === "net";
+          if (!keep) continue;
+          const sign = detail === "net" && (part.kind === "cost" || part.kind === "payout") ? -1 : 1;
+          lines.push({ ...base, id: `${bt.id}:${part.kind}`, title: part.title, subtitle: desc, value: sign * part.value });
         }
       }
       currency ||= bt.currency;
