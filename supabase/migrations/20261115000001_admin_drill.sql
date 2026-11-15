@@ -369,7 +369,7 @@ BEGIN
     -- account created within two minutes of their sign-up event.
     WHEN 'site_visitors' THEN
         WITH ev AS (
-            SELECT e.*, CASE WHEN e.visitor LIKE 'd:%' THEN e.visitor || '@' || (e.created_at AT TIME ZONE p_tz)::date
+            SELECT e.*, CASE WHEN e.visitor LIKE 'd:%' AND NOT f ? 'raw' THEN e.visitor || '@' || (e.created_at AT TIME ZONE p_tz)::date
                              ELSE e.visitor END AS vkey
             FROM site_events e
             WHERE e.created_at >= t_from AND e.created_at < t_to
@@ -380,6 +380,8 @@ BEGIN
               -- completed: a sign-up event whose account went on to complete sign-up
               AND (NOT f ? 'completed' OR (event = 'signup_done' AND admin_site_signup_completed(created_at)))
               AND (NOT f ? 'path'     OR path = f->>'path')
+              -- site_page: a page view on the marketing site (not the web app)
+              AND (NOT f ? 'site_page' OR (event = 'page_view' AND path NOT LIKE '/app/%'))
               AND (NOT f ? 'ref'      OR coalesce(ref, '') = f->>'ref')
               AND (NOT f ? 'source'   OR coalesce(source, '') = f->>'source')
               AND (NOT f ? 'medium'   OR coalesce(medium, '') = f->>'medium')
