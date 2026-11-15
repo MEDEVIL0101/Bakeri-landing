@@ -14,10 +14,38 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // Service-role only: deployed WITH JWT verification, then requires the token's
 // role to be service_role (Bakeri Admin). Platform financials — never public.
 //
-// Body: { from?: ISO date, to?: ISO date, tz?: IANA zone for daily buckets }
+// Body: { from?: ISO date, to?: ISO date, tz?: IANA zone for daily buckets,
+//         detail?: "fees" | "subscriptions" | "revenue" | "costs" | "payouts" }
+// With `detail`, the response also has `lines`: one row per Stripe transaction
+// in that category (Admin drill-downs, 2026-11-15), matched to the vendor it
+// came from where Stripe says (connected account, or plan customer).
 // Amounts are in the platform's settlement currency, in major units.
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+type Line = { id: string; user_id: string | null; title: string; subtitle: string; value: number; at: string;
+              account?: string | null; customer?: string | null };
+
+async function lookup(table: string, col: string, ids: string[], select: string) {
+  if (!ids.length) return [] as Record<string, string>[];
+  const q = new URLSearchParams({ select, [col]: `in.(${ids.map((i) => `"${i}"`).join(",")})` });
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${q}`, { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } });
+  return r.ok ? await r.json() as Record<string, string>[] : [];
+}
+
+const CATEGORY: Record<string, string> = {
+  application_fee: "fees", application_fee_refund: "fees",
+  charge: "subscriptions", payment: "subscriptions", refund: "subscriptions", payment_refund: "subscriptions", payment_failure_refund: "subscriptions",
+  transfer: "payouts", transfer_refund: "payouts", transfer_cancel: "payouts", transfer_failure: "payouts",
+};
+const LABEL: Record<string, string> = {
+  application_fee: "Payment fee", application_fee_refund: "Payment fee refunded",
+  charge: "Plan payment", payment: "Plan payment", refund: "Plan refund", payment_refund: "Plan refund", payment_failure_refund: "Failed payment returned",
+  transfer: "Referral payout", transfer_refund: "Referral payout returned", transfer_cancel: "Referral payout cancelled", transfer_failure: "Referral payout failed",
+  stripe_fee: "Stripe fee", tax_fee: "Stripe Tax fee",
+};
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -34,7 +62,7 @@ Deno.serve(async (req) => {
   if (role !== "service_role") return json({ error: "Forbidden" }, 403);
   if (!STRIPE_SECRET_KEY) return json({ error: "STRIPE_SECRET_KEY not set" }, 500);
 
-  let body: { from?: string | null; to?: string | null; tz?: string };
+  let body: { from?: string | null; to?: string | null; tz?: string; detail?: string };
   try { body = await req.json(); } catch { body = {}; }
   const from = body.from ? Math.floor(new Date(body.from).getTime() / 1000) : null;
   const to   = body.to   ? Math.floor(new Date(body.to).getTime() / 1000)   : null;
@@ -56,6 +84,8 @@ Deno.serve(async (req) => {
   };
   let currency = "";
   let count = 0;
+  const detail = body.detail ?? null;
+  const lines: Line[] = [];
 
   let startingAfter: string | null = null;
   for (let page = 0; page < 200; page++) {
@@ -63,14 +93,35 @@ Deno.serve(async (req) => {
     if (from !== null) q.set("created[gte]", String(from));
     if (to   !== null) q.set("created[lt]",  String(to));
     if (startingAfter) q.set("starting_after", startingAfter);
+    if (detail) q.append("expand[]", "data.source");
     const res = await fetch(`https://api.stripe.com/v1/balance_transactions?${q}`, {
       headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
     });
     const list = await res.json();
     if (!res.ok) return json({ error: list?.error?.message ?? `Stripe ${res.status}` }, 502);
 
-    for (const bt of list.data as Array<{ id: string; type: string; amount: number; fee: number; net: number; created: number; currency: string }>) {
+    for (const bt of list.data as Array<{ id: string; type: string; amount: number; fee: number; net: number; created: number; currency: string; description: string | null; source: any }>) {
       count++;
+      if (detail) {
+        const cat = CATEGORY[bt.type];
+        const src = bt.source && typeof bt.source === "object" ? bt.source : {};
+        const base = {
+          id: bt.id, user_id: null, at: new Date(bt.created * 1000).toISOString(),
+          account: (src.account ?? src.destination ?? null) as string | null,
+          customer: (src.customer ?? null) as string | null,
+        };
+        // Stripe's own "Application fee from application …" says nothing new.
+        const desc = [bt.description, src.description, src.billing_details?.email]
+          .find((d) => d && !String(d).startsWith("Application fee from")) ?? "";
+        if ((detail === cat || (detail === "revenue" && (cat === "fees" || cat === "subscriptions")))) {
+          lines.push({ ...base, title: LABEL[bt.type] ?? bt.type, subtitle: desc, value: cat === "payouts" ? -bt.net / 100 : bt.amount / 100 });
+        }
+        const cost = bt.type === "stripe_fee" || bt.type === "tax_fee" ? -bt.net / 100 : bt.fee / 100;
+        if (detail === "costs" && cost && !cat?.startsWith("payouts")) {
+          lines.push({ ...base, title: bt.type === "stripe_fee" || bt.type === "tax_fee" ? LABEL[bt.type] : `Stripe fee on ${(LABEL[bt.type] ?? bt.type).toLowerCase()}`,
+                       subtitle: desc, value: cost });
+        }
+      }
       currency ||= bt.currency;
       const amt = bt.amount / 100, fee = bt.fee / 100, net = bt.net / 100;
       const d = bucket(bt.created);
@@ -98,6 +149,33 @@ Deno.serve(async (req) => {
   }
 
   const r2 = (n: number) => Math.round(n * 100) / 100;
+
+  // Who each line came from: a vendor's connected account, a plan customer, or
+  // a referral payout's destination (vendor or Growth Partner).
+  if (lines.length) {
+    const accounts = [...new Set(lines.map((l) => l.account).filter(Boolean))] as string[];
+    const customers = [...new Set(lines.map((l) => l.customer).filter(Boolean))] as string[];
+    const [shops, partners, plans] = await Promise.all([
+      lookup("profiles", "stripe_connect_account_id", accounts, "id,business_name,user_name,stripe_connect_account_id"),
+      lookup("growth_partners", "stripe_connect_account_id", accounts, "user_id,name,stripe_connect_account_id"),
+      lookup("vendor_plans", "stripe_customer_id", customers, "user_id,stripe_customer_id"),
+    ]);
+    const byAccount = new Map<string, { id: string; name: string }>();
+    for (const p of shops) byAccount.set(p.stripe_connect_account_id, { id: p.id, name: p.business_name || p.user_name || "" });
+    for (const p of partners) byAccount.set(p.stripe_connect_account_id, { id: p.user_id, name: p.name || "" });
+    const planUser = new Map(plans.map((p) => [p.stripe_customer_id, p.user_id]));
+    const names = new Map((await lookup("profiles", "id", [...new Set(plans.map((p) => p.user_id))], "id,business_name,user_name"))
+      .map((p) => [p.id, p.business_name || p.user_name || ""]));
+    for (const l of lines) {
+      const a = l.account ? byAccount.get(l.account) : undefined;
+      const u = l.customer ? planUser.get(l.customer) : undefined;
+      l.user_id = a?.id ?? u ?? null;
+      const who = a?.name || (u ? names.get(u) : "") || "";
+      if (who) l.title = `${who}: ${l.title.charAt(0).toLowerCase()}${l.title.slice(1)}`;
+      l.value = r2(l.value);
+      delete l.account; delete l.customer;
+    }
+  }
   const revenue = t.applicationFees + t.applicationFeeRefunds + t.subscriptions + t.subscriptionRefunds;
   const net = revenue - t.stripeCosts - t.referralPayouts + t.adjustments;
   return json({
@@ -114,6 +192,7 @@ Deno.serve(async (req) => {
       adjustments: r2(t.adjustments),
       net: r2(net),
     },
+    ...(detail ? { lines } : {}),
     daily: [...days.values()].sort((a, b) => a.day.localeCompare(b.day))
       .map((d) => ({ day: d.day, fees: r2(d.fees), subscriptions: r2(d.subscriptions), costs: r2(d.costs) })),
   });
