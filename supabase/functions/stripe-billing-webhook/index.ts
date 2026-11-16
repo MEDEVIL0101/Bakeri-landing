@@ -159,7 +159,7 @@ async function announcePlanStart(sub: Stripe.Subscription, userId: string, match
     const email = user?.email ?? null;
     const meta = (user?.user_metadata ?? {}) as Record<string, string>;
     const business = p?.business_name || meta.bakery_name || null;
-    const plan = `${match.tier === "pro" ? "Pro" : "Starter"} (${match.interval === "year" ? "yearly" : "monthly"})`;
+    const plan = `${match.tier === "pro" ? "Pro" : match.tier === "basic" ? "Basic" : "Starter"} (${match.interval === "year" ? "yearly" : "monthly"})`;
     const trial = sub.status === "trialing";
     const fmt = (t: number) => new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: "America/Toronto", dateStyle: "medium" });
     await sendTeamAlert({
@@ -227,7 +227,7 @@ async function sendTrialEndingEmail(sub: Stripe.Subscription) {
   if (!to) return;
   const price = sub.items.data[0]?.price;
   const match = tierForPriceId(price?.id);
-  const plan = match?.tier === "pro" ? "Pro" : "Starter";
+  const plan = match?.tier === "pro" ? "Pro" : match?.tier === "basic" ? "Basic" : "Starter";
   const amount = price?.unit_amount != null
     ? `$${(price.unit_amount / 100).toFixed(2)} ${(price.currency ?? "usd").toUpperCase()} per ${match?.interval ?? price.recurring?.interval ?? "month"}`
     : "your plan price";

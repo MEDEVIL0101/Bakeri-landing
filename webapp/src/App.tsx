@@ -1,3 +1,4 @@
+import { BasicLock } from './components/BasicLock';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { AuthCallbackPage, ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from './auth/AuthPages';
@@ -153,18 +154,18 @@ export default function App() {
               <Route path="menu" element={<MenuPage />} />
               <Route path="menu/new" element={<MenuItemEditorPage />} />
               <Route path="menu/:id" element={<MenuItemEditorPage />} />
-              <Route path="menu/:id/course" element={<CourseBuilderPage />} />
-              <Route path="courses" element={<SpacesPage club={false} />} />
-              <Route path="clubs" element={<SpacesPage club />} />
+              <Route path="menu/:id/course" element={<BasicLock title="Courses" feature="Courses"><CourseBuilderPage /></BasicLock>} />
+              <Route path="courses" element={<BasicLock title="Courses" feature="Courses"><SpacesPage club={false} /></BasicLock>} />
+              <Route path="clubs" element={<BasicLock title="Clubs" feature="Clubs"><SpacesPage club /></BasicLock>} />
               <Route path="communities" element={<Navigate to="/courses" replace />} />
-              <Route path="communities/:id" element={<CommunityManagePage />} />
-              <Route path="communities/:id/design" element={<CommunityDesignPage />} />
+              <Route path="communities/:id" element={<BasicLock title="Courses & Clubs" feature="Courses and clubs"><CommunityManagePage /></BasicLock>} />
+              <Route path="communities/:id/design" element={<BasicLock title="Courses & Clubs" feature="Courses and clubs"><CommunityDesignPage /></BasicLock>} />
               <Route path="customers" element={<CustomersPage />} />
               <Route path="customers/:id" element={<CustomerProfilePage />} />
-              <Route path="campaigns" element={<CampaignsPage />} />
-              <Route path="campaigns/new" element={<CampaignEditorPage />} />
-              <Route path="campaigns/:id" element={<CampaignEditorPage />} />
-              <Route path="campaigns/:id/edit" element={<CampaignEditorPage />} />
+              <Route path="campaigns" element={<BasicLock title="Email Campaigns" feature="Email campaigns"><CampaignsPage /></BasicLock>} />
+              <Route path="campaigns/new" element={<BasicLock title="Email Campaigns" feature="Email campaigns"><CampaignEditorPage /></BasicLock>} />
+              <Route path="campaigns/:id" element={<BasicLock title="Email Campaigns" feature="Email campaigns"><CampaignEditorPage /></BasicLock>} />
+              <Route path="campaigns/:id/edit" element={<BasicLock title="Email Campaigns" feature="Email campaigns"><CampaignEditorPage /></BasicLock>} />
               <Route path="schedule" element={<SchedulePage />} />
               <Route path="recipes" element={<RecipesPage />} />
               <Route path="recipes/new" element={<RecipeEditorPage />} />
@@ -180,9 +181,9 @@ export default function App() {
               <Route path="refer" element={<ReferPage />} />
               <Route path="security" element={<TwoFactorPage />} />
               <Route path="ios" element={<GetIOSPage />} />
-              <Route path="insights" element={<InsightsPage />} />
+              <Route path="insights" element={<BasicLock title="Insights" feature="Insights"><InsightsPage /></BasicLock>} />
               <Route path="finances" element={<FinancesPage />} />
-              <Route path="promotions" element={<PromotionsPage />} />
+              <Route path="promotions" element={<BasicLock title="Promotions" feature="Promotions and discount codes"><PromotionsPage /></BasicLock>} />
               <Route path="ingredients" element={<IngredientsPage />} />
               <Route path="packaging" element={<PackagingPage />} />
               <Route path="calculator" element={<CalculatorPage />} />

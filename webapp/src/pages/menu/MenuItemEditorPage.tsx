@@ -10,6 +10,7 @@ import {
 import { listRecipes } from '../../lib/data';
 import { formatMoney, fromLocalInput, parseNumber, toDateInput, toDateTimeInput } from '../../lib/format';
 import type { ListingKind } from '../../lib/types';
+import { isBasic } from '../../lib/plans';
 import { blocksFromRow } from '../../lib/contentBlocks';
 import { loadFeaturedCard, setFeaturedCard } from '../../lib/sections';
 import { closeSpace } from '../../lib/courses';
@@ -62,7 +63,9 @@ function draftFrom(m: MenuItemFull, profileDelivery: boolean, siteListingId: str
 export function MenuItemEditorPage() {
   const { id } = useParams();
   const userId = useUserId();
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, plan } = useAuth();
+  // Basic plan: custom orders only — the other listing types show as locked.
+  const basic = isBasic(plan);
   const navigate = useNavigate();
   const toast = useToast();
   // A link straight to this product on the storefront (opens its item sheet).
@@ -109,23 +112,27 @@ export function MenuItemEditorPage() {
       <div className="page">
         <PageHeader back={<Link to="/menu" className="back-link">Products</Link>} title="What are you listing?" />
         <div className="kind-grid">
-          {LISTING_KINDS.map((k) => (
+          {LISTING_KINDS.map((k) => basic && k.kind !== 'custom' ? (
+            <LockedKind key={k.kind} icon={KIND_ICONS[k.kind]} title={k.label} />
+          ) : (
             <button key={k.kind} className="kind-card" onClick={() => setDraft(emptyDraft(k.kind))}>
               <span className="kind-icon" aria-hidden>{KIND_ICONS[k.kind]}</span>
               <span className="kind-title">{k.label}</span>
               <span className="muted small">{k.description}</span>
             </button>
           ))}
+          {basic ? <LockedKind icon={KIND_ICONS.course} title="Course" /> : (
           <button className="kind-card" onClick={() => setDraft({ ...emptyDraft('digital'), is_course: true, category: 'Courses' })}>
             <span className="kind-icon" aria-hidden>{KIND_ICONS.course}</span>
             <span className="kind-title">Course</span>
             <span className="muted small">Video lessons in modules — students get lifetime access</span>
-          </button>
+          </button>)}
+          {basic ? <LockedKind icon={KIND_ICONS.club} title="Club" /> : (
           <button className="kind-card" onClick={() => setDraft({ ...emptyDraft('digital'), is_course: true, is_club: true, club_interval: 'month', category: 'Clubs' })}>
             <span className="kind-icon" aria-hidden>{KIND_ICONS.club}</span>
             <span className="kind-title">Club</span>
             <span className="muted small">A paid membership to your resources and posts — monthly, yearly or one-time</span>
-          </button>
+          </button>)}
           <button className="kind-card kind-card-wide" onClick={() => setDraft({ ...emptyDraft('custom'), is_storefront_form: true, use_as_site_body: true })}>
             <span className="kind-icon" aria-hidden>{KIND_ICONS.form}</span>
             <span className="kind-title">Custom Order Form (replaces storefront)</span>
@@ -707,5 +714,16 @@ function FeaturedCardToggle({ userId, listingId }: { userId: string; listingId: 
       }} label="Give it its own card" hint="It moves out of your Products grid into its own highlight card — retitle and style it in Storefront." />
       {on && <p className="small muted"><Link to="/storefront">Edit the card in Storefront →</Link></p>}
     </>
+  );
+}
+
+/** A listing type the Basic plan doesn't include: shown, but links to the plans. */
+function LockedKind({ icon, title }: { icon: ReactNode; title: string }) {
+  return (
+    <Link to="/plan" className="kind-card kind-card-locked">
+      <span className="kind-icon" aria-hidden>{icon}</span>
+      <span className="kind-title">{title}</span>
+      <span className="muted small">Not on Basic. Upgrade to Starter or Pro.</span>
+    </Link>
   );
 }

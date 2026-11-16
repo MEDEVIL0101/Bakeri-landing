@@ -12,12 +12,12 @@ import { PLAN_FEE_RATE, type PlanTier } from "./plans.ts";
 // deno-lint-ignore no-explicit-any
 type Db = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: any; error: any }> };
 
-/** 'starter' | 'pro' | 'none', or null when it couldn't be read. */
+/** 'basic' | 'starter' | 'pro' | 'none', or null when it couldn't be read. */
 export async function vendorTier(db: Db, bakerId: string): Promise<PlanTier | "none" | null> {
   try {
     const { data, error } = await db.rpc("effective_plan_tier", { p_user_id: bakerId });
     if (error || typeof data !== "string") return null;
-    return data === "starter" || data === "pro" || data === "none" ? data : null;
+    return data === "basic" || data === "starter" || data === "pro" || data === "none" ? data : null;
   } catch {
     return null;
   }
@@ -31,5 +31,10 @@ export async function vendorPlanPaused(db: Db, bakerId: string): Promise<boolean
 /** Bakeri's fee rate on this vendor's sales: their plan's rate, else 5%. */
 export async function vendorFeeRate(db: Db, bakerId: string): Promise<number> {
   const tier = await vendorTier(db, bakerId);
-  return tier === "starter" || tier === "pro" ? PLAN_FEE_RATE[tier] : PLATFORM_FEE_RATE;
+  return tier === "basic" || tier === "starter" || tier === "pro" ? PLAN_FEE_RATE[tier] : PLATFORM_FEE_RATE;
+}
+
+/** True only when the vendor is definitely on Basic (custom orders only). */
+export async function vendorOnBasic(db: Db, bakerId: string): Promise<boolean> {
+  return (await vendorTier(db, bakerId)) === "basic";
 }

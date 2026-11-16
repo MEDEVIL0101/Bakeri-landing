@@ -53,7 +53,7 @@ export function PlanPage() {
   const intent = (session?.user.user_metadata?.plan_intent ?? storedPlanIntent()) as string | null;
   const cycleIntent = (session?.user.user_metadata?.plan_cycle ?? storedCycleIntent()) as string | null;
   if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all')) {
-    const tier = intent === 'starter' ? 'starter' : 'pro';
+    const tier = intent === 'starter' || intent === 'basic' ? intent : 'pro';
     return <Navigate to={`/plan/trial?tier=${tier}${cycleIntent === 'month' || cycleIntent === 'year' ? `&cycle=${cycleIntent}` : ''}`} replace />;
   }
 
@@ -105,7 +105,7 @@ export function PlanPage() {
               {pro && <span className="pk-badge">★ Recommended</span>}
               <header className="pk-head"><h2>{p.name}</h2><p>{p.tagline}</p></header>
               <div className="pk-body">
-                <PlanPrice p={cycle === 'month' ? withSale(p, sale) : p} grandfathered={grandfathered} lifetime={lifetime} cycle={cycle} />
+                <PlanPrice p={cycle === 'month' && p.tier !== 'basic' ? withSale(p, sale) : p} grandfathered={grandfathered} lifetime={lifetime} cycle={cycle} />
                 <p className="pk-sub">{p.feePct ? `${p.feePct}% Bakeri fee per sale` : 'No Bakeri fee on any sale'}</p>
                 {isCurrent ? (
                   <Button variant="secondary" className="pk-btn" disabled>Current plan</Button>
@@ -130,7 +130,7 @@ export function PlanPage() {
         })}
       </div>
       {current === 'none' && <AllInOne sale={sale} />}
-      <p className="small muted plan-note">Prices in USD. Stripe card fees apply on both plans. Pro costs $20 more a month and saves you 5% on every sale — so it pays for itself once you sell about $400 a month.</p>
+      <p className="small muted plan-note">Prices in USD. Stripe card fees apply on every plan. Pro costs $20 more a month and saves you 5% on every sale — so it pays for itself once you sell about $400 a month.</p>
       <div className="auth-footer plan-footer">
         {subscribed && <><button type="button" className="link-btn" onClick={manage} disabled={!!busy}>Manage billing &amp; invoices</button> · </>}
         {!session ? <>Already have an account? <Link to="/login">Log in</Link></>
@@ -192,7 +192,8 @@ export function TrialPage() {
   const trialDays = trial && promo?.tier === p.tier ? promo.trial_days : TRIAL_DAYS;
   const liveSale = usePlanSale();
   // A referral code stacks its 10% on the sale (Black Friday 50% → 60%).
-  const sale = saleForReferral(liveSale, !!referred && !promo);
+  // Basic is already the lowest price — plan sales don't apply to it (create-plan-checkout agrees).
+  const sale = p.tier === 'basic' ? null : saleForReferral(liveSale, !!referred && !promo);
   const pm = withSale(p, sale); // the monthly option, at the sale price while a sale is live
   // Visitors create their account here, after seeing the plan.
   const [showAccount, setShowAccount] = useState(false);
@@ -216,7 +217,7 @@ export function TrialPage() {
       {fromPicker ? <Link to="/plan?all" className="trial-back">‹ Back to plans</Link> : <Link to="/plan?all" className="trial-skip">See all plans</Link>}
       <div className="trial-brand"><img src={LOGO} alt="Bakeri" /> <span>{p.name}</span></div>
       <h1 className="trial-title">{trial ? <>Claim a free<br />{trialDays}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
-      <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
+      <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : p.tier === 'basic' ? 'A storefront for custom orders, with quotes, invoices and payments. No Bakeri fee.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
       {sale && <SaleBanner sale={sale} />}
       {sale && liveSale && sale.percent_off !== liveSale.percent_off && interval === 'month' && (
         <p className="ref-note plan-ref">Referral code <b>{referred}</b>: an extra <b>{sale.percent_off - liveSale.percent_off}% off</b> on top of {liveSale.label}.</p>)}

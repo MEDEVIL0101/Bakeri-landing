@@ -19,13 +19,17 @@
 // payments already use — plans went live on it 2026-10-30. The price ids and
 // coupon above must belong to the same mode as the key in use.
 
-export type PlanTier = "starter" | "pro";
+// Basic (Harvey 2026-11-15): $3/mo, no Bakeri fee — a custom-orders-only
+// storefront with web links (Bakesy Standard for $3). Menu checkout, products,
+// digital goods, courses, clubs, tips, lead magnets and campaigns need Starter or Pro.
+export type PlanTier = "basic" | "starter" | "pro";
 export type BillingInterval = "month" | "year";
 
-export const PAID_TIERS: PlanTier[] = ["starter", "pro"];
+export const PAID_TIERS: PlanTier[] = ["basic", "starter", "pro"];
 
 /** Platform fee on storefront sales, by tier. Not wired into charges yet. */
 export const PLAN_FEE_RATE: Record<PlanTier, number> = {
+  basic: 0,
   starter: 0.05,
   pro: 0,
 };

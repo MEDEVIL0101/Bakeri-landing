@@ -4,7 +4,7 @@
 // never from the iOS app (no prices or buy links in the app — App Store
 // anti-steering rules).
 //
-// Body: { tier: "starter" | "pro", interval?: "month" | "year" }
+// Body: { tier: "basic" | "starter" | "pro", interval?: "month" | "year" }
 //
 // A vendor's first subscription starts with the free trial (card taken up
 // front, first charge when the trial ends); vendor_plans.trial_used_at
@@ -91,7 +91,7 @@ serve(async (req) => {
     // A referral stacks on it (Black Friday 50% + referral 10% = 60%) — Stripe
     // Checkout takes one discount, so the combination is the sale's referral coupon.
     let saleCoupon: string | null = null;
-    if (interval === "month" && !plan?.first_paid_at) {
+    if (interval === "month" && !plan?.first_paid_at && tier !== "basic") {
       const { data: sale } = await db.rpc("active_plan_sale");
       if (sale?.id) {
         const { data: row } = await db.from("plan_sales").select("stripe_coupon_id, stripe_referral_coupon_id").eq("id", sale.id).maybeSingle();

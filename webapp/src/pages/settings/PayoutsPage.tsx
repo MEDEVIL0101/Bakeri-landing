@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
-import { feeDescription } from '../../lib/plans';
+import { feeDescription, isBasic } from '../../lib/plans';
 import { Badge, Button, Card, ConfirmModal, ErrorBanner, Field, PageHeader, Select, Spinner, Toggle, useLoad } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 import { check } from '../../lib/api';
@@ -93,6 +93,7 @@ function Setup({ hasAccount, defaultCountry, onChange }: { hasAccount: boolean; 
 function Connected({ onChange }: { onChange: () => void }) {
   const summary = useLoad(() => payoutSummary(), []);
   const [disconnecting, setDisconnecting] = useState(false);
+  const basic = isBasic(useAuth().plan);
   const d = summary.data;
 
   return (
@@ -119,7 +120,8 @@ function Connected({ onChange }: { onChange: () => void }) {
         <p className="muted small">New sales take a few days to move from Pending to Available, per Stripe’s schedule. Your payout schedule, instant payouts, and bank details are all managed in your Stripe dashboard.</p>
       </Card>
 
-      <TipsCard />
+      {/* Tips aren't part of Basic (custom orders only). */}
+      {!basic && <TipsCard />}
 
       <Card title="Recent activity">
         {summary.loading && !d ? <Spinner /> : !d?.recent_transactions.length ? <p className="muted small">No activity yet.</p> : (

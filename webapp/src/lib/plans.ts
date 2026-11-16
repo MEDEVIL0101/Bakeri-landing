@@ -15,7 +15,8 @@ import { callFunction } from './api';
 import { supabase } from './supabase';
 import { useEffect, useState } from 'react';
 
-export type PlanTier = 'starter' | 'pro';
+// Basic (Harvey 2026-11-15): $3/mo, no Bakeri fee — custom orders + web links only.
+export type PlanTier = 'basic' | 'starter' | 'pro';
 export type BillingInterval = 'month' | 'year';
 
 export interface VendorPlan {
@@ -50,6 +51,8 @@ export interface PlanDef {
 }
 
 export const PLANS: PlanDef[] = [
+  { tier: 'basic', name: 'Basic', tagline: 'Take custom orders', blurb: 'Everything you need to take custom orders.', price: 3, yearPrice: 30, feePct: 0,
+    perks: ['Your storefront with custom order forms', 'Orders, quotes and invoices', 'Card payments and payouts', 'No Bakeri fee on any sale'] },
   { tier: 'starter', name: 'Starter', tagline: 'Open your shop', blurb: 'A low monthly price while you’re getting going.', price: 10, yearPrice: 100, feePct: 5,
     perks: ['Your storefront at bakeriapp.com', 'Orders, schedule, menu and recipes', 'Card payments and payouts', 'iPhone app and web app'] },
   { tier: 'pro', name: 'Pro', tagline: 'Keep every dollar you make', blurb: 'Keep every dollar of your sales.', price: 30, yearPrice: 300, feePct: 0,
@@ -67,10 +70,10 @@ export const YEARLY_FREE_MONTHS = 2;
 // even when the link opens on another device.
 const INTENT_KEY = 'bakeri.planIntent';
 export function rememberPlanIntent(tier: string | null): void {
-  try { if (tier === 'pro' || tier === 'starter') localStorage.setItem(INTENT_KEY, tier); } catch { /* private mode */ }
+  try { if (tier === 'pro' || tier === 'starter' || tier === 'basic') localStorage.setItem(INTENT_KEY, tier); } catch { /* private mode */ }
 }
 export function storedPlanIntent(): PlanTier | null {
-  try { const t = localStorage.getItem(INTENT_KEY); return t === 'pro' || t === 'starter' ? t : null; } catch { return null; }
+  try { const t = localStorage.getItem(INTENT_KEY); return t === 'pro' || t === 'starter' || t === 'basic' ? t : null; } catch { return null; }
 }
 const CYCLE_KEY = 'bakeri.cycleIntent';
 export function rememberCycleIntent(cycle: BillingInterval): void {
@@ -112,15 +115,21 @@ export function effectiveTier(plan: VendorPlan | null | undefined): PlanTier | '
   return plan?.grandfathered_starter ? 'starter' : 'none';
 }
 
-/** Bakeri's fee on this vendor's storefront sales: none on Pro, 5% otherwise (mirrors _shared/plans.ts PLAN_FEE_RATE). */
+/** Bakeri's fee on this vendor's storefront sales: none on Basic or Pro, 5% on Starter (mirrors _shared/plans.ts PLAN_FEE_RATE). */
 export function planFeeRate(plan: VendorPlan | null | undefined): number {
-  return effectiveTier(plan) === 'pro' ? 0 : 0.05;
+  const t = effectiveTier(plan);
+  return t === 'pro' || t === 'basic' ? 0 : 0.05;
+}
+
+/** Basic shops take custom orders only; menu checkout, products, courses, clubs, tips, campaigns and lead magnets need Starter or Pro. */
+export function isBasic(plan: VendorPlan | null | undefined): boolean {
+  return effectiveTier(plan) === 'basic';
 }
 
 /** "5% of each sale" / "nothing on Pro" style copy for the vendor's own plan. */
 export function feeDescription(plan: VendorPlan | null | undefined): string {
   return planFeeRate(plan) === 0
-    ? 'Your Pro plan has no Bakeri service fee'
+    ? `Your ${effectiveTier(plan) === 'basic' ? 'Basic' : 'Pro'} plan has no Bakeri service fee`
     : 'Bakeri’s service fee is 5% of each sale';
 }
 
@@ -165,7 +174,7 @@ export function usePlanPromo(code: string | null | undefined): PlanPromo | null 
   return promo;
 }
 
-const TIER_NAME: Record<PlanTier, string> = { starter: 'Starter', pro: 'Pro' };
+const TIER_NAME: Record<PlanTier, string> = { basic: 'Basic', starter: 'Starter', pro: 'Pro' };
 export function promoLine(p: PlanPromo): string {
   return `${p.trial_days} days free on ${TIER_NAME[p.tier]}`;
 }

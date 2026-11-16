@@ -1108,6 +1108,8 @@
   // (the only signal older app builds set). One form shows open; with more
   // than one they stack as collapsible rows (renderFormStorefront).
   let sfForms = [];
+  // True when the shop is on the Basic plan (custom orders + web links only).
+  let planBasic = false;
 
   // Storefront images (logo, header, about portrait) live at fixed Storage
   // paths with no version in the URL. On publish the bytes at that path are
@@ -1368,7 +1370,7 @@
       body: JSON.stringify({ p_user_id: data.profile.id })
     })
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (tier) { data.profile.__plan_paused = tier === 'none'; return data; }, function () { return data; });
+    .then(function (tier) { data.profile.__plan_paused = tier === 'none'; data.profile.__plan_basic = tier === 'basic'; return data; }, function () { return data; });
   })
   .then(function (data) {
     if (!data || !data.profile) {
@@ -1454,6 +1456,21 @@
   let staticWired = false;
 
   function render(p, listings, faqs, links) {
+    // Basic plan ($3, Harvey 2026-11-15): the shop takes custom orders only
+    // and links out to the web. Menu items, products, courses, clubs, file
+    // links, lead magnets, the mailing list, the promo banner and the
+    // referral card all need a higher plan, so they're left off the page.
+    planBasic = !!p.__plan_basic;
+    if (planBasic) {
+      listings = listings.filter(function (l) { return l.listing_kind === 'custom'; });
+      const customIds = listings.map(function (l) { return String(l.id).toLowerCase(); });
+      links = (links || []).filter(function (l) {
+        if (l.target_type === 'file') return false;
+        if (l.target_type === 'product') return customIds.indexOf(String(l.linked_listing_id || '').toLowerCase()) !== -1;
+        return true;
+      });
+      p = Object.assign({}, p, { promo_banner: '' });
+    }
     // A custom listing with no intake form has no working way to collect a
     // request — left out entirely (same rule as index.html).
     allListings = listings.filter(function (l) { return l.listing_kind !== 'custom' || l.intake_form_id; });
@@ -1518,7 +1535,7 @@
     fitShopName();
     renderSocialIcons();
 
-    renderLeadMagnet(p);
+    if (!planBasic) renderLeadMagnet(p);
     renderMenuCard();
     if (sfListing) renderFormStorefront();
     else document.getElementById('form-storefront').classList.add('hidden');
@@ -1526,12 +1543,19 @@
     renderLinkSections();
     renderAbout(p);
     renderInfoCard(p);
-    renderEmailCapture(p);
-    renderReferralCard();
-    renderOfferCards();
-    renderSpaceSections();
-    renderMemberLogin();
-    renderHeaderSignupButton(p);
+    if (!planBasic) {
+      renderEmailCapture(p);
+      renderReferralCard();
+      renderOfferCards();
+      renderSpaceSections();
+      renderMemberLogin();
+      renderHeaderSignupButton(p);
+    } else {
+      ['sf-magnet', 'email-capture', 'sf-referral', 'sf-courses', 'sf-clubs'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+    }
     document.getElementById('footer-copy').textContent = '© ' + new Date().getFullYear() + ' ' + name;
 
     applyStorefrontBlockLayout();
@@ -5483,7 +5507,7 @@
       // is_gst_registered now means "collects sales tax" (Stripe Tax active).
       collectsTax: profile.is_gst_registered ? '1' : '0',
       // Offer a tip on the pickup payment (profiles.tips_enabled, default on).
-      tipsEnabled: profile.tips_enabled !== false,
+      tipsEnabled: profile.tips_enabled !== false && !planBasic,
       shopName: profile.business_name || profile.user_name || '',
       customer: { name: name, phone: phone, email: email },
       items: cartLines().map(function (l) {
