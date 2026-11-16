@@ -99,7 +99,7 @@ export function PlanPage() {
       {!lifetime && !grandfathered && !subscribed && (
         <div className="pk-cycle" role="tablist" aria-label="Billing cycle">
           <button type="button" role="tab" aria-selected={cycle === 'month'} className={cycle === 'month' ? 'on' : ''} onClick={() => setCycle('month')}>Monthly</button>
-          <button type="button" role="tab" aria-selected={cycle === 'year'} className={cycle === 'year' ? 'on' : ''} onClick={() => setCycle('year')}>Annually <span className="pk-save">{YEARLY_FREE_MONTHS} months free!</span></button>
+          <button type="button" role="tab" aria-selected={cycle === 'year'} className={cycle === 'year' ? 'on' : ''} onClick={() => setCycle('year')}>Annually <span className="pk-save">{YEARLY_FREE_MONTHS} months free on Creator plans</span></button>
         </div>
       )}
       <div className="pk-grid">
@@ -150,6 +150,10 @@ function PlanPrice({ p, grandfathered, lifetime, cycle }: { p: PlanDef; grandfat
   if (lifetime && p.tier === 'pro') return <div className="pk-price"><b>$0</b><span>/month</span><small>Free for you, for life</small></div>;
   const m = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
   if (grandfathered && p.tier === 'starter') return <div className="pk-price"><b>$0</b><span>/month</span><small>Free for you, forever</small></div>;
+  // Basic has no yearly discount (Harvey 2026-11-15): $36/year = 12 × $3.
+  if (cycle === 'year' && p.yearPrice >= p.price * 12) {
+    return <div className="pk-price"><b>{m(p.price)}</b><span>/month</span><small>{m(p.yearPrice)} billed annually</small></div>;
+  }
   if (cycle === 'year') {
     return (
       <div className="pk-price">
@@ -242,7 +246,7 @@ export function TrialPage() {
           <small>{pm.salePrice ? `For ${pm.saleMonths} months, then ${money(pm.price)}/month` : `${money(pm.price)}/month${trial ? ' after trial' : ''}`}</small>
         </button>
         <button type="button" role="radio" aria-checked={interval === 'year'} className={`cycle-opt ${interval === 'year' ? 'on' : ''}`} onClick={() => setCycle('year')}>
-          <span className="cycle-save">{YEARLY_FREE_MONTHS} months free</span>
+          {p.yearPrice < p.price * 12 && <span className="cycle-save">{YEARLY_FREE_MONTHS} months free</span>}
           <b>{money(Math.round((p.yearPrice / 12) * 100) / 100)}<small>/mo</small></b>
           <span>Yearly</span>
           <small>{money(p.yearPrice)}/year{trial ? ' after trial' : ''}</small>
