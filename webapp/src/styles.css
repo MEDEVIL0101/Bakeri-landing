@@ -1548,3 +1548,6 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 .trial-due { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0 0 10px; text-align: center; }
 .trial-due b { font-size: 20px; font-weight: 800; color: var(--ink); }
 .trial-due span { font-size: 13.5px; color: var(--muted, #7a6f78); }
+
+/* Creator card: "Pay as you grow" above the fee line */
+.pk-grow { margin: 10px 0 -4px; font-size: 14px; font-weight: 700; color: #8a2fc2; letter-spacing: .01em; }

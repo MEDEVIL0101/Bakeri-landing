@@ -112,6 +112,7 @@ export function PlanPage() {
               <header className="pk-head"><h2>{p.name}</h2><p>{p.tagline}</p></header>
               <div className="pk-body">
                 <PlanPrice p={cycle === 'month' && p.tier !== 'basic' ? withSale(p, sale) : p} grandfathered={grandfathered} lifetime={lifetime} cycle={cycle} />
+                {p.tier === 'starter' && <p className="pk-grow">Pay as you grow</p>}
                 <p className="pk-sub">{p.tier === 'basic' ? 'Customers pay you directly' : p.feePct ? `${p.feePct}% Bakeri fee per sale` : 'No Bakeri fee on any sale'}</p>
                 {isCurrent ? (
                   <Button variant="secondary" className="pk-btn" disabled>Current plan</Button>
