@@ -250,10 +250,11 @@ export function TrialPage() {
       </div>
       <ol className="trial-steps">
         <li><span className="ts-dot hot">✦</span><div><b>Today</b><p>Your shop is ready to go — take orders and get paid. Cancel any time.</p></div></li>
-        {trial && <li><span className="ts-dot">✕</span><div><b>Any time before {starts}</b><p>Cancel from Settings → Plan &amp; billing and you won’t be charged.</p></div></li>}
-        <li><span className="ts-dot">✓</span><div><b>{trial ? `In ${trialDays} days` : 'Then'}</b><p>{trial ? `Your plan starts on ${starts} at ${then}, unless you cancel during the trial.` : `${then}. Cancel any time.`}</p></div></li>
+        {trial && <li><span className="ts-dot">✕</span><div><b>Any time before {starts}</b><p>Cancel in two clicks from Settings → Plan &amp; billing and you won’t be charged. We’ll email you a reminder 3 days before your trial ends.</p></div></li>}
+        <li><span className="ts-dot">✓</span><div><b>{trial ? `First charge on ${starts}` : 'Then'}</b><p>{trial ? `${then}, unless you cancel during the trial.` : `${then}. Cancel any time.`}</p></div></li>
       </ol>
       <div className="trial-foot">
+        {trial && <p className="trial-due"><b>$0.00 due today</b><span>Reminder email 3 days before your trial ends · Cancel in two clicks</span></p>}
         <p className="muted small">{trial ? 'Due today: $0.00' : `Due today: ${interval === 'year' ? money(p.yearPrice) : money(pm.salePrice ?? pm.price)}`} · Prices in USD · Stripe card fees apply</p>
         {!showAccount && <Button className="trial-btn" loading={busy} onClick={go}>{trial ? 'Continue with free trial' : 'Continue to payment'}</Button>}
       </div>

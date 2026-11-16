@@ -124,6 +124,9 @@ serve(async (req) => {
         metadata: { user_id: user.id, ...(promo ? { promo } : {}) },
         ...(trial ? { trial_period_days: trial } : {}),
       },
+      // The card step, made to feel safe (Harvey 2026-11-15: trials keep
+      // requiring a card — this just says what happens next).
+      ...(trial ? { custom_text: { submit: { message: `$0.00 today. Your first charge is on ${new Date(Date.now() + trial * 86400000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}. We'll email you 3 days before your trial ends, and you can cancel in two clicks from Plan & billing.` } } } : {}),
       // Sales tax on plans waits for Stripe Tax (paused, see
       // project notes) — add automatic_tax here when it's finished.
       success_url: appURL("welcome?checkout={CHECKOUT_SESSION_ID}"),
