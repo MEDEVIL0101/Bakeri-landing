@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logNotification } from "../_shared/notificationLog.ts";
 import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
+import { vendorOnBasic } from "../_shared/vendorPlan.ts";
 import {
   escapeHtml,
   currencyCode,
@@ -201,7 +202,15 @@ Deno.serve(async (req: Request) => {
         <td style="padding:6px 0;text-align:right;font-size:13.5px;color:#241712;">${formatCents(totalCents)} ${cur}</td></tr>
     `;
 
-  const footerHtml = `
+  // Basic plan: no card payments through Bakeri, so no pay button — the
+  // customer replies (Reply-To is the vendor) and pays the vendor directly.
+  const payDirect = await vendorOnBasic(db, order.user_id);
+  const footerHtml = payDirect ? `
+    <p style="color:#6B5F54;font-size:14px;line-height:1.6;text-align:center;margin:22px 0 10px;">
+      ${escapeHtml(bakerName)} takes payment directly. Reply to this email to accept the quote,
+      and they'll let you know how to pay.
+    </p>
+  ` : `
     <div style="text-align:center;margin:22px 0 10px;">
       <a href="${payUrl}" style="display:inline-block;background:#241712;color:#fff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:600;">
         ${payLabel}${formatCents(payNowCents)}
@@ -214,8 +223,7 @@ Deno.serve(async (req: Request) => {
   const legalHtml = `
     <p style="color:#A89B8C;font-size:11.5px;line-height:1.5;margin-top:20px;">
       This quote is provided directly by ${escapeHtml(bakerName)}, who is solely
-      responsible for preparing and fulfilling your order. Once your payment is
-      confirmed, pickup details will be provided by email — you're responsible
+      responsible for preparing and fulfilling your order. ${payDirect ? "Once you've paid" : "Once your payment is\n      confirmed"}, pickup details will be provided by email — you're responsible
       for coordinating pickup with the baker.
     </p>
   `;

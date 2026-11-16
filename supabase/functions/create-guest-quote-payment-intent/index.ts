@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { PLATFORM_FEE_RATE, parseTipCents, tipStripeFeeCoverCents } from "../_shared/fees.ts";
-import { vendorFeeRate } from "../_shared/vendorPlan.ts";
+import { vendorFeeRate, vendorOnBasic } from "../_shared/vendorPlan.ts";
 import { friendlyStripeError } from "../_shared/stripeErrors.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 
@@ -95,6 +95,8 @@ Deno.serve(async (req: Request) => {
   // effectively quoted full payment through the deposit field.
   const isPartialDeposit = depositCents > 0 && depositCents < fullCents;
   const saleCents = isPartialDeposit ? depositCents : fullCents;
+  // Basic plan: no card payments through Bakeri — the vendor collects payment themselves.
+  if (await vendorOnBasic(db, order.user_id)) return json({ error: "This shop takes payment directly, not by card through Bakeri. Please contact them to pay." }, 400);
   const platformFeeCents = Math.round(saleCents * await vendorFeeRate(db, order.user_id));
 
   // Tip — only when the quote is paid in full (never on a deposit; a split

@@ -15,7 +15,8 @@ import { callFunction } from './api';
 import { supabase } from './supabase';
 import { useEffect, useState } from 'react';
 
-// Basic (Harvey 2026-11-15): $3/mo, no Bakeri fee — custom orders + web links only.
+// Basic (Harvey 2026-11-15): $3/mo — custom orders + web links only, and no card
+// payments through Bakeri (the vendor collects payment directly), so no Bakeri fee.
 export type PlanTier = 'basic' | 'starter' | 'pro';
 export type BillingInterval = 'month' | 'year';
 
@@ -52,7 +53,7 @@ export interface PlanDef {
 
 export const PLANS: PlanDef[] = [
   { tier: 'basic', name: 'Basic', tagline: 'Take custom orders', blurb: 'Everything you need to take custom orders.', price: 3, yearPrice: 30, feePct: 0,
-    perks: ['Your storefront with custom order forms', 'Orders, quotes and invoices', 'Card payments and payouts', 'No Bakeri fee on any sale'] },
+    perks: ['Your storefront with custom order forms', 'Orders, quotes and invoices', 'Get paid your way: cash, e-transfer, Venmo', 'No Bakeri fees, ever'] },
   { tier: 'starter', name: 'Starter', tagline: 'Open your shop', blurb: 'A low monthly price while you’re getting going.', price: 10, yearPrice: 100, feePct: 5,
     perks: ['Your storefront at bakeriapp.com', 'Orders, schedule, menu and recipes', 'Card payments and payouts', 'iPhone app and web app'] },
   { tier: 'pro', name: 'Pro', tagline: 'Keep every dollar you make', blurb: 'Keep every dollar of your sales.', price: 30, yearPrice: 300, feePct: 0,

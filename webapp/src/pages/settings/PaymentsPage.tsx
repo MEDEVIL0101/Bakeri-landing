@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { PageHeader, useLoad } from '../../components/ui';
 import { formatCents, referralDashboard } from '../../lib/account';
+import { useAuth } from '../../auth/AuthProvider';
+import { isBasic } from '../../lib/plans';
 
 /**
  * Payments (Harvey 2026-11-02): one place for money in — Direct Deposit
@@ -9,6 +11,8 @@ import { formatCents, referralDashboard } from '../../lib/account';
  */
 export function PaymentsPage() {
   const referral = useLoad(() => referralDashboard(), []);
+  // Basic shops are paid by their customers directly; Stripe is only for referral payouts.
+  const basic = isBasic(useAuth().plan);
   const r = referral.data;
   const referralSub = !r
     ? 'Earn 20% of their plan · they get 10% off'
@@ -26,7 +30,7 @@ export function PaymentsPage() {
           </span>
           <span className="grow">
             <span className="row-title">Direct Deposit</span>
-            <span className="row-sub">Get paid for storefront orders, straight to your bank. Tips too.</span>
+            <span className="row-sub">{basic ? 'On Basic, customers pay you directly. Connect Stripe only to receive Referral Program payouts.' : 'Get paid for storefront orders, straight to your bank. Tips too.'}</span>
           </span>
           <span className="chev" aria-hidden>›</span>
         </Link>

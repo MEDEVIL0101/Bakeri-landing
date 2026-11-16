@@ -106,7 +106,7 @@ export function PlanPage() {
               <header className="pk-head"><h2>{p.name}</h2><p>{p.tagline}</p></header>
               <div className="pk-body">
                 <PlanPrice p={cycle === 'month' && p.tier !== 'basic' ? withSale(p, sale) : p} grandfathered={grandfathered} lifetime={lifetime} cycle={cycle} />
-                <p className="pk-sub">{p.feePct ? `${p.feePct}% Bakeri fee per sale` : 'No Bakeri fee on any sale'}</p>
+                <p className="pk-sub">{p.tier === 'basic' ? 'Customers pay you directly' : p.feePct ? `${p.feePct}% Bakeri fee per sale` : 'No Bakeri fee on any sale'}</p>
                 {isCurrent ? (
                   <Button variant="secondary" className="pk-btn" disabled>Current plan</Button>
                 ) : lifetime ? (
@@ -217,7 +217,7 @@ export function TrialPage() {
       {fromPicker ? <Link to="/plan?all" className="trial-back">‹ Back to plans</Link> : <Link to="/plan?all" className="trial-skip">See all plans</Link>}
       <div className="trial-brand"><img src={LOGO} alt="Bakeri" /> <span>{p.name}</span></div>
       <h1 className="trial-title">{trial ? <>Claim a free<br />{trialDays}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
-      <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : p.tier === 'basic' ? 'A storefront for custom orders, with quotes, invoices and payments. No Bakeri fee.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
+      <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : p.tier === 'basic' ? 'A storefront for custom orders, with quotes and invoices. Customers pay you directly.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
       {sale && <SaleBanner sale={sale} />}
       {sale && liveSale && sale.percent_off !== liveSale.percent_off && interval === 'month' && (
         <p className="ref-note plan-ref">Referral code <b>{referred}</b>: an extra <b>{sale.percent_off - liveSale.percent_off}% off</b> on top of {liveSale.label}.</p>)}

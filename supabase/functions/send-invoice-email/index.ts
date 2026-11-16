@@ -10,6 +10,7 @@ import {
   renderReceiptShell,
 } from "../_shared/receiptEmailStyle.ts";
 import { customerEmailIdentity } from "../_shared/senderIdentity.ts";
+import { vendorOnBasic } from "../_shared/vendorPlan.ts";
 
 // Baker-triggered: "Email Invoice" button on OrderDetailView. Requires the
 // caller's own session and confirms they own the order before sending —
@@ -152,7 +153,15 @@ Deno.serve(async (req: Request) => {
     const dueDateHtml = order.due_date
       ? `<p style="color:#A89B8C;font-size:12px;line-height:1.5;text-align:center;margin-top:-4px;">Due ${escapeHtml(formatDate(order.due_date))}</p>`
       : "";
-    const footerHtml = `
+    // Basic plan: no card payments through Bakeri, so no pay button.
+    const payDirect = await vendorOnBasic(supabase, order.user_id);
+    const footerHtml = payDirect ? `
+    <p style="color:#6B5F54;font-size:14px;line-height:1.6;text-align:center;margin:22px 0 10px;">
+      ${escapeHtml(bakerName)} takes payment directly. Reply to this email to ask about payment,
+      and they'll let you know how to pay.
+    </p>
+      ${dueDateHtml}
+  ` : `
       <div style="text-align:center;margin:22px 0 10px;">
         <a href="${payUrl}" style="display:inline-block;background:#241712;color:#fff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:600;">
           ${payLabel}${formatCents(amountCents)}

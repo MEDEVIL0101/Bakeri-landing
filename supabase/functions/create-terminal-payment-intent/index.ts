@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getStripeClient } from "../_shared/stripe.ts";
 import { calcPlatformFeeCents, calcDirectChargeApplicationFee, STRIPE_FEE_ESTIMATE } from "../_shared/fees.ts";
-import { vendorFeeRate } from "../_shared/vendorPlan.ts";
+import { vendorFeeRate, vendorOnBasic } from "../_shared/vendorPlan.ts";
 import { currencyForCountry } from "../_shared/currency.ts";
 
 // Creates a card_present PaymentIntent for an in-person Tap to Pay charge —
@@ -108,6 +108,8 @@ Deno.serve(async (req: Request) => {
       if (order.is_paid) throw new Error("This order is already paid");
     }
 
+    // Basic plan: no card payments through Bakeri — the vendor collects payment themselves.
+    if (await vendorOnBasic(supabase, user.id)) throw new Error("This shop takes payment directly, not by card through Bakeri. Please contact them to pay.");
     const platformFeeCents = Math.round(saleCents * await vendorFeeRate(supabase, user.id));
     const bakeriCoversTipStripeFee = Math.round(tip_cents * STRIPE_FEE_ESTIMATE.pct);
     const applicationFeeCents = Math.max(

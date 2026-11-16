@@ -514,22 +514,14 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // A shop on the Basic plan takes custom orders only (no menu, products,
-    // digital goods or tips). Kinds are checked against the listings table,
-    // not the cart payload.
+    // A shop on the Basic plan takes no card payments through Bakeri: custom
+    // requests reach it without checkout, and the vendor collects payment.
     for (const id of bakerIDs) {
       if (!(await vendorOnBasic(getSupabaseClient(), id))) continue;
-      const ids = items.filter((i) => i.baker_id === id).map((i) => i.listing_id);
-      const { data: rows } = await getSupabaseClient().from("menu_items").select("id, listing_kind").in("id", ids);
-      const allCustom = (rows ?? []).length === new Set(ids).size && (rows ?? []).every((r: { listing_kind: string }) => r.listing_kind === "custom");
-      if (!allCustom || tipCents > 0) {
-        const row = bakerRows.find((r) => r.id === id);
-        const name = row?.business_name?.trim() || row?.user_name?.trim() || "This vendor";
-        return new Response(
-          JSON.stringify({ error: `${name} only takes custom orders right now.` }),
-          { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
-        );
-      }
+      return new Response(
+        JSON.stringify({ error: "This shop takes payment directly, not by card through Bakeri. Please contact them to pay." }),
+        { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
+      );
     }
 
     const metadata: Record<string, string> = {

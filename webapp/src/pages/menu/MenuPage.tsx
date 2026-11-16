@@ -1,3 +1,4 @@
+import { isBasic } from '../../lib/plans';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
@@ -15,7 +16,7 @@ const FILTERS = [
 
 export function MenuPage() {
   const userId = useUserId();
-  const { profile } = useAuth();
+  const { profile, plan } = useAuth();
   const toast = useToast();
   const { data, loading, error, reload, setData } = useLoad(() => listMenuItems(userId), [userId]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
@@ -82,7 +83,7 @@ export function MenuPage() {
           <Link to="/menu/new" className="btn btn-primary" data-icon="plus">New listing</Link>
         </>}
       />
-      {profile && !profile.stripe_connect_onboarding_complete && (
+      {profile && !profile.stripe_connect_onboarding_complete && !isBasic(plan) && (
         <div className="banner banner-info">Listed products stay hidden from customers until Direct Deposit is connected (Bakeri app → Settings → Banking &amp; Payments).</div>
       )}
       {profile?.storefront_listing_id && (

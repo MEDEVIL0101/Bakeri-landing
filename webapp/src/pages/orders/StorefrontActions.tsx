@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
+import { isBasic } from '../../lib/plans';
 import { Button, ConfirmModal, ErrorBanner, Field, Input, Modal, Textarea, Toggle, useToast } from '../../components/ui';
 import {
   acceptOrder, cancelOrRefund, completeOrder, declineOrder, effectiveTotal, markDelivered, markOutForDelivery,
@@ -22,8 +23,11 @@ type Dialog =
 export function StorefrontActions({ order, onChanged }: { order: Order; onChanged: () => void }) {
   // Requests arrive without Stripe; a quote takes payment, so sending one
   // needs Direct Deposit (same as MarketplaceOrderSheet's quote card).
-  const { profile } = useAuth();
-  const canQuote = !!profile?.stripe_connect_onboarding_complete;
+  // Basic shops take no card payments: their quote email asks the customer
+  // to pay them directly, and they mark it paid by hand.
+  const { profile, plan } = useAuth();
+  const payDirect = isBasic(plan);
+  const canQuote = payDirect || !!profile?.stripe_connect_onboarding_complete;
   const toast = useToast();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -86,7 +90,7 @@ export function StorefrontActions({ order, onChanged }: { order: Order; onChange
           {order.quote_note && <p className="quote-note">“{order.quote_note}”</p>}
           <div className="btn-row">
             <Button variant="secondary" loading={busy === 'resend'} onClick={() => run('resend', () => resendQuoteEmail(order), 'Quote email sent')}>Resend quote email</Button>
-            <Button variant="secondary" onClick={() => setDialog('paid-manually')}>Mark paid (cash / e-transfer)</Button>
+            <Button variant={payDirect ? 'primary' : 'secondary'} onClick={() => setDialog('paid-manually')}>Mark paid (cash / e-transfer)</Button>
             <Button variant="ghost" onClick={() => setDialog('retract')}>Retract quote</Button>
           </div>
         </>

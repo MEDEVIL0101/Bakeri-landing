@@ -1505,7 +1505,9 @@
     document.title = name + ' on Bakeri';
     document.querySelector('meta[name="description"]').content = name + ' — handcrafted bakes on Bakeri. ' + (p.bio || '');
     ordersPaused = !!p.__plan_paused;
-    stripeReady = p.stripe_connect_onboarding_complete === true && !ordersPaused;
+    // Basic shops take no card payments through Bakeri: the page behaves as a
+    // shop without Stripe (custom requests still come in; the vendor collects payment).
+    stripeReady = p.stripe_connect_onboarding_complete === true && !ordersPaused && !planBasic;
 
     resolveBlocks(p);
     applyDesignTokens();

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { isBasic } from '../lib/plans';
 import { Link } from 'react-router-dom';
 import { useAuth, useUserId } from '../auth/AuthProvider';
 import { Badge, Card, EmptyState, ErrorBanner, Spinner, useLoad, useToast } from '../components/ui';
@@ -38,7 +39,7 @@ function ranges(p: Period): { cur: [Date, Date]; prev: [Date, Date]; label: stri
 
 export function DashboardPage() {
   const userId = useUserId();
-  const { profile } = useAuth();
+  const { profile, plan } = useAuth();
   const orders = useLoad(() => listOrders(userId), [userId]);
   const tasks = useLoad(() => listTasks(userId), [userId]);
   const items = useLoad(() => listMenuItems(userId), [userId]);
@@ -95,7 +96,8 @@ export function DashboardPage() {
         </div>
       </header>
 
-      {profile && !profile.stripe_connect_onboarding_complete && (
+      {/* Basic shops are paid directly, so they never need Stripe for orders. */}
+      {profile && !profile.stripe_connect_onboarding_complete && !isBasic(plan) && (
         <Link to="/payouts" className="banner banner-info banner-link">
           <span><strong>Connect Direct Deposit</strong> — products only appear on your storefront once Stripe is connected.</span>
           <span aria-hidden>→</span>
