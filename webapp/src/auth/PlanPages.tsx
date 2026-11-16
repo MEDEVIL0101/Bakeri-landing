@@ -236,6 +236,8 @@ export function TrialPage() {
         : <p className="ref-note plan-ref">Referral code <b>{referred}</b>: <b>10% off your first 3 months</b>{interval === 'year' ? ' (10% off your first year)' : ''}, taken off at checkout.</p>)}
       {!referred && !plan?.trial_used_at && !plan?.lifetime_pro && <CodeEntry />}
       {error && <div className="plan-error"><ErrorBanner message={error} /></div>}
+      {/* Basic has one price (monthly), so no billing picker — the steps below say it. */}
+      {p.tier !== 'basic' && (
       <div className="cycle" role="radiogroup" aria-label="Billing cycle">
         <button type="button" role="radio" aria-checked={interval === 'month'} className={`cycle-opt ${interval === 'month' ? 'on' : ''}`} onClick={() => setCycle('month')}>
           {sale && <span className="cycle-save">{sale.percent_off}% off</span>}
@@ -251,6 +253,7 @@ export function TrialPage() {
           <small>{money(p.yearPrice)}/year{trial ? ' after trial' : ''}</small>
         </button>)}
       </div>
+      )}
       <ol className="trial-steps">
         <li><span className="ts-dot hot">✦</span><div><b>Today</b><p>Your shop is ready to go — take orders and get paid. Cancel any time.</p></div></li>
         {trial && <li><span className="ts-dot">✕</span><div><b>Any time before {starts}</b><p>Cancel in two clicks from Settings → Plan &amp; billing and you won’t be charged. We’ll email you a reminder 3 days before your trial ends.</p></div></li>}
