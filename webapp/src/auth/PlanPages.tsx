@@ -255,7 +255,7 @@ export function TrialPage() {
       </ol>
       <div className="trial-foot">
         {trial && <p className="trial-due"><b>$0.00 due today</b><span>Reminder email 3 days before your trial ends · Cancel in two clicks</span></p>}
-        <p className="muted small">{trial ? 'Due today: $0.00' : `Due today: ${interval === 'year' ? money(p.yearPrice) : money(pm.salePrice ?? pm.price)}`} · Prices in USD · Stripe card fees apply</p>
+        <p className="muted small">{trial ? '' : `Due today: ${interval === 'year' ? money(p.yearPrice) : money(pm.salePrice ?? pm.price)} · `}Prices in USD · Stripe card fees apply</p>
         {!showAccount && <Button className="trial-btn" loading={busy} onClick={go}>{trial ? 'Continue with free trial' : 'Continue to payment'}</Button>}
       </div>
       {showAccount && !session && <TrialAccountForm tier={p.tier} interval={interval} planName={p.name} referral={visitorRef} />}
