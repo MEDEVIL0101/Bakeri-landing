@@ -51,7 +51,7 @@
 <section class="sec sec-wash tint-cyan" id="why" data-screen-label="Why Bakerï">
 <div class="wrap">
 <div class="sec-head center rv"><span class="kick">Why Bakerï</span><h2 class="h2">Everything you need to sell. <em class="sf">In one place.</em></h2><p class="lede">Storefront, bookings, checkout and email marketing — plus the back-of-house tools to run your business, however you reach your customers.</p></div>
-<p class="pc-cta rv" style="margin:28px 0 52px"><a class="btn" data-ref href="https://bakeriapp.com/app/plan/trial?tier=pro">Try Pro free for 14 days <span class="arw">→</span></a></p>
+<p class="pc-cta rv" style="margin:28px 0 52px"><a class="btn" data-ref href="https://bakeriapp.com/app/plan?all">Try Pro free for 14 days <span class="arw">→</span></a></p>
 <div class="whys">
 <div class="why rv"><span class="why-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></span><h4>Storefront &amp; link in bio</h4><p>A branded storefront that lives in your bio, ready to share in minutes.</p></div>
 <div class="why rv"><span class="why-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 11.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span><h4>Food, digital &amp; shipped</h4><p>Sell ready-made items, pre-orders, digital downloads and shipped products from a single shop.</p></div>
@@ -118,7 +118,7 @@
 <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>Tap to Pay on your phone, anywhere</li>
 </ul></div>
 </div>
-<p class="pc-cta rv" style="margin:36px 0 0"><a class="btn btn-purple" data-ref href="https://bakeriapp.com/app/plan/trial?tier=starter">Try Starter free for 14 days <span class="arw">→</span></a></p>
+<p class="pc-cta rv" style="margin:36px 0 0"><a class="btn btn-purple" data-ref href="https://bakeriapp.com/app/plan?all">Try Starter free for 14 days <span class="arw">→</span></a></p>
 <div class="devices rv" role="img" aria-label="The Bakerï web app on a laptop and the Bakerï app on a phone, showing the same shop: new orders, this week’s revenue and orders waiting for a response">
 <div class="mac"><div class="mac-screen"><img src="assets/site-v3/app-desktop.webp?v=4" alt="" /></div><div class="mac-base"></div></div>
 <div class="phone dev-phone"><img src="assets/site-v3/app-home.webp?v=7" alt="" /></div>
@@ -201,8 +201,8 @@ form.addEventListener('input',refresh);
 // Referral links (?ref=CODE) carry through to sign-up.
 let ref='';try{let kept='';try{const k=JSON.parse(localStorage.getItem('bakeri_ref_kept')||'null');if(k&&k.code&&Date.now()-k.at<2592e6)kept=k.code}catch(_){}ref=((new URLSearchParams(location.search).get('ref'))||sessionStorage.getItem('bakeri_ref')||kept||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);if(ref){sessionStorage.setItem('bakeri_ref',ref);if(ref!==kept)localStorage.setItem('bakeri_ref_kept',JSON.stringify({code:ref,at:Date.now()}))}}catch(_){}
 document.querySelectorAll('a[data-ref]').forEach(a=>{if(ref){const u=new URL(a.href);u.searchParams.set('ref',ref);a.href=u}});
-// Submit hands off to the web app's sign-up with plan=pro: the new account sees the Pro trial first and can skip to every plan.
-form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;const q=new URLSearchParams({tier:'pro',email:emailIn.value.trim()});if(ref)q.set('ref',ref);btn.classList.add('done');btn.textContent='Taking you to your trial…';location.assign('https://bakeriapp.com/app/plan/trial?'+q)});
+// Submit hands off to the web app's plan picker (all three plans); the email rides along.
+form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;const q=new URLSearchParams({all:'',email:emailIn.value.trim()});if(ref)q.set('ref',ref);btn.classList.add('done');btn.textContent='Taking you to the plans…';location.assign('https://bakeriapp.com/app/plan?'+q)});
 </script>
 <script>
 // Plan sale (plan_sales, e.g. Black Friday): shown in the hero only while it's live.

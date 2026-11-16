@@ -17,7 +17,7 @@ import { useAuth } from './AuthProvider';
  * back to /welcome. Web only: the iOS app never shows this.
  */
 export function PlanPage() {
-  const { plan, signOut, session } = useAuth();
+  const { plan, planLoading, signOut, session } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [busy, setBusy] = useState<PlanTier | 'portal' | null>(null);
@@ -52,8 +52,14 @@ export function PlanPage() {
   // they picked before creating the account (pricing comes first now).
   const intent = (session?.user.user_metadata?.plan_intent ?? storedPlanIntent()) as string | null;
   const cycleIntent = (session?.user.user_metadata?.plan_cycle ?? storedCycleIntent()) as string | null;
-  if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all')) {
-    const tier = intent === 'starter' || intent === 'basic' ? intent : 'pro';
+  // Signed in but the plan hasn't loaded yet: wait. Deciding now would treat
+  // every existing vendor (e.g. free grandfathered Starter) as plan-less and
+  // send them to a trial page with no way back into the app.
+  if (session && plan === undefined && planLoading) return <div className="full-center"><Spinner /></div>;
+  // Only someone who already picked a plan (before creating their account)
+  // skips straight to its trial page; everyone else sees all three plans.
+  if (trial && current === 'none' && !subscribed && !grandfathered && !params.has('all') && (intent === 'starter' || intent === 'basic' || intent === 'pro')) {
+    const tier = intent;
     return <Navigate to={`/plan/trial?tier=${tier}${cycleIntent === 'month' || cycleIntent === 'year' ? `&cycle=${cycleIntent}` : ''}`} replace />;
   }
 
@@ -198,7 +204,9 @@ export function TrialPage() {
   // Visitors create their account here, after seeing the plan.
   const [showAccount, setShowAccount] = useState(false);
   useEffect(() => { if (!session) trackSite('plan_view', `${p.tier}-visitor`); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  if (hasSubscription(plan)) return <Navigate to="/plan" replace />;
+  // Anyone who already has a plan (incl. free grandfathered Starter or
+  // lifetime Pro) never sees a trial offer — their plan page has the way back.
+  if (hasSubscription(plan) || (session && effectiveTier(plan) !== 'none')) return <Navigate to="/plan" replace />;
 
   const starts = new Date(Date.now() + trialDays * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const money = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
