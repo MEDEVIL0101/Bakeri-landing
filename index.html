@@ -226,7 +226,7 @@ form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;con
       var el = document.getElementById('heroSale'), note = document.getElementById('heroSaleNote');
       var ends = sale.ends_at ? new Date(new Date(sale.ends_at).getTime() - 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Toronto' }) : '';
       el.querySelector('.hb-deal-tag').textContent = sale.label + (ends ? ' · Ends ' + ends : '');
-      el.querySelector('.hb-deal-big').textContent = sale.percent_off + '% off your first ' + sale.months + ' months';
+      el.querySelector('.hb-deal-big').textContent = sale.percent_off + '% off your first ' + sale.months + ' months*';
       if (sale.base_percent_off) { var sm = el.querySelector('.hb-deal-small'); sm.textContent = sale.label + ' ' + sale.base_percent_off + '% + ' + (sale.percent_off - sale.base_percent_off) + '% from your referral code'; sm.classList.add('on'); }
       el.hidden = false;
       document.querySelector('.hero-bold').classList.add('has-sale');
