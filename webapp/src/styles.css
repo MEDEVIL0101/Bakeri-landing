@@ -1551,3 +1551,11 @@ button.block-row:hover, .block-open:hover .row-title { border-color: var(--ink);
 
 /* Creator card: "Pay as you grow" above the fee line */
 .pk-grow { margin: 10px 0 -4px; font-size: 14px; font-weight: 700; color: #8a2fc2; letter-spacing: .01em; }
+
+/* Setup: business name already taken — message + tappable suggestions */
+.name-taken { margin-top: -4px; }
+.name-taken-title { margin: 0; font-size: 14px; font-weight: 700; color: #b42318; }
+.name-taken-sub { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }
+.name-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.name-chip { border: 1.5px solid var(--ink); background: #fff; color: var(--ink); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.name-chip:hover { background: var(--ink); color: #fff; }
