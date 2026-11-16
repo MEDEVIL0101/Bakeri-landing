@@ -56,7 +56,7 @@
 
 .kind p b,.kind ol b{color:var(--ink);font-weight:700}
 
-.rates{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;max-width:1000px;margin:0 auto}
+.rates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;max-width:1100px;margin:0 auto}
 @media(max-width:820px){.rates{grid-template-columns:1fr}}
 .rate{border-radius:26px;padding:38px;background:#fff;color:var(--ink);border-top:6px solid var(--purple)}
 .rate.r-cyan{border-top-color:var(--cyan)}
@@ -194,8 +194,9 @@
 <div class="wrap">
 <div class="sec-head center rv"><span class="kick">Commission</span><h2 class="h2">Recurring commission, <em class="sf">on every payment.</em></h2><p class="lede">Partners start at 20% of every plan payment from each vendor they bring. Partners with a larger reach can earn more — we agree your rate when you’re approved.</p></div>
 <div class="rates">
-<div class="rate rv"><span class="plan">Creator · monthly</span><div class="amt">$2.00+<small>/ month</small></div><p class="per">per paying vendor</p><p class="of">At least 20% of the <b>$10</b> Starter plan</p></div>
-<div class="rate r-cyan rv"><span class="plan">Creator Pro · monthly</span><div class="amt">$6.00+<small>/ month</small></div><p class="per">per paying vendor</p><p class="of">At least 20% of the <b>$30</b> Pro plan</p></div>
+<div class="rate rv"><span class="plan">Basic · monthly</span><div class="amt">$0.60+<small>/ month</small></div><p class="per">per paying vendor</p><p class="of">At least 20% of the <b>$3</b> Basic plan</p></div>
+<div class="rate rv"><span class="plan">Creator · monthly</span><div class="amt">$2.00+<small>/ month</small></div><p class="per">per paying vendor</p><p class="of">At least 20% of the <b>$10</b> Creator plan</p></div>
+<div class="rate r-cyan rv"><span class="plan">Creator Pro · monthly</span><div class="amt">$6.00+<small>/ month</small></div><p class="per">per paying vendor</p><p class="of">At least 20% of the <b>$30</b> Creator Pro plan</p></div>
 </div>
 <p class="rates-fine rv">Prices in USD. Commission is on what each vendor actually pays for their plan, before tax — yearly plans earn on the yearly payment. Nothing is earned during the 14-day free trial, and refunded payments are reversed. Your rate and how long you earn per vendor are shown in your dashboard.</p>
 </div>
