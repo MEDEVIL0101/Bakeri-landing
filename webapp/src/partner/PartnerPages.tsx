@@ -708,7 +708,7 @@ export function PartnerPayoutsPage() {
                   {PLANS.map((p) => (
                     <tr key={p.tier}><td>{p.name} monthly</td><td className="num">${(p.price * partner.commission_rate).toFixed(2)}/month</td></tr>
                   ))}
-                  {PLANS.map((p) => (
+                  {PLANS.filter((p) => p.yearPrice > 0).map((p) => (
                     <tr key={p.tier + 'y'}><td>{p.name} yearly</td><td className="num">${(p.yearPrice * partner.commission_rate).toFixed(2)}/year</td></tr>
                   ))}
                 </tbody>

@@ -99,11 +99,11 @@ export function PlanPage() {
       {!lifetime && !grandfathered && !subscribed && (
         <div className="pk-cycle" role="tablist" aria-label="Billing cycle">
           <button type="button" role="tab" aria-selected={cycle === 'month'} className={cycle === 'month' ? 'on' : ''} onClick={() => setCycle('month')}>Monthly</button>
-          <button type="button" role="tab" aria-selected={cycle === 'year'} className={cycle === 'year' ? 'on' : ''} onClick={() => setCycle('year')}>Annually <span className="pk-save">{YEARLY_FREE_MONTHS} months free on Creator plans</span></button>
+          <button type="button" role="tab" aria-selected={cycle === 'year'} className={cycle === 'year' ? 'on' : ''} onClick={() => setCycle('year')}>Annually <span className="pk-save">{YEARLY_FREE_MONTHS} months free!</span></button>
         </div>
       )}
       <div className="pk-grid">
-        {PLANS.map((p) => {
+        {PLANS.filter((p) => cycle === 'month' || p.tier !== 'basic').map((p) => {
           const isCurrent = current === p.tier;
           const pro = p.tier === 'pro';
           return (
@@ -150,10 +150,6 @@ function PlanPrice({ p, grandfathered, lifetime, cycle }: { p: PlanDef; grandfat
   if (lifetime && p.tier === 'pro') return <div className="pk-price"><b>$0</b><span>/month</span><small>Free for you, for life</small></div>;
   const m = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
   if (grandfathered && p.tier === 'starter') return <div className="pk-price"><b>$0</b><span>/month</span><small>Free for you, forever</small></div>;
-  // Basic has no yearly discount (Harvey 2026-11-15): $36/year = 12 × $3.
-  if (cycle === 'year' && p.yearPrice >= p.price * 12) {
-    return <div className="pk-price"><b>{m(p.price)}</b><span>/month</span><small>{m(p.yearPrice)} billed annually</small></div>;
-  }
   if (cycle === 'year') {
     return (
       <div className="pk-price">
@@ -181,10 +177,12 @@ function PlanPrice({ p, grandfathered, lifetime, cycle }: { p: PlanDef; grandfat
 export function TrialPage() {
   const { plan, session } = useAuth();
   const [params] = useSearchParams();
-  const [interval, setCycle] = useState<BillingInterval>(params.get('cycle') === 'year' ? 'year' : 'month');
+  const [cycleChoice, setCycle] = useState<BillingInterval>(params.get('cycle') === 'year' ? 'year' : 'month');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const p = PLANS.find((x) => x.tier === params.get('tier')) ?? PLANS.find((x) => x.tier === 'pro')!;
+  // Basic is billed monthly only (Harvey 2026-11-15).
+  const interval: BillingInterval = p.tier === 'basic' ? 'month' : cycleChoice;
   const trial = !plan?.trial_used_at && TRIAL_DAYS > 0;
   const fromPicker = params.has('picked');
   // A visitor's referral code: from the link, or the one the homepage kept.
@@ -245,12 +243,13 @@ export function TrialPage() {
           <span>Monthly</span>
           <small>{pm.salePrice ? `For ${pm.saleMonths} months, then ${money(pm.price)}/month` : `${money(pm.price)}/month${trial ? ' after trial' : ''}`}</small>
         </button>
+        {p.tier !== 'basic' && (
         <button type="button" role="radio" aria-checked={interval === 'year'} className={`cycle-opt ${interval === 'year' ? 'on' : ''}`} onClick={() => setCycle('year')}>
-          {p.yearPrice < p.price * 12 && <span className="cycle-save">{YEARLY_FREE_MONTHS} months free</span>}
+          <span className="cycle-save">{YEARLY_FREE_MONTHS} months free</span>
           <b>{money(Math.round((p.yearPrice / 12) * 100) / 100)}<small>/mo</small></b>
           <span>Yearly</span>
           <small>{money(p.yearPrice)}/year{trial ? ' after trial' : ''}</small>
-        </button>
+        </button>)}
       </div>
       <ol className="trial-steps">
         <li><span className="ts-dot hot">✦</span><div><b>Today</b><p>Your shop is ready to go — take orders and get paid. Cancel any time.</p></div></li>

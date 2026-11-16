@@ -39,6 +39,8 @@ serve(async (req) => {
     const tier = body.tier as PlanTier;
     const interval: BillingInterval = body.interval === "year" ? "year" : "month";
     if (!PAID_TIERS.includes(tier)) return json({ error: "Unknown plan." }, 400);
+    // Basic is billed monthly only (Harvey 2026-11-15).
+    if (tier === "basic" && interval === "year") return json({ error: "Basic is billed monthly." }, 400);
 
     const key = billingSecretKey();
     const price = priceIdFor(tier, interval);

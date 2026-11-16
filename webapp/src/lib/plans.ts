@@ -55,7 +55,7 @@ export interface PlanDef {
 }
 
 export const PLANS: PlanDef[] = [
-  { tier: 'basic', name: 'Basic', tagline: 'The best order management for bakers', blurb: 'Everything you need to take custom orders.', price: 3, yearPrice: 36, feePct: 0,
+  { tier: 'basic', name: 'Basic', tagline: 'The best order management for bakers', blurb: 'Everything you need to take custom orders.', price: 3, yearPrice: 0, feePct: 0, // monthly only
     perks: ['Your storefront with custom order forms', 'Orders, quotes and invoices', 'Get paid your way: cash, e-transfer, Venmo', 'iPhone and web app'] },
   { tier: 'starter', name: 'Creator', tagline: 'Our standard plan: great order management, plus every tool to grow online', blurb: 'Pay as you grow.', price: 10, yearPrice: 100, feePct: 5,
     perks: ['A menu with checkout and pre-orders', 'Card payments, deposits and Tap to Pay', 'Digital downloads, courses and clubs', 'Insights and tips'] },
