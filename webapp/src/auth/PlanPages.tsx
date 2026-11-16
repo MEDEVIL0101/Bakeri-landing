@@ -228,7 +228,7 @@ export function TrialPage() {
       {fromPicker ? <Link to="/plan?all" className="trial-back">‹ Back to plans</Link> : <Link to="/plan?all" className="trial-skip">See all plans</Link>}
       <div className="trial-brand"><img src={LOGO} alt="Bakeri" /> <span>{p.name}</span></div>
       <h1 className="trial-title">{trial ? <>Claim a free<br />{trialDays}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
-      <p className="trial-sub">{p.tier === 'pro' ? 'One fixed price for the best of Bakerï, with no Bakerï fee on any sale.' : p.tier === 'basic' ? 'The best order management for bakers. Customers pay you directly.' : 'Great order management, plus community tools to grow online. Pay as you grow: 5% per sale.'}</p>
+      <p className="trial-sub">{p.tier === 'pro' ? 'One fixed price for the best of Bakerï, with no Bakerï fee on any sale.' : p.tier === 'basic' ? 'The best order management for bakers. Customers pay you directly.' : 'Great order management, plus the tools you need to grow online. Pay as you grow: 5% per sale.'}</p>
       {sale && <SaleBanner sale={sale} />}
       {sale && liveSale && sale.percent_off !== liveSale.percent_off && interval === 'month' && (
         <p className="ref-note plan-ref">Referral code <b>{referred}</b>: an extra <b>{sale.percent_off - liveSale.percent_off}% off</b> on top of {liveSale.label}.</p>)}

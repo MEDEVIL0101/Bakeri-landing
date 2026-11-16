@@ -57,7 +57,7 @@ export interface PlanDef {
 export const PLANS: PlanDef[] = [
   { tier: 'basic', name: 'Basic', tagline: 'The best order management for bakers', blurb: 'Everything you need to take custom orders.', price: 3, yearPrice: 0, feePct: 0, // monthly only
     perks: ['Your storefront with custom order forms', 'Orders, quotes and invoices', 'Get paid your way: cash, e-transfer, Venmo', 'iPhone and web app'] },
-  { tier: 'starter', name: 'Creator', tagline: 'Our standard plan: great order management, plus community tools to grow online', blurb: 'Pay as you grow.', price: 10, yearPrice: 100, feePct: 5,
+  { tier: 'starter', name: 'Creator', tagline: 'Our standard plan: great order management, plus the tools you need to grow online', blurb: 'Pay as you grow.', price: 10, yearPrice: 100, feePct: 5,
     perks: ['A menu with checkout and pre-orders', 'Card payments, deposits and Tap to Pay', 'Digital downloads, courses and clubs', 'Insights and tips'] },
   { tier: 'pro', name: 'Creator Pro', tagline: 'One fixed price for the best of Bakerï', blurb: 'Keep every dollar of your sales.', price: 30, yearPrice: 300, feePct: 0,
     perks: ['No Bakeri fee on any sale', 'Email campaigns to your customer list', 'Best value once you sell about $400 a month'] },
