@@ -245,13 +245,12 @@ export function TrialPage() {
           <span>Monthly</span>
           <small>{pm.salePrice ? `For ${pm.saleMonths} months, then ${money(pm.price)}/month` : `${money(pm.price)}/month${trial ? ' after trial' : ''}`}</small>
         </button>
-        {p.tier !== 'basic' && (
         <button type="button" role="radio" aria-checked={interval === 'year'} className={`cycle-opt ${interval === 'year' ? 'on' : ''}`} onClick={() => setCycle('year')}>
           <span className="cycle-save">{YEARLY_FREE_MONTHS} months free</span>
           <b>{money(Math.round((p.yearPrice / 12) * 100) / 100)}<small>/mo</small></b>
           <span>Yearly</span>
           <small>{money(p.yearPrice)}/year{trial ? ' after trial' : ''}</small>
-        </button>)}
+        </button>
       </div>
       )}
       <ol className="trial-steps">
