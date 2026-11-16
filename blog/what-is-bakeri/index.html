@@ -49,8 +49,8 @@
       "description": "An all-in-one creator-commerce and business-management platform for independent creators, food entrepreneurs and makers: branded storefronts, online sales of food, digital and physical products, order management, customer relationships, recipe management, ingredient costing and scheduling.",
       "publisher": {"@id": "https://bakeriapp.com/#org"},
       "offers": [
-        {"@type": "Offer", "name": "Starter", "price": "10", "priceCurrency": "USD", "description": "$10 per month plus a 5% commission on online sales"},
-        {"@type": "Offer", "name": "Pro", "price": "30", "priceCurrency": "USD", "description": "$30 per month with no sales commission"}
+        {"@type": "Offer", "name": "Basic", "price": "3", "priceCurrency": "USD", "description": "$3 per month for custom orders; customers pay the baker directly, no commission"}, {"@type": "Offer", "name": "Creator", "price": "10", "priceCurrency": "USD", "description": "$10 per month plus a 5% commission on online sales"},
+        {"@type": "Offer", "name": "Creator Pro", "price": "30", "priceCurrency": "USD", "description": "$30 per month with no sales commission"}
       ]
     },
     {
@@ -72,7 +72,7 @@
         {"@type": "Question", "name": "Who is Bakerï for?", "acceptedAnswer": {"@type": "Answer", "text": "Home-based food businesses, bakers, confectioners, caterers and specialty food producers; creators and educators selling recipes, courses, guides, downloads and memberships; and artisans, designers and makers selling physical products that can be packaged and shipped."}},
         {"@type": "Question", "name": "What can you sell on Bakerï?", "acceptedAnswer": {"@type": "Answer", "text": "Bakerï supports three product categories: Food (ready-made products, preorders and custom requests), Digital (recipes, downloadable resources, courses, guides and memberships) and Physical (handcrafted goods, merchandise and shipped products)."}},
         {"@type": "Question", "name": "Is Bakerï a marketplace?", "acceptedAnswer": {"@type": "Answer", "text": "No. Bakerï is not built around finding customers for its users. It gives each business its own storefront and helps them own their customer relationships instead of depending on third-party marketplaces or social media algorithms."}},
-        {"@type": "Question", "name": "How much does Bakerï cost?", "acceptedAnswer": {"@type": "Answer", "text": "Bakerï has two plans: Starter at $10 per month with a 5% commission on online sales, and Pro at $30 per month with no sales commission. Both come with a 14-day free trial. Prices are in USD."}}
+        {"@type": "Question", "name": "How much does Bakerï cost?", "acceptedAnswer": {"@type": "Answer", "text": "Bakerï has three plans: Basic at $3 per month for custom orders, where customers pay the baker directly; Creator at $10 per month with a 5% commission on online sales; and Creator Pro at $30 per month with no sales commission. Every plan comes with a 14-day free trial. Prices are in USD."}}
       ]
     }
   ]
@@ -100,7 +100,7 @@
 .cat:nth-child(1){border-top:5px solid var(--pink)}
 .cat:nth-child(2){border-top:5px solid var(--purple,#7c3aed)}
 .cat:nth-child(3){border-top:5px solid var(--cyan)}
-.plans{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin:8px 0 18px}
+.plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:8px 0 18px}
 @media(max-width:620px){.plans{grid-template-columns:1fr}}
 .plan-c{background:#fff;border:1px solid var(--line);border-radius:20px;padding:24px 26px}
 .plan-c .nm{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--pink-2)}
@@ -163,12 +163,13 @@
 <p>Importantly, Bakerï isn’t built around finding customers for its users. It’s built around helping them own the relationships they establish, control their storefronts and build independent businesses without depending entirely on third-party marketplaces or social media algorithms.</p>
 
 <h2>Accessible pricing, built to grow</h2>
-<p>Bakerï offers two subscription options.</p>
+<p>Bakerï offers three subscription options.</p>
 <div class="plans">
-<div class="plan-c"><span class="nm">Starter</span><div class="amt">$10<small> / month</small></div><p>plus a 5% commission on online sales</p></div>
-<div class="plan-c"><span class="nm">Pro</span><div class="amt">$30<small> / month</small></div><p>no sales commission</p></div>
+<div class="plan-c"><span class="nm">Basic</span><div class="amt">$3<small> / month</small></div><p>custom orders, customers pay you directly</p></div>
+<div class="plan-c"><span class="nm">Creator</span><div class="amt">$10<small> / month</small></div><p>plus a 5% commission on online sales</p></div>
+<div class="plan-c"><span class="nm">Creator Pro</span><div class="amt">$30<small> / month</small></div><p>no sales commission</p></div>
 </div>
-<p class="fine">Prices in USD. Both plans start with a 14-day free trial.</p>
+<p class="fine">Prices in USD. Every plan starts with a 14-day free trial.</p>
 <p>This gives emerging entrepreneurs an affordable starting point while allowing growing businesses to move toward predictable subscription-based pricing as their sales increase.</p>
 
 <h2>A platform for the independent entrepreneur</h2>
@@ -183,7 +184,7 @@
 <details><summary>Who is Bakerï for?</summary><p>Home-based food businesses, bakers, confectioners, caterers and specialty food producers; creators and educators selling recipes, courses, guides, downloads and memberships; and artisans, designers and makers selling physical products that can be packaged and shipped.</p></details>
 <details><summary>What can you sell on Bakerï?</summary><p>Three product categories: Food (ready-made products, preorders and custom requests), Digital (recipes, downloadable resources, courses, guides and memberships) and Physical (handcrafted goods, merchandise and shipped products).</p></details>
 <details><summary>Is Bakerï a marketplace?</summary><p>No. Bakerï isn’t built around finding customers for its users. It gives each business its own storefront and helps them own their customer relationships, instead of depending on third-party marketplaces or social media algorithms.</p></details>
-<details><summary>How much does Bakerï cost?</summary><p>Starter is $10 per month with a 5% commission on online sales. Pro is $30 per month with no sales commission. Both come with a 14-day free trial. Prices are in USD.</p></details>
+<details><summary>How much does Bakerï cost?</summary><p>Basic is $3 per month for custom orders, with customers paying you directly. Creator is $10 per month with a 5% commission on online sales. Creator Pro is $30 per month with no sales commission. Every plan comes with a 14-day free trial. Prices are in USD.</p></details>
 </div>
 
 <div class="sign-off">
