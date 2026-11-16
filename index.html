@@ -231,7 +231,7 @@ form.addEventListener('submit',e=>{e.preventDefault();if(btn.disabled)return;con
       el.hidden = false;
       document.querySelector('.hero-bold').classList.add('has-sale');
       document.querySelector('#heroCta .hb-btn-txt').textContent = 'Claim ' + sale.percent_off + '% off · Start free';
-      note.textContent = '14 days free, then ' + sale.percent_off + '% off your first ' + sale.months + ' months. Cancel any time.';
+      note.textContent = '14 days free, then ' + sale.percent_off + '% off your first ' + sale.months + ' months. Cancel any time. *Discount applies to monthly Starter and Pro plans only.';
       note.hidden = false;
     })
     .catch(function () {});

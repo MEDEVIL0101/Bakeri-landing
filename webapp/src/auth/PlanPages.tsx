@@ -315,6 +315,7 @@ function SaleBanner({ sale }: { sale: PlanSale }) {
       <span className="ps-tag">{sale.label}</span>
       <b>{sale.percent_off}% off your first {sale.months} months</b>
       <span>on monthly plans{ends ? ` · ${ends}` : ''}</span>
+      <small className="sale-foot">*Discount applies to Starter and Pro plans only. Not available on Basic.</small>
     </div>
   );
 }
