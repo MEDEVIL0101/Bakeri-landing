@@ -2,7 +2,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { planFeeRate } from '../../lib/plans';
 // Mirrors iOS HelpCenterView. The sales-tax section is left out until the
 // Stripe Tax work ships.
-const FEE_BODY = '5% of each storefront sale, before tax, on Starter — none on Pro. Stripe’s card processing fee is also deducted by Stripe.';
+const FEE_BODY = '5% of each storefront sale, before tax, on Creator — none on Basic or Creator Pro. Stripe’s card processing fee is also deducted by Stripe.';
 
 const SECTIONS: { heading: string; rows: { title: string; body: string }[] }[] = [
   {
@@ -38,7 +38,7 @@ const SECTIONS: { heading: string; rows: { title: string; body: string }[] }[] =
 export function HelpContent() {
   const { plan } = useAuth();
   const feeBody = planFeeRate(plan) === 0
-    ? 'None — your Pro plan has no Bakeri service fee. Stripe’s card processing fee is still deducted by Stripe.'
+    ? 'None — your plan has no Bakeri service fee. Stripe’s card processing fee is still deducted by Stripe.'
     : FEE_BODY;
   return (
     <div className="help">

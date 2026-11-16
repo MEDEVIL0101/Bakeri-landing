@@ -2,6 +2,9 @@
 // prices, fee rates) is supabase/functions/_shared/plans.ts — keep the fee
 // numbers here in step with PLAN_FEE_RATE there.
 //
+// Names (Harvey 2026-11-15): Basic / Creator (tier 'starter') / Creator Pro
+// (tier 'pro') — the tier codes stay as they are in the database and Stripe.
+//
 // Tiers (Harvey 2026-10-30): a free trial on the plan they pick, then
 // Starter $10/mo + 5% Bakeri fee per sale (existing vendors are
 // grandfathered onto Starter, so they keep paying the 5%), or Pro $30/mo with
@@ -52,12 +55,12 @@ export interface PlanDef {
 }
 
 export const PLANS: PlanDef[] = [
-  { tier: 'basic', name: 'Basic', tagline: 'Take custom orders', blurb: 'Everything you need to take custom orders.', price: 3, yearPrice: 30, feePct: 0,
-    perks: ['Your storefront with custom order forms', 'Orders, quotes and invoices', 'Get paid your way: cash, e-transfer, Venmo', 'No Bakeri fees, ever'] },
-  { tier: 'starter', name: 'Starter', tagline: 'Open your shop', blurb: 'A low monthly price while you’re getting going.', price: 10, yearPrice: 100, feePct: 5,
-    perks: ['Your storefront at bakeriapp.com', 'Orders, schedule, menu and recipes', 'Card payments and payouts', 'iPhone app and web app'] },
-  { tier: 'pro', name: 'Pro', tagline: 'Keep every dollar you make', blurb: 'Keep every dollar of your sales.', price: 30, yearPrice: 300, feePct: 0,
-    perks: ['Everything in Starter', 'No Bakeri fee on any sale', 'Email campaigns to your customer list', 'Best value once you sell about $400 a month'] },
+  { tier: 'basic', name: 'Basic', tagline: 'The best order management for bakers', blurb: 'Everything you need to take custom orders.', price: 3, yearPrice: 30, feePct: 0,
+    perks: ['Your storefront with custom order forms', 'Orders, quotes and invoices', 'Get paid your way: cash, e-transfer, Venmo', 'iPhone and web app'] },
+  { tier: 'starter', name: 'Creator', tagline: 'Our standard plan: great order management, plus every tool to grow online', blurb: 'Pay as you grow.', price: 10, yearPrice: 100, feePct: 5,
+    perks: ['A menu with checkout and pre-orders', 'Card payments, deposits and Tap to Pay', 'Digital downloads, courses and clubs', 'Insights and tips'] },
+  { tier: 'pro', name: 'Creator Pro', tagline: 'One fixed price for the best of Bakerï', blurb: 'Keep every dollar of your sales.', price: 30, yearPrice: 300, feePct: 0,
+    perks: ['No Bakeri fee on any sale', 'Email campaigns to your customer list', 'Best value once you sell about $400 a month'] },
 ];
 
 export const TRIAL_DAYS = 14;
@@ -130,7 +133,7 @@ export function isBasic(plan: VendorPlan | null | undefined): boolean {
 /** "5% of each sale" / "nothing on Pro" style copy for the vendor's own plan. */
 export function feeDescription(plan: VendorPlan | null | undefined): string {
   return planFeeRate(plan) === 0
-    ? `Your ${effectiveTier(plan) === 'basic' ? 'Basic' : 'Pro'} plan has no Bakeri service fee`
+    ? `Your ${effectiveTier(plan) === 'basic' ? 'Basic' : 'Creator Pro'} plan has no Bakeri service fee`
     : 'Bakeri’s service fee is 5% of each sale';
 }
 
@@ -175,7 +178,7 @@ export function usePlanPromo(code: string | null | undefined): PlanPromo | null 
   return promo;
 }
 
-const TIER_NAME: Record<PlanTier, string> = { basic: 'Basic', starter: 'Starter', pro: 'Pro' };
+const TIER_NAME: Record<PlanTier, string> = { basic: 'Basic', starter: 'Creator', pro: 'Creator Pro' };
 export function promoLine(p: PlanPromo): string {
   return `${p.trial_days} days free on ${TIER_NAME[p.tier]}`;
 }

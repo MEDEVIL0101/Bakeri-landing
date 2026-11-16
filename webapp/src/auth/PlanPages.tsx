@@ -81,8 +81,8 @@ export function PlanPage() {
       <div className="plan-head">
         <h1>{current !== 'none' ? 'Your plan' : lapsed ? 'Pick a plan to keep going' : trial ? `Sign up and get ${TRIAL_DAYS} days free` : 'Find the plan for you'}</h1>
         <p className="muted">
-          {lifetime ? 'Pro is free for you, for life. Nothing to pay and no Bakeri fee on your sales.'
-            : grandfathered && !subscribed ? 'As one of our first vendors, Starter is free for you forever. Upgrade to Pro any time to drop the 5% fee.'
+          {lifetime ? 'Creator Pro is free for you, for life. Nothing to pay and no Bakeri fee on your sales.'
+            : grandfathered && !subscribed ? 'As one of our first vendors, Creator is free for you forever. Upgrade to Creator Pro any time to drop the 5% fee.'
             : current !== 'none' ? 'Switch plans any time.'
             : trial ? `Try any plan free for ${TRIAL_DAYS} days. You can cancel at any time.`
             : 'Your shop is paused until you pick a plan. Everything you set up is still here.'}
@@ -116,10 +116,10 @@ export function PlanPage() {
                 {isCurrent ? (
                   <Button variant="secondary" className="pk-btn" disabled>Current plan</Button>
                 ) : lifetime ? (
-                  <Button variant="secondary" className="pk-btn" disabled>Included in Pro</Button>
+                  <Button variant="secondary" className="pk-btn" disabled>Included in Creator Pro</Button>
                 ) : grandfathered && p.tier === 'starter' ? (
                   // Back to free Starter = cancel Pro in the billing portal.
-                  <Button variant="secondary" className="pk-btn" loading={busy === 'portal'} disabled={!!busy} onClick={manage}>Go back to free Starter</Button>
+                  <Button variant="secondary" className="pk-btn" loading={busy === 'portal'} disabled={!!busy} onClick={manage}>Go back to free Creator</Button>
                 ) : subscribed ? (
                   <Button variant={pro ? 'primary' : 'secondary'} className="pk-btn" loading={busy === 'portal'} disabled={!!busy} onClick={manage}>Switch to {p.name}</Button>
                 ) : (
@@ -128,15 +128,15 @@ export function PlanPage() {
                   </Button>
                 )}
                 <hr />
-                <p className="pk-lead">{pro ? 'All features in Starter, and' : 'Standout features:'}</p>
-                <ul className="pk-perks">{p.perks.filter((x) => x !== 'Everything in Starter').map((x) => <li key={x}>{x}</li>)}</ul>
+                <p className="pk-lead">{p.tier === 'pro' ? 'All features in Creator, and' : p.tier === 'starter' ? 'All features in Basic, and' : 'Standout features:'}</p>
+                <ul className="pk-perks">{p.perks.map((x) => <li key={x}>{x}</li>)}</ul>
               </div>
             </section>
           );
         })}
       </div>
       {current === 'none' && <AllInOne sale={sale} />}
-      <p className="small muted plan-note">Prices in USD. Stripe card fees apply on every plan. Pro costs $20 more a month and saves you 5% on every sale — so it pays for itself once you sell about $400 a month.</p>
+      <p className="small muted plan-note">Prices in USD. Stripe card fees apply on every plan. Creator Pro costs $20 more a month than Creator and saves you 5% on every sale — so it pays for itself once you sell about $400 a month.</p>
       <div className="auth-footer plan-footer">
         {subscribed && <><button type="button" className="link-btn" onClick={manage} disabled={!!busy}>Manage billing &amp; invoices</button> · </>}
         {!session ? <>Already have an account? <Link to="/login">Log in</Link></>
@@ -225,7 +225,7 @@ export function TrialPage() {
       {fromPicker ? <Link to="/plan?all" className="trial-back">‹ Back to plans</Link> : <Link to="/plan?all" className="trial-skip">See all plans</Link>}
       <div className="trial-brand"><img src={LOGO} alt="Bakeri" /> <span>{p.name}</span></div>
       <h1 className="trial-title">{trial ? <>Claim a free<br />{trialDays}-day {p.name} trial</> : <>Start {p.name}</>}</h1>
-      <p className="trial-sub">{p.tier === 'pro' ? 'Everything Bakeri does, with no Bakeri fee on any sale.' : p.tier === 'basic' ? 'A storefront for custom orders, with quotes and invoices. Customers pay you directly.' : 'Your storefront, orders and kitchen tools, all in one place.'}</p>
+      <p className="trial-sub">{p.tier === 'pro' ? 'One fixed price for the best of Bakerï, with no Bakerï fee on any sale.' : p.tier === 'basic' ? 'The best order management for bakers. Customers pay you directly.' : 'Great order management, plus every tool to grow online. Pay as you grow: 5% per sale.'}</p>
       {sale && <SaleBanner sale={sale} />}
       {sale && liveSale && sale.percent_off !== liveSale.percent_off && interval === 'month' && (
         <p className="ref-note plan-ref">Referral code <b>{referred}</b>: an extra <b>{sale.percent_off - liveSale.percent_off}% off</b> on top of {liveSale.label}.</p>)}
@@ -323,7 +323,7 @@ function SaleBanner({ sale }: { sale: PlanSale }) {
       <span className="ps-tag">{sale.label}</span>
       <b>{sale.percent_off}% off your first {sale.months} months*</b>
       <span>on monthly plans{ends ? ` · ${ends}` : ''}</span>
-      <small className="sale-foot">*Discount applies to Starter and Pro plans only. Not available on Basic.</small>
+      <small className="sale-foot">*Discount applies to Creator and Creator Pro plans only. Not available on Basic.</small>
     </div>
   );
 }
@@ -353,7 +353,7 @@ function AllInOne({ sale }: { sale: PlanSale | null }) {
         </tbody>
         <tfoot>
           <tr><th scope="row">Separately</th><td className="aio-total">${total}/mo</td><td /></tr>
-          <tr className="aio-us"><th scope="row">Bakerï Pro<small>All of it, no Bakerï fee on sales</small></th><td>{pro.salePrice ? <><s>${pro.price}</s> </> : null}${ours}/mo</td><td className="aio-check">✓</td></tr>
+          <tr className="aio-us"><th scope="row">Bakerï Creator Pro<small>All of it, no Bakerï fee on sales</small></th><td>{pro.salePrice ? <><s>${pro.price}</s> </> : null}${ours}/mo</td><td className="aio-check">✓</td></tr>
         </tfoot>
       </table>
       <p className="aio-save">Save ${total - ours} a month{pro.salePrice ? ` for your first ${pro.saleMonths} months, then $${total - pro.price} a month` : ''}.</p>

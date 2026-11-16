@@ -22,8 +22,8 @@ function ProGate({ children }: { children: React.ReactNode }) {
     <div className="page">
       <PageHeader title="Email Campaigns" />
       <Card>
-        <EmptyState title="Email campaigns are part of Pro" body="Send launches, drops and sales to the customers you choose. Your customers and mailing list keep being collected on every plan." />
-        <div className="btn-row" style={{ justifyContent: 'center' }}><Link to="/plan" className="btn btn-primary">See Pro</Link></div>
+        <EmptyState title="Email campaigns are part of Creator Pro" body="Send launches, drops and sales to the customers you choose. Your customers and mailing list keep being collected on every plan." />
+        <div className="btn-row" style={{ justifyContent: 'center' }}><Link to="/plan" className="btn btn-primary">See Creator Pro</Link></div>
       </Card>
     </div>
   );

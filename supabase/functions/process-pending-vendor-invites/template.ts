@@ -145,7 +145,7 @@ export const VENDOR_INVITE_EMAIL_TEMPLATE = `<!DOCTYPE html>
             <td class="step-number-cell"><span class="step-number">2</span></td>
             <td>
               <div class="step-title">Pick your plan — free for 14 days</div>
-              <p class="step-desc">Starter is $10 a month plus a 5% Bakerï fee per sale. Pro is $30 a month with no Bakerï fee. Either one is free for your first 7 days, and you can switch or cancel any time.</p>
+              <p class="step-desc">Basic is $3 a month for custom orders, with customers paying you directly. Creator is $10 a month plus a 5% Bakerï fee per sale. Creator Pro is $30 a month with no Bakerï fee. Every plan is free for your first 14 days, and you can switch or cancel any time.</p>
             </td>
           </tr>
         </table>

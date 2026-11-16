@@ -15,7 +15,7 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 });
 
 const SOURCES: Record<string, string> = { web: "Website sign-up", partner_invite: "Growth Partner invite" };
-const PLANS: Record<string, string> = { basic: "Basic", starter: "Starter", pro: "Pro" };
+const PLANS: Record<string, string> = { basic: "Basic", starter: "Creator", pro: "Creator Pro" };
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });

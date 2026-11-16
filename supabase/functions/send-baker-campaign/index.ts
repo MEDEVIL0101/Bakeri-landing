@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
   // effective_plan_tier() so lifetime Pro and payment grace periods count.
   const { data: tier } = await db.rpc("effective_plan_tier", { p_user_id: bakerId });
   if (tier !== "pro") {
-    return json({ error: "Email campaigns are part of the Pro plan." }, 403);
+    return json({ error: "Email campaigns are part of the Creator Pro plan." }, 403);
   }
 
   const { data: campaign } = await db

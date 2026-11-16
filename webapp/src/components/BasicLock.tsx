@@ -13,7 +13,7 @@ export function BasicLock({ title, feature, children }: { title: string; feature
     <div className="page">
       <PageHeader title={title} />
       <Card>
-        <EmptyState title={`${feature} aren't part of Basic`} body="Basic is for custom orders. Upgrade to Starter or Pro to sell from a menu, take pre-orders, sell digital products, courses and clubs, and grow your list." />
+        <EmptyState title={`${feature} aren't part of Basic`} body="Basic is for custom orders. Upgrade to Creator or Creator Pro to sell from a menu, take pre-orders, sell digital products, courses and clubs, and grow your list." />
         <div className="btn-row" style={{ justifyContent: 'center' }}><Link to="/plan" className="btn btn-primary">See plans</Link></div>
       </Card>
     </div>

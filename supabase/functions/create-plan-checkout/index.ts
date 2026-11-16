@@ -54,7 +54,7 @@ serve(async (req) => {
     if (planErr) throw planErr;
 
     // Grandfathered vendors already have Starter free, forever.
-    if (tier === "starter" && plan?.grandfathered_starter) return json({ error: "Starter is already free for you." }, 400);
+    if (tier === "starter" && plan?.grandfathered_starter) return json({ error: "Creator is already free for you." }, 400);
 
     if (plan?.stripe_customer_id && plan.stripe_subscription_id && plan.tier !== "none" && LIVE_STATUSES.includes(plan.status)) {
       const portal = await stripe.billingPortal.sessions.create({ customer: plan.stripe_customer_id, return_url: appURL("plan") });

@@ -723,7 +723,7 @@ function LockedKind({ icon, title }: { icon: ReactNode; title: string }) {
     <Link to="/plan" className="kind-card kind-card-locked">
       <span className="kind-icon" aria-hidden>{icon}</span>
       <span className="kind-title">{title}</span>
-      <span className="muted small">Not on Basic. Upgrade to Starter or Pro.</span>
+      <span className="muted small">Not on Basic. Upgrade to Creator or Creator Pro.</span>
     </Link>
   );
 }
