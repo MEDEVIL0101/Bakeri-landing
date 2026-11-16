@@ -78,7 +78,7 @@ export function PlanPage() {
           {lifetime ? 'Pro is free for you, for life. Nothing to pay and no Bakeri fee on your sales.'
             : grandfathered && !subscribed ? 'As one of our first vendors, Starter is free for you forever. Upgrade to Pro any time to drop the 5% fee.'
             : current !== 'none' ? 'Switch plans any time.'
-            : trial ? `Try either plan free for ${TRIAL_DAYS} days. You can cancel at any time.`
+            : trial ? `Try any plan free for ${TRIAL_DAYS} days. You can cancel at any time.`
             : 'Your shop is paused until you pick a plan. Everything you set up is still here.'}
         </p>
       </div>
