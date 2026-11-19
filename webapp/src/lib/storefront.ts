@@ -588,3 +588,28 @@ export function newLink(section: string): Link {
   return { id: newId(), section, label: '', url: '', style: 'list', image_url: null, outline_style: 'none', shake: false, target_type: 'url', linked_listing_id: null };
 }
 export function newFAQ(): FAQ { return { id: newId(), question: '', answer: '' }; }
+
+// ── Listing photo focus (storefront_design.focus.items[listingId]) ─────────
+// One focal point per listing photo; the storefront crops the shop card,
+// the phone pop-up and the desktop pop-up banner around it (focusPosition in
+// baker/index.html). Read/merged straight from the profile row so saving a
+// listing doesn't need the storefront builder's draft.
+
+export async function loadListingFocus(userId: string, listingId: string): Promise<FocusPoint | null> {
+  const row = check(await supabase.from('profiles').select('storefront_design').eq('id', userId).maybeSingle()) as { storefront_design?: StorefrontDesign | null } | null;
+  const items = row?.storefront_design?.focus?.items ?? {};
+  return items[listingId.toLowerCase()] ?? items[listingId.toUpperCase()] ?? null;
+}
+
+export async function saveListingFocus(userId: string, listingId: string, point: FocusPoint | null): Promise<void> {
+  const row = check(await supabase.from('profiles').select('storefront_design').eq('id', userId).maybeSingle()) as { storefront_design?: StorefrontDesign | null } | null;
+  const design: StorefrontDesign = { ...(row?.storefront_design ?? {}) };
+  const items: Record<string, FocusPoint> = { ...(design.focus?.items ?? {}) };
+  delete items[listingId.toUpperCase()];
+  if (point) items[listingId.toLowerCase()] = point; else delete items[listingId.toLowerCase()];
+  const focus = { ...(design.focus ?? {}), items: Object.keys(items).length ? items : undefined };
+  if (!focus.items) delete focus.items;
+  design.focus = Object.keys(focus).length ? focus : undefined;
+  if (!design.focus) delete design.focus;
+  check(await supabase.from('profiles').update({ storefront_design: design, updated_at: nowISO() }).eq('id', userId));
+}

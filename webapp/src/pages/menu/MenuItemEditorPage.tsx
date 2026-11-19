@@ -15,6 +15,8 @@ import { blocksFromRow } from '../../lib/contentBlocks';
 import { loadFeaturedCard, setFeaturedCard } from '../../lib/sections';
 import { closeSpace } from '../../lib/courses';
 import { ContentBlocksField, ContentBlocksPreview } from '../../components/ContentBlocksEditor';
+import { ListingPhotoFocus } from '../../components/ListingPhotoFocus';
+import { loadListingFocus, saveListingFocus, type FocusPoint } from '../../lib/storefront';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const isFood = (k: ListingKind) => k === 'ready_now' || k === 'preorder' || k === 'custom';
@@ -88,6 +90,16 @@ export function MenuItemEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [newDate, setNewDate] = useState('');
+  // Photo focal point (storefront_design.focus.items[id]); `focusDirty`
+  // means it changed here and is written on Save.
+  const [focus, setFocus] = useState<FocusPoint | null>(null);
+  const [focusDirty, setFocusDirty] = useState(false);
+  useEffect(() => {
+    if (!id) return;
+    let live = true;
+    loadListingFocus(userId, id).then((p) => { if (live) setFocus(p); }).catch(() => {});
+    return () => { live = false; };
+  }, [id, userId]);
 
   useEffect(() => {
     if (!id && !draft && newType === 'course') setDraft({ ...emptyDraft('digital'), is_course: true, category: 'Courses' });
@@ -155,6 +167,8 @@ export function MenuItemEditorPage() {
       const blob = await compressImage(file);
       setImage(blob);
       setPreview(URL.createObjectURL(blob));
+      // A new photo starts centred — the old point was for the old photo.
+      setFocus(null); setFocusDirty(true);
     } catch (e: any) { setError(e.message); }
   }
 
@@ -186,6 +200,7 @@ export function MenuItemEditorPage() {
       const names = (recipes.data ?? []).filter((r) => d.recipe_ids.includes(r.id)).map((r) => r.name);
       const toSave = formListing ? { ...d, is_listed: d.use_as_site_body } : d;
       const res = await saveMenuItem(userId, { ...toSave, recipe_names: names }, profile, existing, items.data ?? [], image, digitalFile);
+      if (focusDirty && res.id) await saveListingFocus(userId, res.id, focus);
       if (formListing) await refreshProfile();
       toast(res.unlistedForNoFulfillment
         ? 'Saved as a draft — add a pickup address in Settings → Shop settings to list food items.'
@@ -200,8 +215,6 @@ export function MenuItemEditorPage() {
 
   const imgSrc = preview ?? (existing?.has_image ? menuImageURL(existing) : null);
   const kindLabel = d.is_club ? 'Club' : d.is_course ? 'Course' : LISTING_KINDS.find((k) => k.kind === kind)?.label ?? '';
-  const previewPrice = d.is_assorted_box ? Math.min(...d.tiers.filter((t) => t.price > 0).map((t) => t.price), Infinity)
-    : d.has_variants ? Math.min(...d.options.filter((o) => o.price > 0).map((o) => o.price), Infinity) : d.price;
 
   const header = (
     <PageHeader
@@ -594,14 +607,22 @@ export function MenuItemEditorPage() {
         </div>
 
         <div className="stack-lg sticky-col">
-          <Card title="Photo">
-            <label className="photo-drop"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); pickImage(e.dataTransfer.files?.[0]); }}>
-              {imgSrc ? <img src={imgSrc} alt="" /> : <span className="photo-empty"><strong>Add a photo</strong><span className="small muted">Click or drop an image here</span></span>}
+          <Card title="Photo" actions={imgSrc ? (
+            <label className="link-btn small lpf-replace">Replace
               <input type="file" accept="image/*" hidden onChange={(e) => pickImage(e.target.files?.[0])} />
-            </label>
-            {imgSrc && <p className="small muted">Click or drop to replace.</p>}
+            </label>) : undefined}>
+            {imgSrc ? (
+              <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); pickImage(e.dataTransfer.files?.[0]); }}>
+                <ListingPhotoFocus src={imgSrc} point={focus} onChange={(p) => { setFocus(p); setFocusDirty(true); }} />
+              </div>
+            ) : (
+              <label className="photo-drop"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); pickImage(e.dataTransfer.files?.[0]); }}>
+                <span className="photo-empty"><strong>Add a photo</strong><span className="small muted">Click or drop an image here. Use the whole photo — you pick what to focus on next.</span></span>
+                <input type="file" accept="image/*" hidden onChange={(e) => pickImage(e.target.files?.[0])} />
+              </label>
+            )}
           </Card>
 
           {d.content_blocks.length > 0 && (
@@ -610,19 +631,6 @@ export function MenuItemEditorPage() {
             </Card>
           )}
 
-          <Card title="How customers see it">
-            <div className="listing-preview">
-              <div className="lp-img">{imgSrc ? <img src={imgSrc} alt="" /> : <span>{(d.name || '?')[0]}</span>}</div>
-              <div className="lp-body">
-                <div className="lp-name">{d.name || 'Your listing'}</div>
-                {d.item_description && <div className="lp-desc">{d.item_description}</div>}
-                <div className="lp-meta">
-                  <span className="lp-price">{kind === 'custom' ? (d.price > 0 ? `From ${formatMoney(d.price)}` : 'Request a quote') : Number.isFinite(previewPrice) && previewPrice > 0 ? `${d.is_assorted_box || d.has_variants ? 'From ' : ''}${formatMoney(previewPrice)}` : '—'}</span>
-                  <span className="lp-kind">{kind === 'ready_now' ? `${d.available_qty_today} ready` : kind === 'preorder' ? 'Pre-order' : kind === 'physical' ? 'Ships to you' : kind === 'digital' ? 'Instant download' : 'Custom'}</span>
-                </div>
-              </div>
-            </div>
-          </Card>
 
           <Card title="Visibility">
             <Toggle checked={d.is_listed} onChange={(v) => set('is_listed', v)} label="List on storefront" hint={d.is_listed ? 'Customers can see and order this.' : 'Off saves it as a draft.'} />
