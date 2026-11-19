@@ -314,16 +314,23 @@ function LinkForm({ link, sections, update, data, userId, v2, draft, set }: {
   );
 }
 
-/** Optional colour: empty means "use the theme". */
+/** An unset field's picker starts here. Not black or white: a colour input
+ *  only reports a change, so if it started on black, picking black (the most
+ *  common title colour) did nothing (2026-11-19). */
+const UNSET_SWATCH = '#808080';
+
+/** Optional colour: empty means "use the theme". The whole row opens the picker. */
 export function ColorField({ label, value, onChange }: { label: string; value?: string; onChange: (v: string | undefined) => void }) {
   return (
     <div className="field">
-      <span className="field-label">{label}</span>
-      <div className="color-row">
-        <input type="color" value={value ?? '#000000'} onChange={(e) => onChange(e.target.value)} aria-label={label} className={value ? '' : 'unset'} />
-        <span className="small muted grow">{value ?? 'Theme'}</span>
-        {value && <button type="button" className="link-btn small" onClick={() => onChange(undefined)}>Reset</button>}
-      </div>
+      <label className="color-row">
+        <input type="color" value={value ?? UNSET_SWATCH} onChange={(e) => onChange(e.target.value)} aria-label={label} className={value ? '' : 'unset'} />
+        <span className="grow">
+          <span className="field-label">{label}</span>
+          <span className="small muted">{value ?? 'Theme — click to choose'}</span>
+        </span>
+        {value && <button type="button" className="link-btn small" onClick={(e) => { e.preventDefault(); onChange(undefined); }}>Reset</button>}
+      </label>
     </div>
   );
 }
