@@ -569,12 +569,13 @@
     .sf-link.disabled { opacity: .45; pointer-events: none; }
     /* Stroke / glow / shake — on the link card itself, never the section card. */
     /* Border / glow are inline styles per link — see renderLinkRow. */
+    /* A gentle nudge every 6s (was every 3.2s at ±2° — too twitchy). */
     @keyframes sf-shake {
-      0%, 80%, 100% { transform: rotate(0); }
-      83% { transform: rotate(-2deg); } 86% { transform: rotate(2deg); }
-      89% { transform: rotate(-1.5deg); } 92% { transform: rotate(1.5deg); } 95% { transform: rotate(-.5deg); }
+      0%, 90%, 100% { transform: rotate(0); }
+      92% { transform: rotate(-1.2deg); } 94% { transform: rotate(1.2deg); }
+      96% { transform: rotate(-.7deg); } 98% { transform: rotate(.3deg); }
     }
-    .sf-link.shake, .sf-navbtn.shake, .sf-offer.shake { animation: sf-shake 3.2s ease-in-out infinite; }
+    .sf-link.shake, .sf-navbtn.shake, .sf-offer.shake { animation: sf-shake 6s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) { .sf-link.shake, .sf-navbtn.shake, .sf-offer.shake { animation: none; } }
 
     /* ══════════════ Course / club cards ══════════════ */
