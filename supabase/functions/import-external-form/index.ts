@@ -37,7 +37,16 @@ function json(body: unknown, status = 200) {
   });
 }
 
-class ImportError extends Error {}
+class ImportError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) { super(message); this.code = code; }
+}
+
+// A Google Form that makes people sign in (it has a file-upload question,
+// or collects verified emails) can't be read from its link at all — the
+// vendor can upload a PDF printout or screenshots instead (source "file").
+const SIGN_IN_MESSAGE =
+  "This form asks people to sign in to Google (usually because it has a photo or file upload question), so it can't be read from its link. Upload a PDF printout or screenshots of the form instead.";
 
 type Source = "google" | "jotform";
 
@@ -89,6 +98,9 @@ async function fetchHTML(source: Source, url: URL): Promise<string> {
     if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
       const next = new URL(res.headers.get("location")!, current);
       const h = next.hostname.toLowerCase();
+      if (source === "google" && (h === "accounts.google.com" || next.pathname.includes("/ServiceLogin"))) {
+        throw new ImportError(SIGN_IN_MESSAGE, "needs_file");
+      }
       const allowed = source === "google"
         ? h === "docs.google.com" || h === "forms.gle"
         : h === "jotform.com" || h.endsWith(".jotform.com");
@@ -96,6 +108,7 @@ async function fetchHTML(source: Source, url: URL): Promise<string> {
       current = next;
       continue;
     }
+    if (source === "google" && (res.status === 401 || res.status === 403)) throw new ImportError(SIGN_IN_MESSAGE, "needs_file");
     if (res.status !== 200) throw new ImportError(`Couldn't reach ${SOURCE_NAME[source]} (code ${res.status}).`);
     return await res.text();
   }
@@ -152,6 +165,30 @@ const GOOGLE_PROMPT = "Below is the raw `FB_PUBLIC_LOAD_DATA_` array Google Form
 
 const JOTFORM_PROMPT = "Below is the server-rendered HTML body of a public JotForm form page (its <script>/<style> tags already stripped). Each question renders as real markup: a <label> with the question text, a wrapping element carrying data-type=\"control_XXX\" identifying the field type, and — for choice questions — each option as its own visible <label> text. Read it and convert it into this JSON shape ONLY:\n\n{\n  \"title\": \"string\",\n  \"fields\": [\n    {\n      \"type\": \"heading|short_text|long_text|number|single_choice|multi_choice|date|time|photo|notice|agreement\",\n      \"label\": \"string\",\n      \"help_text\": \"string or null\",\n      \"required\": boolean,\n      \"options\": [\"string\"],\n      \"condition_trigger_label\": \"string or null\",\n      \"condition_values\": [\"string\"]\n    }\n  ]\n}\n\nJotForm control_type -> our type:\n- control_textbox, control_email (short text-style fields) -> short_text\n- control_textarea -> long_text\n- control_number, control_spinner -> number\n- control_radio, control_dropdown (pick exactly one) -> single_choice. control_checkbox (pick any number) -> multi_choice. Put each visible option's text in \"options\" (omit \"options\" for other types).\n- control_matrix (a grid of rows x columns) has no single-field equivalent — emit one single_choice or multi_choice field per ROW, labelled \"<matrix title>: <row label>\", with the column labels as \"options\".\n- control_datetime -> date. Any field clearly asking for a time of day (not a full date) -> time — an actual time-of-day picker, never date or short_text.\n- control_fileupload, control_image (as an upload prompt, not decorative image) -> photo.\n- control_head -> heading (a short section title, required must be false).\n- control_text: if it's a SHORT instructional line, -> heading. If it's a genuine paragraph of policy, terms, cancellation, storage, or disclaimer text meant to actually be read — however long — -> notice instead (required must be false either way).\n- control_widget whose widget name or visible text mentions terms, conditions, agreement, consent, waiver, or similar (a \"Terms & Conditions\" checkbox widget is the common case) -> agreement. Use a natural agreement phrase as \"label\", e.g. \"I agree to the terms and conditions above\" — derive it from the widget's own text if a specific phrase is visible, otherwise use a generic \"I agree to the terms and conditions above\". Any OTHER control_widget (one that isn't a terms/agreement checkbox) -> short_text.\n- A control_checkbox with EXACTLY ONE option that reads like a consent/agreement phrase (e.g. \"I agree to the terms above\") -> agreement instead of multi_choice, using that option's text as \"label\" (agreement fields never have an \"options\" array).\n- control_pagebreak, control_button, control_divider, purely decorative control_image, hidden fields, and JotForm's own captcha/payment/signature widgets are not real questions — skip them entirely.\n- control_fullname, control_address, control_phone, and any field whose only purpose is collecting the respondent's own name, email address, or phone number (e.g. \"Name\", \"Email\", \"Phone Number\", \"Contact Info\") -> OMIT entirely. Every order on this platform already asks for that once, unconditionally, right before this form's own questions, so importing them again would ask the buyer twice. This does NOT apply to someone else's contact info (e.g. \"Recipient's Name\" on a gift order, \"Who is this for\") — only the respondent's own identity/contact details are omitted.\n- CONDITIONAL SECTIONS: order forms selling multiple kinds of items commonly start with a single/multi-choice question like \"What would you like to order today?\" (options: e.g. \"Cookies\", \"Cake\", \"Cupcakes\", \"Cake Pops\"), followed by a run of fields for EACH of those options in turn — often introduced by its own control_head (e.g. a \"Cookies\" heading, then cookie-specific questions, then a \"Cake\" heading, then cake-specific questions). Whenever you recognize this pattern, set \"condition_trigger_label\" on EVERY field that belongs to one of those per-item sections (the section's own heading included) to the EXACT \"label\" text of that earlier selector question, and \"condition_values\" to the ONE option text (from the selector's own \"options\") that section corresponds to — e.g. every field under the \"Cookies\" heading gets \"condition_trigger_label\": \"What would you like to order today?\" and \"condition_values\": [\"Cookies\"]. This makes the buyer only see (and only get required to answer) the section for whatever they actually picked — without it, they'd be forced to fill in every section for every item type regardless of what they're ordering. Leave both fields null/omitted for anything that isn't part of a per-item-type section like this.\n- Preserve question order exactly as it appears in the source markup.\n- The form's title is usually in a heading near the top of the page (often near class=\"form-header\" or similar) — if you can't find one, use an empty string.\n- Return ONLY the JSON object — no markdown fences, no explanation.\n";
 
+// PDF printout / screenshots of a form on any platform (Google Forms behind
+// a sign-in, Wix, Typeform, a paper form...). Same field rules as above.
+const FILE_PROMPT = "Attached is an order form — a PDF printout or one or more screenshots, in order (a multi-page form may span several images/pages). It may come from Google Forms, JotForm, Typeform, a website or a paper form. Read every question and convert the whole form into this JSON shape ONLY:\n\n{\n  \"title\": \"string\",\n  \"fields\": [\n    {\n      \"type\": \"heading|short_text|long_text|number|single_choice|multi_choice|date|time|photo|notice|agreement\",\n      \"label\": \"string\",\n      \"help_text\": \"string or null\",\n      \"required\": boolean,\n      \"options\": [\"string\"],\n      \"condition_trigger_label\": \"string or null\",\n      \"condition_values\": [\"string\"]\n    }\n  ]\n}\n\nRules:\n- A one-line answer box -> short_text; a multi-line paragraph box -> long_text; a numeric-only answer -> number.\n- Round radio buttons or a dropdown (pick one) -> single_choice; square checkboxes (pick any) -> multi_choice. Put every visible option in \"options\" (an \"Other:\" option becomes \"Other\").\n- A date picker (or a question clearly asking for a date) -> date; a time of day -> time.\n- A file / photo upload question -> photo.\n- A section title -> heading (required false). A paragraph of policies, terms, deposits, cancellation or allergy info meant to be read -> notice (required false). A consent checkbox like \"I agree to the terms\" -> agreement.\n- Required questions are usually marked with a red asterisk (*); \"* Indicates required question\" is not itself a question.\n- OMIT any question collecting the respondent's OWN name, email address or phone number — every order on this platform already asks for those once, right before these questions. Keep other contact questions (e.g. Instagram handle, recipient's name).\n- Skip platform chrome that isn't a question: the signed-in account / \"Switch account\" line, \"The name, email, and photo associated with your Google account will be recorded…\", \"Your answer\" placeholders, Next/Back/Submit/Clear form buttons, page numbers, \"Never submit passwords\", \"This content is neither created nor endorsed by Google\", Report links and logos.\n- If a choice question picks which kind of item is ordered and later sections only apply to one choice, set \"condition_trigger_label\" on those section fields to that question's exact label and \"condition_values\" to the one option it belongs to.\n- Preserve question order exactly. Use the form's own title (empty string if none).\n- Return ONLY the JSON object — no markdown fences, no explanation.\n";
+
+const FILE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif"]);
+const MAX_FILES = 10;
+const MAX_TOTAL_BASE64 = 24 * 1024 * 1024; // ~18 MB of files
+
+function fileBlocks(files: unknown): unknown[] {
+  if (!Array.isArray(files) || !files.length) throw new ImportError("Add a PDF or at least one screenshot of the form.");
+  if (files.length > MAX_FILES) throw new ImportError(`Upload up to ${MAX_FILES} screenshots at a time.`);
+  let total = 0;
+  return files.map((f: any) => {
+    const media = String(f?.media_type ?? "");
+    const data = String(f?.data ?? "");
+    if (!FILE_TYPES.has(media) || !data) throw new ImportError("Only PDF, JPEG, PNG, WebP or GIF files can be imported.");
+    total += data.length;
+    if (total > MAX_TOTAL_BASE64) throw new ImportError("Those files are too large together — try fewer or smaller screenshots.");
+    return media === "application/pdf"
+      ? { type: "document", source: { type: "base64", media_type: media, data } }
+      : { type: "image", source: { type: "base64", media_type: media, data } };
+  });
+}
+
 function googlePrompt(blob: string): string {
   return `${GOOGLE_PROMPT}FB_PUBLIC_LOAD_DATA_ = ${blob}`;
 }
@@ -202,7 +239,7 @@ const FORM_TOOL = {
   },
 };
 
-async function runClaude(prompt: string): Promise<unknown> {
+async function runClaude(prompt: string, attachments: unknown[] = []): Promise<unknown> {
   let res: Response;
   try {
     res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -221,9 +258,9 @@ async function runClaude(prompt: string): Promise<unknown> {
         tool_choice: { type: "tool", name: FORM_TOOL.name },
         messages: [{
           role: "user",
-          content: prompt + "\n\nCall save_form with the result (omit help_text, options, condition_trigger_label and condition_values when they don't apply). " +
+          content: [...attachments, { type: "text", text: prompt + "\n\nCall save_form with the result (omit help_text, options, condition_trigger_label and condition_values when they don't apply). " +
             "Put the form's own description — the intro text under the title (Google Forms' form description; on JotForm, the paragraph under the form header) — " +
-            "verbatim in \"description\" (empty string if there is none), and don't repeat it as a notice field.",
+            "verbatim in \"description\" (empty string if there is none), and don't repeat it as a notice field." }],
         }],
       }),
       signal: AbortSignal.timeout(300_000),
@@ -263,6 +300,17 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+    if (body?.source === "file") {
+      const attachments = fileBlocks(body?.files);
+      const use = await takeAiUse(user.id, "form_import");
+      if (!use.ok) return json({ error: limitMessage("form_import") }, 429);
+      try {
+        return json(await runClaude(FILE_PROMPT, attachments));
+      } catch (e) {
+        await giveBackAiUse(use.id);
+        throw e;
+      }
+    }
     const source = body?.source as Source;
     if (source !== "google" && source !== "jotform") return json({ error: "Unknown form source." }, 400);
     const url = normalize(source, String(body?.url ?? ""));
@@ -290,7 +338,7 @@ Deno.serve(async (req: Request) => {
       throw e;
     }
   } catch (err) {
-    if (err instanceof ImportError) return json({ error: err.message }, 400);
+    if (err instanceof ImportError) return json({ error: err.message, ...(err.code ? { code: err.code } : {}) }, 400);
     console.error("import-external-form failed:", err instanceof Error ? err.message : err);
     return json({ error: "Something went wrong importing that form. Please try again." }, 500);
   }

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, useUserId } from '../../auth/AuthProvider';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Modal, PageHeader, Spinner, useLoad } from '../../components/ui';
 import { formUsage, isAnswerField, listForms } from '../../lib/forms';
-import { IMPORT_SOURCES, importExternalForm, type ImportSource } from '../../lib/formImport';
+import { IMPORT_SOURCES, NEEDS_FILE, importExternalForm, importFormFromFiles, type ImportSource } from '../../lib/formImport';
 import { listMenuItems } from '../../lib/menu';
 import { formatDate } from '../../lib/format';
 
@@ -11,7 +11,7 @@ import { formatDate } from '../../lib/format';
 export function FormsPage() {
   const userId = useUserId();
   const { profile } = useAuth();
-  const [importing, setImporting] = useState<ImportSource | null>(null);
+  const [importing, setImporting] = useState<ImportSource | 'file' | null>(null);
   const forms = useLoad(() => listForms(userId), [userId]);
   const usage = useLoad(() => formUsage(userId), [userId]);
   const items = useLoad(() => listMenuItems(userId), [userId]);
@@ -25,6 +25,7 @@ export function FormsPage() {
         actions={<>
           <Button variant="ghost" onClick={() => setImporting('google')}>Import Google Form</Button>
           <Button variant="ghost" onClick={() => setImporting('jotform')}>Import JotForm</Button>
+          <Button variant="ghost" onClick={() => setImporting('file')}>Import from PDF / screenshots</Button>
           <Link to="/forms/new" className="btn btn-primary" data-icon="plus">New form</Link>
         </>} />
       {forms.error && <ErrorBanner message={forms.error} onRetry={forms.reload} />}
@@ -60,37 +61,59 @@ export function FormsPage() {
   );
 }
 
-/** Mirrors iOS FormImportView: paste a public link, then review the result in the builder. */
-function ImportFormModal({ source, onClose }: { source: ImportSource; onClose: () => void }) {
+/** Mirrors iOS FormImportView: paste a public link (or upload a PDF /
+ *  screenshots), then review the result in the builder. */
+function ImportFormModal({ source: initial, onClose }: { source: ImportSource | 'file'; onClose: () => void }) {
   const navigate = useNavigate();
-  const meta = IMPORT_SOURCES[source];
+  const [source, setSource] = useState<ImportSource | 'file'>(initial);
   const [url, setUrl] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [needsFile, setNeedsFile] = useState(false);
+  const fileMode = source === 'file';
+  const meta = fileMode ? null : IMPORT_SOURCES[source];
 
   async function run() {
-    if (!url.trim() || busy) return;
-    setBusy(true); setErr(null);
+    if (busy || (fileMode ? !files.length : !url.trim())) return;
+    setBusy(true); setErr(null); setNeedsFile(false);
     try {
-      const imported = await importExternalForm(source, url);
+      const imported = fileMode ? await importFormFromFiles(files) : await importExternalForm(source, url);
       if (!imported.fields.length) throw new Error("Couldn't find any questions in that form. Try rebuilding it by hand instead.");
       navigate('/forms/new', { state: { imported } });
     } catch (e: any) {
-      setErr(e.message); setBusy(false);
+      setErr(e.message); setNeedsFile(e?.code === NEEDS_FILE); setBusy(false);
     }
   }
 
   return (
-    <Modal title={`Import a ${meta.name}`} onClose={busy ? () => {} : onClose}
+    <Modal title={fileMode ? 'Import from a PDF or screenshots' : `Import a ${meta!.name}`} onClose={busy ? () => {} : onClose}
       footer={<>
         <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button loading={busy} onClick={run} disabled={!url.trim()}>Import</Button>
+        <Button loading={busy} onClick={run} disabled={fileMode ? !files.length : !url.trim()}>Import</Button>
       </>}>
-      <p className="small muted">{meta.description}</p>
-      <Input value={url} placeholder={meta.placeholder} disabled={busy} type="url"
-        onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} />
+      {fileMode ? (
+        <>
+          <p className="small muted">For a form that can’t be opened from its link — like a Google Form with a photo upload question — or one on any other site. Upload a PDF printout (File → Print → Save as PDF) or screenshots of every page, in order. Your questions come in ready to review — nothing is saved until you tap Save.</p>
+          <label className="btn btn-secondary" style={{ alignSelf: 'flex-start' }}>
+            {files.length ? 'Choose different files' : 'Choose PDF or screenshots'}
+            <input type="file" accept="application/pdf,image/*" multiple hidden disabled={busy}
+              onChange={(e) => { setFiles(Array.from(e.target.files ?? []).slice(0, 10)); e.target.value = ''; }} />
+          </label>
+          {files.length > 0 && <ul className="small muted" style={{ margin: 0, paddingLeft: 18 }}>{files.map((f, i) => <li key={i}>{f.name}</li>)}</ul>}
+        </>
+      ) : (
+        <>
+          <p className="small muted">{meta!.description}</p>
+          <Input value={url} placeholder={meta!.placeholder} disabled={busy} type="url"
+            onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} />
+        </>
+      )}
       {busy && <p className="small muted">Reading its questions and rebuilding them here — this can take a minute for longer forms.</p>}
       {err && <ErrorBanner message={err} />}
+      {needsFile && !fileMode && (
+        <Button variant="secondary" onClick={() => { setSource('file'); setErr(null); setNeedsFile(false); }}>Upload a PDF or screenshots instead</Button>
+      )}
     </Modal>
   );
 }

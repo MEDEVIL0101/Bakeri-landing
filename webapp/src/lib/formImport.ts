@@ -1,4 +1,5 @@
-import { callFunction } from './api';
+import { ApiError, callFunction } from './api';
+import { compressImage } from './menu';
 import { newId } from './format';
 import { FIELD_TYPES, isTriggerType, type FieldType, type FormField } from './forms';
 
@@ -32,6 +33,36 @@ const VALID_TYPES = new Set<string>(FIELD_TYPES.map((f) => f.type));
 
 export async function importExternalForm(source: ImportSource, url: string): Promise<ImportedForm> {
   const raw = await callFunction<any>('import-external-form', { source, url });
+  return parseImport(raw);
+}
+
+/** The function's error code when a Google Form needs sign-in (photo/file
+ *  upload question or verified emails) — offer the PDF/screenshot import. */
+export const NEEDS_FILE = 'needs_file';
+
+const MAX_PDF_BYTES = 15 * 1024 * 1024;
+
+function toBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+    r.onerror = () => reject(new ApiError('Couldn’t read that file.'));
+    r.readAsDataURL(blob);
+  });
+}
+
+/** Import from a PDF printout or screenshots of the form (any platform). Screenshots are downsized first. */
+export async function importFormFromFiles(files: File[]): Promise<ImportedForm> {
+  if (!files.length) throw new ApiError('Add a PDF or at least one screenshot of the form.');
+  const payload = await Promise.all(files.map(async (f) => {
+    if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+      if (f.size > MAX_PDF_BYTES) throw new ApiError('That PDF is too large — print just the form pages, or use screenshots.');
+      return { media_type: 'application/pdf', data: await toBase64(f) };
+    }
+    if (!f.type.startsWith('image/')) throw new ApiError(`“${f.name}” isn’t a PDF or an image.`);
+    return { media_type: 'image/jpeg', data: await toBase64(await compressImage(f, 1800, 0.85)) };
+  }));
+  const raw = await callFunction<any>('import-external-form', { source: 'file', files: payload });
   return parseImport(raw);
 }
 
