@@ -340,6 +340,49 @@ function normalisedURL(raw: string): string {
   return `https://${s}`;
 }
 
+// ── Publish: only what changed in the builder ──────────────────────────────
+// The builder holds a copy of the shop from when it was opened (`p`). Writing
+// that whole copy back reverted anything changed since — in the app, in the
+// listing editor (photo focus), or by support (2026-11-19: a publish put back
+// a bio and three link cards removed after the builder was opened). So each
+// field / design key / link row is written only if the builder changed it,
+// merged into what's stored now.
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/** Three-way merge: `mine`'s changes from `base`, applied onto `theirs` (what's stored now). Objects merge per key; anything else is replaced whole. */
+export function mergeChanges(base: unknown, mine: unknown, theirs: unknown): unknown {
+  if (same(mine, base)) return theirs;
+  if (isPlainObject(base) && isPlainObject(mine) && isPlainObject(theirs)) {
+    const out: Record<string, unknown> = { ...theirs };
+    for (const k of new Set([...Object.keys(base), ...Object.keys(mine)])) {
+      const v = mergeChanges(base[k], mine[k], theirs[k]);
+      if (v === undefined) delete out[k]; else out[k] = v;
+    }
+    return out;
+  }
+  return mine;
+}
+
+/** Row-level sync for baker_links / baker_faqs: insert/update only rows the builder changed (or moved), delete only rows it removed. */
+async function syncRows<T extends { id: string }>(table: 'baker_links' | 'baker_faqs', base: T[], mine: T[]) {
+  const baseById = new Map(base.map((r, i) => [r.id, { r, i }]));
+  const mineIds = new Set(mine.map((r) => r.id));
+  const removed = base.filter((r) => !mineIds.has(r.id)).map((r) => r.id);
+  const changed = mine.filter((r, i) => { const b = baseById.get(r.id); return !b || b.i !== i || !same(b.r, r); });
+  if (removed.length) check(await supabase.from(table).delete().in('id', removed));
+  if (changed.length) check(await supabase.from(table).upsert(changed, { onConflict: 'id' }));
+}
+
+const PROFILE_FIELDS = [
+  'business_name', 'bio', 'location', 'selected_theme', 'background_pattern', 'about_heading', 'about_story',
+  'store_policies', 'neighbourhood', 'pickup_note', 'pickup_hours_json', 'email_capture_heading', 'email_capture_body',
+  'email_capture_display_style', 'email_capture_deliverable_listing_id', 'header_signup_enabled', 'header_signup_label',
+  'storefront_block_layout',
+] as const;
+const TRIMMED = new Set<string>(['business_name', 'bio', 'location']);
+
 export async function publishStorefront(userId: string, d: StorefrontDraft, p: StorefrontDraft): Promise<void> {
   const uid = up(userId);
   // Images first, so the profile's updated_at (the storefront's ?v= cache
@@ -358,63 +401,44 @@ export async function publishStorefront(userId: string, d: StorefrontDraft, p: S
     if (error) throw new ApiError(`The ${key} photo didn’t upload: ${error.message}`);
   }
 
-  check(
-    await supabase.from('profiles').update({
-      business_name: d.business_name.trim(),
-      bio: d.bio.trim(),
-      location: d.location.trim(),
-      selected_theme: d.selected_theme,
-      background_pattern: d.background_pattern,
-      about_heading: d.about_heading,
-      about_story: d.about_story,
-      store_policies: d.store_policies,
-      neighbourhood: d.neighbourhood,
-      pickup_note: d.pickup_note,
-      pickup_hours_json: d.pickup_hours_json,
-      email_capture_heading: d.email_capture_heading,
-      email_capture_body: d.email_capture_body,
-      email_capture_display_style: d.email_capture_display_style,
-      email_capture_deliverable_listing_id: d.email_capture_deliverable_listing_id,
-      header_signup_enabled: d.header_signup_enabled,
-      header_signup_label: d.header_signup_label,
-      storefront_block_layout: d.storefront_block_layout,
-      // section_order is edited outside the builder (Menu → Sections), so
-      // always keep the stored value rather than this draft's older copy.
-      ...(JSON.stringify(d.storefront_design) !== JSON.stringify(p.storefront_design)
-        ? { storefront_design: { ...d.storefront_design, section_order: await loadSectionOrder(userId) } } : {}),
-      updated_at: nowISO(),
-    }).eq('id', userId),
-  );
-
-  // Links / FAQs: same delete-then-insert as BakerLinkService/BakerFAQService.saveLinks.
-  if (JSON.stringify(d.links) !== JSON.stringify(p.links)) {
-    const rows = d.links
-      .filter((l) => l.section.trim() && l.label.trim() && (l.target_type === 'product' ? !!l.linked_listing_id : !!l.url.trim()))
-      .map((l, i) => ({
-        id: l.id,
-        user_id: userId,
-        section: l.section.trim(),
-        label: l.label.trim(),
-        url: l.target_type === 'url' ? normalisedURL(l.url) : l.target_type === 'file' ? l.url : '',
-        sort_order: i,
-        style: l.style,
-        image_url: l.image_url,
-        outline_style: l.outline_style,
-        shake: l.shake,
-        target_type: l.target_type,
-        linked_listing_id: l.linked_listing_id,
-        subtitle: l.subtitle?.trim() ? l.subtitle.trim().slice(0, 300) : null,
-        button_label: l.button_label?.trim() ? l.button_label.trim().slice(0, 40) : null,
-      }));
-    check(await supabase.from('baker_links').delete().eq('user_id', userId));
-    if (rows.length) check(await supabase.from('baker_links').insert(rows));
+  const update: Record<string, unknown> = { updated_at: nowISO() };
+  for (const k of PROFILE_FIELDS) {
+    const mine = (d as any)[k], base = (p as any)[k];
+    if (!same(mine, base)) update[k] = TRIMMED.has(k) && typeof mine === 'string' ? mine.trim() : mine;
   }
-  if (JSON.stringify(d.faqs) !== JSON.stringify(p.faqs)) {
-    const rows = d.faqs
-      .filter((f) => f.question.trim() && f.answer.trim())
-      .map((f, i) => ({ id: f.id, user_id: userId, question: f.question.trim(), answer: f.answer.trim(), sort_order: i }));
-    check(await supabase.from('baker_faqs').delete().eq('user_id', userId));
-    if (rows.length) check(await supabase.from('baker_faqs').insert(rows));
+  if (!same(d.storefront_design, p.storefront_design)) {
+    const now = check(await supabase.from('profiles').select('storefront_design').eq('id', userId).maybeSingle()) as { storefront_design?: unknown } | null;
+    const merged = mergeChanges(p.storefront_design ?? {}, d.storefront_design ?? {}, now?.storefront_design ?? {}) as Record<string, unknown>;
+    // section_order is edited outside the builder (Menu → Sections).
+    update.storefront_design = { ...merged, section_order: await loadSectionOrder(userId) };
+  }
+  check(await supabase.from('profiles').update(update).eq('id', userId));
+
+  // Links / FAQs: same rows as BakerLinkService/BakerFAQService.saveLinks.
+  if (!same(d.links, p.links)) {
+    const row = (l: Link, i: number) => ({
+      id: l.id,
+      user_id: userId,
+      section: l.section.trim(),
+      label: l.label.trim(),
+      url: l.target_type === 'url' ? normalisedURL(l.url) : l.target_type === 'file' ? l.url : '',
+      sort_order: i,
+      style: l.style,
+      image_url: l.image_url,
+      outline_style: l.outline_style,
+      shake: l.shake,
+      target_type: l.target_type,
+      linked_listing_id: l.linked_listing_id,
+      subtitle: l.subtitle?.trim() ? l.subtitle.trim().slice(0, 300) : null,
+      button_label: l.button_label?.trim() ? l.button_label.trim().slice(0, 40) : null,
+    });
+    const valid = (l: Link) => l.section.trim() && l.label.trim() && (l.target_type === 'product' ? !!l.linked_listing_id : !!l.url.trim());
+    await syncRows('baker_links', p.links.filter(valid).map(row), d.links.filter(valid).map(row));
+  }
+  if (!same(d.faqs, p.faqs)) {
+    const row = (f: FAQ, i: number) => ({ id: f.id, user_id: userId, question: f.question.trim(), answer: f.answer.trim(), sort_order: i });
+    const valid = (f: FAQ) => f.question.trim() && f.answer.trim();
+    await syncRows('baker_faqs', p.faqs.filter(valid).map(row), d.faqs.filter(valid).map(row));
   }
 }
 
