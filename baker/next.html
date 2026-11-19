@@ -3357,7 +3357,8 @@
   function offerButtonLabel(item, cfg) {
     const custom = ((cfg && cfg.button_label) || '').trim();
     if (custom) return custom;
-    const price = '' + BakeriMoney.fmt(item.price);
+    const price = parseFloat(item.price) > 0 ? '' + BakeriMoney.fmt(item.price) : 'Free';
+    if (item.is_club && !(parseFloat(item.price) > 0) && !isSoldOut(item)) return 'Join — Free';
     if (isSoldOut(item)) return presaleClosed(item) ? 'Pre-orders closed' : 'Sold out';
     if (item.is_club) return item.club_interval ? 'Join — ' + price + '/' + (item.club_interval === 'year' ? 'yr' : 'mo') : 'Join — ' + price;
     if (!item.is_course) return 'Pre-order — ' + price;
@@ -3813,7 +3814,7 @@
     const priceEl = document.createElement('span');
     priceEl.className = 'sf-price tabular';
     priceEl.innerHTML = priceHTML(item.original_price, item.price, { from: priceIsFrom(item) }) +
-      (item.is_club && item.club_interval ? '<span class="from"> /' + (item.club_interval === 'year' ? 'yr' : 'mo') + '</span>' : '');
+      (item.is_club && item.club_interval && parseFloat(item.price) > 0 ? '<span class="from"> /' + (item.club_interval === 'year' ? 'yr' : 'mo') + '</span>' : '');
     priceRow.appendChild(priceEl);
     priceRow.appendChild(buildAddControl(item));
     body.appendChild(priceRow);
@@ -5816,6 +5817,11 @@
   function priceHTML(originalPrice, price, opts) {
     opts = opts || {};
     const fromTag = opts.from ? '<span class="from">from</span> ' : '';
+    // No price set: a custom request is quoted later ("from $0.00" reads as
+    // free), anything else at $0 is genuinely free.
+    if (!(parseFloat(price) > 0) && !(parseFloat(originalPrice) > 0)) {
+      return opts.from ? 'Request a quote' : 'Free';
+    }
     if (originalPrice != null && parseFloat(originalPrice) > parseFloat(price)) {
       return fromTag + '<span class="orig">' + BakeriMoney.fmt(originalPrice) + '</span>' + BakeriMoney.fmt(price);
     }
