@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { SortableList } from '../../components/Sortable';
+import { ImageCropModal } from '../../components/ImageCropModal';
 import { Button, ErrorBanner, Field, Input, Select, Textarea, Toggle } from '../../components/ui';
 import { compressImage } from '../../lib/menu';
 import { STORAGE_PUBLIC_URL } from '../../lib/supabase';
@@ -33,12 +34,19 @@ function storageURL(bucket: string, userId: string, file: string, updatedAt: str
 }
 
 /** Click-to-replace photo. `value` is a data: URL (new) or the live URL. */
-export function PhotoPicker({ label, value, onPick, maxSide = 2000, round }: {
+export function PhotoPicker({ label, value, onPick, maxSide = 2000, round, crop }: {
   label: string; value: string | null; onPick: (blob: Blob) => Promise<void> | void; maxSide?: number; round?: boolean;
+  /** Open the position/zoom editor after picking (logo — same as iOS LogoEditorSheet). */
+  crop?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [broken, setBroken] = useState(false);
+  // The full picked image, kept so "Adjust" can re-crop from the original
+  // rather than from the already-cropped circle.
+  const [source, setSource] = useState<string | null>(null);
+  const [cropping, setCropping] = useState(false);
+  useEffect(() => () => { if (source) URL.revokeObjectURL(source); }, [source]);
   return (
     <div className="field">
       <span className="field-label">{label}</span>
@@ -49,9 +57,30 @@ export function PhotoPicker({ label, value, onPick, maxSide = 2000, round }: {
           e.target.value = '';
           if (!f) return;
           setBusy(true); setErr(null);
-          try { await onPick(await compressImage(f, maxSide, 0.82)); setBroken(false); } catch (x: any) { setErr(x.message); } finally { setBusy(false); }
+          try {
+            if (crop) {
+              setSource(URL.createObjectURL(await compressImage(f, 2400, 0.9)));
+              setCropping(true);
+            } else {
+              await onPick(await compressImage(f, maxSide, 0.82)); setBroken(false);
+            }
+          } catch (x: any) { setErr(x.message); } finally { setBusy(false); }
         }} />
       </label>
+      {crop && (
+        <span className="small">
+          {source && <button type="button" className="link-btn" onClick={() => setCropping(true)}>Adjust position &amp; size</button>}
+          {!source && value && !broken && <span className="muted">Choose a photo to position and resize it.</span>}
+        </span>
+      )}
+      {cropping && source && (
+        <ImageCropModal
+          src={source}
+          title={`Position ${label.toLowerCase()}`}
+          onCancel={() => setCropping(false)}
+          onSave={async (blob) => { await onPick(blob); setBroken(false); setCropping(false); }}
+        />
+      )}
       {err && <span className="field-error">{err}</span>}
     </div>
   );
@@ -68,7 +97,7 @@ export function ProfileEditor({ draft, set, data, userId }: EditorProps) {
   return (
     <>
       <Section title="Logo">
-        <PhotoPicker label="Logo" round maxSide={800} value={draft.images.logo ?? storageURL('business-logos', userId, 'logo.jpg', data.updatedAt)} onPick={pickImage('logo')} />
+        <PhotoPicker label="Logo" round crop maxSide={800} value={draft.images.logo ?? storageURL('business-logos', userId, 'logo.jpg', data.updatedAt)} onPick={pickImage('logo')} />
       </Section>
       <Section title="Your business">
         <Field label="Business name"><Input value={draft.business_name} onChange={(e) => set({ business_name: e.target.value })} /></Field>

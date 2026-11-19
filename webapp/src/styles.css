@@ -408,6 +408,12 @@ textarea.input { resize: vertical; line-height: 1.5; }
 .photo-pick { display: grid; place-items: center; height: 110px; border: 1.5px dashed var(--line-strong); border-radius: var(--radius-sm); cursor: pointer; overflow: hidden; background: var(--surface-2); }
 .photo-pick img { width: 100%; height: 100%; object-fit: cover; }
 .photo-pick.round { width: 110px; border-radius: 50%; }
+.crop-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.crop-stage { position: relative; border-radius: 50%; overflow: hidden; background: var(--surface-2); cursor: grab; touch-action: none; user-select: none; box-shadow: 0 0 0 2px var(--line-strong); outline-offset: 4px; }
+.crop-stage:active { cursor: grabbing; }
+.crop-stage img { position: absolute; left: 0; top: 0; max-width: none; pointer-events: none; }
+.crop-controls { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 260px; }
+.crop-controls input[type=range] { flex: 1; }
 .color-row { display: flex; align-items: center; gap: 8px; }
 .color-row input[type=color] { width: 36px; height: 30px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 2px; background: var(--surface); cursor: pointer; }
 .color-row input[type=color].unset { opacity: 0.35; }
