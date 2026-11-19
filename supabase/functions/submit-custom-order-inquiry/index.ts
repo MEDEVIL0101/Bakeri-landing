@@ -169,7 +169,7 @@ Deno.serve(async (req: Request) => {
   // form shape from the client.
   const { data: menuItem, error: menuItemErr } = await db
     .from("menu_items")
-    .select("id, user_id, name, default_price, marketplace_price_from, is_listed_in_marketplace, is_active, intake_form_id")
+    .select("id, user_id, name, default_price, marketplace_price_from, is_listed_in_marketplace, is_active, intake_form_id, recipe_id, recipe_ids")
     .eq("id", menu_item_id)
     .single();
 
@@ -344,7 +344,11 @@ Deno.serve(async (req: Request) => {
     id: crypto.randomUUID(),
     user_id: baker_id,
     order_id: orderId,
-    recipe_id: null,
+    // Carry the listing (and its recipe) onto the line so Finances can cost
+    // the order's ingredients. Finances also falls back to the listing's
+    // recipes when one is linked later.
+    menu_item_id: menuItem.id,
+    recipe_id: menuItem.recipe_ids?.[0] ?? menuItem.recipe_id ?? null,
     custom_name: menuItem.name,
     quantity: 1,
     unit: "pieces",

@@ -136,7 +136,9 @@ export async function deleteCustomDensity(id: string): Promise<void> {
 // ── Cost of goods (IngredientCost.swift Order extension) ──────────────────
 
 export interface CostingRecipe { id: string; name: string; yield_quantity: number; yield_unit: string; ingredients: RecipeIngredientLite[] }
-export interface CostingItem { recipe_id: string | null; custom_name: string; quantity: number; unit: string }
+export interface CostingItem { recipe_id: string | null; menu_item_id?: string | null; custom_name: string; quantity: number; unit: string }
+/** A listing's linked recipes, for order items that have no recipe of their own. */
+export interface CostingListing { id: string; name: string; recipe_id: string | null; recipe_ids: string[] | null }
 export interface IngredientAmount { ingredient: string; grams: number; count: number; cost: number; hasCost: boolean }
 
 export async function listCostingRecipes(userId: string): Promise<CostingRecipe[]> {
@@ -148,14 +150,38 @@ export async function listCostingRecipes(userId: string): Promise<CostingRecipe[
   return (check(recipes) as Omit<CostingRecipe, 'ingredients'>[]).map((r) => ({ ...r, ingredients: all.filter((i) => i.recipe_id === r.id) }));
 }
 
-export function ingredientAmounts(items: CostingItem[], recipes: CostingRecipe[], costs: IngredientCostRow[]): IngredientAmount[] {
+export async function listCostingListings(userId: string): Promise<CostingListing[]> {
+  return check(await supabase.from('menu_items').select('id, name, recipe_id, recipe_ids').eq('user_id', userId)) as CostingListing[];
+}
+
+/** Which recipes an order item is costed from: its own linked recipe; else the
+ *  recipes on the listing it was ordered from (by id, or by name — a recipe can
+ *  be linked to the listing after the order came in); else a same-named recipe.
+ *  iOS OrderRecipeResolver — keep in step. */
+function itemRecipes(item: CostingItem, byId: Map<string, CostingRecipe>, byName: Map<string, CostingRecipe>,
+  listingById: Map<string, CostingListing>, listingByName: Map<string, CostingListing>): CostingRecipe[] {
+  const own = item.recipe_id && byId.get(item.recipe_id.toLowerCase());
+  if (own) return [own];
+  const key = item.custom_name.toLowerCase();
+  const listing = (item.menu_item_id && listingById.get(item.menu_item_id.toLowerCase())) || listingByName.get(key);
+  if (listing) {
+    const ids = listing.recipe_ids?.length ? listing.recipe_ids : listing.recipe_id ? [listing.recipe_id] : [];
+    const rs = ids.map((id) => byId.get(id.toLowerCase())).filter((r): r is CostingRecipe => !!r);
+    if (rs.length) return rs;
+  }
+  const named = byName.get(key);
+  return named ? [named] : [];
+}
+
+export function ingredientAmounts(items: CostingItem[], recipes: CostingRecipe[], costs: IngredientCostRow[], listings: CostingListing[] = []): IngredientAmount[] {
   const costMap = new Map(costs.map((c) => [ingredientKey(c.ingredient_name), c]));
   const byId = new Map(recipes.map((r) => [r.id.toLowerCase(), r]));
   const byName = new Map(recipes.map((r) => [r.name.toLowerCase(), r]));
+  const listingById = new Map(listings.map((l) => [l.id.toLowerCase(), l]));
+  const listingByName = new Map<string, CostingListing>();
+  for (const l of listings) if (!listingByName.has(l.name.toLowerCase())) listingByName.set(l.name.toLowerCase(), l);
   const out: IngredientAmount[] = [];
-  for (const item of items) {
-    const recipe = (item.recipe_id && byId.get(item.recipe_id.toLowerCase())) || byName.get(item.custom_name.toLowerCase());
-    if (!recipe) continue;
+  for (const item of items) for (const recipe of itemRecipes(item, byId, byName, listingById, listingByName)) {
     const scale = scaleFactor(item.quantity, item.unit, recipe.yield_quantity, recipe.yield_unit);
     for (const ing of recipe.ingredients) {
       const grams = ingredientGrams(ing) * scale;

@@ -7,7 +7,7 @@ import { listOrders, effectiveTotal, isStorefrontOrder, revenueReceived, statusL
 import { formatDate, formatMoney, toDateInput } from '../../lib/format';
 import {
   countPhrase,
-  formatWeight, ingredientAmounts, ingredientCost, listCostingRecipes, listIngredientCosts, type CostingRecipe, type IngredientCostRow,
+  formatWeight, ingredientAmounts, ingredientCost, listCostingListings, listCostingRecipes, listIngredientCosts, type CostingListing, type CostingRecipe, type IngredientCostRow,
 } from '../../lib/kitchen';
 import { useUnitSystem } from '../../lib/prefs';
 import type { Order } from '../../lib/types';
@@ -70,10 +70,10 @@ function segmentsFor(period: Period, [s, e]: [Date, Date]): { label: string; sta
 export function FinancesPage() {
   const userId = useUserId();
   const data = useLoad(async () => {
-    const [orders, recipes, costs, packaging] = await Promise.all([
-      listOrders(userId), listCostingRecipes(userId), listIngredientCosts(userId), listOrderPackaging(userId),
+    const [orders, recipes, costs, packaging, listings] = await Promise.all([
+      listOrders(userId), listCostingRecipes(userId), listIngredientCosts(userId), listOrderPackaging(userId), listCostingListings(userId),
     ]);
-    return { orders, recipes, costs, packaging: packagingCostByOrder(packaging) };
+    return { orders, recipes, costs, listings, packaging: packagingCostByOrder(packaging) };
   }, [userId]);
 
   if (data.loading && !data.data) return <div className="page"><Spinner label="Crunching your numbers…" /></div>;
@@ -81,7 +81,7 @@ export function FinancesPage() {
   return <Report {...data.data} />;
 }
 
-function Report({ orders, recipes, costs, packaging }: { orders: Order[]; recipes: CostingRecipe[]; costs: IngredientCostRow[]; packaging: Map<string, number> }) {
+function Report({ orders, recipes, costs, listings, packaging }: { orders: Order[]; recipes: CostingRecipe[]; costs: IngredientCostRow[]; listings: CostingListing[]; packaging: Map<string, number> }) {
   // Estimated net before release-baker-payouts writes the real figures.
   const feeRate = planFeeRate(useAuth().plan);
   const [period, setPeriod] = useState<Period>('month');
@@ -95,10 +95,10 @@ function Report({ orders, recipes, costs, packaging }: { orders: Order[]; recipe
   const costOf = useMemo(() => {
     const cache = new Map<string, ReturnType<typeof ingredientAmounts>>();
     return (o: Order) => {
-      if (!cache.has(o.id)) cache.set(o.id, ingredientAmounts((o.order_items ?? []).map((i) => ({ recipe_id: i.recipe_id, custom_name: i.custom_name, quantity: i.quantity, unit: i.unit })), recipes, costs));
+      if (!cache.has(o.id)) cache.set(o.id, ingredientAmounts((o.order_items ?? []).map((i) => ({ recipe_id: i.recipe_id, menu_item_id: i.menu_item_id, custom_name: i.custom_name, quantity: i.quantity, unit: i.unit })), recipes, costs, listings));
       return cache.get(o.id)!;
     };
-  }, [recipes, costs]);
+  }, [recipes, costs, listings]);
 
   // Cost of goods = ingredients (from recipes) + packaging (attached by hand), like iOS.
   const packagingOf = (o: Order) => packaging.get(o.id.toLowerCase()) ?? 0;
