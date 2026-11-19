@@ -703,7 +703,7 @@
     }
     .btn-primary { height: 50px; background: var(--accent); color: var(--accent-fg); }
     .btn-outline { height: 48px; background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
-    #item-sheet { display: flex; flex-direction: column; overflow: hidden; height: 96%; max-height: 96%; }
+    #item-sheet { position: relative; display: flex; flex-direction: column; overflow: hidden; height: 96%; max-height: 96%; }
     /* The whole sheet scrolls as one page (photo, name, button, full
        content, then a second buy button) — a fixed photo and header left
        about an inch for the content (2026-11-06). */
@@ -730,6 +730,9 @@
     .cc-mod summary .n { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--muted); }
     .cc-mod summary::after { content: "+"; font-weight: 700; color: var(--muted); }
     .cc-mod[open] summary::after { content: "–"; }
+    .cc-mod-row { padding: 13px 14px; display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 14.5px; color: var(--ink); }
+    .cc-mod-row .ck { font-size: 13px; color: var(--muted); }
+    .cc-mod-desc { padding: 0 14px 13px 37px; font-size: 13.5px; line-height: 1.5; color: var(--muted); margin-top: -6px; }
     .cc-lesson { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink); }
     .cc-lesson .ic { width: 18px; text-align: center; color: var(--muted); flex: none; }
     .cc-lesson a { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--head-ink); text-decoration: underline; flex: none; }
@@ -816,9 +819,19 @@
 
     @media (min-width: 860px) {
       .scrim { align-items: center; }
-      #item-sheet { max-width: 560px; width: 90%; border-radius: 24px; max-height: 92vh; height: 92vh; }
+      #item-sheet { max-width: 720px; width: 90%; border-radius: 24px; max-height: 92vh; height: 92vh; }
       #cart-sheet { max-width: 440px; margin-left: auto; margin-right: 0; height: 100%; max-height: 100%; border-radius: 0; box-shadow: -20px 0 50px -20px rgba(0,0,0,.4); }
       .scrim:has(#cart-sheet) { justify-content: flex-end; }
+    }
+    /* Desktop: about twice the phone width, photo left (stays put) and the
+       details scroll on the right, so wide screens aren't one tall column. */
+    @media (min-width: 1100px) {
+      #item-sheet { max-width: 1080px; width: 92%; }
+      #item-sheet-inner { display: grid; grid-template-columns: minmax(0, 44%) minmax(0, 1fr); align-items: start; }
+      #item-sheet-photo { position: sticky; top: 0; }
+      #item-sheet-body { padding: 34px 40px 40px; }
+      #item-sheet-name { font-size: 26px; margin-top: 0; padding-right: 90px; }
+      #item-sheet-desc { font-size: 15px; }
     }
   </style>
 </head>
@@ -992,13 +1005,13 @@
 <!-- Item detail sheet -->
 <div class="scrim" id="item-scrim">
   <div class="sheet" id="item-sheet">
+    <button class="sheet-close" id="item-sheet-close">✕</button>
+    <button class="sheet-close sheet-share" id="item-sheet-share" aria-label="Share this item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
     <div id="item-sheet-inner">
       <div id="item-sheet-photo">
         <div class="ph-fallback" id="item-sheet-ph" style="position:absolute;inset:0;"></div>
         <img id="item-sheet-img" alt="" />
         <div class="p-badge" id="item-sheet-badge" style="top:12px;left:12px;"></div>
-        <button class="sheet-close" id="item-sheet-close">✕</button>
-        <button class="sheet-close sheet-share" id="item-sheet-share" aria-label="Share this item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
       </div>
       <div id="item-sheet-body">
         <div id="item-sheet-fixed">
@@ -4682,10 +4695,16 @@
         ? ['A private community chat with ' + escapeHtml(String((profile && (profile.business_name || profile.user_name)) || 'the shop').replace(/\.$/, '')) + ' and other members']
             .concat(lessons ? [lessons + ' resource' + (lessons === 1 ? '' : 's') + ' in the library'] : [])
             .concat([item.club_interval ? 'Cancel anytime' : 'Lifetime access'])
-        : [mods.length + ' module' + (mods.length === 1 ? '' : 's'), lessons + ' lesson' + (lessons === 1 ? '' : 's'), 'lifetime access'];
+        : [mods.length + ' module' + (mods.length === 1 ? '' : 's')].concat(lessons ? [lessons + ' lesson' + (lessons === 1 ? '' : 's')] : []).concat(['lifetime access']);
       box.innerHTML = '<div class="cc-head">' + (club ? 'What members get' : 'What’s inside') + '</div>' +
         '<div class="cc-sub">' + sub.join(' · ') + '</div>' +
         mods.map(function (m, i) {
+          // A module with no lessons listed is just "what's included" — a
+          // plain row, not an expander with a 0 count.
+          if (!(m.lessons || []).length) {
+            return '<div class="cc-mod cc-mod-static"><div class="cc-mod-row"><span class="ck" aria-hidden="true">✓</span>' + escapeHtml(m.title || (club ? 'Section' : 'Module')) + '</div>' +
+              (m.description ? '<div class="cc-mod-desc">' + escapeHtml(m.description) + '</div>' : '') + '</div>';
+          }
           return '<details class="cc-mod"' + (i === 0 ? ' open' : '') + '><summary>' + escapeHtml(m.title || (club ? 'Section' : 'Module')) +
             '<span class="n">' + (m.lessons || []).length + '</span></summary>' +
             (m.lessons || []).map(function (l) {
