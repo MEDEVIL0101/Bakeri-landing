@@ -1432,10 +1432,25 @@
 
   // Auto-generated from the baker's own shipping settings (or a promotion's
   // banner) — unchanged from index.html.
+  function autoSaleBanner(listings) {
+    const priced = (listings || []).filter(function (l) { return l.listing_kind !== 'custom' && parseFloat(l.original_price != null ? l.original_price : l.price) > 0; });
+    const onSale = priced.filter(function (l) { return l.promo && l.promo.label; });
+    if (!onSale.length) return '';
+    const pcts = onSale.map(function (l) { return parseFloat(l.promo.discount_value) || 0; });
+    const max = Math.max.apply(null, pcts);
+    const same = pcts.every(function (p) { return p === max; });
+    const off = same ? onSale[0].promo.label : 'Up to ' + (max === Math.trunc(max) ? max : max.toFixed(1)) + '% off';
+    return 'Sale on now · ' + off + (onSale.length === priced.length ? ' everything' : ' select items');
+  }
+
   function updateAnnouncementBanner(profile, listings) {
     const banner = document.getElementById('announcement-banner');
     if (!banner) return;
-    const promoBanner = (profile.promo_banner || '').trim();
+    // A running sale with no banner text of its own still gets a banner,
+    // built from the sale itself ("20% off everything" / "… select items") —
+    // the promotion's banner field was optional, so sales went unannounced
+    // (2026-11-19). Listings' promo is already cleaned by applyListingPromo.
+    const promoBanner = (profile.promo_banner || '').trim() || autoSaleBanner(listings);
     if (promoBanner) {
       banner.textContent = promoBanner;
       banner.classList.add('promo');

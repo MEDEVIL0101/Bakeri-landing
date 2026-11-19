@@ -117,6 +117,9 @@ function PromoEditor({ userId, initial, eligible, isNew, onClose, onSaved }: {
     && (!requiresCode || (p.code ?? '').trim())
     && (!endISO || Date.parse(endISO) > (startISO ? Date.parse(startISO) : Date.now()));
 
+  // Matches the storefront's autoSaleBanner (baker/index.html): a sale with no
+  // banner text still gets one. Code-only sales don't change listed prices, so no banner.
+  const autoBanner = requiresCode ? '' : `Sale on now · ${Math.round(p.discount_value)}% off ${p.scope === 'site_wide' ? 'everything' : 'select items'}`;
   const sample = eligible.find((m) => p.scope === 'site_wide' || p.listing_ids.some((id) => id.toLowerCase() === m.id.toLowerCase()));
   const samplePrice = sample ? (sample.marketplace_price_from > 0 ? sample.marketplace_price_from : sample.default_price) : 24;
 
@@ -185,12 +188,12 @@ function PromoEditor({ userId, initial, eligible, isNew, onClose, onSaved }: {
           )}
           <h3 className="h3">Storefront banner</h3>
           <Textarea rows={2} value={p.banner_text} placeholder="e.g. 🎃 20% off everything through Sunday" onChange={(e) => set({ banner_text: e.target.value })} />
-          <p className="small muted">Optional. Shows as a coloured strip above your storefront’s header photo while this promotion is active.</p>
+          <p className="small muted">A coloured strip across the top of your storefront while this sale runs. {autoBanner ? <>Leave it blank and it says “{autoBanner}”.</> : 'Optional.'}</p>
           {err && <ErrorBanner message={err} />}
         </div>
         <aside className="promo-preview">
           <span className="fb-preview-label">Preview</span>
-          {p.banner_text.trim() && <div className="promo-banner">{p.banner_text}</div>}
+          {(p.banner_text.trim() || autoBanner) && <div className="promo-banner">{p.banner_text.trim() || autoBanner}</div>}
           <div className="promo-card-preview">
             <div className="promo-img">{sample?.has_image ? <img src={menuImageURL(sample)} alt="" /> : null}<span className="sale-tag">{Math.round(p.discount_value)}% off</span></div>
             <div className="row-title">{sample?.name ?? 'Your item'}</div>
