@@ -10,8 +10,8 @@
        is the canonical storefront. -->
   <meta name="robots" content="noindex, nofollow" />
   <meta name="theme-color" content="#FFFFFF" />
-  <link rel="icon" type="image/png" href="../assets/favicon.png" />
-  <link rel="apple-touch-icon" href="../assets/favicon.png" />
+  <link rel="icon" type="image/png" href="../assets/favicon.png?v=20261119" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261119" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&display=swap" />
@@ -825,8 +825,9 @@
     }
     /* Desktop: about twice the phone width, photo left (stays put) and the
        details scroll on the right, so wide screens aren't one tall column. */
-    @media (min-width: 1100px) {
+    @media (min-width: 900px) {
       #item-sheet { max-width: 1080px; width: 92%; }
+      #desc-sheet { max-width: 760px; width: 90%; border-radius: 24px; }
       #item-sheet-inner { display: grid; grid-template-columns: minmax(0, 44%) minmax(0, 1fr); align-items: start; }
       #item-sheet-photo { position: sticky; top: 0; }
       #item-sheet-body { padding: 34px 40px 40px; }

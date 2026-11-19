@@ -174,8 +174,8 @@ ${GENERATED_MARKER}
 
   <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#241A14" media="(prefers-color-scheme: dark)" />
-  <link rel="icon" type="image/png" href="/assets/favicon.png" />
-  <link rel="apple-touch-icon" href="/assets/favicon.png" />
+  <link rel="icon" type="image/png" href="/assets/favicon.png?v=20261119" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261119" />
 
   <script type="application/ld+json">${jsonLd}</script>
 
