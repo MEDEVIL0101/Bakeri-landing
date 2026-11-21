@@ -1858,6 +1858,7 @@
     const nav = document.getElementById('sf-nav');
     nav.innerHTML = '';
     let first = true;
+    const drawnNav = [];
     blockOrder.forEach(function (t) {
       const key = (t === 'menu' && sfListing) ? 'form' : t;
       const el = cardElement(t);
@@ -1891,7 +1892,12 @@
       btn.addEventListener('click', function (e) { e.preventDefault(); scrollToSection(el.id); });
       nav.appendChild(btn);
       first = false;
+      if (isPreviewMode) {
+        const cs = getComputedStyle(btn);
+        drawnNav.push({ key: t, fill: cssHex(cs.backgroundColor), text: cssHex(cs.color), border: cssHex(cs.borderTopColor) });
+      }
     });
+    reportDrawnStyles(drawnNav);
     // No location, bio, buttons or socials (e.g. a new links-only page):
     // no empty intro box under the name.
     const intro = document.getElementById('sf-intro-card');
@@ -2299,6 +2305,48 @@
   };
   let builderTapTargetsWired = false;
   let rectReportScheduled = false;
+
+  // Builder only: what the page actually drew — which menu buttons, and the
+  // real colours of each card and site colour — so the app's style editors
+  // list only buttons that exist and swatches show the true colour, not a
+  // theme guess (the page's defaults depend on the design, dark cards etc.).
+  function cssHex(c) {
+    const m = String(c || '').match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?/);
+    if (!m) return null;
+    if (m[4] !== undefined && parseFloat(m[4]) === 0) return null;
+    return '#' + [m[1], m[2], m[3]].map(function (v) { return ('0' + Math.round(+v).toString(16)).slice(-2); }).join('');
+  }
+  function resolvedColor(el, decl) {
+    const probe = document.createElement('span');
+    probe.style.cssText = 'display:none;color:' + decl;
+    el.appendChild(probe);
+    const hex = cssHex(getComputedStyle(probe).color);
+    probe.remove();
+    return hex;
+  }
+  function drawnCardColors(el) {
+    return {
+      background: cssHex(getComputedStyle(el).backgroundColor) || resolvedColor(el, 'var(--card-bg, #fff)'),
+      title: resolvedColor(el, 'var(--card-title, var(--head-ink))'),
+      text: resolvedColor(el, 'var(--card-text, var(--text))'),
+      button: resolvedColor(el, 'var(--btn-bg, var(--accent))')
+    };
+  }
+  function reportDrawnStyles(drawnNav) {
+    if (!isPreviewMode) return;
+    try {
+      const cards = {};
+      blockOrder.forEach(function (t) { const el = cardElement(t); if (el) cards[t] = drawnCardColors(el); });
+      const intro = document.getElementById('sf-intro-card');
+      if (intro) cards.identity = drawnCardColors(intro);
+      const body = document.body;
+      const nameEl = document.getElementById('shop-name');
+      bakeriBridgePost({ type: 'styles', nav: drawnNav, cards: cards, site: {
+        accent: resolvedColor(body, 'var(--accent)'), tint: resolvedColor(body, 'var(--tint)'),
+        sale: resolvedColor(body, 'var(--sale)'), ink: nameEl ? cssHex(getComputedStyle(nameEl).color) : null
+      } });
+    } catch (e) {}
+  }
 
   function bakeriBridgePost(message) {
     if (!isPreviewMode) return;
@@ -3487,7 +3535,9 @@
     card.classList.remove('hidden');
     const heading = cardTitle('about');
     document.getElementById('pb-about-heading').textContent = heading;
-    document.getElementById('pb-about-kicker').classList.toggle('hidden', ['about', 'about the baker'].includes(heading.trim().toLowerCase()));
+    // The "About" label tells the baker which card this is in the builder;
+    // customers just see the heading (Meet Diana).
+    document.getElementById('pb-about-kicker').classList.toggle('hidden', !isPreviewMode || ['about', 'about the baker'].includes(heading.trim().toLowerCase()));
     document.getElementById('pb-about-text').innerHTML = String(p.about_story).split(/\n\s*\n/).map(function (para) {
       return '<p>' + escapeHtml(para.trim()) + '</p>';
     }).join('');
