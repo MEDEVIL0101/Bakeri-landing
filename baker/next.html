@@ -4483,7 +4483,11 @@
     return 'https://bakeriapp.com/' + encodeURIComponent(s) + '?item=' + itemShareCode(item);
   }
   function findItemByShareCode(code) {
-    const c = String(code || '').toLowerCase().replace(/[^0-9a-f]/g, '');
+    // Only the code at the front counts. Instagram and other apps can tack
+    // their tracking on with a second "?" (?item=d87a2f01?utm_source=ig),
+    // and stray a-f letters from that tail used to break the match.
+    const lead = String(code || '').trim().toLowerCase().match(/^[0-9a-f-]+/);
+    const c = lead ? lead[0].replace(/-/g, '').slice(0, 32) : '';
     if (c.length < 6) return null;
     return allListings.find(function (l) { return String(l.id).toLowerCase().replace(/-/g, '').indexOf(c) === 0; }) || null;
   }
