@@ -5009,7 +5009,7 @@
   }
 
   function variantImgURL(item, variant) {
-    return STORAGE_URL + '/menu-item-images/' + resolvedBakerId.toUpperCase() + '/' + item.id.toUpperCase() + '/variants/' + variant.id.toUpperCase() + '.jpg';
+    return withImageVersion(STORAGE_URL + '/menu-item-images/' + resolvedBakerId.toUpperCase() + '/' + item.id.toUpperCase() + '/variants/' + variant.id.toUpperCase() + '.jpg', variant.image_v);
   }
 
   // ══════════════════════ Listing variant picker ══════════════════════
@@ -5876,8 +5876,16 @@
     return ph;
   }
 
+  // Product photos sit at fixed paths cached for an hour, so a replaced photo
+  // kept showing the old one (storefront and builder). image_v is the photo
+  // file's last update from the shop RPC, added as ?v= so a new photo is a
+  // new address. Callers that only have an id get it from the loaded listing.
+  function withImageVersion(url, v) { return v ? url + '?v=' + encodeURIComponent(v) : url; }
   function itemImgURL(item) {
-    return STORAGE_URL + '/menu-item-images/' + resolvedBakerId.toUpperCase() + '/' + item.id.toUpperCase() + '.jpg';
+    const id = String(item.id);
+    let v = item.image_v;
+    if (!v) { const l = allListings.find(function (x) { return String(x.id).toLowerCase() === id.toLowerCase(); }); v = l && l.image_v; }
+    return withImageVersion(STORAGE_URL + '/menu-item-images/' + resolvedBakerId.toUpperCase() + '/' + id.toUpperCase() + '.jpg', v);
   }
 
   function customOrderURL(item) {
