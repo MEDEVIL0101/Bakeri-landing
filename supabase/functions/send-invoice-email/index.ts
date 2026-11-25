@@ -100,7 +100,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: baker } = await supabase
       .from("profiles")
-      .select("business_name, user_name, profile_slug, email, country")
+      .select("business_name, user_name, profile_slug, email, country, stripe_connect_onboarding_complete, stripe_connect_account_id")
       .eq("id", order.user_id)
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Your baker";
@@ -154,7 +154,11 @@ Deno.serve(async (req: Request) => {
       ? `<p style="color:#A89B8C;font-size:12px;line-height:1.5;text-align:center;margin-top:-4px;">Due ${escapeHtml(formatDate(order.due_date))}</p>`
       : "";
     // Basic plan: no card payments through Bakeri, so no pay button.
-    const payDirect = await vendorOnBasic(supabase, order.user_id);
+    // No card payment through Bakeri (Basic plan, or Stripe not set up yet):
+    // a plain invoice with no Pay button. Checked at send time, so the button
+    // comes back by itself once the baker finishes Stripe.
+    const payDirect = await vendorOnBasic(supabase, order.user_id) ||
+      !baker?.stripe_connect_onboarding_complete || !baker?.stripe_connect_account_id;
     const footerHtml = payDirect ? `
     <p style="color:#6B5F54;font-size:14px;line-height:1.6;text-align:center;margin:22px 0 10px;">
       ${escapeHtml(bakerName)} takes payment directly. Reply to this email to ask about payment,

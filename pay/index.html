@@ -344,12 +344,16 @@
       '<div class="section-title">Billing and Payment</div>' +
       '<div class="receipt-card">' + breakdownHtml + '</div>' +
       '<div id="pay-area">' +
-        (tipMode
+        (data.pay_direct
+          ? '<p class="note-line" style="text-align:center;margin-top:18px;">' + escapeHtml(data.baker_name) + ' takes payment directly. Contact them to arrange payment.</p>'
+          : tipMode
           ? '<div id="tip-picker"></div><button class="btn-primary" id="continue-btn" type="button">Continue · ' + payLabel + amount + '</button>'
           : '<div id="payment-element"></div><button class="btn-primary" id="submit-btn" type="button">' + payLabel + amount + '</button>') +
       '</div>' +
       '<div class="submit-status" id="submit-status"></div>';
 
+    // A plain invoice (no card payment through Bakeri for this shop).
+    if (data.pay_direct) return;
     if (tipMode) { mountTipStep(data, payLabel); return; }
     mountPayment(data);
   }

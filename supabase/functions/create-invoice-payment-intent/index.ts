@@ -91,8 +91,6 @@ Deno.serve(async (req: Request) => {
     // is never added to what they pay, it comes out of the baker's cut only,
     // same policy as create-guest-quote-payment-intent/charge-balance-payment
     // — see _shared/fees.ts.
-    // Basic plan: no card payments through Bakeri — the vendor collects payment themselves.
-    if (await vendorOnBasic(supabase, order.user_id)) throw new Error("This shop takes payment directly, not by card through Bakeri. Please contact them to pay.");
     const platformFeeCents = Math.round(baseAmountCents * await vendorFeeRate(supabase, order.user_id));
 
     const { data: baker } = await supabase
@@ -102,15 +100,18 @@ Deno.serve(async (req: Request) => {
       .single();
     const bakerName = baker?.business_name?.trim() || baker?.user_name?.trim() || "Baker";
 
-    if (!baker?.stripe_connect_onboarding_complete || !baker?.stripe_connect_account_id) {
-      throw new Error(`${bakerName} hasn't finished setting up payments yet. Check back soon!`);
-    }
-    const connectedAccountId = baker.stripe_connect_account_id;
+    // No card payment through Bakeri — Basic plan, or Stripe not set up yet:
+    // the page shows the invoice as a plain invoice to pay the baker directly
+    // (pay_direct), with no PaymentIntent. Decided on every load, so card
+    // payment comes back by itself once the baker finishes Stripe.
+    const payDirect = await vendorOnBasic(supabase, order.user_id) ||
+      !baker?.stripe_connect_onboarding_complete || !baker?.stripe_connect_account_id;
+    const connectedAccountId = payDirect ? null : baker!.stripe_connect_account_id;
 
     // Tip — a storefront order's final (balance/full) invoice, when the vendor
     // has tips on. The vendor keeps all of it: not in the fee base, and Bakeri
     // covers Stripe's % on it (_shared/fees.ts).
-    const tipsOffered = invoiceType !== "deposit" && order.order_source === "marketplace" && baker.tips_enabled === true;
+    const tipsOffered = !payDirect && invoiceType !== "deposit" && order.order_source === "marketplace" && baker!.tips_enabled === true;
     let tipCents = 0;
     if (rawTip) {
       if (!tipsOffered) throw new Error("Tips can't be added to this invoice.");
@@ -125,7 +126,7 @@ Deno.serve(async (req: Request) => {
     // in the same charge — see calcDirectChargeApplicationFee.
     const createParams: Record<string, unknown> = {
       amount: amountCents,
-      currency: currencyForCountry(baker.country),
+      currency: currencyForCountry(baker!.country),
       capture_method: "automatic",
       automatic_payment_methods: { enabled: true },
       application_fee_amount: Math.max(0, calcDirectChargeApplicationFee(amountCents, platformFeeCents) - tipStripeFeeCoverCents(tipCents)),
@@ -149,9 +150,9 @@ Deno.serve(async (req: Request) => {
     // The customer picks a tip before any PaymentIntent exists.
     const deferForTip = offer_tip && tipsOffered && rawTip === undefined;
     let intent: { id: string; client_secret: string | null } | null = null;
-    if (!deferForTip) {
+    if (!deferForTip && !payDirect) {
       // deno-lint-ignore no-explicit-any
-      const created = await stripe.paymentIntents.create(createParams as any, { stripeAccount: connectedAccountId });
+      const created = await stripe.paymentIntents.create(createParams as any, { stripeAccount: connectedAccountId! });
       intent = created;
       await supabase.from("orders").update({
         payment_intent_id: created.id,
@@ -176,6 +177,7 @@ Deno.serve(async (req: Request) => {
         baker_id: order.user_id,
         profile_slug: baker?.profile_slug ?? null,
         client_secret: intent?.client_secret ?? null,
+        pay_direct: payDirect,
         amount_cents: amountCents,
         base_amount_cents: baseAmountCents,
         tip_cents: tipCents,
