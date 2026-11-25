@@ -130,6 +130,8 @@ export interface MenuItem {
   content_blocks?: unknown[] | null;
   /** Limited-time add-on offered in the cart (migration 20261106000002). */
   addon_offer?: AddonOffer | null;
+  /** Things that go with a course (migration 20261125000001). */
+  related_items?: RelatedItems | null;
   category: string;
   default_quantity: number;
   unit: string;
@@ -302,3 +304,10 @@ export interface IntakeForm {
 
 /** menu_items.addon_offer — another digital product sold at `price` when bought with this one. */
 export interface AddonOffer { menu_item_id: string; price: number; headline?: string; note?: string; ends_at?: string | null }
+
+/** menu_items.related_items — other products of the shop and outside links that go with a course
+ *  (e.g. the cutter set for a workshop, sold elsewhere), shown under the course on the storefront. */
+export type RelatedItem =
+  | { type: 'listing'; listing_id: string }
+  | { type: 'link'; label: string; url: string; image_url?: string; subtitle?: string; button_label?: string };
+export interface RelatedItems { heading?: string; items: RelatedItem[] }

@@ -720,6 +720,14 @@
     /* Second checkout under the content, for a product page used as a funnel. */
     /* Course curriculum on a course's product page (Courses, 2026-11-06). */
     #item-sheet-course { display: none; margin-top: 22px; }
+    /* Things that go with a course (menu_items.related_items): rows in the
+       link-row look, under the course card and on its product page. */
+    .sf-related { margin-top: 14px; }
+    .sf-related-h { font: 800 12px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--card-title, var(--head-ink)); margin: 0 0 2px; }
+    .sf-related .sf-link.lk-row:last-child { border-bottom: 0; }
+    .sf-related .lk-thumb { width: 56px; height: 56px; border-radius: 12px; background-color: var(--n100); }
+    #item-sheet-related:empty { display: none; }
+    #item-sheet-related { margin-top: 22px; }
     #item-sheet-course.show { display: block; }
     .cc-head { font-size: 18px; font-weight: 800; color: var(--ink); }
     .cc-sub { font-size: 13px; color: var(--muted); margin: 2px 0 12px; }
@@ -1025,6 +1033,7 @@
           <button type="button" id="item-sheet-desc-toggle">Read more</button>
           <div class="spec-list" id="item-sheet-specs"></div>
           <div id="item-sheet-course"></div>
+          <div id="item-sheet-related"></div>
           <div id="item-sheet-bottom">
             <div id="item-sheet-bottom-name"></div>
             <div id="item-sheet-bottom-price" class="tabular"></div>
@@ -3370,7 +3379,11 @@
       card.querySelectorAll('.sf-member-link').forEach(function (a) {
         a.href = '/baker/course.html?shop=' + encodeURIComponent(resolvedBakerId);
       });
-      if (items.length === 1) { grid.appendChild(buildWideTile(items[0])); return; }
+      if (items.length === 1) {
+        grid.appendChild(buildWideTile(items[0]));
+        if (!club) grid.insertAdjacentHTML('beforeend', relatedHTML(items[0]));
+        return;
+      }
       const g = document.createElement('div');
       g.className = 'sf-grid';
       items.forEach(function (it) { g.appendChild(buildTile(it)); });
@@ -3386,6 +3399,62 @@
     btn.classList.toggle('hidden', !on);
     if (on) btn.href = '/baker/course.html?shop=' + encodeURIComponent(resolvedBakerId);
   }
+
+  // ══════════════════════ Goes with this course ══════════════════════
+  //
+  // menu_items.related_items: {heading?, items: [{type:'listing', listing_id}
+  // | {type:'link', label, url, image_url?, subtitle?, button_label?}]} — other
+  // products of the shop and outside links (e.g. the cutter set for a
+  // workshop, sold elsewhere). Drawn under the course's card and on its
+  // product page, in the link-row look. A listing that isn't on the page, or a
+  // link that isn't http(s), is skipped.
+  function relatedEntries(item) {
+    const r = item && item.related_items;
+    if (!r || !Array.isArray(r.items)) return [];
+    return r.items.map(function (e) {
+      if (!e) return null;
+      if (e.type === 'listing') {
+        const id = String(e.listing_id || '').toLowerCase();
+        const l = allListings.find(function (x) { return String(x.id).toLowerCase() === id; });
+        return l && String(l.id) !== String(item.id) ? { listing: l } : null;
+      }
+      if (e.type === 'link' && /^https?:\/\//i.test(String(e.url || '').trim()) && String(e.label || '').trim()) return { link: e };
+      return null;
+    }).filter(Boolean);
+  }
+  function relatedHTML(item) {
+    const entries = relatedEntries(item);
+    if (!entries.length) return '';
+    const heading = String((item.related_items && item.related_items.heading) || '').trim() ||
+      (item.is_course ? 'Goes with this course' : 'Goes with this');
+    return '<div class="sf-related"><div class="sf-related-h">' + escapeHtml(heading) + '</div>' + entries.map(function (en) {
+      if (en.listing) {
+        const l = en.listing;
+        const price = parseFloat(l.price) > 0 ? BakeriMoney.fmt(l.price) : 'Free';
+        return '<button type="button" class="sf-link lk-row" data-related-listing="' + escapeHtml(l.id) + '" data-track-item="' + escapeHtml(l.id) + '">' +
+          '<span class="sf-dl-thumb lk-thumb" style="background-image:url(&quot;' + escapeHtml(itemImgURL(l)) + '&quot;)"></span>' +
+          '<span class="sf-dl-info"><span class="sf-dl-name lk-title">' + escapeHtml(l.name) + '</span><span class="lk-meta">' + escapeHtml(price) + '</span></span>' +
+          '<span class="sf-dl-add lk-cta">View</span></button>';
+      }
+      const k = en.link;
+      const img = String(k.image_url || '').trim();
+      const sub = String(k.subtitle || '').trim();
+      return '<a class="sf-link lk-row" data-track="link_click" data-track-ref="' + escapeHtml('related:' + item.id) + '" href="' + escapeHtml(String(k.url).trim()) + '" target="_blank" rel="noopener noreferrer">' +
+        '<span class="sf-dl-thumb lk-thumb"' + (/^https?:\/\//i.test(img) ? ' style="background-image:url(&quot;' + escapeHtml(img) + '&quot;)"' : '') + '>' + (/^https?:\/\//i.test(img) ? '' : '🔗') + '</span>' +
+        '<span class="sf-dl-info"><span class="sf-dl-name lk-title">' + escapeHtml(String(k.label).trim()) + '</span>' + (sub ? '<span class="lk-sub">' + escapeHtml(sub) + '</span>' : '') + '</span>' +
+        '<span class="sf-dl-add lk-cta">' + escapeHtml(String(k.button_label || '').trim() || 'Shop') + '</span></a>';
+    }).join('') + '</div>';
+  }
+  // A related product opens its own product page (from a card or a sheet).
+  document.addEventListener('click', function (e) {
+    const b = e.target.closest && e.target.closest('[data-related-listing]');
+    if (!b) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const id = String(b.dataset.relatedListing).toLowerCase();
+    const l = allListings.find(function (x) { return String(x.id).toLowerCase() === id; });
+    if (l) openItemSheet(l);
+  });
 
   // ══════════════════════ Course / club cards ══════════════════════
   //
@@ -3459,7 +3528,7 @@
         shell.insertBefore(el, footer);
         el.addEventListener('click', function (e) {
           if (isPreviewMode) return;   // the builder's tap-to-select handles it
-          if (e.target.closest('a')) return;
+          if (e.target.closest('a') || e.target.closest('.sf-related')) return;
           const it = offerItem(key);
           if (!it) return;
           if (e.target.closest('.sf-offer-join') && it.is_club && it.club_interval) { joinClub(it, e.target.closest('.sf-offer-join')); return; }
@@ -3489,6 +3558,7 @@
             '<button type="button" class="sf-offer-more">' + (item.is_club ? 'What’s inside' : item.is_course ? 'See the lessons' : 'Details') + '</button>' +
           '</div>' +
           (item.is_course ? '<div class="sf-offer-signin">Already a member? <a href="/baker/course.html?shop=' + encodeURIComponent(resolvedBakerId) + '">Sign in</a></div>' : '') +
+          relatedHTML(item) +
         '</div>';
       const img = el.querySelector('.sf-offer-img');
       const probe = new Image();
@@ -4731,6 +4801,7 @@
     document.getElementById('item-sheet-bottom').classList.toggle('show', longPage);
     if (window.__itemSheetBottomSync) window.__itemSheetBottomSync();
     renderCourseOutline(item);
+    document.getElementById('item-sheet-related').innerHTML = relatedHTML(item);
   }
   function closeItemSheet() { document.getElementById('item-scrim').classList.remove('open'); sheetItem = null; setItemInAddressBar(null); }
 

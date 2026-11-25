@@ -1,7 +1,7 @@
 import { supabase, STORAGE_PUBLIC_URL } from './supabase';
 import { check, ApiError } from './api';
 import { isoNoMillis, newId, nowISO, up } from './format';
-import type { AddonOffer, BoxVariant, IntakeForm, ListingKind, ListingVariant, MenuItem, PreorderMode, Profile, SizeTier } from './types';
+import type { AddonOffer, RelatedItem, RelatedItems, BoxVariant, IntakeForm, ListingKind, ListingVariant, MenuItem, PreorderMode, Profile, SizeTier } from './types';
 import { blocksForSave, type ContentBlock } from './contentBlocks';
 
 export const LISTING_KINDS: { kind: ListingKind; label: string; description: string }[] = [
@@ -96,6 +96,8 @@ export interface MenuDraft {
   is_course: boolean;
   /** Limited-time add-on (digital only); null = none. */
   addon_offer: AddonOffer | null;
+  /** Things that go with a course; null = none. */
+  related_items: RelatedItems | null;
   /** A club (is_course too): a membership, monthly/yearly or one-time. */
   is_club: boolean;
   club_interval: 'month' | 'year' | null;
@@ -189,6 +191,7 @@ export async function saveMenuItem(
       headline: draft.addon_offer.headline?.trim() || undefined, note: draft.addon_offer.note?.trim() || undefined,
       ends_at: draft.addon_offer.ends_at || null,
     } : null,
+    related_items: cleanRelated(draft),
     category: draft.category,
     unit: draft.unit || 'pieces',
     recipe_ids: draft.recipe_ids,
@@ -386,4 +389,19 @@ export async function reorderMenu(items: MenuItem[]): Promise<void> {
   await Promise.all(
     items.map((it, i) => supabase.from('menu_items').update({ sort_order: i, updated_at: ts }).eq('id', it.id)),
   );
+}
+
+/** A course's related items as saved: only complete rows (a chosen product, or a
+ *  link with a title and an http(s) address); null when there are none. */
+function cleanRelated(draft: MenuDraft): RelatedItems | null {
+  if (draft.listing_kind !== 'digital' || !draft.is_course || draft.is_club || !draft.related_items) return null;
+  const items = draft.related_items.items.flatMap((it): RelatedItem[] => {
+    if (it.type === 'listing') return it.listing_id ? [{ type: 'listing' as const, listing_id: it.listing_id.toLowerCase() }] : [];
+    const url = it.url.trim(), label = it.label.trim();
+    if (!label || !/^https?:\/\//i.test(url)) return [];
+    return [{ type: 'link' as const, label, url, image_url: it.image_url?.trim() || undefined,
+      subtitle: it.subtitle?.trim() || undefined, button_label: it.button_label?.trim() || undefined }];
+  });
+  if (!items.length) return null;
+  return { heading: draft.related_items.heading?.trim() || undefined, items };
 }

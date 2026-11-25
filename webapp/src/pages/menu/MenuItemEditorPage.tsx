@@ -9,9 +9,9 @@ import {
 } from '../../lib/menu';
 import { listRecipes } from '../../lib/data';
 import { formatMoney, fromLocalInput, parseNumber, toDateInput, toDateTimeInput } from '../../lib/format';
-import type { ListingKind } from '../../lib/types';
+import type { ListingKind, RelatedItem } from '../../lib/types';
 import { isBasic } from '../../lib/plans';
-import { blocksFromRow } from '../../lib/contentBlocks';
+import { blocksFromRow, uploadContentImage } from '../../lib/contentBlocks';
 import { loadFeaturedCard, setFeaturedCard } from '../../lib/sections';
 import { closeSpace } from '../../lib/courses';
 import { ContentBlocksField, ContentBlocksPreview } from '../../components/ContentBlocksEditor';
@@ -23,7 +23,7 @@ const isFood = (k: ListingKind) => k === 'ready_now' || k === 'preorder' || k ==
 
 function emptyDraft(kind: ListingKind): MenuDraft {
   return {
-    name: '', item_description: '', content_blocks: [], is_course: false, addon_offer: null, is_club: false, club_interval: null, presale_release: '', presale_order_by: '', sell_limit: null, category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
+    name: '', item_description: '', content_blocks: [], is_course: false, addon_offer: null, related_items: null, is_club: false, club_interval: null, presale_release: '', presale_order_by: '', sell_limit: null, category: '', unit: 'pieces', price: 0, is_active: true, is_listed: true,
     listing_kind: kind, available_qty_today: 0, lead_days: 2, preorder_mode: 'fixed_dates', preorder_dates: [],
     preorder_weekday: 6, preorder_cutoff: null, delivery_mode: 'default', delivery_fee: 0, accepts_buyer_note: false,
     allergens: '', lead_time_note: '', shipping_fee: 0, intake_form_id: null, recipe_ids: [], recipe_names: [],
@@ -35,7 +35,7 @@ function emptyDraft(kind: ListingKind): MenuDraft {
 function draftFrom(m: MenuItemFull, profileDelivery: boolean, siteListingId: string | null | undefined): MenuDraft {
   return {
     name: m.name, item_description: m.item_description, content_blocks: blocksFromRow(m.content_blocks), is_course: !!m.is_course,
-    addon_offer: m.addon_offer ?? null, is_club: !!m.is_club, club_interval: m.club_interval ?? null,
+    addon_offer: m.addon_offer ?? null, related_items: m.related_items ?? null, is_club: !!m.is_club, club_interval: m.club_interval ?? null,
     presale_release: m.presale_release_at && Date.parse(m.presale_release_at) > Date.now() ? toDateInput(m.presale_release_at) : '',
     presale_order_by: m.presale_release_at && Date.parse(m.presale_release_at) > Date.now() ? toDateInput(m.presale_order_by) : '',
     sell_limit: m.sell_limit ?? null,
@@ -530,6 +530,58 @@ export function MenuItemEditorPage() {
               })()}
             </Card>
           )}
+
+          {kind === 'digital' && d.is_course && !d.is_club && (() => {
+            const rel = d.related_items ?? { items: [] };
+            const setItems = (items: RelatedItem[]) => set('related_items', { ...rel, items });
+            const choices = (items.data ?? []).filter((m) => m.id !== existing?.id && m.listing_kind !== 'custom');
+            return (
+              <Card title="Goes with this course">
+                <p className="small muted">Supplies and extras shown under the course on your storefront and on its page — your own products, or links to another site (like the cutter set for a class).</p>
+                <Field label="Heading"><Input value={rel.heading ?? ''} placeholder="Goes with this course" onChange={(e) => set('related_items', { ...rel, heading: e.target.value })} /></Field>
+                {rel.items.map((it, i) => {
+                  const upd = (p: Partial<RelatedItem>) => setItems(rel.items.map((x, j) => (j === i ? ({ ...x, ...p } as RelatedItem) : x)));
+                  const remove = () => setItems(rel.items.filter((_, j) => j !== i));
+                  return (
+                    <div key={i} className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: 12, marginTop: 12 }}>
+                      {it.type === 'listing' ? (
+                        <Field label="Your product">
+                          <Select value={it.listing_id} onChange={(e) => upd({ listing_id: e.target.value })}>
+                            <option value="">Choose a product…</option>
+                            {choices.map((m) => <option key={m.id} value={m.id}>{m.name} — {formatMoney(m.default_price)}</option>)}
+                          </Select>
+                        </Field>
+                      ) : (
+                        <>
+                          <Field label="Title"><Input value={it.label} placeholder="Cutter set for this workshop" onChange={(e) => upd({ label: e.target.value })} /></Field>
+                          <Field label="Link"><Input type="url" value={it.url} placeholder="https://…" onChange={(e) => upd({ url: e.target.value })} /></Field>
+                          <Field label="Note (optional)"><Input value={it.subtitle ?? ''} placeholder="The set of 5 cutters used in class" onChange={(e) => upd({ subtitle: e.target.value })} /></Field>
+                          <Field label="Button (optional)"><Input value={it.button_label ?? ''} placeholder="Shop" onChange={(e) => upd({ button_label: e.target.value })} /></Field>
+                          <Field label="Photo (optional)">
+                            <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+                              {it.image_url && <img src={it.image_url} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 12 }} />}
+                              <input type="file" accept="image/*" onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                try { upd({ image_url: await uploadContentImage(userId, file) }); }
+                                catch (err) { toast(err instanceof Error ? err.message : 'Upload failed'); }
+                              }} />
+                              {it.image_url && <Button type="button" variant="ghost" onClick={() => upd({ image_url: undefined })}>Remove</Button>}
+                            </div>
+                          </Field>
+                        </>
+                      )}
+                      <div><Button type="button" variant="ghost" onClick={remove}>Remove</Button></div>
+                    </div>
+                  );
+                })}
+                <div className="row" style={{ gap: 8, marginTop: 12 }}>
+                  <Button type="button" variant="secondary" onClick={() => setItems([...rel.items, { type: 'listing', listing_id: '' }])}>Add a product</Button>
+                  <Button type="button" variant="secondary" onClick={() => setItems([...rel.items, { type: 'link', label: '', url: '' }])}>Add a link</Button>
+                </div>
+              </Card>
+            );
+          })()}
 
           {(kind === 'physical' || (kind === 'digital' && !d.is_club)) && (
             <Card title="Options">
