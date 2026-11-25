@@ -65,6 +65,7 @@ export function OrderEditorPage() {
     set('items', [...draft!.items, {
       custom_name: m.name, quantity: 1, unit: m.unit || 'pieces', price_per_unit: m.default_price,
       notes: '', menu_item_id: m.id, recipe_id: m.recipe_ids?.[0] ?? m.recipe_id ?? null,
+      recipe_ids: m.recipe_ids?.length ? m.recipe_ids : m.recipe_id ? [m.recipe_id] : [],
     }]);
   }
 

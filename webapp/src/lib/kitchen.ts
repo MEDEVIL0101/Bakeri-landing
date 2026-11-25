@@ -9,7 +9,7 @@ export const ML_PER: Record<string, number> = {
   cup: 236.588, tbsp: 14.7868, tsp: 4.92892, 'fl oz': 29.5735, pt: 473.176, qt: 946.353, ml: 1, L: 1000, pinch: 0.3,
 };
 export const GRAMS_PER: Record<string, number> = { g: 1, kg: 1000, oz: 28.3495, lb: 453.592 };
-export const isWeightUnit = (u: string) => u === 'g' || u === 'kg' || u === 'lb';
+export const isWeightUnit = (u: string) => u === 'g' || u === 'kg' || u === 'oz' || u === 'lb';
 // 'each' = bought by the piece, shown as "units" ("$4.50 for 12 units" — eggs,
 // packets); it costs recipe ingredients counted with no unit ("2 Egg").
 // iOS IngredientCost.eachRaw.
@@ -136,7 +136,7 @@ export async function deleteCustomDensity(id: string): Promise<void> {
 // ── Cost of goods (IngredientCost.swift Order extension) ──────────────────
 
 export interface CostingRecipe { id: string; name: string; yield_quantity: number; yield_unit: string; ingredients: RecipeIngredientLite[] }
-export interface CostingItem { recipe_id: string | null; menu_item_id?: string | null; custom_name: string; quantity: number; unit: string }
+export interface CostingItem { recipe_id: string | null; recipe_ids?: string[] | null; menu_item_id?: string | null; custom_name: string; quantity: number; unit: string }
 /** A listing's linked recipes, for order items that have no recipe of their own. */
 export interface CostingListing { id: string; name: string; recipe_id: string | null; recipe_ids: string[] | null }
 export interface IngredientAmount { ingredient: string; grams: number; count: number; cost: number; hasCost: boolean }
@@ -160,6 +160,9 @@ export async function listCostingListings(userId: string): Promise<CostingListin
  *  iOS OrderRecipeResolver — keep in step. */
 function itemRecipes(item: CostingItem, byId: Map<string, CostingRecipe>, byName: Map<string, CostingRecipe>,
   listingById: Map<string, CostingListing>, listingByName: Map<string, CostingListing>): CostingRecipe[] {
+  // Several recipes on the line (cookie + icing) — order_items.recipe_ids.
+  const several = (item.recipe_ids ?? []).map((id) => byId.get(id.toLowerCase())).filter((r): r is CostingRecipe => !!r);
+  if (several.length > 1) return several;
   const own = item.recipe_id && byId.get(item.recipe_id.toLowerCase());
   if (own) return [own];
   const key = item.custom_name.toLowerCase();

@@ -95,7 +95,7 @@ function Report({ orders, recipes, costs, listings, packaging }: { orders: Order
   const costOf = useMemo(() => {
     const cache = new Map<string, ReturnType<typeof ingredientAmounts>>();
     return (o: Order) => {
-      if (!cache.has(o.id)) cache.set(o.id, ingredientAmounts((o.order_items ?? []).map((i) => ({ recipe_id: i.recipe_id, menu_item_id: i.menu_item_id, custom_name: i.custom_name, quantity: i.quantity, unit: i.unit })), recipes, costs, listings));
+      if (!cache.has(o.id)) cache.set(o.id, ingredientAmounts((o.order_items ?? []).map((i) => ({ recipe_id: i.recipe_id, recipe_ids: i.recipe_ids, menu_item_id: i.menu_item_id, custom_name: i.custom_name, quantity: i.quantity, unit: i.unit })), recipes, costs, listings));
       return cache.get(o.id)!;
     };
   }, [recipes, costs, listings]);

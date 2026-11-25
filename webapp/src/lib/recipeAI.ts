@@ -26,7 +26,7 @@ const SCHEMA = `{
   "instructions": "Step 1: ...\\nStep 2: ...\\nStep 3: ...",
   "notes": "string",
   "tags": ["string"],
-  "ingredients": [{"name": "string", "amount": number, "unit": "cup|tbsp|tsp|pinch|g|kg|fl oz|ml|L|none"}]
+  "ingredients": [{"name": "string", "amount": number, "unit": "cup|tbsp|tsp|pinch|g|kg|oz|lb|fl oz|ml|L|none"}]
 }`;
 
 const RULES = `Rules:
@@ -34,9 +34,10 @@ const RULES = `Rules:
 - Ingredient "name" should be the base ingredient only — omit preparation words. Examples: "nutmeg" (not "freshly grated nutmeg"), "butter" (not "cold unsalted butter").
 - Use the exact sugar type written in the recipe. If it says "sugar", use "sugar". Only use "brown sugar", "caster sugar", "icing sugar", etc. if the recipe explicitly says so.
 - Use "pinch" as the unit when the recipe calls for a pinch of something.
+- "oz" is ounces by weight; use "fl oz" only for fluid ounces of a liquid.
 - Return only the JSON object — no markdown fences, no explanation.`;
 
-const UNITS = new Set(['cup', 'tbsp', 'tsp', 'pinch', 'g', 'kg', 'lb', 'fl oz', 'ml', 'L', 'none', 'pt', 'qt']);
+const UNITS = new Set(['cup', 'tbsp', 'tsp', 'pinch', 'g', 'kg', 'oz', 'lb', 'fl oz', 'ml', 'L', 'none', 'pt', 'qt']);
 
 async function blobToBase64(b: Blob): Promise<string> {
   const buf = new Uint8Array(await b.arrayBuffer());

@@ -160,6 +160,8 @@ export interface ItemDraft {
   notes: string;
   menu_item_id: string | null;
   recipe_id: string | null;
+  /** Every recipe on the line; undefined = leave the saved list alone. */
+  recipe_ids?: string[];
 }
 
 /**
@@ -226,6 +228,7 @@ export async function saveOrder(userId: string, draft: OrderDraft, existing?: Or
       notes: i.notes,
       menu_item_id: i.menu_item_id,
       recipe_id: i.recipe_id,
+      ...(i.recipe_ids ? { recipe_ids: i.recipe_ids } : {}),
       updated_at: ts,
       deleted_at: null,
     }));

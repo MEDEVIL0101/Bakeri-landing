@@ -19,6 +19,8 @@ export interface Profile {
   selected_theme: string | null;
   /** BackgroundPattern rawValue. */
   background_pattern: string | null;
+  /** What the vendor pays themselves per hour (migration 20261125000002). */
+  hourly_wage?: number | null;
 }
 
 export type OrderStatus =
@@ -32,6 +34,8 @@ export type MarketplaceStatus =
 export interface Order {
   id: string;
   user_id: string;
+  /** Time the vendor spent on it, minutes (migration 20261125000002). */
+  labor_minutes?: number | null;
   order_name: string;
   customer_name: string;
   customer_phone: string;
@@ -90,6 +94,8 @@ export interface OrderItem {
   user_id: string;
   order_id: string;
   recipe_id: string | null;
+  /** Every recipe on the line (migration 20261125000002); recipe_id is the first. */
+  recipe_ids?: string[] | null;
   menu_item_id: string | null;
   custom_name: string;
   quantity: number;

@@ -11,7 +11,7 @@ type Mode = 'convert' | 'scale' | 'timers';
 
 const VOLUME = ['cup', 'tbsp', 'tsp', 'fl oz', 'pt', 'qt', 'ml', 'L'];
 const WEIGHT = ['g', 'kg', 'oz', 'lb'];
-const RECIPE_UNITS = ['g', 'kg', 'lb', 'cup', 'tbsp', 'tsp', 'pinch', 'fl oz', 'pt', 'qt', 'ml', 'L', 'none'];
+const RECIPE_UNITS = ['g', 'kg', 'oz', 'lb', 'cup', 'tbsp', 'tsp', 'pinch', 'fl oz', 'pt', 'qt', 'ml', 'L', 'none'];
 
 const short = (n: number) => (Math.abs(n) >= 100 ? Math.round(n).toString() : Math.abs(n) >= 10 ? n.toFixed(1).replace(/\.0$/, '') : n.toFixed(2).replace(/\.?0+$/, ''));
 

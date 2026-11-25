@@ -8,7 +8,7 @@ import { parseNumber } from '../../lib/format';
 import { densityFor, extractRecipe, type ImportedRecipe } from '../../lib/recipeAI';
 
 // Raw values of VolumeUnit / YieldUnit (Models/Enums.swift).
-const VOLUME_UNITS = ['cup', 'tbsp', 'tsp', 'fl oz', 'pt', 'qt', 'ml', 'L', 'g', 'kg', 'lb', 'pinch', 'none'];
+const VOLUME_UNITS = ['cup', 'tbsp', 'tsp', 'fl oz', 'pt', 'qt', 'ml', 'L', 'g', 'kg', 'oz', 'lb', 'pinch', 'none'];
 const YIELD_UNITS = ['servings', 'pieces', 'dozen', 'cookies', 'bars', 'brownies', 'shortbreads', 'biscotti', 'cakes', 'cupcakes', '6-inch cakes', '8-inch cakes', '9-inch cakes', '10-inch cakes', 'sheet cakes', 'bundt cakes', 'cheesecakes', 'cake pops', 'pies', '6-inch pies', '8-inch pies', '9-inch pies', '10-inch pies', 'mini pies', 'tarts', 'mini tarts', 'muffins', 'scones', 'croissants', 'donuts', 'eclairs', 'macarons', 'truffles', 'crepes', 'waffles', 'pancakes', 'loaves', 'rolls', 'buns', 'bagels', 'pretzels', 'biscuits', 'breadsticks'];
 
 export function RecipeEditorPage() {
