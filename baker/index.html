@@ -1175,7 +1175,8 @@
   // 6 stays right for it.
   const DIGITAL_PREVIEW_COUNT = 6;
   const PHYSICAL_PREVIEW_COUNT = 10;
-  let digitalExpanded = false;
+  let digitalExpanded = {}; // { [section slug | 'all']: true } once "View all" tapped
+  let digTab = 'all';        // the downloads section chip in view
   let physicalExpanded = {}; // { [categorySlug]: true } once "View all" tapped
   // Digital downloads have their own tiny cart — just a set of item ids
   // (qty is always 1, no dates/tiers/variants to track) — kept separate
@@ -3031,27 +3032,41 @@
       return;
     }
 
-    const collapsible = items.length > DIGITAL_PREVIEW_COUNT;
-    if (physOn || collapsible) {
+    // Sections (2+): chips jump straight to one section (Harvey 2026-11-25) —
+    // its first few, then "View all" for the rest of that section. "All" is
+    // every section in order, first few, then "View all".
+    const groups = sectionGroups(items, 'More');
+    if (!groups || (digTab !== 'all' && !groups.some(function (g) { return g.slug === digTab; }))) digTab = 'all';
+    const tabGroup = groups && digTab !== 'all' ? groups.find(function (g) { return g.slug === digTab; }) : null;
+    const pool = tabGroup ? tabGroup.items : items;
+    const collapsible = pool.length > DIGITAL_PREVIEW_COUNT;
+    const showChips = !!groups && items.length > DIGITAL_PREVIEW_COUNT;
+    const expanded = !!digitalExpanded[digTab];
+    if (physOn || collapsible || showChips) {
       const head = document.createElement('div');
       head.className = 'sf-dl-head';
       head.innerHTML = '<div class="titles">' +
         (physOn ? '<h3>Digital downloads</h3>' : '') +
-        '<span class="sf-sub">Instant download · ' + items.length + ' design' + (items.length === 1 ? '' : 's') + '</span></div>';
+        '<span class="sf-sub">Instant download · ' + items.length + ' design' + (items.length === 1 ? '' : 's') + '</span></div>' +
+        (showChips ? '<div class="sf-chips">' + [{ slug: 'all', category: 'All' }].concat(groups).map(function (g) {
+          return '<button type="button" class="sf-chip' + (g.slug === digTab ? ' active' : '') + '" data-slug="' + escapeHtml(g.slug) + '">' + escapeHtml(g.category) + '</button>';
+        }).join('') + '</div>' : '');
+      head.querySelectorAll('.sf-chip').forEach(function (btn) {
+        btn.addEventListener('click', function () { digTab = btn.dataset.slug; renderDigitalFeed(); });
+      });
       wrap.appendChild(head);
     }
 
     const list = document.createElement('div');
     list.className = 'sf-dl-list';
-    if (!physOn && !collapsible) list.style.paddingTop = 'var(--cpad2)';
-    // In section order (with a heading per section once there are 2+);
-    // the collapsed preview is the first few of that order.
-    const groups = sectionGroups(items, 'More');
-    const ordered = groups ? [].concat.apply([], groups.map(function (g) { return g.items; })) : items;
-    const shown = (collapsible && !digitalExpanded) ? ordered.slice(0, DIGITAL_PREVIEW_COUNT) : ordered;
+    if (!physOn && !collapsible && !showChips) list.style.paddingTop = 'var(--cpad2)';
+    // In section order (with a heading per section once there are 2+, unless
+    // one section's chip is picked); the collapsed preview is the first few.
+    const ordered = tabGroup ? tabGroup.items : groups ? [].concat.apply([], groups.map(function (g) { return g.items; })) : items;
+    const shown = (collapsible && !expanded) ? ordered.slice(0, DIGITAL_PREVIEW_COUNT) : ordered;
     let lastGroup = null;
     shown.forEach(function (item) {
-      if (groups) {
+      if (groups && !tabGroup) {
         const g = groups.find(function (x) { return x.items.indexOf(item) !== -1; });
         if (g !== lastGroup) {
           lastGroup = g;
@@ -3071,11 +3086,11 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'sf-dl-morebtn';
-      btn.innerHTML = (digitalExpanded ? 'Show fewer' : 'View all ' + items.length + ' downloads') + (digitalExpanded ? '' : ' ' + ARROW_SVG);
+      btn.innerHTML = (expanded ? 'Show fewer' : 'View all ' + pool.length + (tabGroup ? ' in ' + escapeHtml(tabGroup.category) : ' downloads')) + (expanded ? '' : ' ' + ARROW_SVG);
       btn.addEventListener('click', function () {
-        digitalExpanded = !digitalExpanded;
+        digitalExpanded[digTab] = !expanded;
         renderDigitalFeed();
-        if (!digitalExpanded) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (expanded) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
       more.appendChild(btn);
       wrap.appendChild(more);
