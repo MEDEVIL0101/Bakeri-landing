@@ -155,7 +155,10 @@
       position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px;
       padding: var(--proftop) 0 8px; text-align: center;
     }
-    #sf-top-actions { position: absolute; top: 0; right: 0; display: flex; gap: 8px; z-index: 2; }
+    #sf-top-actions { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: flex-end; gap: 8px; z-index: 2; pointer-events: none; }
+    #sf-top-actions > * { pointer-events: auto; }
+    /* Share sits on its own at the left, Log in / sign-up / cart on the right (Harvey 2026-11-25: balance). */
+    #sf-top-actions #share-btn { order: -1; margin-right: auto; }
     .sf-pill-btn {
       height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; gap: 8px;
       padding: 0 16px; border: 0; background: #fff; border-radius: var(--rp); box-shadow: var(--shadow-md);
