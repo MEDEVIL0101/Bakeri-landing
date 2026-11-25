@@ -19,11 +19,21 @@ export async function sendOrderText(orderId: string, message: string): Promise<O
 }
 
 export async function loadTextingOn(userId: string): Promise<boolean> {
-  return !!(check(await supabase.from('profiles').select('sms_enabled').eq('id', userId).single()) as { sms_enabled: boolean }).sms_enabled;
+  return (await loadTexting(userId)).on;
+}
+
+/** profiles.sms_enabled + sms_reply_phone (the number customers text her on). */
+export async function loadTexting(userId: string): Promise<{ on: boolean; replyPhone: string }> {
+  const r = check(await supabase.from('profiles').select('sms_enabled, sms_reply_phone').eq('id', userId).single()) as { sms_enabled: boolean; sms_reply_phone: string | null };
+  return { on: !!r.sms_enabled, replyPhone: r.sms_reply_phone ?? '' };
 }
 
 export async function setTextingOn(userId: string, on: boolean): Promise<void> {
   check(await supabase.from('profiles').update({ sms_enabled: on }).eq('id', userId));
+}
+
+export async function setReplyPhone(userId: string, phone: string): Promise<void> {
+  check(await supabase.from('profiles').update({ sms_reply_phone: phone.trim() || null }).eq('id', userId));
 }
 
 /** Friendly words for send-order-text's error codes. */

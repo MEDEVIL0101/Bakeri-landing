@@ -50,3 +50,9 @@ export async function validTwilioSignature(url: string, params: URLSearchParams,
 
 export const STOP_WORDS = ["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "REVOKE"];
 export const START_WORDS = ["START", "UNSTOP", "YES"];
+
+/** "(717) 555-0123" for a +1 number, else the E.164 as is. */
+export function prettyPhone(e164: string): string {
+  const m = e164.match(/^\+1(\d{3})(\d{3})(\d{4})$/);
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : e164;
+}

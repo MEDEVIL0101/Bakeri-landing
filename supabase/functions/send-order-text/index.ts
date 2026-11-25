@@ -1,9 +1,11 @@
 // The baker texts the customer on an order, from the shared Bakerï number:
-// "<Shop>: <message>". The first text to a number adds "Reply STOP to opt out".
+// "<Shop>: <message>", ending with how to reach the baker directly (her number,
+// else her storefront link) — the number is send-only. The first text to a
+// number adds "Reply STOP to opt out".
 // POST { order_id, message } with the baker's JWT. Stored in order_texts.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { normalizePhone, sendSms, smsConfigured } from "../_shared/sms.ts";
+import { normalizePhone, prettyPhone, sendSms, smsConfigured } from "../_shared/sms.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -31,7 +33,7 @@ Deno.serve(async (req) => {
     const db = createClient(SUPABASE_URL, SERVICE_KEY);
     const { data: order } = await db.from("orders").select("id, user_id, customer_phone").eq("id", order_id).maybeSingle();
     if (!order || order.user_id !== user.id) return fail("not_found", 404);
-    const { data: shop } = await db.from("profiles").select("business_name, user_name, sms_enabled").eq("id", user.id).single();
+    const { data: shop } = await db.from("profiles").select("business_name, user_name, sms_enabled, sms_reply_phone, profile_slug").eq("id", user.id).single();
     if (!shop?.sms_enabled) return fail("texting_off");
     const to = normalizePhone(order.customer_phone);
     if (!to) return fail("no_phone");
@@ -41,7 +43,12 @@ Deno.serve(async (req) => {
     const name = (shop.business_name || shop.user_name || "Your baker").trim();
     const { count } = await db.from("order_texts").select("id", { count: "exact", head: true })
       .eq("customer_phone", to).eq("direction", "out");
-    const body = `${name}: ${text}` + (count ? "" : "\n\nReply to text back. Reply STOP to opt out.");
+    const first = String(shop.user_name || "").trim().split(/\s+/)[0] || name;
+    const reply = normalizePhone(shop.sms_reply_phone);
+    const contact = reply
+      ? `Questions? Text ${first} at ${prettyPhone(reply)}`
+      : shop.profile_slug ? `Questions? Visit bakeriapp.com/${shop.profile_slug}` : "";
+    const body = `${name}: ${text}` + (contact ? `\n\n${contact}` : "") + (count ? "" : "\nReply STOP to opt out.");
     const sent = await sendSms(to, body);
     const { data: row, error } = await db.from("order_texts").insert({
       order_id, user_id: user.id, direction: "out", body: text, customer_phone: to, twilio_sid: sent.sid, status: sent.status,
