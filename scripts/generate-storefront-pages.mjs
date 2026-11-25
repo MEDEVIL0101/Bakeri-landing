@@ -108,7 +108,7 @@ async function fetchProfile(slug) {
 }
 
 // ── page template ────────────────────────────────────────────────────────────
-function renderPage({ slug, profile, listings, ogImage }) {
+function renderPage({ slug, profile, listings, ogImage, shareCard }) {
   const name = (profile.business_name || profile.user_name || "This baker").trim();
   const locality = [profile.neighbourhood || profile.pickup_city, profile.pickup_province]
     .filter(Boolean).join(", ");
@@ -166,11 +166,13 @@ ${GENERATED_MARKER}
   <meta property="og:title" content="${attr(name)}" />
   <meta property="og:description" content="${attr(description)}" />
   <meta property="og:url" content="${attr(canonical)}" />
-  <meta property="og:image" content="${attr(ogImage)}" />
+  <meta property="og:image" content="${attr(shareCard)}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${attr(name)}" />
   <meta name="twitter:description" content="${attr(description)}" />
-  <meta name="twitter:image" content="${attr(ogImage)}" />
+  <meta name="twitter:image" content="${attr(shareCard)}" />
 
   <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#241A14" media="(prefers-color-scheme: dark)" />
@@ -222,7 +224,12 @@ for (const slug of slugs) {
     const data = await fetchProfile(slug);
     if (!data) { failed.push(`${slug} (no profile from RPC)`); continue; }
     const ogImage = await pickOgImage(data.profile.id, data.profile.updated_at);
-    const html = renderPage({ slug, profile: data.profile, listings: data.listings, ogImage });
+    // Link previews: the share card (photo, logo, name in her font, bio — the
+    // storefront-share-card edge function), versioned by the last publish so a
+    // redesign shows up in new shares. Search (JSON-LD) keeps the plain photo.
+    const stamp = data.profile.updated_at ? Date.parse(data.profile.updated_at) : 0;
+    const shareCard = `${SUPABASE_URL}/functions/v1/storefront-share-card?slug=${encodeURIComponent(slug)}${stamp ? `&v=${stamp}` : ""}`;
+    const html = renderPage({ slug, profile: data.profile, listings: data.listings, ogImage, shareCard });
     const dir = join(ROOT, slug);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "index.html"), html);
