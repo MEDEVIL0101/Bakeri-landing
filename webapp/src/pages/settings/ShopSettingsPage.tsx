@@ -7,6 +7,7 @@ import {
 } from '../../lib/account';
 import { listMenuItems } from '../../lib/menu';
 import { parseNumber } from '../../lib/format';
+import { TextingCard } from './TextingCard';
 
 export function ShopSettingsPage() {
   const userId = useUserId();
@@ -19,6 +20,7 @@ export function ShopSettingsPage() {
       <SlugCard userId={userId} s={data.data} onSaved={data.reload} />
       <PickupCard userId={userId} s={data.data} />
       <ShippingCard userId={userId} s={data.data} />
+      <TextingCard />
     </div>
   );
 }

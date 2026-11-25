@@ -13,6 +13,7 @@ import { StorefrontActions } from './StorefrontActions';
 import { FormAnswers } from './FormAnswers';
 import { OrderPackagingCard } from './OrderPackagingCard';
 import { OrderFinancialsCard } from './OrderFinancialsCard';
+import { OrderTextsCard } from './OrderTextsCard';
 import { OrderVendorNotesCard } from './OrderVendorNotesCard';
 import { useUserId } from '../../auth/AuthProvider';
 import { addOrderContact, hasContact } from '../../lib/data';
@@ -68,6 +69,7 @@ export function OrderDetailPage() {
           )}
           {storefront && <OrderVendorNotesCard userId={order.user_id} orderId={order.id} />}
           {order.buyer_profile_id && <OrderMessages order={order} userId={order.user_id} />}
+          <OrderTextsCard order={order} />
         </div>
 
         <div className="stack-lg">
