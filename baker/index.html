@@ -300,6 +300,11 @@
     .sf-tile-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
     .sf-tile-name { font-size: 15px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .sf-tile-meta { font-size: 12px; color: var(--card-muted, var(--n700)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    /* Pre-orders / pre-sales: when it's ready is the point — larger, bold, in
+       the card's title colour, with a calendar mark (Harvey 2026-11-25). */
+    .sf-tile-meta.sf-tile-when { font-size: 13.5px; font-weight: 800; color: var(--card-title, var(--head-ink)); }
+    .sf-tile-wide .sf-tile-meta.sf-tile-when { font-size: 15px; }
+    .sf-tile-when svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 5px; }
     .sf-price-row { margin-top: auto; padding-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .sf-price { font-size: 18px; font-weight: 800; color: var(--card-title, var(--head-ink)); }
     .sf-price .from { font-size: 12px; font-weight: 600; margin-right: 4px; color: var(--card-muted, var(--n700)); }
@@ -2745,7 +2750,16 @@
       body.innerHTML = '<div class="empty-state">No items in this category.</div>';
       return;
     }
-    const groups = sectionGroups(listings, 'More');
+    // "All" with 2+ kinds: a heading per kind — Ready Now, Pre-orders, Custom
+    // Orders (Harvey 2026-11-25) — each kind in the shop's section order.
+    // Otherwise the shop's own sections head the grid.
+    const kindLabels = [['ready_now', 'Ready Now'], ['preorder', 'Pre-orders'], ['custom', 'Custom Orders']];
+    const kindGroups = kindLabels.map(function (k) {
+      const mine = listings.filter(function (l) { return l.listing_kind === k[0]; });
+      const sec = sectionGroups(mine, 'More');
+      return { category: k[1], items: sec ? [].concat.apply([], sec.map(function (g) { return g.items; })) : mine };
+    }).filter(function (g) { return g.items.length > 0; });
+    const groups = kindGroups.length >= 2 ? kindGroups : sectionGroups(listings, 'More');
     if (!groups) {
       const grid = document.createElement('div');
       grid.className = 'sf-grid';
@@ -3932,7 +3946,7 @@
   // isn't labelled: the cards already group items by kind.
   function tileBadge(item) {
     if (presaleOn(item)) return isSoldOut(item) ? (presaleClosed(item) ? 'Pre-orders closed' : 'Sold out') : 'Pre-sale';
-    if (!isSoldOut(item)) return null;
+    if (!isSoldOut(item)) return item.listing_kind === 'preorder' ? 'Pre-order' : null;
     if (item.listing_kind === 'preorder') return 'Ordering closed';
     if (item.listing_kind === 'ready_now') return 'Sold out today';
     return 'Sold out';
@@ -3974,6 +3988,10 @@
       const metaEl = document.createElement('span');
       metaEl.className = 'sf-tile-meta';
       metaEl.textContent = meta;
+      if (item.listing_kind === 'preorder' || presaleOn(item)) {
+        metaEl.classList.add('sf-tile-when');
+        metaEl.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>');
+      }
       body.appendChild(metaEl);
     }
     const priceRow = document.createElement('div');
