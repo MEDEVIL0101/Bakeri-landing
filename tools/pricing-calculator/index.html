@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>What Should I Charge? — Free bakery pricing calculator | Bakerï</title>
+<link rel="canonical" href="https://bakeriapp.com/tools/pricing-calculator/" />
+<meta name="description" content="A free pricing calculator for home bakers: ingredient costs, batching, your time and your target wage, turned into the price you should charge." />
+<link rel="icon" type="image/png" href="../../assets/site-v3/logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../assets/site-v3/for-creators-v3.css?v=17" />
+<style>
+/* Pricing calculator page — additions on top of for-creators-v3.css, same tokens */
+.calc-hero{padding-bottom:28px}
+.calc-hero .hx{font-size:clamp(42px,5.4vw,80px)}
+.calc-hero .kick{margin-bottom:18px}
+.calc-hero .lede{max-width:56ch;margin:22px auto 0}
+.calc-hero .wrap{text-align:center}
+.calc-box{max-width:1040px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:28px;padding:10px;box-shadow:0 24px 60px rgba(17,17,17,.10)}
+.calc-box iframe{display:block;width:100%;height:min(920px,86vh);min-height:640px;border:0;border-radius:20px;background:#fafaf8}
+.calc-fine{max-width:62ch;margin:16px auto 0;text-align:center;font-size:14px;color:var(--ink-2)}
+.calc-how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;max-width:1040px;margin:0 auto}
+@media(max-width:820px){.calc-how{grid-template-columns:1fr}}
+.calc-how .step{background:#fff;border:1px solid var(--line);border-radius:22px;padding:26px 26px 28px}
+.calc-how .step b{display:block;font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.01em;margin-bottom:8px;color:var(--ink)}
+.calc-how .step p{margin:0;font-size:15.5px;line-height:1.55;color:var(--ink-2)}
+</style>
+</head>
+<body>
+<header class="nav" id="nav"><div class="wrap nav-in">
+<a href="../../for-creators.html" aria-label="Bakerï home"><img src="../../assets/site-v3/bakeri-wordmark.png" alt="Bakerï" /></a>
+<nav class="nav-links"><a href="#calculator">Calculator</a><a href="#how">How it works</a></nav>
+<div class="nav-auth"><a class="signin" href="https://bakeriapp.com/app/">Sign in</a><a class="btn" href="../../for-creators.html#trial">Sign up</a></div>
+</div></header>
+
+<section class="hero calc-hero" data-screen-label="Hero">
+<div class="wrap">
+<span class="kick">Free tool for bakers</span>
+<h1 class="hx"><span class="w">What should</span> <em class="sf"><span class="w">I charge?</span></em></h1>
+<p class="lede">Add your ingredients and what you paid, build your recipes, and set the wage you want to earn. It works out your real cost and the price to charge, batching included.</p>
+</div>
+</section>
+
+<section class="sec" id="calculator" data-screen-label="Calculator" style="padding-top:8px">
+<div class="wrap">
+<div class="calc-box">
+<iframe src="https://bizinbio.net/pac/#/a/0bXNtkAmlqen/frame" title="What Should I Charge? pricing calculator" allow="autoplay; fullscreen" loading="lazy"></iframe>
+</div>
+<p class="calc-fine">Free to use. What you enter stays in your browser.</p>
+</div>
+</section>
+
+<section class="sec sec-wash tint-purple" id="how" data-screen-label="How it works">
+<div class="wrap">
+<div class="sec-head center rv"><span class="kick">How it works</span><h2 class="h2">Price from your <em class="sf">real costs.</em></h2></div>
+<div class="calc-how rv">
+<div class="step"><b>Your ingredients</b><p>What you paid and how much you got. It costs only what each recipe actually uses.</p></div>
+<div class="step"><b>Your time</b><p>Each step's time, and how much one oven load or mixer batch can handle, so bigger orders aren't overcharged.</p></div>
+<div class="step"><b>Your wage</b><p>Set the hourly wage you want, your overheads and your margin. Get a price per item and for the whole order.</p></div>
+</div>
+</div>
+</section>
+
+<section class="sec sec-wash cta-band" data-screen-label="Get started">
+<div class="wrap rv">
+<span class="kick">Sell what you bake</span>
+<h2 class="h2">Know your price. <em class="sf">Then take the orders.</em></h2>
+<p class="lede">Bakerï gives home bakers a storefront, orders and payments in one place.</p>
+<div class="hero-cta"><a class="btn" href="../../for-creators.html#trial">Start free <span class="arw">→</span></a><a class="btn btn-line" href="../../for-creators.html">See how Bakerï works</a></div>
+</div>
+</section>
+
+<footer class="foot"><div class="wrap">
+<div class="foot-top">
+<img src="../../assets/site-v3/bakeri-wordmark.png" alt="Bakerï" />
+<nav class="foot-links"><a href="https://bakeriapp.com/app/">Sign in</a><a href="../../referral-program.html">Referral program</a><a href="mailto:hello@bakeriapp.com">Help</a><a href="../../privacy-policy.html">Privacy policy</a><a href="../../terms-of-service.html">Terms and conditions</a><a href="../../vendor-terms.html">Vendor terms</a></nav>
+</div>
+<div class="foot-bot"><span>© 2026 Bakerï — All rights reserved</span><span>Food sales must adhere to local food safety laws.</span></div>
+</div></footer>
+<script>
+const nav=document.getElementById('nav');const onS=()=>nav.classList.toggle('scrolled',scrollY>8);onS();addEventListener('scroll',onS,{passive:true});
+const hero=document.querySelector('.hero');
+document.querySelectorAll('.hx .w').forEach((w,i)=>{w.style.transitionDelay=(0.08+i*0.08)+'s'});
+requestAnimationFrame(()=>requestAnimationFrame(()=>hero.classList.add('play')));
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.15,rootMargin:'0px 0px -6% 0px'});
+document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
